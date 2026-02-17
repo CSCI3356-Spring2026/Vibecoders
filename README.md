@@ -183,3 +183,7 @@ User profiles should include: name, graduation year, contact information, bio, a
 
 - **Student:** Can browse listings, create sublet listings, manage their own listings, message other users, and report listings/users.
 - **Admin:** Can approve/reject listings, review reports, suspend users, and view summary statistics. Admins do not have access to Django admin; they use an in-app admin panel.
+
+# Other 
+
+Test text to fire a PR that will test CI/CD rules
