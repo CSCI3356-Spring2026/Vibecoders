@@ -156,34 +156,27 @@ Each app has its own subdirectory under `templates/`. For example, `templates/li
 
 Static files (CSS, JS, images) live in the `static/` directory. In templates, reference them using Django's `{% static %}` tag. The custom color scheme and any Bootstrap overrides go in `static/css/custom.css`.
 
-## Delivery 2 Scope
-@Team 
+## User Interface 
 
-Delivery 2 requires UI prototypes for the following pages. These do not need to be fully functional (no backend logic required), but must be uploaded to the repository as HTML/CSS using Bootstrap.
+Consistent custom tokens are in `static/css/custom.css`:
 
-| Page | Template | App |
-|------|----------|-----|
-| Landing Page | `templates/core/landing.html` | core |
-| Login / OAuth | `templates/users/login.html` | users |
-| User Profile | `templates/users/profile.html` | users |
-| User Dashboard | `templates/users/dashboard.html` | users |
-| Create Listing | `templates/listings/create_listing.html` | listings |
-| Listing Details | `templates/listings/listing_detail.html` | listings |
-| Search and Filter | `templates/listings/search.html` | listings |
+```css
+:root {
+  --primary-600: #4f46e5;
+  --primary-500: #6366f1;
+  --primary-100: #e0e7ff;
 
-### Listing Fields
+  --secondary-600: #0d9488;
+  --secondary-500: #14b8a6;
+  --secondary-100: #ccfbf1;
 
-Listings should include: address, price/rent, bedrooms, bathrooms, lease type (full lease, sublease, short-term/summer), duration (start and end dates), parking (yes/no), shared or private, pets allowed (yes/no), stairs/no stairs, utilities included, estimated utilities cost, security deposit, broker fee, application fee, pictures, description, and any additional requirements (smoker, cleanliness preferences, etc.).
+  --accent-500: #f59e0b;
 
-### User Profiles
-
-User profiles should include: name, graduation year, contact information, bio, and profile picture. Users must be verified through Google OAuth with a @bc.edu email.
-
-### Roles
-
-- **Student:** Can browse listings, create sublet listings, manage their own listings, message other users, and report listings/users.
-- **Admin:** Can approve/reject listings, review reports, suspend users, and view summary statistics. Admins do not have access to Django admin; they use an in-app admin panel.
-
-# Other 
-
-Test text to fire a PR that will test CI/CD rules
+  --gray-900: #111827;
+  --gray-700: #374151;
+  --gray-500: #6b7280;
+  --gray-300: #d1d5db;
+  --gray-100: #f3f4f6;
+  --white: #ffffff;
+}
+```
