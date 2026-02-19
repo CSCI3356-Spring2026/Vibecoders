@@ -83,8 +83,10 @@ When implementing UI, use Bootstrap 5 plus consistent custom tokens in `static/c
 }
 ```
 
-- Prioritize responsive layouts, semantic HTML, and accessible contrast.
-- Keep visual style consistent across all templates.
+**Typography**: 
+- Headings: Inter (700/600)
+- Body/UI: Inter (400/500)
+- Optional accent (quotes/hero tagline): Source Serif 4 (400/600 italic optional)
 
 ## 8) Done Checklist (For Agents)
 
