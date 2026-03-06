@@ -139,19 +139,21 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Custom user model
+AUTH_USER_MODEL = "users.CustomUser"
+
 # ALLAUTH SETTINGS
 # -----------------------------------------------------------------------------
 # These settings are required by allauth and are used to configure the authentication process
 SITE_ID = 1
 
 AUTHENTICATION_BACKENDS = [
-    "django.contrib.auth.backends.ModelBackend",  # Default
     "allauth.account.auth_backends.AuthenticationBackend",  # Allauth
 ]
 
-# Allauth config
-ACCOUNT_LOGIN_METHODS = {"email"}
-ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
+# Allauth config — regular signup/login disabled; Google OAuth only
+ACCOUNT_LOGIN_METHODS = {"email"}  # Required by allauth; actual blocking is via NoSignupAccountAdapter
+ACCOUNT_SIGNUP_FIELDS = ["email*"]  # No password fields; actual blocking is via NoSignupAccountAdapter
 ACCOUNT_EMAIL_VERIFICATION = "none"  # BC email is verified via Google
 SOCIALACCOUNT_AUTO_SIGNUP = True
 
@@ -169,4 +171,5 @@ SOCIALACCOUNT_PROVIDERS = {
     },
 }
 
+ACCOUNT_ADAPTER = "users.adapters.NoSignupAccountAdapter"
 SOCIALACCOUNT_ADAPTER = "users.adapters.BCEmailAdapter"
