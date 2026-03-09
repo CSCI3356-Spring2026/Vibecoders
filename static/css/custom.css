@@ -1,0 +1,33 @@
+:root {
+  --primary-600: #4f46e5;
+  --primary-500: #6366f1;
+  --primary-100: #e0e7ff;
+
+  --secondary-600: #0d9488;
+  --secondary-500: #14b8a6;
+  --secondary-100: #ccfbf1;
+
+  --accent-500: #f59e0b;
+
+  --gray-900: #111827;
+  --gray-700: #374151;
+  --gray-500: #6b7280;
+  --gray-300: #d1d5db;
+  --gray-100: #f3f4f6;
+  --white: #ffffff;
+}
+
+.custom-navbar {
+    background-color: var(--secondary-600) !important; /* Change the background color */
+    color: var(--gray-900) !important; /* Change the default text color for the navbar */
+}
+
+/* Target regular links */
+.custom-navbar a.nav-link {
+    color: var(--gray-900) !important;
+}
+
+/* Target links on hover */
+.custom-navbar a.nav-link:hover {
+    background-color: var(--secondary-100) !important; /* Change background color on hover */
+}
