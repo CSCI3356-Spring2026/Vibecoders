@@ -4,5 +4,9 @@ from . import views
 
 app_name = "listings"
 
-# temporary to test base.html
-urlpatterns = [path("", views.home, name="home")]
+urlpatterns = [
+    # Minimal current URLs
+    path("", views.search, name="search"),
+    path("detail/", views.listing_detail, name="detail"),
+    path("create/", views.create_listing, name="create"),
+]
