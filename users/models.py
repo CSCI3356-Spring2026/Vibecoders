@@ -2,11 +2,13 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 
 
+# Inital roles, Student or Admin
 class Role(models.TextChoices):
     STUDENT = "student", "Student"
     ADMIN = "admin", "Admin"
 
 
+# Custom user model with role support for Student/Admin distinction
 class CustomUser(AbstractUser):
     """Custom user model with role support for Student/Admin distinction."""
 
