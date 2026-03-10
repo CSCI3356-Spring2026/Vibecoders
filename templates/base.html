@@ -1,52 +1,174 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.4.1/dist/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
-	<link rel="stylesheet" href="../../static/css/custom.css">
-	<title></title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Vibecoders{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+    >
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+        integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr"
+        crossorigin="anonymous"
+    >
+    <style>
+        :root {
+            --primary-600: #4f46e5;
+            --primary-500: #6366f1;
+            --primary-100: #e0e7ff;
+            --secondary-600: #0d9488;
+            --secondary-500: #14b8a6;
+            --secondary-100: #ccfbf1;
+            --accent-500: #f59e0b;
+            --gray-900: #111827;
+            --gray-700: #374151;
+            --gray-500: #6b7280;
+            --gray-300: #d1d5db;
+            --gray-100: #f3f4f6;
+            --white: #ffffff;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: var(--gray-100);
+            color: var(--gray-900);
+            font-family: "Inter", sans-serif;
+        }
+
+        .site-shell {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .site-header,
+        .site-footer {
+            background: var(--primary-600);
+        }
+
+        .site-header {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .nav-row {
+            min-height: 5rem;
+        }
+
+        .nav-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+
+        .nav-button {
+            padding: 0.7rem 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--white);
+            font-size: 0.95rem;
+            font-weight: 600;
+            line-height: 1;
+            text-decoration: none;
+        }
+
+        .nav-button:hover {
+            background: rgba(255, 255, 255, 0.14);
+            color: var(--white);
+        }
+
+        .profile-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: var(--white);
+            text-decoration: none;
+        }
+
+        .profile-link:hover {
+            color: var(--white);
+        }
+
+        .profile-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.16);
+            font-weight: 700;
+        }
+
+        .profile-name {
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .page-wrap {
+            flex: 1;
+        }
+
+        .site-footer {
+            min-height: 3rem;
+        }
+
+        @media (max-width: 991.98px) {
+            .nav-row {
+                padding: 1rem 0;
+            }
+        }
+    </style>
 </head>
 <body>
-	<nav class="navbar navbar-expand-lg navbar-dark bg-dark custom-navbar">
-  		<div class="container-fluid">
-    		<a class="navbar-brand" href="#">Navbar</a>
-    		<button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
-      			<span class="navbar-toggler-icon"></span>
-    		</button>
-    		<div class="collapse navbar-collapse" id="navbarSupportedContent">
-      			<ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        			<li class="nav-item">
-          				<a class="nav-link active" aria-current="page" href="#">Home</a>
-        			</li>
-        			<li class="nav-item">
-          				<a class="nav-link" href="#">Link</a>
-        			</li>
-        			<li class="nav-item dropdown">
-          				<a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-            			Dropdown
-          				</a>
-          				<ul class="dropdown-menu">
-            				<li><a class="dropdown-item" href="#">Action</a></li>
-            				<li><a class="dropdown-item" href="#">Another action</a></li>
-            				<li><hr class="dropdown-divider"></li>
-            				<li><a class="dropdown-item" href="#">Something else here</a></li>
-          				</ul>
-        			</li>
-        			<li class="nav-item">
-          				<a class="nav-link disabled" aria-disabled="true">Disabled</a>
-        			</li>
-      			</ul>
-      			<form class="d-flex" role="search">
-        			<input class="form-control me-2" type="search" placeholder="Search" aria-label="Search"/>
-        			<button class="btn btn-outline-success" type="submit">Search</button>
-      			</form>
-    		</div>
-  		</div>
-	</nav>
+    <div class="site-shell">
+        <header class="site-header">
+            <div class="container">
+                <div class="nav-row d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
+                    <nav class="nav-actions">
+                        <a class="nav-button" href="/listings/">Listings</a>
+                        <a class="nav-button" href="/listings/create/">Posts</a>
+                        <a class="nav-button" href="/users/dashboard/">Documents</a>
+                        <a class="nav-button" href="/users/dashboard/#messages">Messages</a>
+                        <a class="nav-button" href="/users/profile/">Edit Profile</a>
+                    </nav>
+                    <a class="profile-link ms-lg-3" href="/users/profile/">
+                        <span class="profile-icon">
+                            {% if request.user.is_authenticated %}
+                                {{ request.user.username|slice:":1"|upper }}
+                            {% else %}
+                                G
+                            {% endif %}
+                        </span>
+                        <span class="profile-name">
+                            {% if request.user.is_authenticated %}
+                                {{ request.user.get_full_name|default:request.user.username }}
+                            {% else %}
+                                Guest User
+                            {% endif %}
+                        </span>
+                    </a>
+                </div>
+            </div>
+        </header>
 
-	<script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
-	<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
-	<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.4.1/dist/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
+        <main class="page-wrap">
+            {% block content %}{% endblock %}
+        </main>
+
+        <footer class="site-footer"></footer>
+    </div>
+
+    <script
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q"
+        crossorigin="anonymous"
+    ></script>
 </body>
 </html>

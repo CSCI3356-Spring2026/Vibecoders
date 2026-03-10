@@ -1,7 +1,14 @@
-# Create your views here.
 from django.shortcuts import render
 
 
-# temporary to test base.html
-def home(response):
-    return render(response, "base.html", {})
+# Minimal current views for listing-related pages
+def search(request):
+    return render(request, "listings/search.html")
+
+
+def listing_detail(request):
+    return render(request, "listings/listing_detail.html")
+
+
+def create_listing(request):
+    return render(request, "listings/create_listing.html")
