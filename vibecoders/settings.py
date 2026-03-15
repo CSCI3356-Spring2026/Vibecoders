@@ -157,7 +157,7 @@ ACCOUNT_SIGNUP_FIELDS = ["email*"]  # No password fields; actual blocking is via
 ACCOUNT_EMAIL_VERIFICATION = "none"  # BC email is verified via Google
 SOCIALACCOUNT_AUTO_SIGNUP = True
 
-LOGIN_REDIRECT_URL = "/"  # Where to go after login
+LOGIN_REDIRECT_URL = "/welcome/"  # Where to go after login
 LOGOUT_REDIRECT_URL = "/"  # Where to go after logout
 
 SOCIALACCOUNT_PROVIDERS = {

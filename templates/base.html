@@ -95,6 +95,12 @@
             color: var(--white);
         }
 
+        .profile-button {
+            background: transparent;
+            border: none;
+            padding: 0;
+        }
+
         .profile-icon {
             display: inline-flex;
             align-items: center;
@@ -132,29 +138,53 @@
             <div class="container">
                 <div class="nav-row d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3">
                     <nav class="nav-actions">
-                        <a class="nav-button" href="{% url 'listings:create_listing' %}">Create Listing</a>
-                        <a class="nav-button" href="/listings/">Listings</a>
-                        <a class="nav-button" href="/listings/create/">Posts</a>
-                        <a class="nav-button" href="/users/dashboard/">Documents</a>
-                        <a class="nav-button" href="/users/dashboard/#messages">Messages</a>
-                        <a class="nav-button" href="/users/profile/">Edit Profile</a>
+                        {% block nav_actions %}
+                            <a class="nav-button" href="{% url 'listings:create_listing' %}">Create Listing</a>
+                            <a class="nav-button" href="/listings/">Listings</a>
+                            <a class="nav-button" href="/listings/create/">Posts</a>
+                            <a class="nav-button" href="/users/dashboard/">Documents</a>
+                            <a class="nav-button" href="/users/dashboard/#messages">Messages</a>
+                            <a class="nav-button" href="/users/profile/">Edit Profile</a>
+                        {% endblock %}
                     </nav>
-                    <a class="profile-link ms-lg-3" href="/users/profile/">
-                        <span class="profile-icon">
+                    <div class="dropdown ms-lg-3">
+                        <button
+                            class="profile-link profile-button dropdown-toggle"
+                            type="button"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                        >
+                            <span class="profile-icon">
+                                {% if request.user.is_authenticated %}
+                                    {{ request.user.username|slice:":1"|upper }}
+                                {% else %}
+                                    G
+                                {% endif %}
+                            </span>
+                            <span class="profile-name">
+                                {% if request.user.is_authenticated %}
+                                    {{ request.user.get_full_name|default:request.user.username }}
+                                {% else %}
+                                    Guest User
+                                {% endif %}
+                            </span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
                             {% if request.user.is_authenticated %}
-                                {{ request.user.username|slice:":1"|upper }}
+                                <li><a class="dropdown-item" href="{% url 'users:profile' %}">Profile</a></li>
+                                <li><a class="dropdown-item" href="{% url 'users:dashboard' %}">Dashboard</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <form method="post" action="{% url 'account_logout' %}">
+                                        {% csrf_token %}
+                                        <button class="dropdown-item" type="submit">Log out</button>
+                                    </form>
+                                </li>
                             {% else %}
-                                G
+                                <li><a class="dropdown-item" href="{% url 'account_login' %}">Log in</a></li>
                             {% endif %}
-                        </span>
-                        <span class="profile-name">
-                            {% if request.user.is_authenticated %}
-                                {{ request.user.get_full_name|default:request.user.username }}
-                            {% else %}
-                                Guest User
-                            {% endif %}
-                        </span>
-                    </a>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </header>
