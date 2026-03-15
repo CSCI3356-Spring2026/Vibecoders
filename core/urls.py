@@ -4,4 +4,7 @@ from . import views
 
 app_name = "core"
 
-urlpatterns = [path("", views.landing, name="landing")]
+urlpatterns = [
+    path("", views.landing, name="landing"),
+    path("welcome/", views.welcome, name="welcome"),
+]
