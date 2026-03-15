@@ -1,28 +1,14 @@
-{% extends "base.html" %}
+{% extends "auth/base.html" %}
 
 {% block title %}Redirecting | Vibecoders{% endblock %}
 
-{% block content %}
+{% block auth_panel %}
 <meta http-equiv="refresh" content="0;URL='{{ redirect_to }}'">
-<section class="auth-shell">
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-xl-5 col-lg-6 col-md-8">
-                <div class="auth-panel">
-                    <div class="p-4 p-md-5">
-                        <div class="auth-kicker">Google sign-in</div>
-                        <h1 class="auth-title">Continuing to Google</h1>
-                        <p class="auth-copy">If you are not redirected immediately, continue manually.</p>
-                        <div class="auth-actions">
-                            <a class="auth-google-btn" href="{{ redirect_to }}">
-                                <span class="auth-google-mark">G</span>
-                                Continue
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
+<h1 class="auth-title">Continuing to Google</h1>
+<div class="auth-actions">
+    <a class="auth-google-btn" href="{{ redirect_to }}">
+        <span class="auth-google-mark">{% include "auth/google_mark.html" %}</span>
+        <span>Continue</span>
+    </a>
+</div>
 {% endblock %}

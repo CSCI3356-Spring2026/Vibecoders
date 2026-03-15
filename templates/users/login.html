@@ -1,40 +1,14 @@
-{% extends "base.html" %}
+{% extends "auth/base.html" %}
 {% load socialaccount %}
 
 {% block title %}Sign In | Vibecoders{% endblock %}
 
-{% block content %}
-<section class="auth-shell">
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-xl-5 col-lg-6 col-md-8">
-                <div class="auth-panel">
-                    <div class="p-4 p-md-5">
-                        {% if messages %}
-                            {% for message in messages %}
-                                <div class="auth-alert" role="alert">
-                                    {{ message }}
-                                </div>
-                            {% endfor %}
-                        {% endif %}
-
-                        <div class="auth-kicker">Boston College housing</div>
-                        <h1 class="auth-title">Sign in with Google</h1>
-                        <p class="auth-copy">
-                            Clean access for the BC network only.
-                            Use your <strong>@bc.edu</strong> account to continue.
-                        </p>
-
-                        <a class="auth-google-btn" href="{% provider_login_url 'google' process='login' %}">
-                            <span class="auth-google-mark">G</span>
-                            Continue with Google
-                        </a>
-
-                        <p class="auth-note">Personal Gmail and non-BC Google accounts are blocked automatically.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
+{% block auth_panel %}
+    <div class="auth-minimal">
+        <h1 class="auth-title">Sign in with Google</h1>
+        <a class="auth-google-btn" href="{% provider_login_url 'google' process='login' %}">
+            <span class="auth-google-mark">{% include "auth/google_mark.html" %}</span>
+            <span>Continue with Google</span>
+        </a>
     </div>
-</section>
 {% endblock %}

@@ -1,29 +1,12 @@
-{% extends "base.html" %}
+{% extends "auth/base.html" %}
 
 {% block title %}Log Out | Vibecoders{% endblock %}
 
-{% block content %}
-<section class="auth-shell">
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-xl-5 col-lg-6 col-md-8">
-                <div class="auth-panel">
-                    <div class="p-4 p-md-5">
-                        <div class="auth-kicker">Account</div>
-                        <h1 class="auth-title">Log out</h1>
-                        <p class="auth-copy">
-                            End your current Vibecoders session for {{ request.user.get_full_name|default:request.user.username }}.
-                        </p>
-
-                        <form method="post" class="auth-actions">
-                            {% csrf_token %}
-                            <button class="auth-google-btn" type="submit">Log out</button>
-                            <a class="auth-ghost-btn" href="/">Stay signed in</a>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
+{% block auth_panel %}
+    <h1 class="auth-title">Log out</h1>
+    <form method="post" class="auth-actions">
+        {% csrf_token %}
+        <button class="auth-google-btn" type="submit">Log out</button>
+        <a class="auth-ghost-btn" href="/">Stay signed in</a>
+    </form>
 {% endblock %}

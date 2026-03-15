@@ -5,11 +5,6 @@ from .forms import ListingForm
 from .models import Listing
 
 
-# Minimal current views for listing-related pages
-def search(request):
-    return render(request, "listings/search.html")
-
-
 def listing_detail(request):
     return render(request, "listings/listing_detail.html")
 
@@ -28,7 +23,7 @@ def create_listing(request):
             listing = form.save(commit=False)
             listing.owner = request.user
             listing.save()
-            return redirect("listings:listing_list")  # Send them back to the feed
+            return redirect("listings:listing_list")
     else:
         form = ListingForm()
 

@@ -40,6 +40,7 @@ class CorePageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse("account_login"))
         self.assertContains(response, "Log in")
+        self.assertNotContains(response, "Guest User")
 
     def test_nav_profile_menu_shows_logout_for_authenticated(self):
         user = get_user_model().objects.create_user(username="alex", password="pass12345")
