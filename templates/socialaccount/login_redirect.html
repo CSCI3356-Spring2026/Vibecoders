@@ -1,0 +1,14 @@
+{% extends "auth/base.html" %}
+
+{% block title %}Redirecting | Vibecoders{% endblock %}
+
+{% block auth_panel %}
+<meta http-equiv="refresh" content="0;URL='{{ redirect_to }}'">
+<h1 class="auth-title">Continuing to Google</h1>
+<div class="auth-actions">
+    <a class="auth-google-btn" href="{{ redirect_to }}">
+        <span class="auth-google-mark">{% include "auth/google_mark.html" %}</span>
+        <span>Continue</span>
+    </a>
+</div>
+{% endblock %}

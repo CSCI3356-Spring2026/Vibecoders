@@ -29,12 +29,24 @@ Vibecoders/
 ├── users/                 # App for authentication, profiles, and dashboards
 ├── templates/             # All HTML templates (organized by app)
 │   ├── base.html          # Shared layout: Bootstrap, navbar, footer
+│   ├── auth/              # Shared auth fragments/layout
+│   │   ├── base.html
+│   │   └── google_mark.html
 │   ├── core/
-│   │   └── landing.html
+│   │   ├── landing.html
+│   │   └── welcome.html
 │   ├── listings/
-│   │   ├── create_listing.html
+│   │   ├── listing_form.html
+│   │   ├── listing_list.html
 │   │   ├── listing_detail.html
-│   │   └── search.html
+│   ├── account/
+│   │   ├── login.html
+│   │   └── logout.html
+│   ├── socialaccount/
+│   │   ├── authentication_error.html
+│   │   ├── login.html
+│   │   ├── login_cancelled.html
+│   │   └── login_redirect.html
 │   └── users/
 │       ├── login.html
 │       ├── profile.html
@@ -150,9 +162,9 @@ Both must pass before a PR can be merged.
 
 ### How Templates and Static Files Work
 
-Django uses a template inheritance model. `templates/base.html` is the shared layout that all other pages extend. It should contain the HTML skeleton, Bootstrap CDN links, the navbar, footer, and a content block that child templates override.
+Django uses a template inheritance model. `templates/base.html` is the shared layout that all app pages extend. It contains the HTML skeleton, Bootstrap CDN links, the navbar, footer, and a content block that child templates override.
 
-Each app has its own subdirectory under `templates/`. For example, `templates/listings/search.html` is the template for the listing search page, rendered by a view in the `listings` app.
+Auth-specific overrides live in `templates/account/`, `templates/socialaccount/`, and `templates/auth/`. The current listings flow uses `templates/listings/listing_form.html`, `templates/listings/listing_list.html`, and `templates/listings/listing_detail.html`.
 
 Static files (CSS, JS, images) live in the `static/` directory. In templates, reference them using Django's `{% static %}` tag. The custom color scheme and any Bootstrap overrides go in `static/css/custom.css`.
 

@@ -1,5 +1,14 @@
-{% extends "base.html" %}
+{% extends "auth/base.html" %}
+{% load socialaccount %}
 
 {% block title %}Sign In | Vibecoders{% endblock %}
 
-{% block content %}{% endblock %}
+{% block auth_panel %}
+    <div class="auth-minimal">
+        <h1 class="auth-title">Sign in with Google</h1>
+        <a class="auth-google-btn" href="{% provider_login_url 'google' process='login' %}">
+            <span class="auth-google-mark">{% include "auth/google_mark.html" %}</span>
+            <span>Continue with Google</span>
+        </a>
+    </div>
+{% endblock %}

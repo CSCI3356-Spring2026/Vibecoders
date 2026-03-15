@@ -1,0 +1,12 @@
+{% extends "auth/base.html" %}
+
+{% block title %}Log Out | Vibecoders{% endblock %}
+
+{% block auth_panel %}
+    <h1 class="auth-title">Log out</h1>
+    <form method="post" class="auth-actions">
+        {% csrf_token %}
+        <button class="auth-google-btn" type="submit">Log out</button>
+        <a class="auth-ghost-btn" href="/">Stay signed in</a>
+    </form>
+{% endblock %}

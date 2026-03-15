@@ -1,15 +1,30 @@
-<h1>All Available Listings</h1>
+{% extends "base.html" %}
 
-<div class="listings-container">
-    {% for listing in listings %}
-        <div class="listing-card" style="border: 1px solid #ccc; margin: 10px; padding: 10px;">
-            <h3>{{ listing.title }}</h3>
-            <p><strong>Price:</strong> ${{ listing.price }}</p>
-            <p><strong>Location:</strong> {{ listing.address }}</p>
-            <p><strong>Type:</strong> {{ listing.get_lease_type_display }}</p>
-            <p>{{ listing.description|truncatewords:20 }}</p>
+{% block title %}Listings | Vibecoders{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <h1 class="h3 fw-semibold mb-4">Listings</h1>
+
+    {% if listings %}
+        <div class="row g-3">
+            {% for listing in listings %}
+                <div class="col-md-6 col-xl-4">
+                    <article class="card h-100 shadow-sm listing-feed-card">
+                        <div class="card-body">
+                            <div class="listing-feed-meta">${{ listing.price }} · {{ listing.get_lease_type_display }}</div>
+                            <h2 class="h5 mb-2">{{ listing.title }}</h2>
+                            <p class="text-muted mb-2">{{ listing.address }}</p>
+                            {% if listing.description %}
+                                <p class="mb-0">{{ listing.description|truncatewords:20 }}</p>
+                            {% endif %}
+                        </div>
+                    </article>
+                </div>
+            {% endfor %}
         </div>
-    {% empty %}
-        <p>No listings available right now. Check back later!</p>
-    {% endfor %}
+    {% else %}
+        <p class="text-muted mb-0">No listings available.</p>
+    {% endif %}
 </div>
+{% endblock %}

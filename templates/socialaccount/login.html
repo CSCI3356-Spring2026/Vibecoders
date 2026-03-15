@@ -1,0 +1,22 @@
+{% extends "auth/base.html" %}
+{% load i18n %}
+
+{% block title %}Continue | Vibecoders{% endblock %}
+
+{% block auth_panel %}
+    <h1 class="auth-title">
+        {% if process == "connect" %}
+            Connect {{ provider.name }}
+        {% else %}
+            Continue to {{ provider.name }}
+        {% endif %}
+    </h1>
+    <form method="post" class="auth-actions">
+        {% csrf_token %}
+        <button type="submit" class="auth-google-btn">
+            <span class="auth-google-mark">{% include "auth/google_mark.html" %}</span>
+            <span>{% trans "Continue" %}</span>
+        </button>
+        <a class="auth-ghost-btn" href="/users/login/">Back to login</a>
+    </form>
+{% endblock %}

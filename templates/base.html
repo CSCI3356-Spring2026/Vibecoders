@@ -1,3 +1,4 @@
+{% load static %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -16,121 +17,7 @@
         integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr"
         crossorigin="anonymous"
     >
-    <style>
-        :root {
-            --primary-600: #4f46e5;
-            --primary-500: #6366f1;
-            --primary-100: #e0e7ff;
-            --secondary-600: #0d9488;
-            --secondary-500: #14b8a6;
-            --secondary-100: #ccfbf1;
-            --accent-500: #f59e0b;
-            --gray-900: #111827;
-            --gray-700: #374151;
-            --gray-500: #6b7280;
-            --gray-300: #d1d5db;
-            --gray-100: #f3f4f6;
-            --white: #ffffff;
-        }
-
-        body {
-            margin: 0;
-            min-height: 100vh;
-            background: var(--gray-100);
-            color: var(--gray-900);
-            font-family: "Inter", sans-serif;
-        }
-
-        .site-shell {
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .site-header,
-        .site-footer {
-            background: var(--primary-600);
-        }
-
-        .site-header {
-            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-        }
-
-        .nav-row {
-            min-height: 5rem;
-        }
-
-        .nav-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.75rem;
-        }
-
-        .nav-button {
-            padding: 0.7rem 1rem;
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.08);
-            color: var(--white);
-            font-size: 0.95rem;
-            font-weight: 600;
-            line-height: 1;
-            text-decoration: none;
-        }
-
-        .nav-button:hover {
-            background: rgba(255, 255, 255, 0.14);
-            color: var(--white);
-        }
-
-        .profile-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.75rem;
-            color: var(--white);
-            text-decoration: none;
-        }
-
-        .profile-link:hover {
-            color: var(--white);
-        }
-
-        .profile-button {
-            background: transparent;
-            border: none;
-            padding: 0;
-        }
-
-        .profile-icon {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 2.5rem;
-            height: 2.5rem;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.16);
-            font-weight: 700;
-        }
-
-        .profile-name {
-            font-size: 0.95rem;
-            font-weight: 600;
-        }
-
-        .page-wrap {
-            flex: 1;
-        }
-
-        .site-footer {
-            min-height: 3rem;
-        }
-
-        @media (max-width: 991.98px) {
-            .nav-row {
-                padding: 1rem 0;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="{% static 'css/custom.css' %}">
 </head>
 <body>
     <div class="site-shell">
@@ -147,30 +34,22 @@
                             <a class="nav-button" href="/users/profile/">Edit Profile</a>
                         {% endblock %}
                     </nav>
-                    <div class="dropdown ms-lg-3">
-                        <button
-                            class="profile-link profile-button dropdown-toggle"
-                            type="button"
-                            data-bs-toggle="dropdown"
-                            aria-expanded="false"
-                        >
-                            <span class="profile-icon">
-                                {% if request.user.is_authenticated %}
+                    {% if request.user.is_authenticated %}
+                        <div class="dropdown ms-lg-3 profile-menu">
+                            <button
+                                class="profile-link profile-button dropdown-toggle"
+                                type="button"
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false"
+                            >
+                                <span class="profile-icon">
                                     {{ request.user.username|slice:":1"|upper }}
-                                {% else %}
-                                    G
-                                {% endif %}
-                            </span>
-                            <span class="profile-name">
-                                {% if request.user.is_authenticated %}
+                                </span>
+                                <span class="profile-name">
                                     {{ request.user.get_full_name|default:request.user.username }}
-                                {% else %}
-                                    Guest User
-                                {% endif %}
-                            </span>
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            {% if request.user.is_authenticated %}
+                                </span>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
                                 <li><a class="dropdown-item" href="{% url 'users:profile' %}">Profile</a></li>
                                 <li><a class="dropdown-item" href="{% url 'users:dashboard' %}">Dashboard</a></li>
                                 <li><hr class="dropdown-divider"></li>
@@ -180,11 +59,11 @@
                                         <button class="dropdown-item" type="submit">Log out</button>
                                     </form>
                                 </li>
-                            {% else %}
-                                <li><a class="dropdown-item" href="{% url 'account_login' %}">Log in</a></li>
-                            {% endif %}
-                        </ul>
-                    </div>
+                            </ul>
+                        </div>
+                    {% else %}
+                        <a class="nav-button ms-lg-3" href="{% url 'account_login' %}">Log in</a>
+                    {% endif %}
                 </div>
             </div>
         </header>

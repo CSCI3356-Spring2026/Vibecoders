@@ -2,7 +2,9 @@ from io import StringIO
 from unittest.mock import MagicMock
 
 from allauth.core.exceptions import ImmediateHttpResponse
+from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.contrib.messages import get_messages
 from django.contrib.messages.middleware import MessageMiddleware
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.core.exceptions import PermissionDenied
@@ -27,6 +29,10 @@ def _add_middleware(request):
     return request
 
 
+def _message_texts(request):
+    return [message.message for message in get_messages(request)]
+
+
 # ---------------------------------------------------------------------------
 # Adapter tests
 # ---------------------------------------------------------------------------
@@ -40,6 +46,14 @@ class NoSignupAccountAdapterTests(TestCase):
         adapter = NoSignupAccountAdapter()
         request = RequestFactory().get("/accounts/signup/")
         self.assertFalse(adapter.is_open_for_signup(request))
+
+    def test_auth_status_messages_are_suppressed(self):
+        adapter = NoSignupAccountAdapter()
+        for template_name in ("account/messages/logged_in.txt", "account/messages/logged_out.txt"):
+            with self.subTest(template_name=template_name):
+                request = _add_middleware(RequestFactory().get("/users/login/"))
+                adapter.add_message(request, messages.SUCCESS, template_name)
+                self.assertEqual(_message_texts(request), [])
 
 
 # Only allow @bc.edu Google accounts to sign up or log in
@@ -59,19 +73,16 @@ class BCEmailAdapterTests(TestCase):
         sociallogin = self._make_sociallogin("eagle@bc.edu")
         self.assertTrue(adapter.is_open_for_signup(request, sociallogin))
 
-    # Reject non-BC emails at signup
-    def test_non_bc_email_signup_rejected(self):
+    def test_invalid_signup_emails_are_rejected(self):
         adapter = BCEmailAdapter()
-        request = RequestFactory().get("/")
-        sociallogin = self._make_sociallogin("user@gmail.com")
-        self.assertFalse(adapter.is_open_for_signup(request, sociallogin))
-
-    # Reject empty email at signup
-    def test_empty_email_signup_rejected(self):
-        adapter = BCEmailAdapter()
-        request = RequestFactory().get("/")
-        sociallogin = self._make_sociallogin("")
-        self.assertFalse(adapter.is_open_for_signup(request, sociallogin))
+        for email in ("user@gmail.com", ""):
+            with self.subTest(email=email):
+                request = _add_middleware(RequestFactory().get("/"))
+                sociallogin = self._make_sociallogin(email)
+                with self.assertRaises(ImmediateHttpResponse) as ctx:
+                    adapter.is_open_for_signup(request, sociallogin)
+                self.assertEqual(ctx.exception.response.url, "/users/login/")
+                self.assertIn(adapter.error_message, _message_texts(request))
 
     # Allow a BC email to log in
     def test_bc_email_login_allowed(self):
@@ -85,8 +96,10 @@ class BCEmailAdapterTests(TestCase):
         adapter = BCEmailAdapter()
         request = _add_middleware(RequestFactory().get("/"))
         sociallogin = self._make_sociallogin("user@gmail.com")
-        with self.assertRaises(ImmediateHttpResponse):
+        with self.assertRaises(ImmediateHttpResponse) as ctx:
             adapter.pre_social_login(request, sociallogin)
+        self.assertEqual(ctx.exception.response.url, "/users/login/")
+        self.assertIn(adapter.error_message, _message_texts(request))
 
 
 # ---------------------------------------------------------------------------
@@ -204,8 +217,79 @@ class SetUserRoleCommandTests(TestCase):
 
 # Basic smoke tests to ensure user-related pages render without error
 class UserPageTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="eagle", email="eagle@bc.edu", password="test")
+
     def test_user_pages_render(self):
         for path in ("/users/login/", "/users/profile/", "/users/dashboard/"):
             with self.subTest(path=path):
                 response = self.client.get(path)
                 self.assertEqual(response.status_code, 200)
+
+    def test_login_page_has_google_call_to_action(self):
+        response = self.client.get("/users/login/")
+
+        self.assertContains(response, "Sign in with Google")
+        self.assertContains(response, "Continue with Google")
+        self.assertContains(response, "Create Listing")
+        self.assertContains(response, "/accounts/google/login/")
+        self.assertNotContains(response, "Guest User")
+
+    def test_allauth_login_page_uses_custom_google_ui(self):
+        response = self.client.get("/accounts/login/")
+
+        self.assertContains(response, "Sign in with Google")
+        self.assertContains(response, "Continue with Google")
+        self.assertContains(response, "Create Listing")
+        self.assertNotContains(response, "If you have not created an account yet")
+
+    def test_allauth_login_post_redirects_back_to_google_only_login(self):
+        response = self.client.post("/accounts/login/", {"login": "user@bc.edu"}, follow=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/users/login/")
+
+    def test_non_google_account_routes_are_disabled(self):
+        for path in (
+            "/accounts/signup/",
+            "/accounts/password/reset/",
+            "/accounts/login/code/",
+            "/accounts/login/code/confirm/",
+        ):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 404)
+
+    def test_authenticated_login_page_redirects_home(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get("/users/login/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/")
+
+    def test_authenticated_header_shows_profile_menu_and_logout(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get("/")
+
+        self.assertContains(response, "profile-menu")
+        self.assertContains(response, "Log out")
+        self.assertContains(response, "/accounts/logout/")
+
+    def test_logout_page_uses_custom_ui(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get("/accounts/logout/")
+
+        self.assertContains(response, "Log out")
+        self.assertContains(response, "Stay signed in")
+
+    def test_logout_post_signs_user_out(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post("/accounts/logout/", follow=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/")
+        self.assertNotIn("_auth_user_id", self.client.session)
