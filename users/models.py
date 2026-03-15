@@ -19,7 +19,6 @@ class CustomUser(AbstractUser):
         help_text="Designates whether this user is a Student or Admin.",
     )
 
-
     @property
     def is_bc_admin(self):
         """Return True if the user has the Admin role."""

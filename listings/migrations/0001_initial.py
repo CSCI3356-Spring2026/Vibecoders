@@ -6,7 +6,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
@@ -15,20 +14,41 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Listing',
+            name="Listing",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('title', models.CharField(max_length=200)),
-                ('address', models.CharField(help_text='Street address or Area', max_length=255)),
-                ('price', models.DecimalField(decimal_places=2, max_digits=10)),
-                ('start_date', models.DateField()),
-                ('end_date', models.DateField()),
-                ('description', models.TextField(blank=True, help_text='Minimal description of the dorm')),
-                ('lease_type', models.CharField(choices=[('SUBLEASE', 'Sublease'), ('FULL', 'Full Lease'), ('SHORT', 'Short-term')], default='FULL', max_length=20)),
-                ('status', models.CharField(choices=[('AVAILABLE', 'Available'), ('PENDING', 'Pending'), ('TAKEN', 'Taken')], default='AVAILABLE', max_length=20)),
-                ('is_hidden', models.BooleanField(default=False)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('owner', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='listings', to=settings.AUTH_USER_MODEL)),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("title", models.CharField(max_length=200)),
+                ("address", models.CharField(help_text="Street address or Area", max_length=255)),
+                ("price", models.DecimalField(decimal_places=2, max_digits=10)),
+                ("start_date", models.DateField()),
+                ("end_date", models.DateField()),
+                ("description", models.TextField(blank=True, help_text="Minimal description of the dorm")),
+                (
+                    "lease_type",
+                    models.CharField(
+                        choices=[("SUBLEASE", "Sublease"), ("FULL", "Full Lease"), ("SHORT", "Short-term")],
+                        default="FULL",
+                        max_length=20,
+                    ),
+                ),
+                (
+                    "status",
+                    models.CharField(
+                        choices=[("AVAILABLE", "Available"), ("PENDING", "Pending"), ("TAKEN", "Taken")],
+                        default="AVAILABLE",
+                        max_length=20,
+                    ),
+                ),
+                ("is_hidden", models.BooleanField(default=False)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "owner",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="listings",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
         ),
     ]
