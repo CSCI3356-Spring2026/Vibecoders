@@ -5,78 +5,88 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('listings', '0001_initial'),
+        ("listings", "0001_initial"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='listing',
-            name='amenities',
-            field=models.TextField(blank=True, help_text='Comma separated list'),
+            model_name="listing",
+            name="amenities",
+            field=models.TextField(blank=True, help_text="Comma separated list"),
         ),
         migrations.AddField(
-            model_name='listing',
-            name='bathrooms',
+            model_name="listing",
+            name="bathrooms",
             field=models.DecimalField(decimal_places=1, default=1.0, max_digits=3),
         ),
         migrations.AddField(
-            model_name='listing',
-            name='distance_to_campus',
-            field=models.DecimalField(blank=True, decimal_places=2, help_text='Distance in miles', max_digits=4, null=True),
+            model_name="listing",
+            name="distance_to_campus",
+            field=models.DecimalField(
+                blank=True, decimal_places=2, help_text="Distance in miles", max_digits=4, null=True
+            ),
         ),
         migrations.AddField(
-            model_name='listing',
-            name='has_parking',
+            model_name="listing",
+            name="has_parking",
             field=models.BooleanField(default=False),
         ),
         migrations.AddField(
-            model_name='listing',
-            name='has_yard',
+            model_name="listing",
+            name="has_yard",
             field=models.BooleanField(default=False),
         ),
         migrations.AddField(
-            model_name='listing',
-            name='is_furnished',
+            model_name="listing",
+            name="is_furnished",
             field=models.BooleanField(default=False),
         ),
         migrations.AddField(
-            model_name='listing',
-            name='pet_policy',
+            model_name="listing",
+            name="pet_policy",
             field=models.TextField(blank=True),
         ),
         migrations.AddField(
-            model_name='listing',
-            name='property_type',
-            field=models.CharField(choices=[('apartment', 'Apartment'), ('house', 'House'), ('studio', 'Studio'), ('dorm', 'Dormitory')], default='apartment', max_length=20),
+            model_name="listing",
+            name="property_type",
+            field=models.CharField(
+                choices=[("apartment", "Apartment"), ("house", "House"), ("studio", "Studio"), ("dorm", "Dormitory")],
+                default="apartment",
+                max_length=20,
+            ),
         ),
         migrations.AddField(
-            model_name='listing',
-            name='rooms',
+            model_name="listing",
+            name="rooms",
             field=models.PositiveIntegerField(default=1),
         ),
         migrations.AddField(
-            model_name='listing',
-            name='security_features',
+            model_name="listing",
+            name="security_features",
             field=models.TextField(blank=True),
         ),
         migrations.AddField(
-            model_name='listing',
-            name='sq_ft',
+            model_name="listing",
+            name="sq_ft",
             field=models.PositiveIntegerField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='listing',
-            name='utilities_included',
-            field=models.TextField(blank=True, help_text='List included utilities (e.g. WiFi, Water)'),
+            model_name="listing",
+            name="utilities_included",
+            field=models.TextField(blank=True, help_text="List included utilities (e.g. WiFi, Water)"),
         ),
         migrations.CreateModel(
-            name='ListingImage',
+            name="ListingImage",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('image', models.ImageField(upload_to='listing_photos/')),
-                ('listing', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='images', to='listings.listing')),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("image", models.ImageField(upload_to="listing_photos/")),
+                (
+                    "listing",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE, related_name="images", to="listings.listing"
+                    ),
+                ),
             ],
         ),
     ]

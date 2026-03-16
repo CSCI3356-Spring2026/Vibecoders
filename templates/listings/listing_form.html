@@ -8,12 +8,24 @@
                 <div class="card-header py-3" style="background-color: #4f46e5;"> 
                     <h2 class="h4 mb-0 text-white fw-bold">Create a New Listing</h2>
                 </div>
-                
-                <div class="card-body p-4">
+
                 <div class="card-body p-4">
                     <form method="post" enctype="multipart/form-data">
                         {% csrf_token %}
-                        
+
+                        {% if form.errors %}
+                            <div class="alert alert-danger" role="alert">
+                                {% for error in form.non_field_errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                                {% for field in form %}
+                                    {% for error in field.errors %}
+                                        <div>{{ error }}</div>
+                                    {% endfor %}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
                         <div class="row g-4">
                             <div class="col-md-12">
                                 <label class="form-label fw-bold">Title</label>
