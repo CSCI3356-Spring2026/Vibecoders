@@ -59,7 +59,7 @@ INSTALLED_APPS = [
     "core",
     "listings",
     "users",
-    "django.contrib.sites",  # Required by allauth
+    "users.apps.UsersConfigdjango.contrib.sites",  # Required by allauth
     # Allauth
     "allauth",
     "allauth.account",
