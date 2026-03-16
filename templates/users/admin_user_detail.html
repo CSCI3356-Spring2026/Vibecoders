@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}User Detail | Vibecoders{% endblock %}
+
+{% block content %}
+<section class="app-page admin-dashboard">
+    <div class="container">
+        <div class="app-shell">
+            <div class="admin-header listing-panel">
+                <div>
+                    <p class="app-kicker">Admin Dashboard</p>
+                    <h1 class="app-title">{{ managed_user.get_full_name|default:managed_user.username }}</h1>
+                    <p class="app-subtitle">{{ managed_user.email }} · {{ managed_user.display_role }}</p>
+                </div>
+                <div class="admin-header-meta">
+                    <a class="btn btn-outline-secondary" href="{% url 'users:admin_users' %}">Back to users</a>
+                </div>
+            </div>
+
+            <div class="app-layout">
+                <aside class="app-sidebar admin-sidebar">
+                    <div class="admin-nav-card listing-panel">
+                        <h2 class="admin-nav-title">Dashboard</h2>
+                        <nav class="admin-nav">
+                            <a class="admin-nav-item" href="{% url 'users:admin_dashboard' %}">Dashboard</a>
+                            <a class="admin-nav-item" href="{% url 'users:admin_listings' %}">Manage Listings</a>
+                            <span class="admin-nav-item is-disabled">Reports &amp; Issues</span>
+                            <a class="admin-nav-item is-active" href="{% url 'users:admin_users' %}">User Management</a>
+                        </nav>
+                        <form method="post" action="{% url 'account_logout' %}" class="admin-signout">
+                            {% csrf_token %}
+                            <button class="btn btn-outline-secondary w-100" type="submit">Sign Out</button>
+                        </form>
+                    </div>
+                </aside>
+
+                <div class="app-main">
+                    <div class="admin-stat-grid">
+                        <div class="admin-stat-card admin-stat-card-primary">
+                            <span class="admin-stat-label">Listings</span>
+                            <span class="admin-stat-value">{{ managed_listings|length }}</span>
+                        </div>
+                        <div class="admin-stat-card admin-stat-card-secondary">
+                            <span class="admin-stat-label">Files</span>
+                            <span class="admin-stat-value">{{ managed_files|length }}</span>
+                        </div>
+                        <div class="admin-stat-card admin-stat-card-warm">
+                            <span class="admin-stat-label">Status</span>
+                            <span class="admin-stat-value">{% if managed_user.is_active %}Active{% else %}Inactive{% endif %}</span>
+                        </div>
+                        <div class="admin-stat-card admin-stat-card-accent">
+                            <span class="admin-stat-label">Role</span>
+                            <span class="admin-stat-value">{{ managed_user.display_role }}</span>
+                        </div>
+                    </div>
+
+                    <div class="listing-panel admin-table">
+                        <div class="admin-table-head">
+                            <h2 class="app-section-heading">Listings</h2>
+                            <span class="admin-table-count">{{ managed_listings|length }} listings</span>
+                        </div>
+
+                        {% if managed_listings %}
+                            <div class="admin-list-grid">
+                                {% for listing in managed_listings %}
+                                    <a class="admin-list-item" href="{% url 'listings:detail' listing.pk %}">
+                                        <div>
+                                            <div class="admin-list-title">{{ listing.title }}</div>
+                                            <div class="admin-list-meta">${{ listing.price|floatformat:0 }}/mo · {{ listing.get_status_display }}</div>
+                                        </div>
+                                        <span class="admin-status-pill {% if listing.status == 'PENDING' %}is-pending{% elif listing.status == 'AVAILABLE' %}is-approved{% else %}is-muted{% endif %}">
+                                            {{ listing.get_status_display }}
+                                        </span>
+                                    </a>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="app-panel-copy mb-0">This user has no listings.</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="listing-panel admin-table">
+                        <div class="admin-table-head">
+                            <h2 class="app-section-heading">Files</h2>
+                            <span class="admin-table-count">{{ managed_files|length }} files</span>
+                        </div>
+
+                        {% if managed_files %}
+                            <div class="admin-list-grid">
+                                {% for file in managed_files %}
+                                    <a class="admin-list-item" href="{{ file.file.url }}" target="_blank" rel="noopener noreferrer">
+                                        <div>
+                                            <div class="admin-list-title">{{ file.display_title }}</div>
+                                            <div class="admin-list-meta">Uploaded {{ file.uploaded_at|date:"M d, Y" }}</div>
+                                        </div>
+                                        <span class="admin-status-pill is-muted">File</span>
+                                    </a>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="app-panel-copy mb-0">This user has no files.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
