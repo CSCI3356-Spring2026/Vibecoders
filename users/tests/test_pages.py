@@ -81,6 +81,29 @@ class UserPageTests(TestCase):
         self.assertEqual(dashboard_response.status_code, 200)
         self.assertContains(dashboard_response, f"Welcome, {self.user.username} - {self.user.display_role}")
 
+    def test_posts_page_requires_login(self):
+        response = self.client.get("/users/posts/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response.url)
+
+    def test_authenticated_posts_page_renders_user_listings(self):
+        listing = self.user.listings.create(
+            title="My listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get("/users/posts/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "My Posts")
+        self.assertContains(response, listing.title)
+
     def test_logout_page_uses_custom_ui(self):
         self.client.force_login(self.user)
 

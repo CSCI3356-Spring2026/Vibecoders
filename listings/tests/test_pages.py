@@ -127,3 +127,35 @@ class ListingPageTests(ListingTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "End date must be on or after the start date.")
         self.assertEqual(self.user.listings.count(), 0)
+
+    def test_listing_owner_can_edit_listing(self):
+        listing = self.create_listing()
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("listings:edit_listing", args=[listing.pk]),
+            {
+                "title": "Updated listing",
+                "address": listing.address,
+                "price": listing.price,
+                "lease_type": listing.lease_type,
+                "start_date": listing.start_date,
+                "end_date": listing.end_date,
+                "property_type": listing.property_type,
+            },
+        )
+
+        listing.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("users:posts"))
+        self.assertEqual(listing.title, "Updated listing")
+
+    def test_listing_owner_can_delete_listing(self):
+        listing = self.create_listing()
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse("listings:delete_listing", args=[listing.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("users:posts"))
+        self.assertFalse(self.user.listings.filter(pk=listing.pk).exists())
