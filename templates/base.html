@@ -33,6 +33,9 @@
                             {% block nav_actions %}
                                 <a class="nav-button" href="{% url 'core:landing' %}">Home</a>
                                 <a class="nav-button" href="{% url 'listings:listing_list' %}">Listings</a>
+                                {% if request.user.is_authenticated %}
+                                    <a class="nav-button" href="{% url 'users:posts' %}">Posts</a>
+                                {% endif %}
                                 <a class="nav-button nav-button-primary" href="{% url 'listings:create_listing' %}">Create Listing</a>
                             {% endblock %}
                         </nav>

@@ -62,6 +62,16 @@ def dashboard(request):
 
 
 @login_required
+def posts(request):
+    listings = request.user.listings.all()
+    context = {
+        **_workspace_summary(request.user),
+        "listings": listings,
+    }
+    return render(request, "users/posts.html", context)
+
+
+@login_required
 def files(request):
     query = request.GET.get("q", "").strip()
     selected_id = request.GET.get("file")
