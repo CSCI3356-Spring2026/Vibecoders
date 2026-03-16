@@ -21,10 +21,8 @@ from django.urls import include, path
 from users import views as user_views
 
 urlpatterns = [
-    # URLS for main app and admin
     path("admin/", admin.site.urls),
     path("", include("core.urls")),
-    # URLS for sub apps
     path("users/", include("users.urls")),
     path("accounts/login/", user_views.login_page),
     path("accounts/", include("allauth.urls")),
@@ -33,3 +31,4 @@ urlpatterns = [
 
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

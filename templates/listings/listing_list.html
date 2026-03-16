@@ -59,7 +59,7 @@
                     {% if listings %}
                         <div class="listing-results-list">
                             {% for listing in listings %}
-                                <article class="listing-result">
+                                <article class="listing-result" data-id="{{ listing.id }}" style="cursor:pointer;">
                                     <div class="listing-thumb">
                                         <span>Photo</span>
                                     </div>
@@ -117,4 +117,148 @@
         </div>
     </div>
 </section>
+<!-- Listing Detail Modal -->
+<div class="modal fade" id="listingModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-0">
+
+        <!-- Image Gallery -->
+        <div id="modal-gallery" class="row g-2 mb-4" style="display:none;">
+          <div class="col-6">
+            <img id="modal-main-image" src="" class="img-fluid rounded" style="width:100%;height:220px;object-fit:cover;">
+          </div>
+          <div class="col-6">
+            <div class="row g-2" id="modal-thumbnails"></div>
+          </div>
+        </div>
+
+        <!-- Price + Address -->
+        <div class="mb-3">
+          <h3 class="fw-bold mb-1" id="modal-title"></h3>
+          <p class="text-muted mb-1" id="modal-address"></p>
+          <h4 style="color: var(--primary-600);" id="modal-price"></h4>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="d-flex gap-4 mb-4">
+          <div class="text-center">
+            <div class="fs-4 fw-bold" id="modal-rooms"></div>
+            <div class="text-muted small">beds</div>
+          </div>
+          <div class="text-center">
+            <div class="fs-4 fw-bold" id="modal-bathrooms"></div>
+            <div class="text-muted small">baths</div>
+          </div>
+          <div class="text-center">
+            <div class="fs-4 fw-bold" id="modal-sqft"></div>
+            <div class="text-muted small">sqft</div>
+          </div>
+        </div>
+
+        <!-- Feature Tags -->
+        <div class="d-flex flex-wrap gap-2 mb-4" id="modal-tags"></div>
+
+        <!-- Description -->
+        <div class="mb-3" id="modal-description-section">
+          <h6 class="fw-bold">Description</h6>
+          <p id="modal-description" class="text-muted"></p>
+        </div>
+
+        <!-- Policies -->
+        <div class="mb-3" id="modal-utilities-section">
+          <h6 class="fw-bold">Utilities Included</h6>
+          <p id="modal-utilities" class="text-muted"></p>
+        </div>
+        <div class="mb-3" id="modal-pet-section">
+          <h6 class="fw-bold">Pet Policy</h6>
+          <p id="modal-pet" class="text-muted"></p>
+        </div>
+
+        <!-- Dates -->
+        <div class="d-flex gap-4 mb-4">
+          <div><span class="fw-bold">Move-in:</span> <span id="modal-start"></span></div>
+          <div><span class="fw-bold">Move-out:</span> <span id="modal-end"></span></div>
+        </div>
+
+        <p class="text-muted small">Posted by <span id="modal-owner"></span></p>
+
+        <!-- Buttons -->
+        <div class="d-flex gap-2 mt-3">
+          <button class="btn btn-primary flex-fill">Request Tour</button>
+          <button class="btn btn-outline-primary flex-fill">Contact Agent</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.listing-result').forEach(card => {
+    card.addEventListener('click', function() {
+      const id = this.dataset.id;
+      fetch(`/listings/detail/${id}/`)
+        .then(res => res.json())
+        .then(data => {
+          document.getElementById('modal-title').textContent = data.title;
+          document.getElementById('modal-address').textContent = data.address;
+          document.getElementById('modal-price').textContent = `$${data.price}/month`;
+          document.getElementById('modal-rooms').textContent = data.rooms;
+          document.getElementById('modal-bathrooms').textContent = data.bathrooms;
+          document.getElementById('modal-sqft').textContent = data.sq_ft || 'N/A';
+          document.getElementById('modal-start').textContent = data.start_date;
+          document.getElementById('modal-end').textContent = data.end_date;
+          document.getElementById('modal-owner').textContent = data.owner;
+          document.getElementById('modal-description').textContent = data.description || 'No description provided.';
+          document.getElementById('modal-utilities').textContent = data.utilities_included || 'None listed.';
+          document.getElementById('modal-pet').textContent = data.pet_policy || 'No pet policy listed.';
+
+          // Feature tags
+          const tags = document.getElementById('modal-tags');
+          tags.innerHTML = '';
+          const features = [
+            data.lease_type,
+            data.property_type,
+            data.status,
+            data.has_yard ? 'Yard' : null,
+            data.has_parking ? 'Parking' : null,
+            data.is_furnished ? 'Furnished' : null,
+            data.amenities || null,
+          ].filter(Boolean);
+          features.forEach(f => {
+            const badge = document.createElement('span');
+            badge.className = 'badge rounded-pill text-dark border';
+            badge.style.backgroundColor = 'var(--gray-100)';
+            badge.style.padding = '8px 14px';
+            badge.style.fontSize = '0.85rem';
+            badge.textContent = f;
+            tags.appendChild(badge);
+          });
+
+          // Images
+          const gallery = document.getElementById('modal-gallery');
+          const thumbnails = document.getElementById('modal-thumbnails');
+          thumbnails.innerHTML = '';
+          if (data.images && data.images.length > 0) {
+            gallery.style.display = 'flex';
+            document.getElementById('modal-main-image').src = data.images[0];
+            data.images.slice(1, 5).forEach(url => {
+              const col = document.createElement('div');
+              col.className = 'col-6';
+              col.innerHTML = `<img src="${url}" class="img-fluid rounded" style="width:100%;height:100px;object-fit:cover;">`;
+              thumbnails.appendChild(col);
+            });
+          } else {
+            gallery.style.display = 'none!important';
+          }
+
+          new bootstrap.Modal(document.getElementById('listingModal')).show();
+        });
+    });
+  });
+</script>
 {% endblock %}
