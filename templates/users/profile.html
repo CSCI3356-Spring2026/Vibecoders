@@ -2,4 +2,35 @@
 
 {% block title %}Profile | Vibecoders{% endblock %}
 
-{% block content %}{% endblock %}
+{% block content %}
+<section class="app-page">
+    <div class="container">
+        <div class="app-shell">
+            <div class="app-header app-header-shell">
+                <div class="app-header-main">
+                    <div>
+                        <p class="app-kicker">Profile</p>
+                        <h1 class="app-title">{{ request.user.get_full_name|default:request.user.username }}</h1>
+                        <p class="app-subtitle">{{ request.user.email|default:"No email on file" }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="app-stat-grid">
+                <div class="app-stat-card">
+                    <span class="app-stat-label">Role</span>
+                    <span class="app-stat-value">{{ request.user.display_role }}</span>
+                </div>
+                <div class="app-stat-card">
+                    <span class="app-stat-label">Listings</span>
+                    <span class="app-stat-value">{{ listings_count }}</span>
+                </div>
+                <div class="app-stat-card">
+                    <span class="app-stat-label">Files</span>
+                    <span class="app-stat-value">{{ files_count }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
