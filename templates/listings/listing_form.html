@@ -1,121 +1,162 @@
 {% extends "base.html" %}
 
+{% block title %}Create Listing | Vibecoders{% endblock %}
+
 {% block content %}
-<div class="container py-5">
-    <div class="row justify-content-center">
-        <div class="col-lg-10">
-            <div class="card shadow-sm border-0">
-                <div class="card-header py-3" style="background-color: #4f46e5;"> 
-                    <h2 class="h4 mb-0 text-white fw-bold">Create a New Listing</h2>
+<section class="app-page">
+    <div class="container">
+        <div class="app-shell">
+            <div class="listing-panel app-header">
+                <div class="app-header-main">
+                    <div>
+                        <p class="listing-hero-eyebrow mb-2">Create Listing</p>
+                        <h1 class="listing-hero-title app-title">Add a home</h1>
+                        <p class="listing-hero-subtitle app-subtitle">Clear details, clean photos, ready to publish.</p>
+                    </div>
+                    <div class="app-actions">
+                        <a class="btn btn-outline-secondary" href="{% url 'listings:listing_list' %}">Back to listings</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="listing-panel">
+                <div class="app-panel-head">
+                    <div>
+                        <h2 class="app-section-heading mb-0">Listing details</h2>
+                        <p class="app-panel-copy">Required fields first. Everything else stays optional.</p>
+                    </div>
                 </div>
 
-                <div class="card-body p-4">
-                    <form method="post" enctype="multipart/form-data">
-                        {% csrf_token %}
+                <form method="post" enctype="multipart/form-data" class="app-stack">
+                    {% csrf_token %}
 
-                        {% if form.errors %}
-                            <div class="alert alert-danger" role="alert">
-                                {% for error in form.non_field_errors %}
+                    {% if form.errors %}
+                        <div class="alert alert-danger mb-0" role="alert">
+                            {% for error in form.non_field_errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                            {% for field in form %}
+                                {% for error in field.errors %}
                                     <div>{{ error }}</div>
                                 {% endfor %}
-                                {% for field in form %}
-                                    {% for error in field.errors %}
-                                        <div>{{ error }}</div>
-                                    {% endfor %}
-                                {% endfor %}
-                            </div>
-                        {% endif %}
+                            {% endfor %}
+                        </div>
+                    {% endif %}
 
+                    <section class="app-section">
+                        <h3 class="app-section-title">Overview</h3>
                         <div class="row g-4">
-                            <div class="col-md-12">
-                                <label class="form-label fw-bold">Title</label>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold" for="{{ form.title.id_for_label }}">Title</label>
                                 {{ form.title }}
                             </div>
-                            <div class="col-md-8">
-                                <label class="form-label fw-bold">Address</label>
+                            <div class="col-lg-8">
+                                <label class="form-label fw-semibold" for="{{ form.address.id_for_label }}">Address</label>
                                 {{ form.address }}
                             </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-bold">Monthly Price ($)</label>
+                            <div class="col-lg-4">
+                                <label class="form-label fw-semibold" for="{{ form.price.id_for_label }}">Monthly price</label>
                                 {{ form.price }}
                             </div>
-
-                            <div class="col-md-3">
-                                <label class="form-label fw-bold">Start Date</label>
+                            <div class="col-lg-3">
+                                <label class="form-label fw-semibold" for="{{ form.start_date.id_for_label }}">Start date</label>
                                 {{ form.start_date }}
                             </div>
-                            <div class="col-md-3">
-                                <label class="form-label fw-bold">End Date</label>
+                            <div class="col-lg-3">
+                                <label class="form-label fw-semibold" for="{{ form.end_date.id_for_label }}">End date</label>
                                 {{ form.end_date }}
                             </div>
-                            <div class="col-md-3">
-                                <label class="form-label fw-bold">Lease Type</label>
+                            <div class="col-lg-3">
+                                <label class="form-label fw-semibold" for="{{ form.lease_type.id_for_label }}">Lease type</label>
                                 {{ form.lease_type }}
                             </div>
-                            <div class="col-md-3">
-                                <label class="form-label fw-bold">Property Type</label>
+                            <div class="col-lg-3">
+                                <label class="form-label fw-semibold" for="{{ form.property_type.id_for_label }}">Property type</label>
                                 {{ form.property_type }}
                             </div>
+                        </div>
+                    </section>
 
+                    <section class="app-section">
+                        <h3 class="app-section-title">Specs</h3>
+                        <div class="row g-4">
                             <div class="col-md-4">
-                                <label class="form-label fw-bold">Rooms</label>
+                                <label class="form-label fw-semibold" for="{{ form.rooms.id_for_label }}">Bedrooms</label>
                                 {{ form.rooms }}
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label fw-bold">Bathrooms</label>
+                                <label class="form-label fw-semibold" for="{{ form.bathrooms.id_for_label }}">Bathrooms</label>
                                 {{ form.bathrooms }}
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label fw-bold">Sq Footage</label>
+                                <label class="form-label fw-semibold" for="{{ form.sq_ft.id_for_label }}">Square feet</label>
                                 {{ form.sq_ft }}
                             </div>
+                        </div>
+                    </section>
 
-                            <div class="col-md-12">
-                                <div class="d-flex gap-4 p-3 bg-light rounded">
-                                    <label class="form-label fw-bold">Select all that are included:</label>
-                                    <div class="form-check">{{ form.has_yard }} <label>Yard</label></div>
-                                    <div class="form-check">{{ form.has_parking }} <label>Parking</label></div>
-                                    <div class="form-check">{{ form.is_furnished }} <label>Furniture</label></div>
-                                </div>
-                            </div>
+                    <section class="app-section">
+                        <h3 class="app-section-title">Features</h3>
+                        <div class="app-toggle-group">
+                            <label class="app-toggle-card" for="{{ form.has_yard.id_for_label }}">
+                                {{ form.has_yard }}
+                                <span>Yard</span>
+                            </label>
+                            <label class="app-toggle-card" for="{{ form.has_parking.id_for_label }}">
+                                {{ form.has_parking }}
+                                <span>Parking</span>
+                            </label>
+                            <label class="app-toggle-card" for="{{ form.is_furnished.id_for_label }}">
+                                {{ form.is_furnished }}
+                                <span>Furnished</span>
+                            </label>
+                        </div>
+                    </section>
 
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold">Utilities Included</label>
-                                <div class="p-3 bg-light rounded border">
-                                    <div class="d-flex flex-wrap gap-3 mb-2">
+                    <section class="app-section">
+                        <h3 class="app-section-title">Notes</h3>
+                        <div class="row g-4">
+                            <div class="col-lg-6">
+                                <label class="form-label fw-semibold">Utilities</label>
+                                <div class="app-input-panel">
+                                    <div class="app-check-grid mb-3">
                                         {% for checkbox in form.common_utilities %}
-                                            <div class="form-check">
+                                            <label class="app-check-option">
                                                 {{ checkbox.tag }}
-                                                <label class="form-check-label">{{ checkbox.choice_label }}</label>
-                                            </div>
+                                                <span>{{ checkbox.choice_label }}</span>
+                                            </label>
                                         {% endfor %}
                                     </div>
                                     {{ form.other_utilities }}
                                 </div>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label fw-bold">Pet Policy</label>
+                            <div class="col-lg-6">
+                                <label class="form-label fw-semibold" for="{{ form.pet_policy.id_for_label }}">Pet policy</label>
                                 {{ form.pet_policy }}
                             </div>
-                            <div class="col-md-12">
-                                <label class="form-label fw-bold">Property Description</label>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold" for="{{ form.description.id_for_label }}">Description</label>
                                 {{ form.description }}
                             </div>
-
-                            <div class="col-md-12">
-                                <label class="form-label fw-bold">Upload Photos (Select multiple)</label>
-                                {{ form.images }}
-                            </div>
                         </div>
+                    </section>
 
-                        <div class="mt-5 d-flex gap-2">
-                            <button type="submit" class="btn btn-primary px-5" style="background-color: var(--primary-600);">Post Listing</button>
-                            <a href="{% url 'listings:listing_list' %}" class="btn btn-outline-secondary px-4">Cancel</a>
+                    <section class="app-section">
+                        <h3 class="app-section-title">Photos</h3>
+                        <label class="form-label fw-semibold" for="{{ form.images.id_for_label }}">Upload images</label>
+                        <div class="app-input-panel">
+                            {{ form.images }}
+                            <p class="app-field-note mb-0">Optional. Add multiple images if you have them.</p>
                         </div>
-                    </form>
-                </div>
+                    </section>
+
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="submit" class="btn btn-brand px-4">Publish listing</button>
+                        <a href="{% url 'listings:listing_list' %}" class="btn btn-outline-secondary px-4">Cancel</a>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
-</div>
+</section>
 {% endblock %}
