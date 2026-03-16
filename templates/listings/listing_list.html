@@ -1,30 +1,120 @@
 {% extends "base.html" %}
 
-{% block title %}Listings | Vibecoders{% endblock %}
+{% block title %}Find a Listing | Vibecoders{% endblock %}
 
 {% block content %}
-<div class="container py-5">
-    <h1 class="h3 fw-semibold mb-4">Listings</h1>
-
-    {% if listings %}
-        <div class="row g-3">
-            {% for listing in listings %}
-                <div class="col-md-6 col-xl-4">
-                    <article class="card h-100 shadow-sm listing-feed-card">
-                        <div class="card-body">
-                            <div class="listing-feed-meta">${{ listing.price }} · {{ listing.get_lease_type_display }}</div>
-                            <h2 class="h5 mb-2">{{ listing.title }}</h2>
-                            <p class="text-muted mb-2">{{ listing.address }}</p>
-                            {% if listing.description %}
-                                <p class="mb-0">{{ listing.description|truncatewords:20 }}</p>
-                            {% endif %}
-                        </div>
-                    </article>
-                </div>
-            {% endfor %}
+<section class="listing-landing">
+    <div class="container py-5">
+        <div class="listing-hero mb-4">
+            <p class="listing-hero-eyebrow">Listings</p>
+            <h1 class="listing-hero-title">Find Your Off-Campus Housing</h1>
+            <p class="listing-hero-subtitle">Browse available listings near campus, then refine by budget and lease type.</p>
         </div>
-    {% else %}
-        <p class="text-muted mb-0">No listings available.</p>
-    {% endif %}
-</div>
+
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="listing-panel listing-filters">
+                    <h2 class="listing-panel-title">Filter Listings</h2>
+                    <p class="listing-panel-subtitle">Set your range, then apply filters to match your timeline.</p>
+
+                    <form class="listing-filter-form">
+                        <div class="mb-3">
+                            <label class="form-label" for="filter-price">Price Range</label>
+                            <select class="form-select" id="filter-price">
+                                <option selected>Any budget</option>
+                                <option>$500 - $1,000</option>
+                                <option>$1,000 - $1,500</option>
+                                <option>$1,500 - $2,000</option>
+                                <option>$2,000+</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="filter-lease">Lease Type</label>
+                            <select class="form-select" id="filter-lease">
+                                <option selected>Any lease type</option>
+                                <option>Full Lease</option>
+                                <option>Sublease</option>
+                                <option>Short-term</option>
+                            </select>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label" for="filter-date">Move-in Window</label>
+                            <select class="form-select" id="filter-date">
+                                <option selected>Anytime</option>
+                                <option>Next 30 days</option>
+                                <option>Next 60 days</option>
+                                <option>Fall Semester</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-brand w-100" type="button">Apply Filters</button>
+                    </form>
+                </div>
+
+                <div class="listing-panel listing-results mt-4">
+                    <div class="listing-results-header">
+                        <h2 class="listing-panel-title mb-1">Available Listings</h2>
+                        <p class="listing-panel-subtitle mb-0">Updated in real time.</p>
+                    </div>
+
+                    {% if listings %}
+                        <div class="listing-results-list">
+                            {% for listing in listings %}
+                                <article class="listing-result">
+                                    <div class="listing-thumb">
+                                        <span>Photo</span>
+                                    </div>
+                                    <div class="listing-result-body">
+                                        <div class="listing-result-meta">
+                                            <span class="listing-price">${{ listing.price|floatformat:0 }}/mo</span>
+                                            <span class="listing-lease">{{ listing.get_lease_type_display }}</span>
+                                        </div>
+                                        <h3 class="listing-result-title">{{ listing.title }}</h3>
+                                        <p class="listing-result-address">{{ listing.address }}</p>
+                                        {% if listing.description %}
+                                            <p class="listing-result-description">
+                                                {{ listing.description|truncatewords:14 }}
+                                            </p>
+                                        {% endif %}
+                                    </div>
+                                </article>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted mb-0">No listings available yet. Check back soon.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                <div class="listing-panel listing-map-panel h-100">
+                    <div class="listing-map-header">
+                        <div>
+                            <h2 class="listing-panel-title mb-1">Map View</h2>
+                            <p class="listing-panel-subtitle mb-0">Preview pricing hotspots near campus.</p>
+                        </div>
+                        <div class="btn-group listing-map-toggle" role="group" aria-label="Map view toggle">
+                            <button class="btn btn-light active" type="button">Map</button>
+                            <button class="btn btn-light" type="button">Satellite</button>
+                        </div>
+                    </div>
+
+                    <div class="listing-map">
+                        <div class="map-tag map-tag-accent" style="top: 20%; left: 48%;">$1800</div>
+                        <div class="map-tag map-tag-secondary" style="top: 55%; left: 70%;">$1450</div>
+                        <div class="map-tag map-tag-primary" style="top: 62%; left: 32%;">$1600</div>
+                        <div class="map-zoom-controls">
+                            <button class="map-zoom-btn" type="button">+</button>
+                            <button class="map-zoom-btn" type="button">-</button>
+                        </div>
+                    </div>
+
+                    <div class="listing-map-footer">
+                        <span class="listing-map-caption">Map preview is a placeholder.</span>
+                        <a class="listing-map-action" href="{% url 'listings:create_listing' %}">Post a listing</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
 {% endblock %}
