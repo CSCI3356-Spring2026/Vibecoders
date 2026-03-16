@@ -3,15 +3,48 @@
 {% block title %}Welcome | Vibecoders{% endblock %}
 
 {% block content %}
-    <div class="container py-5">
-        <div class="mb-4">
-            <h1 class="h3 fw-semibold">
-                {% if request.user.is_authenticated %}
-                    Welcome, {{ request.user.get_full_name|default:request.user.username }}{% if request.user.display_role %} – {{ request.user.display_role }}{% endif %}
-                {% else %}
-                    Welcome to Vibecoders
-                {% endif %}
-            </h1>
+    <section class="welcome-hero">
+        <div class="container py-5">
+            <div class="welcome-card">
+                <div class="welcome-card-body">
+                    <p class="welcome-eyebrow">Welcome back</p>
+                    <h1 class="welcome-title">
+                        {% if request.user.is_authenticated %}
+                            Welcome, {{ request.user.get_full_name|default:request.user.username }}{% if request.user.display_role %} – {{ request.user.display_role }}{% endif %}
+                        {% else %}
+                            Welcome to Vibecoders
+                        {% endif %}
+                    </h1>
+                    <p class="welcome-subtitle">
+                        Find housing opportunities, manage your listings, and stay connected with the Vibecoders community.
+                    </p>
+                    <div class="welcome-actions">
+                        <a class="btn btn-brand" href="{% url 'listings:listing_list' %}">Browse listings</a>
+                        <a class="btn btn-outline-secondary" href="{% url 'listings:create_listing' %}">Post a listing</a>
+                        <a class="btn btn-outline-secondary" href="{% url 'users:profile' %}">View profile</a>
+                    </div>
+                </div>
+                <div class="welcome-card-aside">
+                    <div class="welcome-metric">
+                        <span class="welcome-metric-label">Your role</span>
+                        <span class="welcome-metric-value">
+                            {% if request.user.is_authenticated %}
+                                {{ request.user.display_role|default:"Student" }}
+                            {% else %}
+                                Guest
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="welcome-metric">
+                        <span class="welcome-metric-label">Listings</span>
+                        <span class="welcome-metric-value">Browse new posts</span>
+                    </div>
+                    <div class="welcome-metric">
+                        <span class="welcome-metric-label">Messages</span>
+                        <span class="welcome-metric-value">Keep the conversation going</span>
+                    </div>
+                </div>
+            </div>
         </div>
-    </div>
+    </section>
 {% endblock %}
