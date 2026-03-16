@@ -13,18 +13,18 @@ Examples:
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
 from users import views as user_views
 
 urlpatterns = [
-    # URLS for main app and admin
     path("admin/", admin.site.urls),
     path("", include("core.urls")),
-    # URLS for sub apps
     path("users/", include("users.urls")),
     path("accounts/login/", user_views.login_page),
     path("accounts/", include("allauth.urls")),
     path("listings/", include("listings.urls")),
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
