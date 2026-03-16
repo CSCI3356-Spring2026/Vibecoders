@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-
-{% block title %}Listing Detail | Vibecoders{% endblock %}
-
-{% block content %}{% endblock %}
+{% block content %}
+<h1>{{ listing.title }}</h1>
+<p>${{ listing.price }}/month</p>
+{% endblock %}
