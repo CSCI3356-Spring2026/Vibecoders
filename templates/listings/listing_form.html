@@ -1,29 +1,116 @@
 {% extends "base.html" %}
 
-{% block title %}Create Listing | Vibecoders{% endblock %}
-
 {% block content %}
 <div class="container py-5">
     <div class="row justify-content-center">
-        <div class="col-md-8">
-            <div class="card shadow-sm">
-                <div class="card-body p-4">
-                    <h1 class="h3 mb-4">Create Listing</h1>
+        <div class="col-lg-10">
+            <div class="card shadow-sm border-0">
+                <div class="card-header py-3" style="background-color: #4f46e5;"> 
+                    <h2 class="h4 mb-0 text-white fw-bold">Create a New Listing</h2>
+                </div>
 
-                    <form method="post">
+                <div class="card-body p-4">
+                    <form method="post" enctype="multipart/form-data">
                         {% csrf_token %}
 
-                        <div class="mb-3">
-                            {{ form.as_p }}
+                        {% if form.errors %}
+                            <div class="alert alert-danger" role="alert">
+                                {% for error in form.non_field_errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                                {% for field in form %}
+                                    {% for error in field.errors %}
+                                        <div>{{ error }}</div>
+                                    {% endfor %}
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        <div class="row g-4">
+                            <div class="col-md-12">
+                                <label class="form-label fw-bold">Title</label>
+                                {{ form.title }}
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label fw-bold">Address</label>
+                                {{ form.address }}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Monthly Price ($)</label>
+                                {{ form.price }}
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">Start Date</label>
+                                {{ form.start_date }}
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">End Date</label>
+                                {{ form.end_date }}
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">Lease Type</label>
+                                {{ form.lease_type }}
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold">Property Type</label>
+                                {{ form.property_type }}
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Rooms</label>
+                                {{ form.rooms }}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Bathrooms</label>
+                                {{ form.bathrooms }}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-bold">Sq Footage</label>
+                                {{ form.sq_ft }}
+                            </div>
+
+                            <div class="col-md-12">
+                                <div class="d-flex gap-4 p-3 bg-light rounded">
+                                    <label class="form-label fw-bold">Select all that are included:</label>
+                                    <div class="form-check">{{ form.has_yard }} <label>Yard</label></div>
+                                    <div class="form-check">{{ form.has_parking }} <label>Parking</label></div>
+                                    <div class="form-check">{{ form.is_furnished }} <label>Furniture</label></div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Utilities Included</label>
+                                <div class="p-3 bg-light rounded border">
+                                    <div class="d-flex flex-wrap gap-3 mb-2">
+                                        {% for checkbox in form.common_utilities %}
+                                            <div class="form-check">
+                                                {{ checkbox.tag }}
+                                                <label class="form-check-label">{{ checkbox.choice_label }}</label>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                    {{ form.other_utilities }}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">Pet Policy</label>
+                                {{ form.pet_policy }}
+                            </div>
+                            <div class="col-md-12">
+                                <label class="form-label fw-bold">Property Description</label>
+                                {{ form.description }}
+                            </div>
+
+                            <div class="col-md-12">
+                                <label class="form-label fw-bold">Upload Photos (Select multiple)</label>
+                                {{ form.images }}
+                            </div>
                         </div>
 
-                        <div class="d-flex gap-2">
-                            <button type="submit" class="btn btn-brand px-4">
-                                Post Listing
-                            </button>
-                            <a href="{% url 'listings:listing_list' %}" class="btn btn-outline-secondary">
-                                Cancel
-                            </a>
+                        <div class="mt-5 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary px-5" style="background-color: var(--primary-600);">Post Listing</button>
+                            <a href="{% url 'listings:listing_list' %}" class="btn btn-outline-secondary px-4">Cancel</a>
                         </div>
                     </form>
                 </div>
