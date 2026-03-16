@@ -12,7 +12,16 @@ from django.urls import reverse
 # Basic smoke tests to ensure listing-related pages render without error
 class ListingPageTests(TestCase):
     def test_listing_pages_render(self):
-        for path in ("/listings/", "/listings/detail/"):
+        user = get_user_model().objects.create_user(username="testowner", password="testpass123")
+        listing = user.listings.create(
+            title="Test listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 5, 31),
+        )
+        for path in ("/listings/", f"/listings/detail/{listing.pk}/"):
             with self.subTest(path=path):
                 response = self.client.get(path)
                 self.assertEqual(response.status_code, 200)

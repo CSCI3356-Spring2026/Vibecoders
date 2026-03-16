@@ -178,3 +178,5 @@ SOCIALACCOUNT_PROVIDERS = {
 
 ACCOUNT_ADAPTER = "users.adapters.NoSignupAccountAdapter"
 SOCIALACCOUNT_ADAPTER = "users.adapters.BCEmailAdapter"
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR
