@@ -17,6 +17,6 @@
             <span class="auth-google-mark">{% include "auth/google_mark.html" %}</span>
             <span>{% trans "Continue" %}</span>
         </button>
-        <a class="auth-ghost-btn" href="/users/login/">Back to login</a>
+        <a class="auth-ghost-btn" href="{% url 'users:login' %}">Back to login</a>
     </form>
 {% endblock %}
