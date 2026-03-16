@@ -28,7 +28,7 @@
                         {% block nav_actions %}
                             <a class="nav-button" href="{% url 'listings:create_listing' %}">Create Listing</a>
                             <a class="nav-button" href="/listings/">Listings</a>
-                            <a class="nav-button" href="/listings/create/">Posts</a>
+                            <a class="nav-button" href="{% url 'users:posts' %}">Posts</a>
                             <a class="nav-button" href="/users/dashboard/">Documents</a>
                             <a class="nav-button" href="/users/dashboard/#messages">Messages</a>
                             <a class="nav-button" href="/users/profile/">Edit Profile</a>
