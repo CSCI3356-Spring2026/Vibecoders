@@ -17,19 +17,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-
-def env_bool(name, default=False):
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def env_list(name, default=""):
-    value = os.getenv(name, default)
-    return [item.strip() for item in value.split(",") if item.strip()]
-
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -38,12 +25,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "x8v$4p9n#s2m!k7q%t1h@c6r&z5w*l3y^f0j8d2b1e7u4i9o!m6u@r1p%z8k")
+SECRET_KEY = "django-insecure-1##hdas0fy1igz9lgn=w3zrez(5sh)!zk2%@zpk#^=4oqt^5*2"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env_bool("DJANGO_DEBUG", True)
+DEBUG = True
 
-ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost,testserver")
+ALLOWED_HOSTS = []
 
 
 # Application definition
@@ -77,15 +64,6 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
-
-# Allow same-origin embeds so local PDF previews render inside iframes.
-X_FRAME_OPTIONS = "SAMEORIGIN"
-SECURE_SSL_REDIRECT = not DEBUG
-SESSION_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SECURE = not DEBUG
-SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
-SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
-SECURE_HSTS_PRELOAD = not DEBUG
 
 ROOT_URLCONF = "vibecoders.urls"
 
@@ -142,7 +120,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "America/New_York"
+TIME_ZONE = "UTC"
 
 USE_I18N = True
 
@@ -152,10 +130,8 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = "/static/"
+STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
 
 
 # Default primary key field type
@@ -172,7 +148,6 @@ AUTH_USER_MODEL = "users.CustomUser"
 SITE_ID = 1
 
 AUTHENTICATION_BACKENDS = [
-    "django.contrib.auth.backends.ModelBackend",  # Django admin and permissions
     "allauth.account.auth_backends.AuthenticationBackend",  # Allauth
 ]
 
@@ -187,7 +162,7 @@ ACCOUNT_LOGIN_BY_CODE_ENABLED = False
 ACCOUNT_PASSWORD_RESET_BY_CODE_ENABLED = False
 ACCOUNT_EMAIL_VERIFICATION_BY_CODE_ENABLED = False
 
-LOGIN_REDIRECT_URL = "/users/dashboard/"  # Where to go after login
+LOGIN_REDIRECT_URL = "/welcome/"  # Where to go after login
 LOGOUT_REDIRECT_URL = "/"  # Where to go after logout
 
 SOCIALACCOUNT_PROVIDERS = {
@@ -203,3 +178,5 @@ SOCIALACCOUNT_PROVIDERS = {
 
 ACCOUNT_ADAPTER = "users.adapters.NoSignupAccountAdapter"
 SOCIALACCOUNT_ADAPTER = "users.adapters.BCEmailAdapter"
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR

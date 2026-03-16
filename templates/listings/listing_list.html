@@ -1,169 +1,264 @@
 {% extends "base.html" %}
 
-{% block title %}Listings | Vibecoders{% endblock %}
+{% block title %}Find a Listing | Vibecoders{% endblock %}
 
 {% block content %}
-<section class="app-page">
-    <div class="container">
-        <div class="app-shell">
-            <div class="app-header app-header-shell">
-                <div class="app-header-main">
-                    <div>
-                        <p class="app-kicker">Listings</p>
-                        <h1 class="app-title">Search homes</h1>
-                        <p class="app-subtitle">Clean filters. Clear cards. One fast feed.</p>
-                    </div>
-                    <div class="app-actions">
-                        <a class="btn btn-brand" href="{% url 'listings:create_listing' %}">New listing</a>
-                    </div>
+<section class="listing-landing">
+    <div class="container py-5">
+        <div class="listing-hero mb-4">
+            <p class="listing-hero-eyebrow">Listings</p>
+            <h1 class="listing-hero-title">Find Your Off-Campus Housing</h1>
+            <p class="listing-hero-subtitle">Browse available listings near campus, then refine by budget and lease type.</p>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-4">
+                <div class="listing-panel listing-filters">
+                    <h2 class="listing-panel-title">Filter Listings</h2>
+                    <p class="listing-panel-subtitle">Set your range, then apply filters to match your timeline.</p>
+
+                    <form class="listing-filter-form">
+                        <div class="mb-3">
+                            <label class="form-label" for="filter-price">Price Range</label>
+                            <select class="form-select" id="filter-price">
+                                <option selected>Any budget</option>
+                                <option>$500 - $1,000</option>
+                                <option>$1,000 - $1,500</option>
+                                <option>$1,500 - $2,000</option>
+                                <option>$2,000+</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="filter-lease">Lease Type</label>
+                            <select class="form-select" id="filter-lease">
+                                <option selected>Any lease type</option>
+                                <option>Full Lease</option>
+                                <option>Sublease</option>
+                                <option>Short-term</option>
+                            </select>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label" for="filter-date">Move-in Window</label>
+                            <select class="form-select" id="filter-date">
+                                <option selected>Anytime</option>
+                                <option>Next 30 days</option>
+                                <option>Next 60 days</option>
+                                <option>Fall Semester</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-brand w-100" type="button">Apply Filters</button>
+                    </form>
                 </div>
-                <div class="app-meta">
-                    <span class="app-meta-chip">{{ listings_total }} active</span>
-                    <span class="app-meta-chip">
-                        {% if active_filters.q or active_filters.max_price or active_filters.lease_type or active_filters.available_by %}
-                            Filtered
-                        {% else %}
-                            All listings
-                        {% endif %}
-                    </span>
+
+                <div class="listing-panel listing-results mt-4">
+                    <div class="listing-results-header">
+                        <h2 class="listing-panel-title mb-1">Available Listings</h2>
+                        <p class="listing-panel-subtitle mb-0">Updated in real time.</p>
+                    </div>
+
+                    {% if listings %}
+                        <div class="listing-results-list">
+                            {% for listing in listings %}
+                                <article class="listing-result" data-id="{{ listing.id }}" style="cursor:pointer;">
+                                    <div class="listing-thumb">
+                                        <span>Photo</span>
+                                    </div>
+                                    <div class="listing-result-body">
+                                        <div class="listing-result-meta">
+                                            <span class="listing-price">${{ listing.price|floatformat:0 }}/mo</span>
+                                            <span class="listing-lease">{{ listing.get_lease_type_display }}</span>
+                                        </div>
+                                        <h3 class="listing-result-title">{{ listing.title }}</h3>
+                                        <p class="listing-result-address">{{ listing.address }}</p>
+                                        {% if listing.description %}
+                                            <p class="listing-result-description">
+                                                {{ listing.description|truncatewords:14 }}
+                                            </p>
+                                        {% endif %}
+                                    </div>
+                                </article>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted mb-0">No listings available yet. Check back soon.</p>
+                    {% endif %}
                 </div>
             </div>
 
-            <div class="app-layout">
-                <aside class="listing-panel app-sidebar">
-                    <div class="app-panel-head">
+            <div class="col-lg-8">
+                <div class="listing-panel listing-map-panel h-100">
+                    <div class="listing-map-header">
                         <div>
-                            <h2 class="app-section-heading">Filters</h2>
-                            <p class="app-panel-copy">Refine the feed.</p>
+                            <h2 class="listing-panel-title mb-1">Map View</h2>
+                            <p class="listing-panel-subtitle mb-0">Preview pricing hotspots near campus.</p>
                         </div>
-                        <a class="listing-reset-link" href="{% url 'listings:listing_list' %}">Reset</a>
+                        <div class="btn-group listing-map-toggle" role="group" aria-label="Map view toggle">
+                            <button class="btn btn-light active" type="button">Map</button>
+                            <button class="btn btn-light" type="button">Satellite</button>
+                        </div>
                     </div>
 
-                    <form class="listing-filter-form app-stack" method="get" action="{% url 'listings:listing_list' %}">
-                        <div>
-                            <label class="form-label" for="filter-query">Search</label>
-                            <input
-                                class="form-control"
-                                id="filter-query"
-                                type="search"
-                                name="q"
-                                value="{{ active_filters.q }}"
-                                placeholder="Address, neighborhood, or title"
-                            >
+                    <div class="listing-map">
+                        <div class="map-tag map-tag-accent" style="top: 20%; left: 48%;">$1800</div>
+                        <div class="map-tag map-tag-secondary" style="top: 55%; left: 70%;">$1450</div>
+                        <div class="map-tag map-tag-primary" style="top: 62%; left: 32%;">$1600</div>
+                        <div class="map-zoom-controls">
+                            <button class="map-zoom-btn" type="button">+</button>
+                            <button class="map-zoom-btn" type="button">-</button>
                         </div>
-                        <div>
-                            <label class="form-label" for="filter-price">Max price</label>
-                            <select class="form-select" id="filter-price" name="max_price">
-                                {% for value, label in max_price_filters %}
-                                    <option value="{{ value }}"{% if active_filters.max_price == value %} selected{% endif %}>
-                                        {{ label }}
-                                    </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="form-label" for="filter-lease">Lease type</label>
-                            <select class="form-select" id="filter-lease" name="lease_type">
-                                <option value="">Any lease type</option>
-                                {% for value, label in lease_type_filters %}
-                                    <option value="{{ value }}"{% if active_filters.lease_type == value %} selected{% endif %}>
-                                        {{ label }}
-                                    </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div>
-                            <label class="form-label" for="filter-date">Available by</label>
-                            <select class="form-select" id="filter-date" name="available_by">
-                                {% for value, label in move_in_filters %}
-                                    <option value="{{ value }}"{% if active_filters.available_by == value %} selected{% endif %}>
-                                        {{ label }}
-                                    </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <button class="btn btn-brand w-100" type="submit">Apply filters</button>
-                    </form>
-                </aside>
+                    </div>
 
-                <div class="app-main">
-                    <div class="listing-panel">
-                        <div class="app-panel-head">
-                            <div>
-                                <h2 class="app-section-heading">Results</h2>
-                                <p class="app-panel-copy">
-                                    {% if active_filters.q %}
-                                        {{ listings_total }} home{{ listings_total|pluralize }} matching "{{ active_filters.q }}".
-                                    {% else %}
-                                        {{ listings_total }} home{{ listings_total|pluralize }} in view.
-                                    {% endif %}
-                                </p>
-                            </div>
-                        </div>
-
-                        {% if listings %}
-                            <div class="listing-results-grid">
-                                {% for listing in listings %}
-                                    <a class="listing-card" href="{% url 'listings:detail' listing.pk %}">
-                                        <div class="listing-card-media">
-                                            {% if listing.primary_image %}
-                                                <img src="{{ listing.primary_image.image.url }}" alt="{{ listing.title }}">
-                                            {% else %}
-                                                <div class="listing-card-placeholder">
-                                                    <span>{{ listing.get_property_type_display }}</span>
-                                                </div>
-                                            {% endif %}
-                                            <div class="listing-card-badge">{{ listing.get_lease_type_display }}</div>
-                                        </div>
-                                        <div class="listing-card-body">
-                                            <div class="listing-card-price-row">
-                                                <span class="listing-card-price">${{ listing.price|floatformat:0 }}/mo</span>
-                                                <span class="listing-card-status">{{ listing.get_status_display }}</span>
-                                            </div>
-                                            <h3 class="listing-card-title">{{ listing.title }}</h3>
-                                            <p class="listing-card-address">{{ listing.address }}</p>
-                                            <div class="listing-card-specs">
-                                                <span>{{ listing.rooms }} bd</span>
-                                                <span>{{ listing.bathrooms }} ba</span>
-                                                {% if listing.sq_ft %}
-                                                    <span>{{ listing.sq_ft }} sqft</span>
-                                                {% endif %}
-                                            </div>
-                                            {% if listing.description %}
-                                                <p class="listing-card-summary">{{ listing.description|truncatewords:14 }}</p>
-                                            {% endif %}
-                                        </div>
-                                    </a>
-                                {% endfor %}
-                            </div>
-                        {% else %}
-                            <div class="app-empty">
-                                <h3 class="app-empty-title">No listings match these filters.</h3>
-                                <p class="app-empty-copy">Reset the feed or adjust one filter to see more homes.</p>
-                            </div>
-                        {% endif %}
-
-                        {% if listings.paginator.num_pages > 1 %}
-                            <div class="app-pagination">
-                                {% if listings.has_previous %}
-                                    <a class="btn btn-outline-secondary" href="?page={{ listings.previous_page_number }}{{ pagination_query }}">Previous</a>
-                                {% else %}
-                                    <span class="btn btn-outline-secondary disabled">Previous</span>
-                                {% endif %}
-
-                                <span class="app-pagination-label">Page {{ listings.number }} of {{ listings.paginator.num_pages }}</span>
-
-                                {% if listings.has_next %}
-                                    <a class="btn btn-outline-secondary" href="?page={{ listings.next_page_number }}{{ pagination_query }}">Next</a>
-                                {% else %}
-                                    <span class="btn btn-outline-secondary disabled">Next</span>
-                                {% endif %}
-                            </div>
-                        {% endif %}
+                    <div class="listing-map-footer">
+                        <span class="listing-map-caption">Map preview is a placeholder.</span>
+                        <a class="listing-map-action" href="{% url 'listings:create_listing' %}">Post a listing</a>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </section>
+<!-- Listing Detail Modal -->
+<div class="modal fade" id="listingModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-0">
+
+        <!-- Image Gallery -->
+        <div id="modal-gallery" class="row g-2 mb-4" style="display:none;">
+          <div class="col-6">
+            <img id="modal-main-image" src="" class="img-fluid rounded" style="width:100%;height:220px;object-fit:cover;">
+          </div>
+          <div class="col-6">
+            <div class="row g-2" id="modal-thumbnails"></div>
+          </div>
+        </div>
+
+        <!-- Price + Address -->
+        <div class="mb-3">
+          <h3 class="fw-bold mb-1" id="modal-title"></h3>
+          <p class="text-muted mb-1" id="modal-address"></p>
+          <h4 style="color: var(--primary-600);" id="modal-price"></h4>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="d-flex gap-4 mb-4">
+          <div class="text-center">
+            <div class="fs-4 fw-bold" id="modal-rooms"></div>
+            <div class="text-muted small">beds</div>
+          </div>
+          <div class="text-center">
+            <div class="fs-4 fw-bold" id="modal-bathrooms"></div>
+            <div class="text-muted small">baths</div>
+          </div>
+          <div class="text-center">
+            <div class="fs-4 fw-bold" id="modal-sqft"></div>
+            <div class="text-muted small">sqft</div>
+          </div>
+        </div>
+
+        <!-- Feature Tags -->
+        <div class="d-flex flex-wrap gap-2 mb-4" id="modal-tags"></div>
+
+        <!-- Description -->
+        <div class="mb-3" id="modal-description-section">
+          <h6 class="fw-bold">Description</h6>
+          <p id="modal-description" class="text-muted"></p>
+        </div>
+
+        <!-- Policies -->
+        <div class="mb-3" id="modal-utilities-section">
+          <h6 class="fw-bold">Utilities Included</h6>
+          <p id="modal-utilities" class="text-muted"></p>
+        </div>
+        <div class="mb-3" id="modal-pet-section">
+          <h6 class="fw-bold">Pet Policy</h6>
+          <p id="modal-pet" class="text-muted"></p>
+        </div>
+
+        <!-- Dates -->
+        <div class="d-flex gap-4 mb-4">
+          <div><span class="fw-bold">Move-in:</span> <span id="modal-start"></span></div>
+          <div><span class="fw-bold">Move-out:</span> <span id="modal-end"></span></div>
+        </div>
+
+        <p class="text-muted small">Posted by <span id="modal-owner"></span></p>
+
+        <!-- Buttons -->
+        <div class="d-flex gap-2 mt-3">
+          <button class="btn btn-primary flex-fill">Request Tour</button>
+          <button class="btn btn-outline-primary flex-fill">Contact Agent</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.querySelectorAll('.listing-result').forEach(card => {
+    card.addEventListener('click', function() {
+      const id = this.dataset.id;
+      fetch(`/listings/detail/${id}/`)
+        .then(res => res.json())
+        .then(data => {
+          document.getElementById('modal-title').textContent = data.title;
+          document.getElementById('modal-address').textContent = data.address;
+          document.getElementById('modal-price').textContent = `$${data.price}/month`;
+          document.getElementById('modal-rooms').textContent = data.rooms;
+          document.getElementById('modal-bathrooms').textContent = data.bathrooms;
+          document.getElementById('modal-sqft').textContent = data.sq_ft || 'N/A';
+          document.getElementById('modal-start').textContent = data.start_date;
+          document.getElementById('modal-end').textContent = data.end_date;
+          document.getElementById('modal-owner').textContent = data.owner;
+          document.getElementById('modal-description').textContent = data.description || 'No description provided.';
+          document.getElementById('modal-utilities').textContent = data.utilities_included || 'None listed.';
+          document.getElementById('modal-pet').textContent = data.pet_policy || 'No pet policy listed.';
+
+          // Feature tags
+          const tags = document.getElementById('modal-tags');
+          tags.innerHTML = '';
+          const features = [
+            data.lease_type,
+            data.property_type,
+            data.status,
+            data.has_yard ? 'Yard' : null,
+            data.has_parking ? 'Parking' : null,
+            data.is_furnished ? 'Furnished' : null,
+            data.amenities || null,
+          ].filter(Boolean);
+          features.forEach(f => {
+            const badge = document.createElement('span');
+            badge.className = 'badge rounded-pill text-dark border';
+            badge.style.backgroundColor = 'var(--gray-100)';
+            badge.style.padding = '8px 14px';
+            badge.style.fontSize = '0.85rem';
+            badge.textContent = f;
+            tags.appendChild(badge);
+          });
+
+          // Images
+          const gallery = document.getElementById('modal-gallery');
+          const thumbnails = document.getElementById('modal-thumbnails');
+          thumbnails.innerHTML = '';
+          if (data.images && data.images.length > 0) {
+            gallery.style.display = 'flex';
+            document.getElementById('modal-main-image').src = data.images[0];
+            data.images.slice(1, 5).forEach(url => {
+              const col = document.createElement('div');
+              col.className = 'col-6';
+              col.innerHTML = `<img src="${url}" class="img-fluid rounded" style="width:100%;height:100px;object-fit:cover;">`;
+              thumbnails.appendChild(col);
+            });
+          } else {
+            gallery.style.display = 'none!important';
+          }
+
+          new bootstrap.Modal(document.getElementById('listingModal')).show();
+        });
+    });
+  });
+</script>
 {% endblock %}

@@ -5,7 +5,7 @@
 {% block auth_panel %}
     <h1 class="auth-title">Login did not complete</h1>
     <div class="auth-actions">
-        <a class="auth-google-btn" href="{% url 'users:login' %}">
+        <a class="auth-google-btn" href="/users/login/">
             <span class="auth-google-mark">{% include "auth/google_mark.html" %}</span>
             <span>Return to sign in</span>
         </a>

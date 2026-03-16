@@ -33,7 +33,8 @@ Vibecoders/
 │   │   ├── base.html
 │   │   └── google_mark.html
 │   ├── core/
-│   │   └── landing.html
+│   │   ├── landing.html
+│   │   └── welcome.html
 │   ├── listings/
 │   │   ├── listing_form.html
 │   │   ├── listing_list.html
@@ -47,18 +48,15 @@ Vibecoders/
 │   │   ├── login_cancelled.html
 │   │   └── login_redirect.html
 │   └── users/
-│       ├── files.html
 │       ├── login.html
 │       ├── profile.html
 │       └── dashboard.html
 ├── static/                # Static assets (CSS, JS, images)
 │   ├── css/custom.css     # Bootstrap overrides and color scheme
-│   ├── js/
+│   ├── js/main.js
 │   └── images/
-├── media/                 # Local user-uploaded files during development (gitignored)
 ├── manage.py
-├── requirements.txt       # Runtime dependencies
-├── requirements-dev.txt   # Local development tools (ruff, pre-commit)
+├── requirements.txt
 ├── pyproject.toml          # Ruff linting configuration
 ├── .pre-commit-config.yaml # Pre-commit hook definitions
 └── .github/workflows/ci.yml  # GitHub Actions CI pipeline
@@ -87,10 +85,10 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-3. Install development dependencies:
+3. Install dependencies:
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -r requirements.txt
 ```
 
 4. Install pre-commit hooks (required for all contributors):
@@ -168,19 +166,7 @@ Django uses a template inheritance model. `templates/base.html` is the shared la
 
 Auth-specific overrides live in `templates/account/`, `templates/socialaccount/`, and `templates/auth/`. The current listings flow uses `templates/listings/listing_form.html`, `templates/listings/listing_list.html`, and `templates/listings/listing_detail.html`.
 
-Static files (CSS, JS, images) live in the `static/` directory. In templates, reference them using Django's `{% static %}` tag. `static/css/custom.css` is the main stylesheet entrypoint.
-
-User-uploaded files are stored under `media/` in development and are intentionally ignored by git.
-
-## Tests
-
-Tests are organized by app:
-
-- `core/tests/`
-- `listings/tests/`
-- `users/tests/`
-
-The larger `listings` and `users` suites are split by concern so model, view, adapter, management-command, and file-library tests can evolve independently as the project grows.
+Static files (CSS, JS, images) live in the `static/` directory. In templates, reference them using Django's `{% static %}` tag. The custom color scheme and any Bootstrap overrides go in `static/css/custom.css`.
 
 ## User Interface 
 
