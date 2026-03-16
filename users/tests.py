@@ -1,3 +1,4 @@
+import tempfile
 from io import StringIO
 from unittest.mock import MagicMock
 
@@ -8,14 +9,16 @@ from django.contrib.messages import get_messages
 from django.contrib.messages.middleware import MessageMiddleware
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.core.exceptions import PermissionDenied
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.http import HttpResponse
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, TestCase, override_settings
+from django.urls import reverse
 
 from users.adapters import BCEmailAdapter, NoSignupAccountAdapter
 from users.decorators import admin_required
-from users.models import Role
+from users.models import Role, UserFile
 
 User = get_user_model()
 
@@ -293,3 +296,31 @@ class UserPageTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], "/")
         self.assertNotIn("_auth_user_id", self.client.session)
+
+
+# ---------------------------------------------------------------------------
+# User files tests
+# ---------------------------------------------------------------------------
+
+
+class UserFilesViewTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username="eagle", email="eagle@bc.edu", password="test")
+
+    def test_login_required(self):
+        response = self.client.get(reverse("users:files"))
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response.url)
+
+    def test_upload_creates_file(self):
+        self.client.force_login(self.user)
+        upload = SimpleUploadedFile("sample.txt", b"hello", content_type="text/plain")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                response = self.client.post(
+                    reverse("users:files"),
+                    {"title": "Lease", "file": upload},
+                    follow=True,
+                )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(UserFile.objects.filter(owner=self.user, title="Lease").exists())

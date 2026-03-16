@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}Your Files | Vibecoders{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="files-shell">
+        <div class="files-panel files-panel-left">
+            <div class="files-panel-header">
+                <h1 class="files-title">Upload Files</h1>
+            </div>
+            <div class="files-panel-body">
+                <form method="post" enctype="multipart/form-data" class="files-upload-form">
+                    {% csrf_token %}
+                    {{ form.non_field_errors }}
+                    <div class="mb-3">
+                        <label class="form-label" for="id_title">Title</label>
+                        {{ form.title }}
+                        {{ form.title.errors }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="id_file">File</label>
+                        {{ form.file }}
+                        {{ form.file.errors }}
+                    </div>
+                    <button class="btn btn-brand w-100" type="submit">Upload</button>
+                </form>
+
+                <form method="get" class="files-search" role="search">
+                    <div class="input-group">
+                        <input
+                            type="search"
+                            name="q"
+                            class="form-control"
+                            placeholder="Search files"
+                            value="{{ query }}"
+                        >
+                        <button class="btn btn-outline-secondary" type="submit">Search</button>
+                    </div>
+                </form>
+
+                <div class="files-list">
+                    {% if files %}
+                        {% for item in files %}
+                            <div class="files-list-item{% if selected_file and selected_file.id == item.id %} is-active{% endif %}">
+                                <div class="files-list-row">
+                                    <a
+                                        class="files-list-link"
+                                        href="{% url 'users:files' %}?file={{ item.id }}{% if query %}&q={{ query }}{% endif %}"
+                                    >
+                                        <div class="files-list-title">{{ item.title }}</div>
+                                        <div class="files-list-meta">Uploaded {{ item.uploaded_at|date:"M d, Y" }}</div>
+                                    </a>
+                                    <div class="files-list-actions">
+                                        <form
+                                            method="post"
+                                            action="{% url 'users:file_delete' item.id %}"
+                                            class="files-delete-form"
+                                            onsubmit="return confirm('Delete this file?');"
+                                        >
+                                            {% csrf_token %}
+                                            <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="files-empty">No files yet. Upload one to get started.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="files-panel files-panel-right">
+            <div class="files-panel-header">
+                <h2 class="files-title">File Preview</h2>
+            </div>
+            <div class="files-panel-body">
+                {% if selected_file %}
+                    <div class="files-preview-header">
+                        <div>
+                            <div class="files-preview-title">{{ selected_file.title }}</div>
+                            <div class="files-preview-meta">{{ selected_file.file.name|cut:"user_uploads/" }}</div>
+                        </div>
+                        <div class="files-preview-actions">
+                            <a class="btn btn-outline-secondary" href="{{ selected_file.file.url }}" download>Download</a>
+                        </div>
+                    </div>
+
+                    <div class="files-preview-frame">
+                        {% if selected_is_image %}
+                            <img src="{{ selected_file.file.url }}" alt="{{ selected_file.title }}" />
+                        {% elif selected_is_pdf %}
+                            <iframe src="{{ selected_file.file.url }}" title="{{ selected_file.title }}"></iframe>
+                        {% else %}
+                            <div class="files-preview-placeholder">
+                                Preview not available for this file type.
+                            </div>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="files-empty">Select a file to preview it here.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
