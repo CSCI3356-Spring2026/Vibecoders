@@ -27,4 +27,11 @@ urlpatterns = [
     path("accounts/login/", user_views.login_page),
     path("accounts/", include("allauth.urls")),
     path("listings/", include("listings.urls")),
+<<<<<<< HEAD
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+=======
+]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+>>>>>>> 4dc2daa (documents feature)

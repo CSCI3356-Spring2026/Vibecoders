@@ -65,6 +65,9 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
+# Allow same-origin embeds so local PDF previews render inside iframes.
+X_FRAME_OPTIONS = "SAMEORIGIN"
+
 ROOT_URLCONF = "vibecoders.urls"
 
 TEMPLATES = [
@@ -132,6 +135,8 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 
 
 # Default primary key field type
