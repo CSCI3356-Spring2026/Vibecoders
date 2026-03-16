@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Listings | Vibecoders{% endblock %}
+
+{% block content %}
+<section class="app-page admin-dashboard">
+    <div class="container">
+        <div class="app-shell">
+            <div class="admin-header listing-panel">
+                <div>
+                    <p class="app-kicker">Admin Dashboard</p>
+                    <h1 class="app-title">Manage Listings</h1>
+                    <p class="app-subtitle">Review, filter, and remove listings across the platform.</p>
+                </div>
+                <div class="admin-header-meta">
+                    <a class="btn btn-outline-secondary" href="{% url 'users:admin_dashboard' %}">Back to dashboard</a>
+                </div>
+            </div>
+
+            <div class="app-layout">
+                <aside class="app-sidebar admin-sidebar">
+                    <div class="admin-nav-card listing-panel">
+                        <h2 class="admin-nav-title">Dashboard</h2>
+                        <nav class="admin-nav">
+                            <a class="admin-nav-item" href="{% url 'users:admin_dashboard' %}">Dashboard</a>
+                            <a class="admin-nav-item is-active" href="{% url 'users:admin_listings' %}">Manage Listings</a>
+                            <span class="admin-nav-item is-disabled">Reports &amp; Issues</span>
+                            <a class="admin-nav-item" href="{% url 'users:admin_users' %}">User Management</a>
+                        </nav>
+                        <form method="post" action="{% url 'account_logout' %}" class="admin-signout">
+                            {% csrf_token %}
+                            <button class="btn btn-outline-secondary w-100" type="submit">Sign Out</button>
+                        </form>
+                    </div>
+                </aside>
+
+                <div class="app-main">
+                    <div class="listing-panel admin-filter">
+                        <form method="get" class="admin-filter-form">
+                            <div class="admin-filter-inputs">
+                                <input
+                                    class="form-control"
+                                    type="search"
+                                    name="q"
+                                    placeholder="Search listings..."
+                                    value="{{ query }}"
+                                >
+                                <select class="form-select" name="status">
+                                    <option value="">All Statuses</option>
+                                    {% for value, label in status_options %}
+                                        <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <button class="btn btn-brand" type="submit">Filter</button>
+                        </form>
+                    </div>
+
+                    <div class="listing-panel admin-table">
+                        <div class="admin-table-head">
+                            <h2 class="app-section-heading">Listings</h2>
+                            <span class="admin-table-count">{{ listings|length }} results</span>
+                        </div>
+
+                        {% if listings %}
+                            <div class="table-responsive">
+                                <table class="table align-middle admin-table-grid">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Property</th>
+                                            <th scope="col">Posted By</th>
+                                            <th scope="col">Status</th>
+                                            <th scope="col">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for listing in listings %}
+                                            <tr>
+                                                <td>
+                                                    <div class="admin-property">
+                                                        <div class="admin-property-title">
+                                                            ${{ listing.price|floatformat:0 }}/mo
+                                                        </div>
+                                                        <div class="admin-property-meta">
+                                                            {{ listing.rooms }} Bed, {{ listing.bathrooms|floatformat:1 }} Bath
+                                                        </div>
+                                                        <div class="admin-property-sub">
+                                                            {{ listing.title }} · {{ listing.address }}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div class="admin-poster">
+                                                        <div class="admin-poster-name">{{ listing.owner.get_full_name|default:listing.owner.username }}</div>
+                                                        <div class="admin-poster-email">{{ listing.owner.email }}</div>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <span class="admin-status-pill {% if listing.status == 'PENDING' %}is-pending{% elif listing.status == 'AVAILABLE' %}is-approved{% else %}is-muted{% endif %}">
+                                                        {{ listing.get_status_display }}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <div class="admin-user-actions">
+                                                        <a class="btn btn-outline-secondary btn-sm" href="{% url 'listings:detail' listing.pk %}">View</a>
+                                                        <form method="post" action="{% url 'users:admin_delete_listing' listing.id %}" onsubmit="return confirm('Remove this listing?');">
+                                                            {% csrf_token %}
+                                                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                            <button class="btn btn-outline-secondary btn-sm" type="submit">Remove</button>
+                                                        </form>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="app-panel-copy mb-0">No listings match the current filters.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

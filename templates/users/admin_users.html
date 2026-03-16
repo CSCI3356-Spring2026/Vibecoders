@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}User Management | Vibecoders{% endblock %}
+
+{% block content %}
+<section class="app-page admin-dashboard">
+    <div class="container">
+        <div class="app-shell">
+            <div class="admin-header listing-panel">
+                <div>
+                    <p class="app-kicker">Admin Dashboard</p>
+                    <h1 class="app-title">User Management</h1>
+                    <p class="app-subtitle">Review users, update roles, and control access.</p>
+                </div>
+                <div class="admin-header-meta">
+                    <a class="btn btn-outline-secondary" href="{% url 'users:admin_dashboard' %}">Back to dashboard</a>
+                </div>
+            </div>
+
+            <div class="app-layout">
+                <aside class="app-sidebar admin-sidebar">
+                    <div class="admin-nav-card listing-panel">
+                        <h2 class="admin-nav-title">Dashboard</h2>
+                        <nav class="admin-nav">
+                            <a class="admin-nav-item" href="{% url 'users:admin_dashboard' %}">Dashboard</a>
+                            <a class="admin-nav-item" href="{% url 'users:admin_listings' %}">Manage Listings</a>
+                            <span class="admin-nav-item is-disabled">Reports &amp; Issues</span>
+                            <a class="admin-nav-item is-active" href="{% url 'users:admin_users' %}">User Management</a>
+                        </nav>
+                        <form method="post" action="{% url 'account_logout' %}" class="admin-signout">
+                            {% csrf_token %}
+                            <button class="btn btn-outline-secondary w-100" type="submit">Sign Out</button>
+                        </form>
+                    </div>
+                </aside>
+
+                <div class="app-main">
+                    <div class="listing-panel admin-filter">
+                        <form method="get" class="admin-filter-form">
+                            <div class="admin-filter-inputs">
+                                <input
+                                    class="form-control"
+                                    type="search"
+                                    name="q"
+                                    placeholder="Search users..."
+                                    value="{{ query }}"
+                                >
+                                <select class="form-select" name="role">
+                                    <option value="">All Roles</option>
+                                    <option value="student" {% if selected_role == 'student' %}selected{% endif %}>Student</option>
+                                    <option value="admin" {% if selected_role == 'admin' %}selected{% endif %}>Admin</option>
+                                </select>
+                                <select class="form-select" name="active">
+                                    <option value="">All Statuses</option>
+                                    <option value="active" {% if selected_active == 'active' %}selected{% endif %}>Active</option>
+                                    <option value="inactive" {% if selected_active == 'inactive' %}selected{% endif %}>Inactive</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-brand" type="submit">Filter</button>
+                        </form>
+                    </div>
+
+                    <div class="listing-panel admin-table">
+                        <div class="admin-table-head">
+                            <h2 class="app-section-heading">Users</h2>
+                            <span class="admin-table-count">{{ users|length }} users</span>
+                        </div>
+
+                        {% if users %}
+                            <div class="table-responsive">
+                                <table class="table align-middle admin-table-grid">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">User</th>
+                                            <th scope="col">Role</th>
+                                            <th scope="col">Status</th>
+                                            <th scope="col">Last Login</th>
+                                            <th scope="col">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for user in users %}
+                                            <tr>
+                                                <td>
+                                                    <div class="admin-user">
+                                                        <div class="admin-user-name">{{ user.get_full_name|default:user.username }}</div>
+                                                        <div class="admin-user-email">{{ user.email }}</div>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <span class="admin-status-pill {% if user.role == 'admin' %}is-approved{% else %}is-muted{% endif %}">
+                                                        {{ user.display_role }}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <span class="admin-status-pill {% if user.is_active %}is-approved{% else %}is-muted{% endif %}">
+                                                        {% if user.is_active %}Active{% else %}Inactive{% endif %}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <div class="admin-user-meta">
+                                                        {% if user.last_login %}{{ user.last_login|date:"M d, Y" }}{% else %}Never{% endif %}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div class="admin-user-actions">
+                                                        <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:admin_user_detail' user.id %}">View</a>
+                                                        <form method="post" action="{% url 'users:admin_set_role' user.id %}">
+                                                            {% csrf_token %}
+                                                            <input type="hidden" name="role" value="{% if user.role == 'admin' %}student{% else %}admin{% endif %}">
+                                                            <button class="btn btn-outline-secondary btn-sm" type="submit">
+                                                                {% if user.role == 'admin' %}Make Student{% else %}Make Admin{% endif %}
+                                                            </button>
+                                                        </form>
+                                                        <form method="post" action="{% url 'users:admin_toggle_active' user.id %}">
+                                                            {% csrf_token %}
+                                                            <button class="btn btn-outline-secondary btn-sm" type="submit">
+                                                                {% if user.is_active %}Deactivate{% else %}Activate{% endif %}
+                                                            </button>
+                                                        </form>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="app-panel-copy mb-0">No users match the current filters.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

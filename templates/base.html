@@ -58,6 +58,9 @@
                             <ul class="dropdown-menu dropdown-menu-end">
                                 <li><a class="dropdown-item" href="{% url 'users:profile' %}">Profile</a></li>
                                 <li><a class="dropdown-item" href="{% url 'users:dashboard' %}">Dashboard</a></li>
+                                {% if request.user.is_bc_admin %}
+                                    <li><a class="dropdown-item" href="{% url 'users:admin_dashboard' %}">Admin Dashboard</a></li>
+                                {% endif %}
                                 <li><hr class="dropdown-divider"></li>
                                 <li>
                                     <form method="post" action="{% url 'account_logout' %}">
