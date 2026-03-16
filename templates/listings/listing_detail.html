@@ -1,5 +1,118 @@
 {% extends "base.html" %}
+
+{% block title %}{{ listing.title }} | Vibecoders{% endblock %}
+
 {% block content %}
-<h1>{{ listing.title }}</h1>
-<p>${{ listing.price }}/month</p>
+<section class="app-page">
+    <div class="container">
+        <div class="app-shell">
+            <a class="listing-reset-link" href="{% url 'listings:listing_list' %}">Back to listings</a>
+
+            <div class="app-header app-header-shell">
+                <div class="app-header-main">
+                    <div>
+                        <p class="app-kicker">{{ listing.get_property_type_display }}</p>
+                        <h1 class="app-title">{{ listing.title }}</h1>
+                        <p class="app-subtitle">{{ listing.address }}</p>
+                    </div>
+                    <div class="app-price-block">
+                        <div class="listing-detail-price">${{ listing.price|floatformat:0 }}/month</div>
+                        <div class="listing-detail-meta">{{ listing.get_lease_type_display }} • {{ listing.get_status_display }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="app-detail-grid">
+                <div class="listing-panel">
+                    {% if listing.images.all %}
+                        <div class="listing-detail-gallery mb-4">
+                            {% for image in listing.images.all %}
+                                <img src="{{ image.image.url }}" alt="{{ listing.title }}" class="listing-detail-image">
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <div class="app-panel-head">
+                        <div>
+                            <h2 class="app-section-heading">Overview</h2>
+                        </div>
+                    </div>
+
+                    <div class="app-stat-grid app-stat-grid-tight mb-4">
+                        <div class="app-stat-card">
+                            <span class="app-stat-label">Bedrooms</span>
+                            <span class="app-stat-value">{{ listing.rooms }}</span>
+                        </div>
+                        <div class="app-stat-card">
+                            <span class="app-stat-label">Bathrooms</span>
+                            <span class="app-stat-value">{{ listing.bathrooms }}</span>
+                        </div>
+                        <div class="app-stat-card">
+                            <span class="app-stat-label">Square feet</span>
+                            <span class="app-stat-value">{{ listing.sq_ft|default:"N/A" }}</span>
+                        </div>
+                    </div>
+
+                    <p class="listing-card-summary mb-0">
+                        {{ listing.description|default:"No description was provided for this listing yet." }}
+                    </p>
+                </div>
+
+                <div class="app-stack">
+                    <div class="listing-panel">
+                        <div class="app-panel-head">
+                            <div>
+                                <h2 class="app-section-heading">Timeline</h2>
+                            </div>
+                        </div>
+                        <div class="app-compact-list">
+                            <div class="app-compact-item app-compact-item-static">
+                                <span class="app-compact-title">Move-in</span>
+                                <span class="app-compact-meta">{{ listing.start_date }}</span>
+                            </div>
+                            <div class="app-compact-item app-compact-item-static">
+                                <span class="app-compact-title">Move-out</span>
+                                <span class="app-compact-meta">{{ listing.end_date }}</span>
+                            </div>
+                            <div class="app-compact-item app-compact-item-static">
+                                <span class="app-compact-title">Posted by</span>
+                                <span class="app-compact-meta">{{ listing.owner.get_full_name|default:listing.owner.email }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="listing-panel">
+                        <div class="app-panel-head">
+                            <div>
+                                <h2 class="app-section-heading">Highlights</h2>
+                            </div>
+                        </div>
+                        <div class="app-chip-row mb-3">
+                            <span class="listing-lease">{{ listing.get_lease_type_display }}</span>
+                            <span class="listing-lease">{{ listing.get_property_type_display }}</span>
+                            {% if listing.has_yard %}<span class="listing-lease">Yard</span>{% endif %}
+                            {% if listing.has_parking %}<span class="listing-lease">Parking</span>{% endif %}
+                            {% if listing.is_furnished %}<span class="listing-lease">Furnished</span>{% endif %}
+                        </div>
+
+                        <div class="app-compact-list">
+                            <div class="app-compact-item app-compact-item-static">
+                                <span class="app-compact-title">Utilities</span>
+                                <span class="app-compact-meta">{{ listing.utilities_included|default:"Not listed" }}</span>
+                            </div>
+                            <div class="app-compact-item app-compact-item-static">
+                                <span class="app-compact-title">Pet policy</span>
+                                <span class="app-compact-meta">{{ listing.pet_policy|default:"Not listed" }}</span>
+                            </div>
+                            <div class="app-compact-item app-compact-item-static">
+                                <span class="app-compact-title">Amenities</span>
+                                <span class="app-compact-meta">{{ listing.amenities|default:"Not listed" }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
 {% endblock %}

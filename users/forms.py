@@ -1,13 +1,17 @@
 from django import forms
 
-from users.models import UserFile
+from .models import UserFile
 
 
 class UserFileUploadForm(forms.ModelForm):
+    title = forms.CharField(
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Optional title"}),
+    )
+
     class Meta:
         model = UserFile
         fields = ["title", "file"]
         widgets = {
-            "title": forms.TextInput(attrs={"class": "form-control", "placeholder": "Title"}),
             "file": forms.ClearableFileInput(attrs={"class": "form-control"}),
         }
