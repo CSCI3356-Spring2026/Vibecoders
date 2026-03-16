@@ -54,3 +54,26 @@ def create_listing(request):
         form = ListingForm()
 
     return render(request, "listings/listing_form.html", {"form": form})
+
+
+@login_required
+def edit_listing(request, pk):
+    listing = get_object_or_404(Listing, pk=pk, owner=request.user)
+    if request.method == "POST":
+        form = ListingForm(request.POST, request.FILES, instance=listing)
+        if form.is_valid():
+            form.save()
+            for image in request.FILES.getlist("images"):
+                ListingImage.objects.create(listing=listing, image=image)
+            return redirect("users:posts")
+    else:
+        form = ListingForm(instance=listing)
+    return render(request, "listings/listing_form.html", {"form": form})
+
+
+@login_required
+def delete_listing(request, pk):
+    listing = get_object_or_404(Listing, pk=pk, owner=request.user)
+    if request.method == "POST":
+        listing.delete()
+    return redirect("users:posts")

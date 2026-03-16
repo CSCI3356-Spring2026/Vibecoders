@@ -1,3 +1,4 @@
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 
 
@@ -15,3 +16,9 @@ def profile(request):
 
 def dashboard(request):
     return render(request, "users/dashboard.html")
+
+
+@login_required
+def posts(request):
+    listings = request.user.listings.all().order_by("-created_at")
+    return render(request, "users/posts.html", {"listings": listings})
