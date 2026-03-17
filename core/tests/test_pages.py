@@ -34,6 +34,37 @@ class CorePageTests(TestCase):
         self.assertContains(response, "Beacon Street apartment")
         self.assertContains(response, "$1800/mo")
 
+    def test_realtor_landing_only_surfaces_owned_listings(self):
+        realtor = get_user_model().objects.create_user(username="agent", email="agent@gmail.com", password="pass12345")
+        realtor.listings.create(
+            title="Broker exclusive",
+            address="50 Beacon St",
+            price="2200.00",
+            lease_type="FULL",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 5, 31),
+        )
+        other_user = get_user_model().objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="pass12345",
+        )
+        other_user.listings.create(
+            title="Student listing",
+            address="60 Beacon St",
+            price="1800.00",
+            lease_type="FULL",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 5, 31),
+        )
+        self.client.force_login(realtor)
+
+        response = self.client.get(reverse("core:landing"))
+
+        self.assertContains(response, "Listing Workspace")
+        self.assertContains(response, "Broker exclusive")
+        self.assertNotContains(response, "Student listing")
+
     def test_welcome_requires_login(self):
         response = self.client.get(reverse("core:welcome"))
 

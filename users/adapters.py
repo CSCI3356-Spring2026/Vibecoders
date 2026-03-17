@@ -2,6 +2,7 @@ from allauth.account.adapter import DefaultAccountAdapter
 from allauth.core.exceptions import ImmediateHttpResponse
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.shortcuts import redirect
 
 
@@ -37,36 +38,35 @@ class NoSignupAccountAdapter(DefaultAccountAdapter):
         )
 
 
-class BCEmailAdapter(DefaultSocialAccountAdapter):
-    """Only allow @bc.edu Google accounts to sign in / sign up."""
+class MarketplaceSocialAccountAdapter(DefaultSocialAccountAdapter):
+    """Allow Google login for both student and listing-only accounts."""
 
-    error_message = "Use your @bc.edu Google account to continue."
+    error_message = "Your Google account must provide an email address."
 
-    def _reject_non_bc_login(self, request):
+    def _reject_invalid_login(self, request):
         messages.error(request, self.error_message)
         raise ImmediateHttpResponse(redirect("users:login"))
 
     @staticmethod
-    def _is_bc_email(email):
-        return email.lower().endswith("@bc.edu")
+    def _email_from_sociallogin(sociallogin):
+        return sociallogin.account.extra_data.get("email", "").strip().lower()
 
     def is_open_for_signup(self, request, sociallogin):
-        """Block non-BC emails at social signup time."""
-        email = sociallogin.account.extra_data.get("email", "")
-        if not self._is_bc_email(email):
-            self._reject_non_bc_login(request)
+        """Allow Google signups as long as the provider supplies an email."""
+        if not self._email_from_sociallogin(sociallogin):
+            self._reject_invalid_login(request)
         return True
 
     def populate_user(self, request, sociallogin, data):
-        """Set username from the Google email prefix (e.g. 'eagle' from 'eagle@bc.edu')."""
+        """Derive the username and default role from the Google email."""
         user = super().populate_user(request, sociallogin, data)
-        email = data.get("email", "")
+        email = (data.get("email") or "").strip().lower()
         if email:
             user.username = email.split("@")[0]
+            user.role = get_user_model().default_role_for_email(email)
         return user
 
     def pre_social_login(self, request, sociallogin):
-        """Block non-BC emails at social login time (returning users)."""
-        email = sociallogin.account.extra_data.get("email", "")
-        if not self._is_bc_email(email):
-            self._reject_non_bc_login(request)
+        """Reject provider responses without an email before login completes."""
+        if not self._email_from_sociallogin(sociallogin):
+            self._reject_invalid_login(request)

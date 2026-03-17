@@ -165,6 +165,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Custom user model
 AUTH_USER_MODEL = "users.CustomUser"
+STUDENT_EMAIL_DOMAINS = env_list("STUDENT_EMAIL_DOMAINS", "bc.edu")
 
 # ALLAUTH SETTINGS
 # -----------------------------------------------------------------------------
@@ -180,7 +181,7 @@ AUTHENTICATION_BACKENDS = [
 SOCIALACCOUNT_ONLY = True
 ACCOUNT_LOGIN_METHODS = {"email"}  # Required by allauth; actual blocking is via NoSignupAccountAdapter
 ACCOUNT_SIGNUP_FIELDS = ["email*"]  # No password fields; actual blocking is via NoSignupAccountAdapter
-ACCOUNT_EMAIL_VERIFICATION = "none"  # BC email is verified via Google
+ACCOUNT_EMAIL_VERIFICATION = "none"  # Google provides the verified email identity
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_LOGIN_ON_GET = True
 ACCOUNT_LOGIN_BY_CODE_ENABLED = False
@@ -202,4 +203,4 @@ SOCIALACCOUNT_PROVIDERS = {
 }
 
 ACCOUNT_ADAPTER = "users.adapters.NoSignupAccountAdapter"
-SOCIALACCOUNT_ADAPTER = "users.adapters.BCEmailAdapter"
+SOCIALACCOUNT_ADAPTER = "users.adapters.MarketplaceSocialAccountAdapter"

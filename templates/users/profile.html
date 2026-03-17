@@ -19,21 +19,77 @@
             <div class="app-stat-grid">
                 <div class="app-stat-card">
                     <span class="app-stat-label">Role</span>
-                    <form method="POST" action="">
-                        {% csrf_token %}
-                        <select name="role" onchange="this.form.submit()" class="form-select mt-1">
-                            <option value="student" {% if request.user.role == "student" %}selected{% endif %}>Student</option>
-                            <option value="rental_agent" {% if request.user.role == "rental_agent" %}selected{% endif %}>Rental Agent</option>
-                        </select>
-                    </form>
+                    <span class="app-stat-value">{{ request.user.display_role }}</span>
                 </div>
                 <div class="app-stat-card">
                     <span class="app-stat-label">Listings</span>
                     <span class="app-stat-value">{{ listings_count }}</span>
                 </div>
                 <div class="app-stat-card">
+                    <span class="app-stat-label">Inquiries</span>
+                    <span class="app-stat-value">{{ sent_inquiries_count }}</span>
+                </div>
+                <div class="app-stat-card">
                     <span class="app-stat-label">Files</span>
                     <span class="app-stat-value">{{ files_count }}</span>
+                </div>
+            </div>
+
+            <div class="app-card-grid">
+                <div class="listing-panel">
+                    <div class="app-panel-head">
+                        <div>
+                            <h2 class="app-section-heading">Access model</h2>
+                            <p class="app-panel-copy">{{ request.user.access_summary }}</p>
+                        </div>
+                    </div>
+
+                    <div class="app-compact-list">
+                        <div class="app-compact-item app-compact-item-static">
+                            <span class="app-compact-title">Email verification</span>
+                            <span class="app-compact-meta">
+                                {% if request.user.has_verified_student_email %}
+                                    Verified student domain
+                                {% elif request.user.has_edu_email %}
+                                    Institutional email outside the current BC access scope
+                                {% else %}
+                                    External listing account
+                                {% endif %}
+                            </span>
+                        </div>
+                        <div class="app-compact-item app-compact-item-static">
+                            <span class="app-compact-title">Student domains</span>
+                            <span class="app-compact-meta">{{ student_email_domains }}</span>
+                        </div>
+                        <div class="app-compact-item app-compact-item-static">
+                            <span class="app-compact-title">Admin access</span>
+                            <span class="app-compact-meta">{% if request.user.can_access_admin_panel %}Enabled{% else %}Not enabled{% endif %}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="listing-panel">
+                    <div class="app-panel-head">
+                        <div>
+                            <h2 class="app-section-heading">Permissions</h2>
+                            <p class="app-panel-copy">What this account can do right now.</p>
+                        </div>
+                    </div>
+
+                    <div class="app-compact-list">
+                        <div class="app-compact-item app-compact-item-static">
+                            <span class="app-compact-title">Browse marketplace</span>
+                            <span class="app-compact-meta">{% if can_browse_marketplace %}Allowed{% else %}Restricted to your own listings{% endif %}</span>
+                        </div>
+                        <div class="app-compact-item app-compact-item-static">
+                            <span class="app-compact-title">Send inquiries</span>
+                            <span class="app-compact-meta">{% if can_inquire_on_listings %}Allowed{% else %}Student access required{% endif %}</span>
+                        </div>
+                        <div class="app-compact-item app-compact-item-static">
+                            <span class="app-compact-title">Create listings</span>
+                            <span class="app-compact-meta">Allowed</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

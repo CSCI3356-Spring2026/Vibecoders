@@ -6,6 +6,7 @@
 {% block auth_panel %}
     <div class="auth-minimal">
         <h1 class="auth-title">Sign in with Google</h1>
+        <p class="auth-copy">Use a `@bc.edu` account for full student access. External Google accounts can list and manage their own inventory.</p>
         <a class="auth-google-btn" href="{% provider_login_url 'google' process='login' %}">
             <span class="auth-google-mark">{% include "auth/google_mark.html" %}</span>
             <span>Continue with Google</span>

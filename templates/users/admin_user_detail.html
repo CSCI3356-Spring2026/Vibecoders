@@ -45,8 +45,8 @@
                             <span class="admin-stat-value">{{ managed_files|length }}</span>
                         </div>
                         <div class="admin-stat-card admin-stat-card-warm">
-                            <span class="admin-stat-label">Status</span>
-                            <span class="admin-stat-value">{% if managed_user.is_active %}Active{% else %}Inactive{% endif %}</span>
+                            <span class="admin-stat-label">Inquiries</span>
+                            <span class="admin-stat-value">{{ managed_inquiries|length }}</span>
                         </div>
                         <div class="admin-stat-card admin-stat-card-accent">
                             <span class="admin-stat-label">Role</span>
@@ -99,6 +99,32 @@
                             </div>
                         {% else %}
                             <p class="app-panel-copy mb-0">This user has no files.</p>
+                        {% endif %}
+                    </div>
+
+                    <div class="listing-panel admin-table">
+                        <div class="admin-table-head">
+                            <h2 class="app-section-heading">Inquiries</h2>
+                            <span class="admin-table-count">{{ managed_inquiries|length }} inquiries</span>
+                        </div>
+
+                        {% if managed_inquiries %}
+                            <div class="admin-list-grid">
+                                {% for inquiry in managed_inquiries %}
+                                    <div class="admin-list-item">
+                                        <div>
+                                            <div class="admin-list-title">{{ inquiry.listing.title }}</div>
+                                            <div class="admin-list-meta">{{ inquiry.sender.email }} • {{ inquiry.created_at|date:"M d, Y" }}</div>
+                                            {% if inquiry.message %}
+                                                <div class="admin-list-meta">{{ inquiry.message|truncatewords:20 }}</div>
+                                            {% endif %}
+                                        </div>
+                                        <span class="admin-status-pill is-muted">Inquiry</span>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="app-panel-copy mb-0">This user has no inquiries yet.</p>
                         {% endif %}
                     </div>
                 </div>

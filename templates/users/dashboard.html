@@ -13,10 +13,22 @@
                         <h1 class="app-title">
                             Welcome, {{ request.user.get_full_name|default:request.user.username }} - {{ request.user.display_role }}
                         </h1>
-                        <p class="app-subtitle">Review your listings, open documents, and keep the core housing workflow moving.</p>
+                        <p class="app-subtitle">
+                            {% if has_listing_only_access %}
+                                This listing-only account is limited to your listings.
+                            {% elif request.user.can_access_admin_panel %}
+                                Student access with admin controls.
+                            {% else %}
+                                Browse listings and manage your posts.
+                            {% endif %}
+                        </p>
                     </div>
                     <div class="app-actions">
-                        <a class="btn btn-brand" href="{% url 'listings:listing_list' %}">Browse listings</a>
+                        {% if can_browse_marketplace %}
+                            <a class="btn btn-brand" href="{% url 'listings:listing_list' %}">Browse listings</a>
+                        {% else %}
+                            <a class="btn btn-brand" href="{% url 'users:posts' %}">Open my listings</a>
+                        {% endif %}
                         <a class="btn btn-outline-secondary" href="{% url 'listings:create_listing' %}">Create listing</a>
                     </div>
                 </div>
@@ -28,12 +40,16 @@
                     <span class="app-stat-value">{{ listings_count }}</span>
                 </div>
                 <div class="app-stat-card">
-                    <span class="app-stat-label">Files</span>
-                    <span class="app-stat-value">{{ files_count }}</span>
+                    <span class="app-stat-label">Inbound inquiries</span>
+                    <span class="app-stat-value">{{ incoming_inquiries_count }}</span>
                 </div>
                 <div class="app-stat-card">
-                    <span class="app-stat-label">Role</span>
-                    <span class="app-stat-value">{{ request.user.display_role }}</span>
+                    <span class="app-stat-label">{% if has_listing_only_access %}Marketplace access{% else %}Sent inquiries{% endif %}</span>
+                    <span class="app-stat-value">{% if has_listing_only_access %}Restricted{% else %}{{ sent_inquiries_count }}{% endif %}</span>
+                </div>
+                <div class="app-stat-card">
+                    <span class="app-stat-label">Files</span>
+                    <span class="app-stat-value">{{ files_count }}</span>
                 </div>
             </div>
 
@@ -42,9 +58,9 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading">Recent listings</h2>
-                            <p class="app-panel-copy">Your latest posts.</p>
+                            <p class="app-panel-copy">Your latest listings.</p>
                         </div>
-                        <a class="listing-reset-link" href="{% url 'listings:create_listing' %}">New listing</a>
+                        <a class="listing-reset-link" href="{% url 'users:posts' %}">View all</a>
                     </div>
 
                     {% if recent_listings %}
@@ -62,10 +78,34 @@
                 </div>
 
                 <div class="listing-panel">
+                        <div class="app-panel-head">
+                            <div>
+                                <h2 class="app-section-heading">Recent inquiries</h2>
+                                <p class="app-panel-copy">Latest inquiries.</p>
+                            </div>
+                        </div>
+
+                    {% if recent_inquiries %}
+                        <div class="app-compact-list">
+                            {% for inquiry in recent_inquiries %}
+                                <div class="app-compact-item app-compact-item-static">
+                                    <span class="app-compact-title">{{ inquiry.listing.title }}</span>
+                                    <span class="app-compact-meta">
+                                        {{ inquiry.sender.get_full_name|default:inquiry.sender.username }} • {{ inquiry.created_at|date:"M d, Y" }}
+                                    </span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="app-panel-copy mb-0">No inquiries yet.</p>
+                    {% endif %}
+                </div>
+
+                <div class="listing-panel">
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading">Documents</h2>
-                            <p class="app-panel-copy">Keep lease files in one place.</p>
+                            <p class="app-panel-copy">Your uploaded files.</p>
                         </div>
                         <a class="listing-reset-link" href="{% url 'users:files' %}">Open library</a>
                     </div>
