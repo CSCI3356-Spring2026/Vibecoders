@@ -19,7 +19,13 @@
             <div class="app-stat-grid">
                 <div class="app-stat-card">
                     <span class="app-stat-label">Role</span>
-                    <span class="app-stat-value">{{ request.user.display_role }}</span>
+                    <form method="POST" action="">
+                        {% csrf_token %}
+                        <select name="role" onchange="this.form.submit()" class="form-select mt-1">
+                            <option value="student" {% if request.user.role == "student" %}selected{% endif %}>Student</option>
+                            <option value="rental_agent" {% if request.user.role == "rental_agent" %}selected{% endif %}>Rental Agent</option>
+                        </select>
+                    </form>
                 </div>
                 <div class="app-stat-card">
                     <span class="app-stat-label">Listings</span>
