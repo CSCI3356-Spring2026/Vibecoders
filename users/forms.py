@@ -13,5 +13,7 @@ class UserFileUploadForm(forms.ModelForm):
         model = UserFile
         fields = ["title", "file"]
         widgets = {
-            "file": forms.ClearableFileInput(attrs={"class": "form-control"}),
+            "file": forms.ClearableFileInput(
+                attrs={"class": "form-control", "accept": ".pdf,.txt,.doc,.docx,.jpg,.jpeg,.png,.webp"}
+            ),
         }

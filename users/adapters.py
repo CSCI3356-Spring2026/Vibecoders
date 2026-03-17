@@ -62,8 +62,9 @@ class MarketplaceSocialAccountAdapter(DefaultSocialAccountAdapter):
         user = super().populate_user(request, sociallogin, data)
         email = (data.get("email") or "").strip().lower()
         if email:
-            user.username = email.split("@")[0]
-            user.role = get_user_model().default_role_for_email(email)
+            user_model = get_user_model()
+            user.username = user_model.username_from_email(email)
+            user.role = user_model.default_role_for_email(email)
         return user
 
     def pre_social_login(self, request, sociallogin):

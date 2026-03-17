@@ -1,10 +1,13 @@
+import re
 from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
-from django.db.models.signals import post_save
+from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
+
+from .validators import validate_user_upload
 
 
 def _email_domain(email):
@@ -23,10 +26,13 @@ class Role(models.TextChoices):
 class CustomUser(AbstractUser):
     """Custom user model with role-aware marketplace access."""
 
+    REQUIRED_FIELDS = ["email"]
+    email = models.EmailField("email address", unique=True)
     role = models.CharField(
         max_length=12,
         choices=Role.choices,
         default=Role.STUDENT,
+        db_index=True,
         help_text="Access level for the housing platform.",
     )
 
@@ -40,6 +46,23 @@ class CustomUser(AbstractUser):
         if _email_domain(email) in cls.student_email_domains():
             return Role.STUDENT
         return Role.REALTOR
+
+    @classmethod
+    def username_from_email(cls, email):
+        username_field = cls._meta.get_field("username")
+        max_length = username_field.max_length
+        local_part = (email or "").strip().lower().split("@", 1)[0]
+        normalized = re.sub(r"[^a-z0-9._-]+", "-", local_part).strip("._-")
+        base = (normalized or "user")[:max_length]
+        candidate = base
+        suffix = 2
+
+        while cls._default_manager.filter(username=candidate).exists():
+            suffix_token = f"-{suffix}"
+            candidate = f"{base[: max_length - len(suffix_token)]}{suffix_token}"
+            suffix += 1
+
+        return candidate
 
     @property
     def email_domain(self):
@@ -103,6 +126,10 @@ class CustomUser(AbstractUser):
         self.role = Role.ADMIN if enabled else self.default_role_for_email(self.email)
 
     def save(self, *args, **kwargs):
+        normalized_email = (self.email or "").strip().lower()
+        if not normalized_email:
+            raise ValueError("Users must have an email address.")
+        self.email = normalized_email
         self.apply_email_role_policy()
         super().save(*args, **kwargs)
 
@@ -144,11 +171,14 @@ class AdminProfile(models.Model):
 class UserFile(models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="files")
     title = models.CharField(max_length=120, blank=True)
-    file = models.FileField(upload_to="user_uploads/%Y/%m/%d")
+    file = models.FileField(upload_to="user_uploads/%Y/%m/%d", validators=[validate_user_upload])
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["-uploaded_at"]
+        indexes = [
+            models.Index(fields=["owner", "uploaded_at"], name="userfile_owner_uploaded_idx"),
+        ]
 
     @property
     def display_title(self):
@@ -157,6 +187,10 @@ class UserFile(models.Model):
         if self.file:
             return Path(self.file.name).name
         return ""
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.display_title} ({self.owner})"
@@ -168,3 +202,9 @@ def create_role_profile(sender, instance, **kwargs):
         StudentProfile.objects.get_or_create(user=instance)
     elif instance.role == Role.ADMIN:
         AdminProfile.objects.get_or_create(user=instance)
+
+
+@receiver(post_delete, sender=UserFile)
+def delete_user_file_blob(sender, instance, **kwargs):
+    if instance.file:
+        instance.file.delete(save=False)

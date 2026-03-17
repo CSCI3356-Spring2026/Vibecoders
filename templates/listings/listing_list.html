@@ -158,23 +158,7 @@
                             </div>
                         {% endif %}
 
-                        {% if listings.paginator.num_pages > 1 %}
-                            <div class="app-pagination">
-                                {% if listings.has_previous %}
-                                    <a class="btn btn-outline-secondary" href="?page={{ listings.previous_page_number }}{{ pagination_query }}">Previous</a>
-                                {% else %}
-                                    <span class="btn btn-outline-secondary disabled">Previous</span>
-                                {% endif %}
-
-                                <span class="app-pagination-label">Page {{ listings.number }} of {{ listings.paginator.num_pages }}</span>
-
-                                {% if listings.has_next %}
-                                    <a class="btn btn-outline-secondary" href="?page={{ listings.next_page_number }}{{ pagination_query }}">Next</a>
-                                {% else %}
-                                    <span class="btn btn-outline-secondary disabled">Next</span>
-                                {% endif %}
-                            </div>
-                        {% endif %}
+                        {% include "includes/pagination.html" with page_obj=listings pagination_query=pagination_query %}
                     </div>
                 </div>
             </div>

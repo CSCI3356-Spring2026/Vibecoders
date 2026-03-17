@@ -18,21 +18,7 @@
             </div>
 
             <div class="app-layout">
-                <aside class="app-sidebar admin-sidebar">
-                    <div class="admin-nav-card listing-panel">
-                        <h2 class="admin-nav-title">Dashboard</h2>
-                        <nav class="admin-nav">
-                            <a class="admin-nav-item" href="{% url 'users:admin_dashboard' %}">Dashboard</a>
-                            <a class="admin-nav-item" href="{% url 'users:admin_listings' %}">Manage Listings</a>
-                            <span class="admin-nav-item is-disabled">Reports &amp; Issues</span>
-                            <a class="admin-nav-item is-active" href="{% url 'users:admin_users' %}">User Management</a>
-                        </nav>
-                        <form method="post" action="{% url 'account_logout' %}" class="admin-signout">
-                            {% csrf_token %}
-                            <button class="btn btn-outline-secondary w-100" type="submit">Sign Out</button>
-                        </form>
-                    </div>
-                </aside>
+                {% include "includes/admin_sidebar.html" with active_section="users" %}
 
                 <div class="app-main">
                     <div class="listing-panel admin-filter">
@@ -64,7 +50,7 @@
                     <div class="listing-panel admin-table">
                         <div class="admin-table-head">
                             <h2 class="app-section-heading">Users</h2>
-                            <span class="admin-table-count">{{ users|length }} users</span>
+                            <span class="admin-table-count">{{ users_total }} users</span>
                         </div>
 
                         {% if users %}
@@ -126,6 +112,7 @@
                                     </tbody>
                                 </table>
                             </div>
+                            {% include "includes/pagination.html" with page_obj=users pagination_query=pagination_query %}
                         {% else %}
                             <p class="app-panel-copy mb-0">No users match the current filters.</p>
                         {% endif %}

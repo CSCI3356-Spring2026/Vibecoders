@@ -37,7 +37,7 @@ class ListingForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["images"].widget.attrs.update({"multiple": True})
+        self.fields["images"].widget.attrs.update({"multiple": True, "accept": ".jpg,.jpeg,.png,.webp,image/*"})
         for field_name in self.DEFAULTED_FIELDS:
             self.fields[field_name].required = False
             if not self.is_bound:

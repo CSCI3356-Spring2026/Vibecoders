@@ -34,10 +34,10 @@
                 </div>
             </div>
 
-            <div class="listing-panel">
-                <div class="app-panel-head">
-                    <div>
-                        <h2 class="app-section-heading">Listing inventory</h2>
+                <div class="listing-panel">
+                    <div class="app-panel-head">
+                        <div>
+                            <h2 class="app-section-heading">Listing inventory</h2>
                         <p class="app-panel-copy">
                             {% if has_listing_only_access %}
                                 Only your own listings are visible from this account.
@@ -46,9 +46,12 @@
                             {% endif %}
                         </p>
                     </div>
-                </div>
+                    </div>
+                    <div class="app-meta mb-4">
+                        <span class="app-meta-chip">{{ listings_total }} listing{{ listings_total|pluralize }}</span>
+                    </div>
 
-                {% if listings %}
+                    {% if listings %}
                     <div class="app-compact-list">
                         {% for listing in listings %}
                             <div class="app-compact-item app-compact-item-static workspace-item">
@@ -64,7 +67,7 @@
                                             <div class="app-compact-title">{{ listing.title }}</div>
                                             <div class="app-compact-meta">{{ listing.address }}</div>
                                             <div class="app-compact-meta">
-                                                ${{ listing.price|floatformat:0 }}/mo • {{ listing.get_status_display }} • {{ listing.inquiries.all|length }} inquiry{{ listing.inquiries.all|length|pluralize }}
+                                                ${{ listing.price|floatformat:0 }}/mo • {{ listing.get_status_display }} • {{ listing.inquiry_count }} inquiry{{ listing.inquiry_count|pluralize }}
                                             </div>
                                         </div>
                                     </div>
@@ -87,6 +90,7 @@
                             </div>
                         {% endfor %}
                     </div>
+                    {% include "includes/pagination.html" with page_obj=listings pagination_query=pagination_query %}
                 {% else %}
                     <div class="app-empty">
                         <h3 class="app-empty-title">No listings yet.</h3>

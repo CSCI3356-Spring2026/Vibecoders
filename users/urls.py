@@ -17,5 +17,7 @@ urlpatterns = [
     path("admin-users/<int:user_id>/active/", views.admin_toggle_active, name="admin_toggle_active"),
     path("posts/", views.posts, name="posts"),
     path("files/", views.files, name="files"),
+    path("files/<int:file_id>/preview/", views.file_preview, name="file_preview"),
+    path("files/<int:file_id>/download/", views.file_download, name="file_download"),
     path("files/<int:file_id>/delete/", views.delete_file, name="file_delete"),
 ]

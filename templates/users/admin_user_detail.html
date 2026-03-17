@@ -18,35 +18,21 @@
             </div>
 
             <div class="app-layout">
-                <aside class="app-sidebar admin-sidebar">
-                    <div class="admin-nav-card listing-panel">
-                        <h2 class="admin-nav-title">Dashboard</h2>
-                        <nav class="admin-nav">
-                            <a class="admin-nav-item" href="{% url 'users:admin_dashboard' %}">Dashboard</a>
-                            <a class="admin-nav-item" href="{% url 'users:admin_listings' %}">Manage Listings</a>
-                            <span class="admin-nav-item is-disabled">Reports &amp; Issues</span>
-                            <a class="admin-nav-item is-active" href="{% url 'users:admin_users' %}">User Management</a>
-                        </nav>
-                        <form method="post" action="{% url 'account_logout' %}" class="admin-signout">
-                            {% csrf_token %}
-                            <button class="btn btn-outline-secondary w-100" type="submit">Sign Out</button>
-                        </form>
-                    </div>
-                </aside>
+                {% include "includes/admin_sidebar.html" with active_section="users" %}
 
                 <div class="app-main">
                     <div class="admin-stat-grid">
                         <div class="admin-stat-card admin-stat-card-primary">
                             <span class="admin-stat-label">Listings</span>
-                            <span class="admin-stat-value">{{ managed_listings|length }}</span>
+                            <span class="admin-stat-value">{{ managed_listings_count }}</span>
                         </div>
                         <div class="admin-stat-card admin-stat-card-secondary">
                             <span class="admin-stat-label">Files</span>
-                            <span class="admin-stat-value">{{ managed_files|length }}</span>
+                            <span class="admin-stat-value">{{ managed_files_count }}</span>
                         </div>
                         <div class="admin-stat-card admin-stat-card-warm">
                             <span class="admin-stat-label">Inquiries</span>
-                            <span class="admin-stat-value">{{ managed_inquiries|length }}</span>
+                            <span class="admin-stat-value">{{ managed_inquiries_count }}</span>
                         </div>
                         <div class="admin-stat-card admin-stat-card-accent">
                             <span class="admin-stat-label">Role</span>
@@ -56,8 +42,8 @@
 
                     <div class="listing-panel admin-table">
                         <div class="admin-table-head">
-                            <h2 class="app-section-heading">Listings</h2>
-                            <span class="admin-table-count">{{ managed_listings|length }} listings</span>
+                            <h2 class="app-section-heading">Recent Listings</h2>
+                            <span class="admin-table-count">{{ managed_listings_count }} listings</span>
                         </div>
 
                         {% if managed_listings %}
@@ -81,14 +67,14 @@
 
                     <div class="listing-panel admin-table">
                         <div class="admin-table-head">
-                            <h2 class="app-section-heading">Files</h2>
-                            <span class="admin-table-count">{{ managed_files|length }} files</span>
+                            <h2 class="app-section-heading">Recent Files</h2>
+                            <span class="admin-table-count">{{ managed_files_count }} files</span>
                         </div>
 
                         {% if managed_files %}
                             <div class="admin-list-grid">
                                 {% for file in managed_files %}
-                                    <a class="admin-list-item" href="{{ file.file.url }}" target="_blank" rel="noopener noreferrer">
+                                    <a class="admin-list-item" href="{% url 'users:file_download' file.id %}">
                                         <div>
                                             <div class="admin-list-title">{{ file.display_title }}</div>
                                             <div class="admin-list-meta">Uploaded {{ file.uploaded_at|date:"M d, Y" }}</div>
@@ -104,8 +90,8 @@
 
                     <div class="listing-panel admin-table">
                         <div class="admin-table-head">
-                            <h2 class="app-section-heading">Inquiries</h2>
-                            <span class="admin-table-count">{{ managed_inquiries|length }} inquiries</span>
+                            <h2 class="app-section-heading">Recent Inquiries</h2>
+                            <span class="admin-table-count">{{ managed_inquiries_count }} inquiries</span>
                         </div>
 
                         {% if managed_inquiries %}
@@ -127,6 +113,10 @@
                             <p class="app-panel-copy mb-0">This user has no inquiries yet.</p>
                         {% endif %}
                     </div>
+
+                    {% if managed_listings_count > activity_preview_limit or managed_files_count > activity_preview_limit or managed_inquiries_count > activity_preview_limit %}
+                        <p class="app-panel-copy mb-0">Showing the most recent {{ activity_preview_limit }} records per section.</p>
+                    {% endif %}
                 </div>
             </div>
         </div>

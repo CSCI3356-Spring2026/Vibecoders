@@ -13,6 +13,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -30,6 +31,13 @@ def env_list(name, default=""):
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def env_int(name, default):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return int(value)
+
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -38,12 +46,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "x8v$4p9n#s2m!k7q%t1h@c6r&z5w*l3y^f0j8d2b1e7u4i9o!m6u@r1p%z8k")
+DEFAULT_SECRET_KEY = "x8v$4p9n#s2m!k7q%t1h@c6r&z5w*l3y^f0j8d2b1e7u4i9o!m6u@r1p%z8k"
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", DEFAULT_SECRET_KEY)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env_bool("DJANGO_DEBUG", True)
 
+if not DEBUG and SECRET_KEY == DEFAULT_SECRET_KEY:
+    raise ImproperlyConfigured("Set DJANGO_SECRET_KEY when running with DJANGO_DEBUG=false.")
+
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost,testserver")
+CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", "")
 
 
 # Application definition
@@ -78,8 +91,10 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-# Allow same-origin embeds so local PDF previews render inside iframes.
-X_FRAME_OPTIONS = "SAMEORIGIN"
+# Deny framing globally. Authenticated file previews opt into same-origin framing explicitly.
+X_FRAME_OPTIONS = "DENY"
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 SECURE_SSL_REDIRECT = not DEBUG
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
@@ -156,6 +171,10 @@ STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+LISTING_IMAGE_MAX_BYTES = env_int("LISTING_IMAGE_MAX_BYTES", 5 * 1024 * 1024)
+LISTING_IMAGE_UPLOAD_LIMIT = env_int("LISTING_IMAGE_UPLOAD_LIMIT", 10)
+LISTING_IMAGE_TOTAL_LIMIT = env_int("LISTING_IMAGE_TOTAL_LIMIT", 20)
+USER_FILE_MAX_BYTES = env_int("USER_FILE_MAX_BYTES", 10 * 1024 * 1024)
 
 
 # Default primary key field type

@@ -15,7 +15,7 @@
                     </div>
                     {% if selected_file %}
                         <div class="app-actions">
-                            <a class="btn btn-outline-secondary" href="{{ selected_file.file.url }}" download>Download</a>
+                            <a class="btn btn-outline-secondary" href="{% url 'users:file_download' selected_file.id %}">Download</a>
                         </div>
                     {% endif %}
                 </div>
@@ -48,6 +48,7 @@
                             </div>
                             <div>
                                 <label class="form-label fw-semibold" for="id_file">File</label>
+                                <div class="app-field-note">PDF, text, DOC, DOCX, or image files up to 10 MB.</div>
                                 {{ form.file }}
                                 {{ form.file.errors }}
                             </div>
@@ -98,23 +99,7 @@
                             {% endif %}
                         </div>
 
-                        {% if files.paginator.num_pages > 1 %}
-                            <div class="app-pagination">
-                                {% if files.has_previous %}
-                                    <a class="btn btn-outline-secondary" href="?page={{ files.previous_page_number }}{{ pagination_query }}">Previous</a>
-                                {% else %}
-                                    <span class="btn btn-outline-secondary disabled">Previous</span>
-                                {% endif %}
-
-                                <span class="app-pagination-label">Page {{ files.number }} of {{ files.paginator.num_pages }}</span>
-
-                                {% if files.has_next %}
-                                    <a class="btn btn-outline-secondary" href="?page={{ files.next_page_number }}{{ pagination_query }}">Next</a>
-                                {% else %}
-                                    <span class="btn btn-outline-secondary disabled">Next</span>
-                                {% endif %}
-                            </div>
-                        {% endif %}
+                        {% include "includes/pagination.html" with page_obj=files pagination_query=pagination_query %}
                     </div>
                 </div>
 
@@ -137,9 +122,9 @@
 
                             <div class="files-preview-frame">
                                 {% if selected_is_image %}
-                                    <img src="{{ selected_file.file.url }}" alt="{{ selected_file.display_title }}" />
+                                    <img src="{% url 'users:file_preview' selected_file.id %}" alt="{{ selected_file.display_title }}" />
                                 {% elif selected_is_pdf %}
-                                    <iframe src="{{ selected_file.file.url }}" title="{{ selected_file.display_title }}"></iframe>
+                                    <iframe src="{% url 'users:file_preview' selected_file.id %}" title="{{ selected_file.display_title }}"></iframe>
                                 {% else %}
                                     <div class="files-preview-placeholder">
                                         Preview unavailable for this file type.

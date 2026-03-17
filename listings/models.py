@@ -2,6 +2,10 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import F, Q
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
+
+from .validators import validate_listing_image
 
 
 class ListingQuerySet(models.QuerySet):
@@ -69,6 +73,8 @@ class Listing(models.Model):
         ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["is_hidden", "created_at"], name="listing_feed_idx"),
+            models.Index(fields=["owner", "created_at"], name="listing_owner_idx"),
+            models.Index(fields=["status", "created_at"], name="listing_status_idx"),
         ]
         constraints = [
             models.CheckConstraint(
@@ -108,10 +114,14 @@ class Listing(models.Model):
 
 class ListingImage(models.Model):
     listing = models.ForeignKey(Listing, related_name="images", on_delete=models.CASCADE)
-    image = models.ImageField(upload_to="listing_photos/")
+    image = models.ImageField(upload_to="listing_photos/", validators=[validate_listing_image])
 
     class Meta:
         ordering = ["id"]
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Image for {self.listing.title}"
@@ -134,3 +144,9 @@ class ListingInquiry(models.Model):
 
     def __str__(self):
         return f"Inquiry from {self.sender} about {self.listing}"
+
+
+@receiver(post_delete, sender=ListingImage)
+def delete_listing_image_file(sender, instance, **kwargs):
+    if instance.image:
+        instance.image.delete(save=False)

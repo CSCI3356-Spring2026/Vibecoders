@@ -100,3 +100,14 @@ class MarketplaceSocialAccountAdapterTests(TestCase):
 
         self.assertEqual(user.username, "agent")
         self.assertEqual(user.role, Role.REALTOR)
+
+    def test_populate_user_generates_unique_username_for_matching_local_parts(self):
+        from .helpers import User
+
+        User.objects.create_user(username="alex", email="alex@bc.edu", password="test")
+        adapter = MarketplaceSocialAccountAdapter()
+        sociallogin = self.make_sociallogin("alex@gmail.com")
+
+        user = adapter.populate_user(RequestFactory().get("/"), sociallogin, {"email": "alex@gmail.com"})
+
+        self.assertEqual(user.username, "alex-2")

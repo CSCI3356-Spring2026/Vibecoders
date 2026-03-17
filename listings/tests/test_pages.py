@@ -1,13 +1,23 @@
+import io
+import tempfile
 from datetime import date
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
 from django.urls import reverse
+from PIL import Image
 
-from ..models import ListingInquiry
+from ..models import ListingImage, ListingInquiry
 from .base import ListingTestCase
 
 
 class ListingPageTests(ListingTestCase):
+    def make_image_upload(self, name="photo.png"):
+        buffer = io.BytesIO()
+        Image.new("RGB", (4, 4), color="white").save(buffer, format="PNG")
+        return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/png")
+
     def test_listing_pages_require_login(self):
         listing = self.create_listing()
 
@@ -87,6 +97,15 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, matching_listing.title)
         self.assertNotContains(response, "Comm Ave house")
 
+    def test_listing_list_ignores_invalid_max_price_filter(self):
+        listing = self.create_listing(title="Beacon apartment", price="1800.00")
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"), {"max_price": "invalid"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, listing.title)
+
     def test_listing_list_is_paginated(self):
         for index in range(13):
             self.create_listing(title=f"Listing {index}")
@@ -148,6 +167,27 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, "End date must be on or after the start date.")
         self.assertEqual(self.user.listings.count(), 0)
 
+    def test_create_listing_rejects_invalid_uploaded_image(self):
+        self.client.force_login(self.user)
+        payload = {
+            "title": "Quiet dorm near campus",
+            "address": "140 Commonwealth Ave",
+            "price": "1200.00",
+            "lease_type": "FULL",
+            "start_date": date(2026, 9, 1),
+            "end_date": date(2027, 5, 31),
+            "description": "Close to dining hall.",
+        }
+        invalid_upload = SimpleUploadedFile("bad.txt", b"not an image", content_type="text/plain")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                response = self.client.post(reverse("listings:create_listing"), {**payload, "images": invalid_upload})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Upload a JPG, PNG, or WebP image.")
+        self.assertFalse(self.user.listings.exists())
+
     def test_listing_owner_can_edit_listing(self):
         listing = self.create_listing()
         self.client.force_login(self.user)
@@ -170,6 +210,33 @@ class ListingPageTests(ListingTestCase):
         self.assertEqual(response["Location"], reverse("users:posts"))
         self.assertEqual(listing.title, "Updated listing")
 
+    def test_edit_listing_rejects_total_image_limit(self):
+        listing = self.create_listing()
+        self.client.force_login(self.user)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir, LISTING_IMAGE_TOTAL_LIMIT=2):
+                ListingImage.objects.create(listing=listing, image=self.make_image_upload("one.png"))
+                ListingImage.objects.create(listing=listing, image=self.make_image_upload("two.png"))
+
+                response = self.client.post(
+                    reverse("listings:edit_listing", args=[listing.pk]),
+                    {
+                        "title": listing.title,
+                        "address": listing.address,
+                        "price": listing.price,
+                        "lease_type": listing.lease_type,
+                        "start_date": listing.start_date,
+                        "end_date": listing.end_date,
+                        "property_type": listing.property_type,
+                        "images": self.make_image_upload("three.png"),
+                    },
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Each listing can have up to 2 images total.")
+        self.assertEqual(listing.images.count(), 2)
+
     def test_listing_owner_can_delete_listing(self):
         listing = self.create_listing()
         self.client.force_login(self.user)
@@ -179,6 +246,25 @@ class ListingPageTests(ListingTestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], reverse("users:posts"))
         self.assertFalse(self.user.listings.filter(pk=listing.pk).exists())
+
+    def test_delete_listing_cleans_up_image_files(self):
+        listing = self.create_listing()
+        self.client.force_login(self.user)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                listing_image = ListingImage.objects.create(
+                    listing=listing, image=self.make_image_upload("cleanup.png")
+                )
+                stored_name = listing_image.image.name
+
+                self.assertTrue(listing.images.exists())
+                self.assertTrue(listing_image.image.storage.exists(stored_name))
+
+                response = self.client.post(reverse("listings:delete_listing", args=[listing.pk]))
+
+                self.assertEqual(response.status_code, 302)
+                self.assertFalse(listing_image.image.storage.exists(stored_name))
 
     def test_realtor_listing_list_shows_only_owned_listings(self):
         realtor = get_user_model().objects.create_user(username="agent", email="agent@gmail.com", password="test")
@@ -231,6 +317,25 @@ class ListingPageTests(ListingTestCase):
 
         self.assertEqual(response.status_code, 403)
         self.assertFalse(ListingInquiry.objects.exists())
+
+    def test_inquiry_endpoint_requires_post(self):
+        listing = self.create_listing()
+        student = get_user_model().objects.create_user(username="student", email="student@bc.edu", password="test")
+        self.client.force_login(student)
+
+        response = self.client.get(reverse("listings:inquire", args=[listing.pk]))
+
+        self.assertEqual(response.status_code, 405)
+        self.assertFalse(ListingInquiry.objects.exists())
+
+    def test_delete_listing_endpoint_requires_post(self):
+        listing = self.create_listing()
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:delete_listing", args=[listing.pk]))
+
+        self.assertEqual(response.status_code, 405)
+        self.assertTrue(self.user.listings.filter(pk=listing.pk).exists())
 
     def test_listing_owner_sees_incoming_inquiries_on_detail_page(self):
         listing = self.create_listing()

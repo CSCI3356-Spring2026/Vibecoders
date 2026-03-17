@@ -15,6 +15,15 @@ class CustomUserModelTests(TestCase):
 
         self.assertEqual(user.role, Role.REALTOR)
 
+    def test_email_field_is_unique(self):
+        self.assertTrue(User._meta.get_field("email").unique)
+
+    def test_email_is_required_on_save(self):
+        user = User(username="noemail")
+
+        with self.assertRaisesMessage(ValueError, "Users must have an email address."):
+            user.save()
+
     def test_is_bc_admin_false_for_student(self):
         user = User.objects.create_user(username="stu", email="stu@bc.edu", password="test")
 

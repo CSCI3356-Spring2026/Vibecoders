@@ -1,16 +1,22 @@
 from datetime import timedelta
+from decimal import Decimal, InvalidOperation
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import Q
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from core.utils import get_page, preserved_query_suffix
 
 from .forms import ListingForm, ListingInquiryForm
 from .models import Listing, ListingImage, ListingInquiry
+from .selectors import marketplace_listings_for_user
 
 LISTINGS_PER_PAGE = 12
 
@@ -31,33 +37,54 @@ MOVE_IN_FILTERS = [
 
 
 def _workspace_destination(user):
-    if user.is_authenticated and user.has_listing_only_access:
+    if user.has_listing_only_access:
         return "users:posts", "My Listings"
     return "listings:listing_list", "Listings"
 
 
-def _marketplace_listings_for_user(user):
-    if not user.is_authenticated:
-        return Listing.objects.visible()
-    if user.is_bc_admin:
-        return Listing.objects.with_related()
-    if user.can_browse_marketplace:
-        return Listing.objects.visible()
-    return Listing.objects.with_related().filter(owner=user)
+def _save_uploaded_listing_images(listing, uploaded_images):
+    if len(uploaded_images) > settings.LISTING_IMAGE_UPLOAD_LIMIT:
+        raise ValidationError({"images": f"You can upload up to {settings.LISTING_IMAGE_UPLOAD_LIMIT} images."})
+
+    existing_images_count = listing.images.count()
+    if existing_images_count + len(uploaded_images) > settings.LISTING_IMAGE_TOTAL_LIMIT:
+        raise ValidationError(
+            {"images": (f"Each listing can have up to {settings.LISTING_IMAGE_TOTAL_LIMIT} images total.")}
+        )
+
+    pending_images = []
+    for image in uploaded_images:
+        listing_image = ListingImage(listing=listing, image=image)
+        listing_image.full_clean()
+        pending_images.append(listing_image)
+
+    for listing_image in pending_images:
+        listing_image.save()
 
 
-def _listing_detail_queryset_for_user(user):
-    if not user.is_authenticated:
-        return Listing.objects.visible()
-    if user.is_bc_admin:
-        return Listing.objects.with_related()
-    if user.can_browse_marketplace:
-        return Listing.objects.visible()
-    return Listing.objects.with_related().filter(owner=user)
+def _add_form_validation_errors(form, exc):
+    if hasattr(exc, "message_dict"):
+        for field_name, messages_list in exc.message_dict.items():
+            target_field = "images" if field_name == "image" else field_name
+            for message in messages_list:
+                form.add_error(target_field, message)
+        return
+
+    for message in exc.messages:
+        form.add_error("images", message)
+
+
+def _save_listing_form(form, owner, uploaded_images):
+    with transaction.atomic():
+        listing = form.save(commit=False)
+        if listing._state.adding:
+            listing.owner = owner
+        listing.save()
+        _save_uploaded_listing_images(listing, uploaded_images)
 
 
 def _get_listing_for_user(user, pk):
-    return get_object_or_404(_listing_detail_queryset_for_user(user), pk=pk)
+    return get_object_or_404(marketplace_listings_for_user(user), pk=pk)
 
 
 def _apply_listing_filters(queryset, params):
@@ -69,7 +96,15 @@ def _apply_listing_filters(queryset, params):
 
     max_price = params.get("max_price", "").strip()
     if max_price:
-        queryset = queryset.filter(price__lte=max_price)
+        try:
+            max_price_value = Decimal(max_price)
+        except InvalidOperation:
+            max_price = ""
+        else:
+            if max_price_value > 0:
+                queryset = queryset.filter(price__lte=max_price_value)
+            else:
+                max_price = ""
 
     lease_type = params.get("lease_type", "").strip()
     if lease_type:
@@ -90,10 +125,9 @@ def _apply_listing_filters(queryset, params):
 
 @login_required
 def listing_list(request):
-    base_queryset = _marketplace_listings_for_user(request.user)
+    base_queryset = marketplace_listings_for_user(request.user)
     listings, active_filters = _apply_listing_filters(base_queryset, request.GET)
     listings_page = get_page(listings, request.GET.get("page"), LISTINGS_PER_PAGE)
-    has_listing_only_access = request.user.is_authenticated and request.user.has_listing_only_access
 
     context = {
         "listings": listings_page,
@@ -103,7 +137,7 @@ def listing_list(request):
         "max_price_filters": MAX_PRICE_FILTERS,
         "lease_type_filters": Listing.LEASE_TYPES,
         "move_in_filters": MOVE_IN_FILTERS,
-        "has_listing_only_access": has_listing_only_access,
+        "has_listing_only_access": request.user.has_listing_only_access,
     }
     return render(request, "listings/listing_list.html", context)
 
@@ -111,23 +145,23 @@ def listing_list(request):
 @login_required
 def listing_detail(request, pk):
     listing = _get_listing_for_user(request.user, pk)
+    listing_images = list(listing.images.all())
     inquiry_form = None
     existing_inquiry = None
     owner_inquiries = None
     back_url_name, back_label = _workspace_destination(request.user)
-    show_owner_inquiries = request.user.is_authenticated and (
-        request.user.is_bc_admin or listing.owner_id == request.user.id
-    )
+    show_owner_inquiries = request.user.is_bc_admin or listing.owner_id == request.user.id
 
-    if request.user.is_authenticated and request.user.can_inquire_on_listings and listing.owner_id != request.user.id:
+    if request.user.can_inquire_on_listings and listing.owner_id != request.user.id:
         existing_inquiry = ListingInquiry.objects.filter(listing=listing, sender=request.user).first()
         inquiry_form = ListingInquiryForm(instance=existing_inquiry)
 
     if show_owner_inquiries:
-        owner_inquiries = listing.inquiries.select_related("sender")
+        owner_inquiries = list(listing.inquiries.select_related("sender"))
 
     context = {
         "listing": listing,
+        "listing_images": listing_images,
         "inquiry_form": inquiry_form,
         "existing_inquiry": existing_inquiry,
         "owner_inquiries": owner_inquiries,
@@ -139,12 +173,12 @@ def listing_detail(request, pk):
 
 
 @login_required
+@require_POST
 def inquire_listing(request, pk):
     if not request.user.can_inquire_on_listings:
         return HttpResponseForbidden("Verified student access is required to inquire about listings.")
 
-    queryset = Listing.objects.with_related() if request.user.is_bc_admin else Listing.objects.visible()
-    listing = get_object_or_404(queryset, pk=pk)
+    listing = _get_listing_for_user(request.user, pk)
     if listing.owner_id == request.user.id:
         messages.error(request, "You cannot inquire about your own listing.")
         return redirect("listings:detail", pk=listing.pk)
@@ -171,12 +205,13 @@ def create_listing(request):
     if request.method == "POST":
         form = ListingForm(request.POST, request.FILES)
         if form.is_valid():
-            listing = form.save(commit=False)
-            listing.owner = request.user
-            listing.save()
-            for image in request.FILES.getlist("images"):
-                ListingImage.objects.create(listing=listing, image=image)
-            return redirect("listings:listing_list")
+            uploaded_images = request.FILES.getlist("images")
+            try:
+                _save_listing_form(form, request.user, uploaded_images)
+            except ValidationError as exc:
+                _add_form_validation_errors(form, exc)
+            else:
+                return redirect("listings:listing_list")
     else:
         form = ListingForm()
 
@@ -199,10 +234,13 @@ def edit_listing(request, pk):
     if request.method == "POST":
         form = ListingForm(request.POST, request.FILES, instance=listing)
         if form.is_valid():
-            form.save()
-            for image in request.FILES.getlist("images"):
-                ListingImage.objects.create(listing=listing, image=image)
-            return redirect("users:posts")
+            uploaded_images = request.FILES.getlist("images")
+            try:
+                _save_listing_form(form, request.user, uploaded_images)
+            except ValidationError as exc:
+                _add_form_validation_errors(form, exc)
+            else:
+                return redirect("users:posts")
     else:
         form = ListingForm(instance=listing)
     return render(
@@ -219,8 +257,8 @@ def edit_listing(request, pk):
 
 
 @login_required
+@require_POST
 def delete_listing(request, pk):
     listing = get_object_or_404(Listing, pk=pk, owner=request.user)
-    if request.method == "POST":
-        listing.delete()
+    listing.delete()
     return redirect("users:posts")
