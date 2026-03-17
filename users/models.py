@@ -9,6 +9,7 @@ from django.dispatch import receiver
 
 class Role(models.TextChoices):
     STUDENT = "student", "Student"
+    RENTAL_AGENT = "rental_agent", "Rental Agent"
     ADMIN = "admin", "Admin"
 
 
@@ -17,7 +18,7 @@ class CustomUser(AbstractUser):
     """Custom user model with role support for Student/Admin distinction."""
 
     role = models.CharField(
-        max_length=10,
+        max_length=12,
         choices=Role.choices,
         default=Role.STUDENT,
         help_text="Designates whether this user is a Student or Admin.",

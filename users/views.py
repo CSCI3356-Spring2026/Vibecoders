@@ -52,6 +52,12 @@ def login_page(request):
 
 @login_required
 def profile(request):
+    if request.method == "POST":
+        role = request.POST.get("role", "").strip()
+        if role in {"student", "rental_agent"}:  # admin can't be self-assigned
+            request.user.role = role
+            request.user.save(update_fields=["role"])
+        return redirect("users:profile")
     return render(request, "users/profile.html", _workspace_summary(request.user))
 
 
