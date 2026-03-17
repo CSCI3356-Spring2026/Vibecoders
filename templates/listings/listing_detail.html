@@ -6,7 +6,7 @@
 <section class="app-page">
     <div class="container">
         <div class="app-shell">
-            <a class="listing-reset-link" href="{% url 'listings:listing_list' %}">Back to listings</a>
+            <a class="listing-reset-link" href="{% url back_url_name %}">Back to {{ back_label }}</a>
 
             <div class="app-header app-header-shell">
                 <div class="app-header-main">
@@ -110,6 +110,73 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="listing-panel">
+                        <div class="app-panel-head">
+                            <div>
+                                <h2 class="app-section-heading">Inquiry</h2>
+                            </div>
+                        </div>
+
+                        {% if request.user.is_authenticated and listing.owner_id == request.user.id %}
+                            <div class="app-compact-list">
+                                <div class="app-compact-item app-compact-item-static">
+                                    <span class="app-compact-title">Owner view</span>
+                                    <span class="app-compact-meta">You posted this listing. Incoming inquiries appear below.</span>
+                                </div>
+                            </div>
+                        {% elif request.user.is_authenticated and request.user.can_inquire_on_listings %}
+                            <form method="post" action="{% url 'listings:inquire' listing.pk %}" class="app-stack">
+                                {% csrf_token %}
+                                <label class="form-label fw-semibold" for="{{ inquiry_form.message.id_for_label }}">Message</label>
+                                {{ inquiry_form.message }}
+                                <button class="btn btn-brand" type="submit">
+                                    {% if existing_inquiry %}Update inquiry{% else %}Send inquiry{% endif %}
+                                </button>
+                            </form>
+                        {% elif request.user.is_authenticated %}
+                            <div class="app-compact-list">
+                                <div class="app-compact-item app-compact-item-static">
+                                    <span class="app-compact-title">Listing-only access</span>
+                                    <span class="app-compact-meta">This account can publish listings but cannot send rental inquiries.</span>
+                                </div>
+                            </div>
+                        {% else %}
+                            <div class="app-compact-list">
+                                <div class="app-compact-item app-compact-item-static">
+                                    <span class="app-compact-title">Sign in to inquire</span>
+                                    <span class="app-compact-meta">Student access is required to contact listers through the platform.</span>
+                                </div>
+                            </div>
+                            <a class="btn btn-brand" href="{% url 'account_login' %}">Sign in with Google</a>
+                        {% endif %}
+                    </div>
+
+                    {% if show_owner_inquiries %}
+                        <div class="listing-panel">
+                            <div class="app-panel-head">
+                                <div>
+                                    <h2 class="app-section-heading">Incoming inquiries</h2>
+                                </div>
+                            </div>
+
+                            {% if owner_inquiries %}
+                                <div class="app-compact-list">
+                                    {% for inquiry in owner_inquiries %}
+                                        <div class="app-compact-item app-compact-item-static">
+                                            <span class="app-compact-title">{{ inquiry.sender.get_full_name|default:inquiry.sender.username }}</span>
+                                            <span class="app-compact-meta">
+                                                {{ inquiry.sender.email }} • {{ inquiry.created_at|date:"M d, Y" }}
+                                                {% if inquiry.message %}• {{ inquiry.message|truncatewords:16 }}{% endif %}
+                                            </span>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <p class="app-panel-copy mb-0">No inquiries yet for this listing.</p>
+                            {% endif %}
+                        </div>
+                    {% endif %}
                 </div>
             </div>
         </div>

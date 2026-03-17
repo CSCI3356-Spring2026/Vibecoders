@@ -4,7 +4,8 @@ from allauth.core.exceptions import ImmediateHttpResponse
 from django.contrib import messages
 from django.test import RequestFactory, TestCase
 
-from ..adapters import BCEmailAdapter, NoSignupAccountAdapter
+from ..adapters import MarketplaceSocialAccountAdapter, NoSignupAccountAdapter
+from ..models import Role
 from .helpers import add_middleware, message_texts
 
 
@@ -25,47 +26,77 @@ class NoSignupAccountAdapterTests(TestCase):
                 self.assertEqual(message_texts(request), [])
 
 
-class BCEmailAdapterTests(TestCase):
+class MarketplaceSocialAccountAdapterTests(TestCase):
     def make_sociallogin(self, email):
         sociallogin = MagicMock()
         sociallogin.account.extra_data = {"email": email}
         return sociallogin
 
-    def test_bc_email_signup_allowed(self):
-        adapter = BCEmailAdapter()
+    def test_student_email_signup_allowed(self):
+        adapter = MarketplaceSocialAccountAdapter()
         request = RequestFactory().get("/")
         sociallogin = self.make_sociallogin("eagle@bc.edu")
 
         self.assertTrue(adapter.is_open_for_signup(request, sociallogin))
 
-    def test_invalid_signup_emails_are_rejected(self):
-        adapter = BCEmailAdapter()
+    def test_external_email_signup_allowed(self):
+        adapter = MarketplaceSocialAccountAdapter()
+        request = RequestFactory().get("/")
+        sociallogin = self.make_sociallogin("agent@gmail.com")
 
-        for email in ("user@gmail.com", ""):
-            with self.subTest(email=email):
-                request = add_middleware(RequestFactory().get("/"))
-                sociallogin = self.make_sociallogin(email)
+        self.assertTrue(adapter.is_open_for_signup(request, sociallogin))
 
-                with self.assertRaises(ImmediateHttpResponse) as ctx:
-                    adapter.is_open_for_signup(request, sociallogin)
+    def test_missing_signup_email_is_rejected(self):
+        adapter = MarketplaceSocialAccountAdapter()
 
-                self.assertEqual(ctx.exception.response.url, "/users/login/")
-                self.assertIn(adapter.error_message, message_texts(request))
+        request = add_middleware(RequestFactory().get("/"))
+        sociallogin = self.make_sociallogin("")
 
-    def test_bc_email_login_allowed(self):
-        adapter = BCEmailAdapter()
+        with self.assertRaises(ImmediateHttpResponse) as ctx:
+            adapter.is_open_for_signup(request, sociallogin)
+
+        self.assertEqual(ctx.exception.response.url, "/users/login/")
+        self.assertIn(adapter.error_message, message_texts(request))
+
+    def test_student_email_login_allowed(self):
+        adapter = MarketplaceSocialAccountAdapter()
         request = RequestFactory().get("/")
         sociallogin = self.make_sociallogin("eagle@bc.edu")
 
         adapter.pre_social_login(request, sociallogin)
 
-    def test_non_bc_email_login_raises(self):
-        adapter = BCEmailAdapter()
+    def test_external_email_login_allowed(self):
+        adapter = MarketplaceSocialAccountAdapter()
+        request = RequestFactory().get("/")
+        sociallogin = self.make_sociallogin("agent@gmail.com")
+
+        adapter.pre_social_login(request, sociallogin)
+
+    def test_missing_email_login_raises(self):
+        adapter = MarketplaceSocialAccountAdapter()
         request = add_middleware(RequestFactory().get("/"))
-        sociallogin = self.make_sociallogin("user@gmail.com")
+        sociallogin = self.make_sociallogin("")
 
         with self.assertRaises(ImmediateHttpResponse) as ctx:
             adapter.pre_social_login(request, sociallogin)
 
         self.assertEqual(ctx.exception.response.url, "/users/login/")
         self.assertIn(adapter.error_message, message_texts(request))
+
+    def test_populate_user_assigns_student_role_for_bc_email(self):
+        adapter = MarketplaceSocialAccountAdapter()
+        sociallogin = self.make_sociallogin("student@bc.edu")
+
+        user = adapter.populate_user(RequestFactory().get("/"), sociallogin, {"email": "student@bc.edu"})
+
+        self.assertEqual(user.username, "student")
+        self.assertEqual(user.role, Role.STUDENT)
+
+    def test_populate_user_assigns_realtor_role_for_external_email(self):
+        adapter = MarketplaceSocialAccountAdapter()
+        sociallogin = self.make_sociallogin("agent@gmail.com")
+
+        user = adapter.populate_user(RequestFactory().get("/"), sociallogin, {"email": "agent@gmail.com"})
+
+        self.assertEqual(user.username, "agent")
+        self.assertEqual(user.role, Role.REALTOR)

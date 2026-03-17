@@ -10,10 +10,10 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from core.utils import get_page, preserved_query_suffix
-from listings.models import Listing
+from listings.models import Listing, ListingInquiry
 
 from .forms import UserFileUploadForm
-from .models import UserFile
+from .models import Role, UserFile
 
 FILES_PER_PAGE = 12
 
@@ -29,6 +29,12 @@ def _workspace_summary(user):
     return {
         "listings_count": user.listings.count(),
         "files_count": user.files.count(),
+        "sent_inquiries_count": user.sent_inquiries.count(),
+        "incoming_inquiries_count": ListingInquiry.objects.filter(listing__owner=user).count(),
+        "can_browse_marketplace": user.can_browse_marketplace,
+        "can_inquire_on_listings": user.can_inquire_on_listings,
+        "has_listing_only_access": user.has_listing_only_access,
+        "student_email_domains": ", ".join(sorted(user.student_email_domains())),
     }
 
 
@@ -52,12 +58,6 @@ def login_page(request):
 
 @login_required
 def profile(request):
-    if request.method == "POST":
-        role = request.POST.get("role", "").strip()
-        if role in {"student", "rental_agent"}:  # admin can't be self-assigned
-            request.user.role = role
-            request.user.save(update_fields=["role"])
-        return redirect("users:profile")
     return render(request, "users/profile.html", _workspace_summary(request.user))
 
 
@@ -65,15 +65,18 @@ def profile(request):
 def dashboard(request):
     context = {
         **_workspace_summary(request.user),
-        "recent_listings": request.user.listings.all()[:3],
+        "recent_listings": request.user.listings.with_related()[:3],
         "recent_files": request.user.files.all()[:5],
+        "recent_inquiries": ListingInquiry.objects.filter(listing__owner=request.user).select_related(
+            "listing", "sender"
+        )[:5],
     }
     return render(request, "users/dashboard.html", context)
 
 
 @login_required
 def posts(request):
-    listings = request.user.listings.all()
+    listings = request.user.listings.with_related().prefetch_related("inquiries__sender")
     context = {
         **_workspace_summary(request.user),
         "listings": listings,
@@ -153,12 +156,16 @@ def admin_dashboard(request):
     if selected_status in status_values:
         listings_qs = listings_qs.filter(status=selected_status)
 
+    User = get_user_model()
     context = {
         "listings": listings_qs,
         "total_listings": Listing.objects.count(),
         "pending_listings": Listing.objects.filter(status="PENDING").count(),
         "approved_listings": Listing.objects.filter(status="AVAILABLE").count(),
-        "reports_count": 0,
+        "student_users": User.objects.filter(role=Role.STUDENT).count(),
+        "realtor_users": User.objects.filter(role=Role.REALTOR).count(),
+        "admin_users_total": User.objects.filter(role=Role.ADMIN).count(),
+        "total_inquiries": ListingInquiry.objects.count(),
         "query": query,
         "selected_status": selected_status,
         "status_options": Listing.STATUS_CHOICES,
@@ -218,7 +225,7 @@ def admin_users(request):
     query = request.GET.get("q", "").strip()
     selected_role = request.GET.get("role", "").strip()
     selected_active = request.GET.get("active", "").strip()
-    role_values = {"student", "admin"}
+    role_values = {role.value for role in Role}
 
     User = get_user_model()
     users_qs = User.objects.all().order_by("username")
@@ -242,6 +249,7 @@ def admin_users(request):
         "query": query,
         "selected_role": selected_role,
         "selected_active": selected_active,
+        "role_options": Role.choices,
     }
     return render(request, "users/admin_users.html", context)
 
@@ -256,11 +264,13 @@ def admin_user_detail(request, user_id):
     user_obj = get_object_or_404(User, id=user_id)
     listings = user_obj.listings.with_related()
     files = user_obj.files.all()
+    inquiries = ListingInquiry.objects.filter(listing__owner=user_obj).select_related("listing", "sender")
 
     context = {
         "managed_user": user_obj,
         "managed_listings": listings,
         "managed_files": files,
+        "managed_inquiries": inquiries,
     }
     return render(request, "users/admin_user_detail.html", context)
 
@@ -277,11 +287,14 @@ def admin_set_role(request, user_id):
     if user_obj.id == request.user.id:
         return HttpResponseForbidden("You cannot change your own role.")
 
-    role = request.POST.get("role", "").strip()
-    if role not in {"student", "admin"}:
-        return HttpResponseForbidden("Invalid role.")
+    action = request.POST.get("action", "").strip()
+    if action == "grant_admin":
+        user_obj.set_admin_access(True)
+    elif action == "restore_default":
+        user_obj.set_admin_access(False)
+    else:
+        return HttpResponseForbidden("Invalid role action.")
 
-    user_obj.role = role
     user_obj.save(update_fields=["role"])
     return redirect("users:admin_users")
 

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Create Listing | Vibecoders{% endblock %}
+{% block title %}{% if is_edit %}Edit Listing{% else %}Create Listing{% endif %} | Vibecoders{% endblock %}
 
 {% block content %}
 <section class="app-page">
@@ -9,12 +9,18 @@
             <div class="listing-panel app-header">
                 <div class="app-header-main">
                     <div>
-                        <p class="listing-hero-eyebrow mb-2">Create Listing</p>
-                        <h1 class="listing-hero-title app-title">Add a home</h1>
-                        <p class="listing-hero-subtitle app-subtitle">Clear details, clean photos, ready to publish.</p>
+                        <p class="listing-hero-eyebrow mb-2">{% if is_edit %}Edit Listing{% else %}Create Listing{% endif %}</p>
+                        <h1 class="listing-hero-title app-title">{% if is_edit %}Edit listing{% else %}Create listing{% endif %}</h1>
+                        <p class="listing-hero-subtitle app-subtitle">
+                            {% if is_edit %}
+                                Update the listing details.
+                            {% else %}
+                                Add the basic listing details.
+                            {% endif %}
+                        </p>
                     </div>
                     <div class="app-actions">
-                        <a class="btn btn-outline-secondary" href="{% url 'listings:listing_list' %}">Back to listings</a>
+                        <a class="btn btn-outline-secondary" href="{% url back_url_name %}">Back to {{ back_label }}</a>
                     </div>
                 </div>
             </div>
@@ -23,7 +29,7 @@
                 <div class="app-panel-head">
                     <div>
                         <h2 class="app-section-heading mb-0">Listing details</h2>
-                        <p class="app-panel-copy">Required fields first. Everything else stays optional.</p>
+                        <p class="app-panel-copy">Complete the required fields first.</p>
                     </div>
                 </div>
 
@@ -146,13 +152,13 @@
                         <label class="form-label fw-semibold" for="{{ form.images.id_for_label }}">Upload images</label>
                         <div class="app-input-panel">
                             {{ form.images }}
-                            <p class="app-field-note mb-0">Optional. Add multiple images if you have them.</p>
+                            <p class="app-field-note mb-0">Optional.</p>
                         </div>
                     </section>
 
                     <div class="d-flex flex-wrap gap-2">
-                        <button type="submit" class="btn btn-brand px-4">Publish listing</button>
-                        <a href="{% url 'listings:listing_list' %}" class="btn btn-outline-secondary px-4">Cancel</a>
+                        <button type="submit" class="btn btn-brand px-4">{% if is_edit %}Save changes{% else %}Publish listing{% endif %}</button>
+                        <a href="{% url back_url_name %}" class="btn btn-outline-secondary px-4">Cancel</a>
                     </div>
                 </form>
             </div>

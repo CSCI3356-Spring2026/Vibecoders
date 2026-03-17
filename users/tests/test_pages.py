@@ -24,6 +24,7 @@ class UserPageTests(TestCase):
 
         self.assertContains(response, "Sign in with Google")
         self.assertContains(response, "Continue with Google")
+        self.assertContains(response, "full student access")
         self.assertContains(response, "Create Listing")
         self.assertContains(response, "/accounts/google/login/")
         self.assertNotContains(response, "Guest User")
@@ -78,8 +79,17 @@ class UserPageTests(TestCase):
 
         self.assertEqual(profile_response.status_code, 200)
         self.assertContains(profile_response, self.user.display_role)
+        self.assertContains(profile_response, "Access model")
         self.assertEqual(dashboard_response.status_code, 200)
         self.assertContains(dashboard_response, f"Welcome, {self.user.username} - {self.user.display_role}")
+
+    def test_profile_no_longer_allows_self_assigning_role(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get("/users/profile/")
+
+        self.assertNotContains(response, 'name="role"')
+        self.assertNotContains(response, "<select")
 
     def test_posts_page_requires_login(self):
         response = self.client.get("/users/posts/")
@@ -101,8 +111,26 @@ class UserPageTests(TestCase):
         response = self.client.get("/users/posts/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "My Posts")
+        self.assertContains(response, "Your listings")
         self.assertContains(response, listing.title)
+
+    def test_realtor_dashboard_shows_listing_only_copy(self):
+        realtor = User.objects.create_user(username="agent", email="agent@gmail.com", password="test")
+        self.client.force_login(realtor)
+
+        response = self.client.get("/users/dashboard/")
+
+        self.assertContains(response, realtor.display_role)
+        self.assertContains(response, "listing-only")
+
+    def test_admin_nav_includes_admin_dashboard_link(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        self.client.force_login(admin)
+
+        response = self.client.get("/")
+
+        self.assertContains(response, "/users/admin-dashboard/")
+        self.assertContains(response, "Admin Dashboard")
 
     def test_logout_page_uses_custom_ui(self):
         self.client.force_login(self.user)

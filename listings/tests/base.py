@@ -3,10 +3,12 @@ from datetime import date
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
+User = get_user_model()
+
 
 class ListingTestCase(TestCase):
     def setUp(self):
-        self.user = get_user_model().objects.create_user(username="testowner", password="testpass123")
+        self.user = User.objects.create_user(username="testowner", email="testowner@bc.edu", password="testpass123")
 
     def create_listing(self, **overrides):
         payload = {

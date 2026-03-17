@@ -15,6 +15,16 @@ Vincent Park, John Giglia, Austin Chan-Orsini, Cullen Bartz, Hunter Scheppat, Dr
 - **Linting:** Ruff (enforced via pre-commit hooks and CI)
 - **CI:** GitHub Actions
 
+## Access Model
+
+The platform currently supports three access levels:
+
+- `Student`: full marketplace access for verified domains listed in `STUDENT_EMAIL_DOMAINS` (defaults to `bc.edu`)
+- `Realtor`: listing-only access for external Google accounts
+- `Admin`: elevated management access for the internal admin dashboard
+
+Non-admin users are assigned their default role from their email domain at sign-in. Admin access is granted explicitly.
+
 ## Project Structure
 
 ```
@@ -112,6 +122,21 @@ python manage.py runserver
 ```
 
 The app will be available at `http://127.0.0.1:8000/`.
+
+To grant admin access to an existing account:
+
+```bash
+python manage.py set_user_role user@bc.edu admin
+```
+
+To seed the local database with demo marketplace data:
+
+```bash
+python manage.py seed_demo_listings
+```
+
+The seed command is idempotent. It creates a small set of Boston College student accounts, external realtor accounts,
+sample listings, and a few inquiries so the marketplace and owner views have realistic data during local development.
 
 ## Development Workflow
 

@@ -10,7 +10,7 @@
                 <div>
                     <p class="app-kicker">Admin Dashboard</p>
                     <h1 class="app-title">Admin Dashboard</h1>
-                    <p class="app-subtitle">Monitor listings, approvals, and platform activity in one place.</p>
+                    <p class="app-subtitle">Platform summary.</p>
                 </div>
                 <div class="admin-header-meta">
                     <span class="admin-meta-chip">Total listings: {{ total_listings }}</span>
@@ -50,8 +50,29 @@
                                 <span class="admin-stat-value">{{ approved_listings }}</span>
                             </div>
                             <div class="admin-stat-card admin-stat-card-warm">
-                                <span class="admin-stat-label">Reports</span>
-                                <span class="admin-stat-value">{{ reports_count }}</span>
+                                <span class="admin-stat-label">Inquiries</span>
+                                <span class="admin-stat-value">{{ total_inquiries }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="listing-panel admin-stat-panel">
+                        <div class="admin-stat-grid">
+                            <div class="admin-stat-card admin-stat-card-primary">
+                                <span class="admin-stat-label">Students</span>
+                                <span class="admin-stat-value">{{ student_users }}</span>
+                            </div>
+                            <div class="admin-stat-card admin-stat-card-accent">
+                                <span class="admin-stat-label">Realtors</span>
+                                <span class="admin-stat-value">{{ realtor_users }}</span>
+                            </div>
+                            <div class="admin-stat-card admin-stat-card-secondary">
+                                <span class="admin-stat-label">Admins</span>
+                                <span class="admin-stat-value">{{ admin_users_total }}</span>
+                            </div>
+                            <div class="admin-stat-card admin-stat-card-warm">
+                                <span class="admin-stat-label">Visible Results</span>
+                                <span class="admin-stat-value">{{ listings|length }}</span>
                             </div>
                         </div>
                     </div>
