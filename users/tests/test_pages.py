@@ -1,4 +1,5 @@
 from django.test import TestCase
+from django.urls import reverse
 
 from .helpers import User
 
@@ -114,6 +115,26 @@ class UserPageTests(TestCase):
         self.assertContains(response, "Your listings")
         self.assertContains(response, listing.title)
 
+    def test_posts_page_is_paginated(self):
+        for index in range(13):
+            self.user.listings.create(
+                title=f"My listing {index}",
+                address=f"{index} Commonwealth Ave",
+                price="1200.00",
+                lease_type="FULL",
+                start_date="2026-09-01",
+                end_date="2027-05-31",
+            )
+        self.client.force_login(self.user)
+
+        first_page = self.client.get("/users/posts/")
+        second_page = self.client.get("/users/posts/?page=2")
+
+        self.assertEqual(first_page.status_code, 200)
+        self.assertEqual(second_page.status_code, 200)
+        self.assertNotContains(first_page, "My listing 0")
+        self.assertContains(second_page, "My listing 0")
+
     def test_realtor_dashboard_shows_listing_only_copy(self):
         realtor = User.objects.create_user(username="agent", email="agent@gmail.com", password="test")
         self.client.force_login(realtor)
@@ -131,6 +152,64 @@ class UserPageTests(TestCase):
 
         self.assertContains(response, "/users/admin-dashboard/")
         self.assertContains(response, "Admin Dashboard")
+
+    def test_admin_listings_page_is_paginated(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        owner = User.objects.create_user(username="owner", email="owner@bc.edu", password="test")
+        for index in range(21):
+            owner.listings.create(
+                title=f"Admin listing {index}",
+                address=f"{index} Beacon St",
+                price="1800.00",
+                lease_type="FULL",
+                start_date="2026-09-01",
+                end_date="2027-05-31",
+            )
+        self.client.force_login(admin)
+
+        first_page = self.client.get("/users/admin-listings/")
+        second_page = self.client.get("/users/admin-listings/?page=2")
+
+        self.assertEqual(first_page.status_code, 200)
+        self.assertEqual(second_page.status_code, 200)
+        self.assertNotContains(first_page, "Admin listing 0")
+        self.assertContains(second_page, "Admin listing 0")
+
+    def test_admin_users_page_is_paginated(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        for index in range(21):
+            User.objects.create_user(username=f"member{index:02d}", email=f"member{index:02d}@bc.edu", password="test")
+        self.client.force_login(admin)
+
+        first_page = self.client.get("/users/admin-users/")
+        second_page = self.client.get("/users/admin-users/?page=2")
+
+        self.assertEqual(first_page.status_code, 200)
+        self.assertEqual(second_page.status_code, 200)
+        self.assertNotContains(first_page, "member20@bc.edu")
+        self.assertContains(second_page, "member20@bc.edu")
+
+    def test_admin_delete_listing_ignores_external_next_url(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        owner = User.objects.create_user(username="owner", email="owner@bc.edu", password="test")
+        listing = owner.listings.create(
+            title="Admin listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+        )
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            reverse("users:admin_delete_listing", args=[listing.id]),
+            {"next": "https://example.com/malicious"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("users:admin_listings"))
+        self.assertFalse(owner.listings.filter(pk=listing.pk).exists())
 
     def test_logout_page_uses_custom_ui(self):
         self.client.force_login(self.user)

@@ -24,9 +24,9 @@
 
             <div class="app-detail-grid">
                 <div class="listing-panel">
-                    {% if listing.images.all %}
+                    {% if listing_images %}
                         <div class="listing-detail-gallery mb-4">
-                            {% for image in listing.images.all %}
+                            {% for image in listing_images %}
                                 <img src="{{ image.image.url }}" alt="{{ listing.title }}" class="listing-detail-image">
                             {% endfor %}
                         </div>
@@ -118,14 +118,14 @@
                             </div>
                         </div>
 
-                        {% if request.user.is_authenticated and listing.owner_id == request.user.id %}
+                        {% if listing.owner_id == request.user.id %}
                             <div class="app-compact-list">
                                 <div class="app-compact-item app-compact-item-static">
                                     <span class="app-compact-title">Owner view</span>
                                     <span class="app-compact-meta">You posted this listing. Incoming inquiries appear below.</span>
                                 </div>
                             </div>
-                        {% elif request.user.is_authenticated and request.user.can_inquire_on_listings %}
+                        {% elif request.user.can_inquire_on_listings %}
                             <form method="post" action="{% url 'listings:inquire' listing.pk %}" class="app-stack">
                                 {% csrf_token %}
                                 <label class="form-label fw-semibold" for="{{ inquiry_form.message.id_for_label }}">Message</label>
@@ -134,21 +134,13 @@
                                     {% if existing_inquiry %}Update inquiry{% else %}Send inquiry{% endif %}
                                 </button>
                             </form>
-                        {% elif request.user.is_authenticated %}
+                        {% else %}
                             <div class="app-compact-list">
                                 <div class="app-compact-item app-compact-item-static">
                                     <span class="app-compact-title">Listing-only access</span>
                                     <span class="app-compact-meta">This account can publish listings but cannot send rental inquiries.</span>
                                 </div>
                             </div>
-                        {% else %}
-                            <div class="app-compact-list">
-                                <div class="app-compact-item app-compact-item-static">
-                                    <span class="app-compact-title">Sign in to inquire</span>
-                                    <span class="app-compact-meta">Student access is required to contact listers through the platform.</span>
-                                </div>
-                            </div>
-                            <a class="btn btn-brand" href="{% url 'account_login' %}">Sign in with Google</a>
                         {% endif %}
                     </div>
 

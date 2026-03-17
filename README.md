@@ -123,6 +123,8 @@ python manage.py runserver
 
 The app will be available at `http://127.0.0.1:8000/`.
 
+If you run the app with `DJANGO_DEBUG=false`, you must also provide `DJANGO_SECRET_KEY`.
+
 To grant admin access to an existing account:
 
 ```bash
@@ -196,6 +198,7 @@ Auth-specific overrides live in `templates/account/`, `templates/socialaccount/`
 Static files (CSS, JS, images) live in the `static/` directory. In templates, reference them using Django's `{% static %}` tag. `static/css/custom.css` is the main stylesheet entrypoint.
 
 User-uploaded files are stored under `media/` in development and are intentionally ignored by git.
+Private user document previews/downloads are served through authenticated Django views instead of raw template links.
 
 ## Tests
 

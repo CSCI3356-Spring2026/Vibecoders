@@ -18,48 +18,15 @@
             </div>
 
             <div class="app-layout">
-                <aside class="app-sidebar admin-sidebar">
-                    <div class="admin-nav-card listing-panel">
-                        <h2 class="admin-nav-title">Dashboard</h2>
-                        <nav class="admin-nav">
-                            <a class="admin-nav-item" href="{% url 'users:admin_dashboard' %}">Dashboard</a>
-                            <a class="admin-nav-item is-active" href="{% url 'users:admin_listings' %}">Manage Listings</a>
-                            <span class="admin-nav-item is-disabled">Reports &amp; Issues</span>
-                            <a class="admin-nav-item" href="{% url 'users:admin_users' %}">User Management</a>
-                        </nav>
-                        <form method="post" action="{% url 'account_logout' %}" class="admin-signout">
-                            {% csrf_token %}
-                            <button class="btn btn-outline-secondary w-100" type="submit">Sign Out</button>
-                        </form>
-                    </div>
-                </aside>
+                {% include "includes/admin_sidebar.html" with active_section="listings" %}
 
                 <div class="app-main">
-                    <div class="listing-panel admin-filter">
-                        <form method="get" class="admin-filter-form">
-                            <div class="admin-filter-inputs">
-                                <input
-                                    class="form-control"
-                                    type="search"
-                                    name="q"
-                                    placeholder="Search listings..."
-                                    value="{{ query }}"
-                                >
-                                <select class="form-select" name="status">
-                                    <option value="">All Statuses</option>
-                                    {% for value, label in status_options %}
-                                        <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <button class="btn btn-brand" type="submit">Filter</button>
-                        </form>
-                    </div>
+                    {% include "includes/admin_listing_filters.html" %}
 
                     <div class="listing-panel admin-table">
                         <div class="admin-table-head">
                             <h2 class="app-section-heading">Listings</h2>
-                            <span class="admin-table-count">{{ listings|length }} results</span>
+                            <span class="admin-table-count">{{ listings_total }} results</span>
                         </div>
 
                         {% if listings %}
@@ -115,6 +82,7 @@
                                     </tbody>
                                 </table>
                             </div>
+                            {% include "includes/pagination.html" with page_obj=listings pagination_query=pagination_query %}
                         {% else %}
                             <p class="app-panel-copy mb-0">No listings match the current filters.</p>
                         {% endif %}

@@ -83,3 +83,98 @@ class UserFilesViewTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], f"{reverse('users:files')}?page=2&q=lease")
+
+    def test_delete_removes_file_from_storage(self):
+        self.client.force_login(self.user)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                user_file = UserFile.objects.create(
+                    owner=self.user,
+                    title="Lease",
+                    file=SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain"),
+                )
+                stored_name = user_file.file.name
+                self.assertTrue(user_file.file.storage.exists(stored_name))
+
+                response = self.client.post(reverse("users:file_delete", args=[user_file.id]))
+
+                self.assertEqual(response.status_code, 302)
+                self.assertFalse(user_file.file.storage.exists(stored_name))
+
+    def test_upload_rejects_unsupported_file_type(self):
+        self.client.force_login(self.user)
+        upload = SimpleUploadedFile("script.exe", b"binary", content_type="application/octet-stream")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                response = self.client.post(reverse("users:files"), {"title": "Bad", "file": upload}, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Upload a PDF, image, text file, DOC, or DOCX file.")
+        self.assertFalse(UserFile.objects.filter(owner=self.user, title="Bad").exists())
+
+    def test_owner_can_preview_file_through_authenticated_view(self):
+        self.client.force_login(self.user)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                user_file = UserFile.objects.create(
+                    owner=self.user,
+                    title="Lease",
+                    file=SimpleUploadedFile("lease.pdf", b"%PDF-1.4 test", content_type="application/pdf"),
+                )
+
+                response = self.client.get(reverse("users:file_preview", args=[user_file.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["X-Frame-Options"], "SAMEORIGIN")
+        self.assertEqual(response["Cache-Control"], "private, no-store")
+
+    def test_other_user_cannot_preview_private_file(self):
+        other_user = User.objects.create_user(username="other", email="other@bc.edu", password="test")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                user_file = UserFile.objects.create(
+                    owner=self.user,
+                    title="Lease",
+                    file=SimpleUploadedFile("lease.pdf", b"%PDF-1.4 test", content_type="application/pdf"),
+                )
+
+                self.client.force_login(other_user)
+                response = self.client.get(reverse("users:file_preview", args=[user_file.id]))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_preview_rejects_non_previewable_file_types(self):
+        self.client.force_login(self.user)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                user_file = UserFile.objects.create(
+                    owner=self.user,
+                    title="Notes",
+                    file=SimpleUploadedFile("notes.txt", b"hello", content_type="text/plain"),
+                )
+
+                response = self.client.get(reverse("users:file_preview", args=[user_file.id]))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_admin_can_download_user_file(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                user_file = UserFile.objects.create(
+                    owner=self.user,
+                    title="Lease",
+                    file=SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain"),
+                )
+
+                self.client.force_login(admin)
+                response = self.client.get(reverse("users:file_download", args=[user_file.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Cache-Control"], "private, no-store")

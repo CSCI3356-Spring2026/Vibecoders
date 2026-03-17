@@ -19,7 +19,7 @@ class CorePageTests(TestCase):
         self.assertContains(response, 'name="q"')
 
     def test_landing_page_shows_live_listing_preview(self):
-        user = get_user_model().objects.create_user(username="owner", password="pass12345")
+        user = get_user_model().objects.create_user(username="owner", email="owner@bc.edu", password="pass12345")
         user.listings.create(
             title="Beacon Street apartment",
             address="1731 Beacon St",
@@ -73,6 +73,7 @@ class CorePageTests(TestCase):
     def test_welcome_redirects_authenticated_user_to_dashboard(self):
         user = get_user_model().objects.create_user(
             username="alex",
+            email="alex@bc.edu",
             password="pass12345",
             first_name="Alex",
             last_name="Park",
@@ -93,7 +94,7 @@ class CorePageTests(TestCase):
         self.assertNotContains(response, "Guest User")
 
     def test_nav_profile_menu_shows_logout_for_authenticated(self):
-        user = get_user_model().objects.create_user(username="alex", password="pass12345")
+        user = get_user_model().objects.create_user(username="alex", email="alex@bc.edu", password="pass12345")
         self.client.force_login(user)
 
         response = self.client.get(reverse("core:landing"))

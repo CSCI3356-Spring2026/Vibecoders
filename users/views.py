@@ -3,19 +3,25 @@ from pathlib import Path
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
-from django.http import HttpResponseForbidden
+from django.db.models import Count
+from django.http import FileResponse, Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.views.decorators.http import require_POST
+from django.views.decorators.clickjacking import xframe_options_sameorigin
+from django.views.decorators.http import require_GET, require_POST
 
-from core.utils import get_page, preserved_query_suffix
+from core.utils import get_page, preserved_query_suffix, safe_next_url
 from listings.models import Listing, ListingInquiry
 
 from .forms import UserFileUploadForm
 from .models import Role, UserFile
+from .selectors import accessible_user_files_queryset, admin_listings_queryset, admin_users_queryset
 
 FILES_PER_PAGE = 12
+POSTS_PER_PAGE = 12
+ADMIN_LISTINGS_PER_PAGE = 20
+ADMIN_USERS_PER_PAGE = 20
+ADMIN_USER_DETAIL_PREVIEW_LIMIT = 15
 
 
 def _files_redirect(request):
@@ -48,6 +54,27 @@ def _selected_file_flags(user_file):
     return mime_type.startswith("image/"), mime_type == "application/pdf"
 
 
+def _accessible_user_file_or_404(user, file_id):
+    return get_object_or_404(accessible_user_files_queryset(user), id=file_id)
+
+
+def _open_user_file_or_404(user_file):
+    if not user_file.file:
+        raise Http404("File not found.")
+
+    try:
+        return user_file.file.open("rb")
+    except FileNotFoundError as exc:
+        raise Http404("File not found.") from exc
+
+
+def _preview_content_type_or_404(user_file):
+    content_type = mimetypes.guess_type(user_file.file.name)[0] or "application/octet-stream"
+    if content_type == "application/pdf" or content_type.startswith("image/"):
+        return content_type
+    raise Http404("Preview not available.")
+
+
 def login_page(request):
     if request.user.is_authenticated:
         return redirect("users:dashboard")
@@ -76,10 +103,15 @@ def dashboard(request):
 
 @login_required
 def posts(request):
-    listings = request.user.listings.with_related().prefetch_related("inquiries__sender")
+    listings_qs = (
+        request.user.listings.with_related().annotate(inquiry_count=Count("inquiries")).order_by("-created_at")
+    )
+    listings_page = get_page(listings_qs, request.GET.get("page"), POSTS_PER_PAGE)
     context = {
         **_workspace_summary(request.user),
-        "listings": listings,
+        "listings": listings_page,
+        "listings_total": listings_page.paginator.count,
+        "pagination_query": preserved_query_suffix(request.GET, "page"),
     }
     return render(request, "users/posts.html", context)
 
@@ -102,7 +134,7 @@ def files(request):
     else:
         form = UserFileUploadForm()
 
-    files_qs = UserFile.objects.filter(owner=request.user)
+    files_qs = accessible_user_files_queryset(request.user).filter(owner=request.user)
     if query:
         files_qs = files_qs.filter(title__icontains=query)
 
@@ -129,6 +161,33 @@ def files(request):
     return render(request, "users/files.html", context)
 
 
+@login_required
+@require_GET
+@xframe_options_sameorigin
+def file_preview(request, file_id):
+    user_file = _accessible_user_file_or_404(request.user, file_id)
+    file_handle = _open_user_file_or_404(user_file)
+    content_type = _preview_content_type_or_404(user_file)
+    response = FileResponse(file_handle, content_type=content_type)
+    response["Content-Disposition"] = f'inline; filename="{Path(user_file.file.name).name}"'
+    response["Cache-Control"] = "private, no-store"
+    return response
+
+
+@login_required
+@require_GET
+def file_download(request, file_id):
+    user_file = _accessible_user_file_or_404(request.user, file_id)
+    file_handle = _open_user_file_or_404(user_file)
+    response = FileResponse(
+        file_handle,
+        as_attachment=True,
+        filename=Path(user_file.file.name).name,
+    )
+    response["Cache-Control"] = "private, no-store"
+    return response
+
+
 def _admin_guard(request):
     if not request.user.is_bc_admin:
         return HttpResponseForbidden("Admin access required.")
@@ -143,22 +202,13 @@ def admin_dashboard(request):
 
     query = request.GET.get("q", "").strip()
     selected_status = request.GET.get("status", "").strip()
-    status_values = {status for status, _ in Listing.STATUS_CHOICES}
-
-    listings_qs = Listing.objects.with_related()
-    if query:
-        listings_qs = listings_qs.filter(
-            Q(title__icontains=query)
-            | Q(address__icontains=query)
-            | Q(owner__email__icontains=query)
-            | Q(owner__username__icontains=query)
-        )
-    if selected_status in status_values:
-        listings_qs = listings_qs.filter(status=selected_status)
+    listings_qs = admin_listings_queryset(query=query, selected_status=selected_status)
 
     User = get_user_model()
+    filtered_listings_count = listings_qs.count()
     context = {
-        "listings": listings_qs,
+        "listings": listings_qs[:10],
+        "filtered_listings_count": filtered_listings_count,
         "total_listings": Listing.objects.count(),
         "pending_listings": Listing.objects.filter(status="PENDING").count(),
         "approved_listings": Listing.objects.filter(status="AVAILABLE").count(),
@@ -181,21 +231,14 @@ def admin_listings(request):
 
     query = request.GET.get("q", "").strip()
     selected_status = request.GET.get("status", "").strip()
-    status_values = {status for status, _ in Listing.STATUS_CHOICES}
+    listings_qs = admin_listings_queryset(query=query, selected_status=selected_status)
 
-    listings_qs = Listing.objects.with_related()
-    if query:
-        listings_qs = listings_qs.filter(
-            Q(title__icontains=query)
-            | Q(address__icontains=query)
-            | Q(owner__email__icontains=query)
-            | Q(owner__username__icontains=query)
-        )
-    if selected_status in status_values:
-        listings_qs = listings_qs.filter(status=selected_status)
+    listings_page = get_page(listings_qs, request.GET.get("page"), ADMIN_LISTINGS_PER_PAGE)
 
     context = {
-        "listings": listings_qs,
+        "listings": listings_page,
+        "listings_total": listings_page.paginator.count,
+        "pagination_query": preserved_query_suffix(request.GET, "page"),
         "query": query,
         "selected_status": selected_status,
         "status_options": Listing.STATUS_CHOICES,
@@ -212,7 +255,11 @@ def admin_delete_listing(request, listing_id):
 
     listing = get_object_or_404(Listing, id=listing_id)
     listing.delete()
-    redirect_to = request.POST.get("next") or reverse("users:admin_listings")
+    redirect_to = safe_next_url(
+        request,
+        request.POST.get("next"),
+        reverse("users:admin_listings"),
+    )
     return redirect(redirect_to)
 
 
@@ -225,27 +272,18 @@ def admin_users(request):
     query = request.GET.get("q", "").strip()
     selected_role = request.GET.get("role", "").strip()
     selected_active = request.GET.get("active", "").strip()
-    role_values = {role.value for role in Role}
+    users_qs = admin_users_queryset(
+        query=query,
+        selected_role=selected_role,
+        selected_active=selected_active,
+    )
 
-    User = get_user_model()
-    users_qs = User.objects.all().order_by("username")
-
-    if query:
-        users_qs = users_qs.filter(
-            Q(username__icontains=query)
-            | Q(email__icontains=query)
-            | Q(first_name__icontains=query)
-            | Q(last_name__icontains=query)
-        )
-
-    if selected_role in role_values:
-        users_qs = users_qs.filter(role=selected_role)
-
-    if selected_active in {"active", "inactive"}:
-        users_qs = users_qs.filter(is_active=(selected_active == "active"))
+    users_page = get_page(users_qs, request.GET.get("page"), ADMIN_USERS_PER_PAGE)
 
     context = {
-        "users": users_qs,
+        "users": users_page,
+        "users_total": users_page.paginator.count,
+        "pagination_query": preserved_query_suffix(request.GET, "page"),
         "query": query,
         "selected_role": selected_role,
         "selected_active": selected_active,
@@ -262,15 +300,19 @@ def admin_user_detail(request, user_id):
 
     User = get_user_model()
     user_obj = get_object_or_404(User, id=user_id)
-    listings = user_obj.listings.with_related()
-    files = user_obj.files.all()
-    inquiries = ListingInquiry.objects.filter(listing__owner=user_obj).select_related("listing", "sender")
+    listings_qs = user_obj.listings.with_related()
+    files_qs = user_obj.files.all()
+    inquiries_qs = ListingInquiry.objects.filter(listing__owner=user_obj).select_related("listing", "sender")
 
     context = {
         "managed_user": user_obj,
-        "managed_listings": listings,
-        "managed_files": files,
-        "managed_inquiries": inquiries,
+        "managed_listings": listings_qs[:ADMIN_USER_DETAIL_PREVIEW_LIMIT],
+        "managed_files": files_qs[:ADMIN_USER_DETAIL_PREVIEW_LIMIT],
+        "managed_inquiries": inquiries_qs[:ADMIN_USER_DETAIL_PREVIEW_LIMIT],
+        "managed_listings_count": listings_qs.count(),
+        "managed_files_count": files_qs.count(),
+        "managed_inquiries_count": inquiries_qs.count(),
+        "activity_preview_limit": ADMIN_USER_DETAIL_PREVIEW_LIMIT,
     }
     return render(request, "users/admin_user_detail.html", context)
 
@@ -320,6 +362,5 @@ def admin_toggle_active(request, user_id):
 @require_POST
 def delete_file(request, file_id):
     user_file = get_object_or_404(UserFile, id=file_id, owner=request.user)
-    user_file.file.delete(save=False)
     user_file.delete()
     return _files_redirect(request)
