@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}My Listings | Vibecoders{% endblock %}
+{% block title %}My Listings | {{ site_product_name }}{% endblock %}
 
 {% block content %}
 <section class="app-page">
@@ -58,7 +58,7 @@
                                 <div class="workspace-item-row">
                                     <div class="workspace-item-main">
                                         {% if listing.primary_image %}
-                                            <img class="workspace-thumb" src="{{ listing.primary_image.image.url }}" alt="{{ listing.title }}">
+                                            <img class="workspace-thumb" src="{{ listing.primary_image.versioned_url }}" alt="{{ listing.title }}">
                                         {% else %}
                                             <div class="workspace-thumb-placeholder">{{ listing.get_property_type_display }}</div>
                                         {% endif %}

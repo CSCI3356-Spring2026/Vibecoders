@@ -13,10 +13,27 @@
 }
 
 @media (max-width: 991px) {
-    .nav-row,
+    .nav-row {
+        flex-wrap: wrap;
+        align-items: stretch;
+        justify-content: flex-start;
+        gap: 0.85rem;
+    }
+
     .nav-main {
         flex-direction: column;
-        align-items: flex-start;
+        align-items: stretch;
+        width: 100%;
+        gap: 0.85rem;
+    }
+
+    .nav-actions {
+        width: 100%;
+    }
+
+    .nav-account {
+        align-self: flex-end;
+        margin-left: auto;
     }
 
     .app-layout,
@@ -69,24 +86,65 @@
     .admin-filter-inputs {
         grid-template-columns: 1fr;
     }
+
+    .listing-panel,
+    .auth-panel {
+        padding: 1.2rem;
+    }
+
+    .app-header-shell {
+        padding: 1.3rem 1.2rem;
+    }
+
+    .auth-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .auth-stage {
+        padding: 0.25rem 0 0.5rem;
+    }
+
+    .auth-stage-title {
+        max-width: 18ch;
+    }
+
+    .footer-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 @media (max-width: 767.98px) {
     .nav-actions {
         width: 100%;
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        padding-bottom: 0.2rem;
     }
 
     .nav-actions .nav-button {
-        flex: 1 1 auto;
+        flex: 0 0 auto;
     }
 
     .profile-name {
         display: none;
     }
 
+    .site-brand-copy {
+        gap: 0.1rem;
+    }
+
     .app-header-main {
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    .app-actions,
+    .app-meta {
+        width: 100%;
+    }
+
+    .app-actions .btn {
+        flex: 1 1 auto;
     }
 
     .home-title {
@@ -110,6 +168,15 @@
         flex-direction: column;
     }
 
+    .home-quick-links {
+        width: 100%;
+    }
+
+    .home-pill {
+        flex: 1 1 calc(50% - 0.5rem);
+        justify-content: center;
+    }
+
     .app-stat-grid,
     .app-stat-grid-tight,
     .listing-detail-stats,
@@ -119,6 +186,49 @@
 
     .app-price-block {
         text-align: left;
+    }
+
+    .listing-card-price-row,
+    .home-stage-card-topline,
+    .home-stage-card-footer,
+    .files-preview-header,
+    .workspace-item-main {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .files-search .input-group {
+        grid-template-columns: 1fr;
+    }
+
+    .files-list {
+        max-height: none;
+    }
+
+    .files-preview-frame {
+        min-height: 18rem;
+    }
+
+    .auth-page {
+        padding: 1.4rem 0 2rem;
+    }
+
+    .auth-panel-body {
+        padding: 1.35rem 1.2rem 1.4rem;
+    }
+
+    .auth-stage-title {
+        max-width: none;
+        font-size: clamp(1.8rem, 8vw, 2.5rem);
+    }
+
+    .footer-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .footer-meta {
+        flex-direction: column;
+        align-items: flex-start;
     }
 
     .app-pagination {

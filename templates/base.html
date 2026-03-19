@@ -4,7 +4,10 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}Vibecoders{% endblock %}</title>
+    <title>{% block title %}{{ site_product_name }} by {{ site_company_name }}{% endblock %}</title>
+    <meta name="theme-color" content="#4f46e5">
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/padly-mark.svg' %}">
+    <link rel="shortcut icon" href="{% static 'images/padly-mark.svg' %}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -19,6 +22,7 @@
     >
     <link rel="stylesheet" href="{% static 'css/base.css' %}">
     <link rel="stylesheet" href="{% static 'css/navigation.css' %}">
+    <link rel="stylesheet" href="{% static 'css/footer.css' %}">
     <link rel="stylesheet" href="{% static 'css/forms.css' %}">
     <link rel="stylesheet" href="{% static 'css/layout.css' %}">
     <link rel="stylesheet" href="{% static 'css/components.css' %}">
@@ -30,85 +34,137 @@
     {% block extra_css %}{% endblock %}
     <link rel="stylesheet" href="{% static 'css/responsive.css' %}">
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
     <div class="site-shell">
-        <header class="site-header">
-            <div class="container">
-                <div class="nav-row">
-                    <div class="nav-main">
-                        <a class="site-brand" href="{% url 'core:landing' %}">
-                            <span class="site-brand-mark">V</span>
-                            <span>Vibecoders</span>
-                        </a>
-                        <nav class="nav-actions">
-                            {% block nav_actions %}
-                                <a class="nav-button" href="{% url 'core:landing' %}">Home</a>
-                                {% if request.user.is_authenticated %}
-                                    {% if request.user.can_browse_marketplace or request.user.is_bc_admin %}
-                                        <a class="nav-button" href="{% url 'listings:listing_list' %}">Listings</a>
-                                    {% elif request.user.has_listing_only_access %}
+        {% block site_header %}
+            <header class="site-header">
+                <div class="container">
+                    <div class="nav-row">
+                        <div class="nav-main">
+                            <a class="site-brand" href="{% url 'core:landing' %}">
+                                {% include "includes/site_mark.html" with mark_class="site-brand-mark" %}
+                                <span class="site-brand-copy">
+                                    <span class="site-brand-name">{{ site_product_name }}</span>
+                                    <span class="site-brand-meta">by {{ site_company_name }}</span>
+                                </span>
+                            </a>
+                            <nav class="nav-actions">
+                                {% block nav_actions %}
+                                    <a class="nav-button" href="{% url 'core:landing' %}">Home</a>
+                                    {% if request.user.is_authenticated %}
+                                        {% if request.user.can_browse_marketplace or request.user.is_bc_admin %}
+                                            <a class="nav-button" href="{% url 'listings:listing_list' %}">Listings</a>
+                                        {% elif request.user.has_listing_only_access %}
+                                            <a class="nav-button" href="{% url 'users:posts' %}">My Listings</a>
+                                        {% endif %}
+                                    {% endif %}
+                                    {% if request.user.is_authenticated and not request.user.has_listing_only_access %}
                                         <a class="nav-button" href="{% url 'users:posts' %}">My Listings</a>
                                     {% endif %}
-                                {% endif %}
-                                {% if request.user.is_authenticated and not request.user.has_listing_only_access %}
-                                    <a class="nav-button" href="{% url 'users:posts' %}">My Listings</a>
-                                {% endif %}
-                                {% if request.user.is_authenticated %}
-                                    <a class="nav-button" href="{% url 'communications:messages' %}">Messages</a>
-                                {% endif %}
-                                <a class="nav-button nav-button-primary" href="{% url 'listings:create_listing' %}">Create Listing</a>
-                            {% endblock %}
-                        </nav>
-                    </div>
-                    {% if request.user.is_authenticated %}
-                        <div class="dropdown ms-lg-3 profile-menu">
-                            <button
-                                class="profile-link profile-button dropdown-toggle"
-                                type="button"
-                                data-bs-toggle="dropdown"
-                                aria-expanded="false"
-                            >
-                                <span class="profile-icon">
-                                    {{ request.user.username|slice:":1"|upper }}
-                                </span>
-                                <span class="profile-name">
-                                    {{ request.user.get_full_name|default:request.user.username }}
-                                </span>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                <li><a class="dropdown-item" href="{% url 'users:profile' %}">Profile</a></li>
-                                <li><a class="dropdown-item" href="{% url 'users:dashboard' %}">Dashboard</a></li>
-                                {% if request.user.is_bc_admin %}
-                                    <li><a class="dropdown-item" href="{% url 'users:admin_dashboard' %}">Admin Dashboard</a></li>
-                                {% endif %}
-                                <li><hr class="dropdown-divider"></li>
-                                <li>
-                                    <form method="post" action="{% url 'account_logout' %}">
-                                        {% csrf_token %}
-                                        <button class="dropdown-item" type="submit">Log out</button>
-                                    </form>
-                                </li>
-                            </ul>
+                                    {% if request.user.is_authenticated %}
+                                        <a class="nav-button" href="{% url 'communications:messages' %}">Messages</a>
+                                    {% endif %}
+                                    <a class="nav-button nav-button-primary" href="{% url 'listings:create_listing' %}">Create Listing</a>
+                                {% endblock %}
+                            </nav>
                         </div>
-                    {% else %}
-                        <a class="nav-button nav-button-primary" href="{% url 'account_login' %}">Log in</a>
-                    {% endif %}
+                        {% if request.user.is_authenticated %}
+                            <div class="dropdown ms-lg-3 profile-menu nav-account">
+                                <button
+                                    class="profile-link profile-button dropdown-toggle"
+                                    type="button"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false"
+                                >
+                                    <span class="profile-icon">
+                                        {{ request.user.username|slice:":1"|upper }}
+                                    </span>
+                                    <span class="profile-name">
+                                        {{ request.user.get_full_name|default:request.user.username }}
+                                    </span>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" href="{% url 'users:profile' %}">Profile</a></li>
+                                    <li><a class="dropdown-item" href="{% url 'users:dashboard' %}">Dashboard</a></li>
+                                    {% if request.user.is_bc_admin %}
+                                        <li><a class="dropdown-item" href="{% url 'users:admin_dashboard' %}">Admin Dashboard</a></li>
+                                    {% endif %}
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <form method="post" action="{% url 'account_logout' %}">
+                                            {% csrf_token %}
+                                            <button class="dropdown-item" type="submit">Log out</button>
+                                        </form>
+                                    </li>
+                                </ul>
+                            </div>
+                        {% else %}
+                            <a class="nav-button nav-button-primary nav-account" href="{% url 'account_login' %}">Log in</a>
+                        {% endif %}
+                    </div>
                 </div>
-            </div>
-        </header>
+            </header>
+        {% endblock %}
 
         <main class="page-wrap">
-            {% if messages %}
-                <div class="container pt-3">
-                    {% for message in messages %}
-                        <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags|default:'info' }}{% endif %} mb-3" role="alert">
-                            {{ message }}
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
+            {% block global_messages %}
+                {% if messages %}
+                    <div class="container pt-3">
+                        {% for message in messages %}
+                            <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags|default:'info' }}{% endif %} mb-3" role="alert">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endblock %}
             {% block content %}{% endblock %}
         </main>
+
+        <footer class="site-footer">
+            <div class="container">
+                <div class="footer-grid">
+                    <div class="footer-brand-block">
+                        <a class="footer-brand" href="{% url 'core:landing' %}">
+                            {% include "includes/site_mark.html" with mark_class="site-brand-mark" %}
+                            <span class="site-brand-copy">
+                                <span class="site-brand-name">{{ site_product_name }}</span>
+                                <span class="site-brand-meta">by {{ site_company_name }}</span>
+                            </span>
+                        </a>
+                        <p class="footer-copy">
+                            {{ site_product_name }} is a housing marketplace product built by {{ site_company_name }}
+                            Boston College students.
+                        </p>
+                    </div>
+
+                    <div class="footer-column">
+                        <h2 class="footer-heading">Platform</h2>
+                        <div class="footer-links">
+                            <a href="{% url 'core:landing' %}">Home</a>
+                            {% if request.user.is_authenticated %}
+                                <a href="{% url 'communications:messages' %}">Messages</a>
+                                <a href="{% url 'users:dashboard' %}">Dashboard</a>
+                            {% else %}
+                                <a href="{% url 'account_login' %}">Sign in</a>
+                            {% endif %}
+                            <a href="{% url 'listings:create_listing' %}">Create listing</a>
+                        </div>
+                    </div>
+
+                    <div class="footer-column">
+                        <h2 class="footer-heading">Legal</h2>
+                        <div class="footer-links">
+                            <a href="{% url 'core:terms' %}">Terms of Service</a>
+                            <a href="{% url 'core:privacy' %}">Privacy Policy</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="footer-meta">
+                    <span>&copy; 2026 {{ site_company_name }}. All rights reserved.</span>
+                </div>
+            </div>
+        </footer>
     </div>
 
     <script

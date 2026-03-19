@@ -1,10 +1,18 @@
+from pathlib import Path
+
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 
 from communications.models import ListingConversation
 
-from ...models import Listing
-from ...sample_data import DEMO_USERS, demo_conversation_definitions, demo_listing_definitions
+from ...models import Listing, ListingImage
+from ...sample_data import (
+    DEMO_LISTING_IMAGE_FILENAMES,
+    DEMO_USERS,
+    demo_conversation_definitions,
+    demo_listing_definitions,
+)
 
 User = get_user_model()
 
@@ -17,6 +25,8 @@ class Command(BaseCommand):
         updated_users = 0
         created_listings = 0
         updated_listings = 0
+        created_listing_images = 0
+        updated_listing_images = 0
         created_conversations = 0
         updated_conversations = 0
         created_messages = 0
@@ -52,6 +62,16 @@ class Command(BaseCommand):
 
         listing_titles = [data["title"] for data in listing_definitions]
         listings_by_title = {listing.title: listing for listing in Listing.objects.filter(title__in=listing_titles)}
+        for listing_title, image_filename in DEMO_LISTING_IMAGE_FILENAMES.items():
+            listing = listings_by_title.get(listing_title)
+            if listing is None:
+                raise CommandError(f'Cannot seed image because listing "{listing_title}" is missing.')
+
+            created, updated = self._sync_listing_image(listing, image_filename)
+            if created:
+                created_listing_images += 1
+            elif updated:
+                updated_listing_images += 1
 
         for conversation_data in demo_conversation_definitions():
             listing = listings_by_title.get(conversation_data["listing_title"])
@@ -103,6 +123,7 @@ class Command(BaseCommand):
                 "Seeded demo marketplace data: "
                 f"{created_users} users created, {updated_users} users updated; "
                 f"{created_listings} listings created, {updated_listings} listings updated; "
+                f"{created_listing_images} listing images created, {updated_listing_images} listing images updated; "
                 f"{created_conversations} conversations created, {updated_conversations} conversations updated; "
                 f"{created_messages} messages created."
             )
@@ -135,3 +156,38 @@ class Command(BaseCommand):
             setattr(user, field_name, user_data[field_name])
         user.save(update_fields=[*field_names, "role"])
         return user, False
+
+    def _sync_listing_image(self, listing, image_filename):
+        desired_name = f"listing_photos/{image_filename}"
+        source_path = Path(settings.MEDIA_ROOT) / desired_name
+        if not source_path.exists():
+            raise CommandError(
+                f'Cannot seed image for listing "{listing.title}" because "{desired_name}" is missing from MEDIA_ROOT.'
+            )
+
+        existing_images = list(listing.images.order_by("id"))
+        desired_image = next((image for image in existing_images if image.image.name == desired_name), None)
+        created = False
+        updated = False
+
+        if desired_image is None:
+            if existing_images:
+                desired_image = existing_images[0]
+                old_name = desired_image.image.name
+                desired_image.image.name = desired_name
+                desired_image.save(update_fields=["image"])
+                if old_name and old_name != desired_name and desired_image.image.storage.exists(old_name):
+                    desired_image.image.storage.delete(old_name)
+                updated = True
+            else:
+                ListingImage.objects.create(listing=listing, image=desired_name)
+                created = True
+                return created, updated
+
+        for stale_image in existing_images:
+            if stale_image.pk == desired_image.pk or stale_image.image.name == desired_name:
+                continue
+            stale_image.delete()
+            updated = True
+
+        return created, updated

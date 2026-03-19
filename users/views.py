@@ -1,6 +1,9 @@
 import mimetypes
 from pathlib import Path
+from urllib.parse import urlencode
 
+from allauth.socialaccount.providers.google import views as google_views
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count
 from django.http import FileResponse, Http404
@@ -10,9 +13,10 @@ from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_GET, require_POST
 
 from communications.selectors import accessible_conversations_for_user, conversation_summary_for_user
-from core.utils import get_page, preserved_query_suffix
+from core.utils import get_page, preserved_query_suffix, safe_next_url
 
-from .forms import UserFileUploadForm
+from .forms import GoogleLoginAcceptanceForm, UserFileUploadForm
+from .legal import has_current_legal_acceptance, set_pending_legal_acceptance
 from .models import UserFile
 from .selectors import accessible_user_files_queryset
 
@@ -73,9 +77,42 @@ def _preview_content_type_or_404(user_file):
 def login_page(request):
     if request.user.is_authenticated:
         return redirect("users:dashboard")
+    next_url = safe_next_url(request, request.POST.get("next") or request.GET.get("next"), "")
     if request.method == "POST":
-        return redirect("users:login")
-    return render(request, "users/login.html")
+        is_legacy_login_post = request.path == reverse("account_login")
+        has_legal_fields = "accept_terms" in request.POST or "accept_privacy" in request.POST
+        if is_legacy_login_post and not has_legal_fields:
+            return redirect("users:login")
+        form = GoogleLoginAcceptanceForm(request.POST)
+        if form.is_valid():
+            set_pending_legal_acceptance(request)
+            return redirect(_google_login_url(request))
+    else:
+        form = GoogleLoginAcceptanceForm()
+    return render(request, "users/login.html", {"login_form": form, "next_url": next_url})
+
+
+def google_login_gate(request):
+    if not has_current_legal_acceptance(request):
+        messages.error(request, "Review and accept the Terms of Service and Privacy Policy before continuing.")
+        return redirect(_login_redirect_with_next(request))
+    return google_views.oauth2_login(request)
+
+
+def _google_login_url(request):
+    next_url = safe_next_url(request, request.POST.get("next") or request.GET.get("next"), "")
+    base_url = reverse("google_login")
+    if not next_url:
+        return base_url
+    return f"{base_url}?{urlencode({'next': next_url})}"
+
+
+def _login_redirect_with_next(request):
+    next_url = safe_next_url(request, request.GET.get("next"), "")
+    base_url = reverse("users:login")
+    if not next_url:
+        return base_url
+    return f"{base_url}?{urlencode({'next': next_url})}"
 
 
 @login_required

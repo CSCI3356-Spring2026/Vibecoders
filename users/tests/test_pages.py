@@ -28,8 +28,10 @@ class UserPageTests(TestCase):
         self.assertContains(response, "Sign in with Google")
         self.assertContains(response, "Continue with Google")
         self.assertContains(response, "full student access")
-        self.assertContains(response, "Create Listing")
-        self.assertContains(response, "/accounts/google/login/")
+        self.assertContains(response, "Boston College Housing")
+        self.assertContains(response, "Terms of Service")
+        self.assertContains(response, "Privacy Policy")
+        self.assertNotContains(response, '<header class="site-header">')
         self.assertNotContains(response, "Guest User")
 
     def test_allauth_login_page_uses_custom_google_ui(self):
@@ -37,8 +39,32 @@ class UserPageTests(TestCase):
 
         self.assertContains(response, "Sign in with Google")
         self.assertContains(response, "Continue with Google")
-        self.assertContains(response, "Create Listing")
+        self.assertContains(response, "Secure access for listings, messages, and account management.")
+        self.assertNotContains(response, '<header class="site-header">')
         self.assertNotContains(response, "If you have not created an account yet")
+
+    def test_login_page_requires_legal_acceptance_before_google_redirect(self):
+        response = self.client.post("/users/login/", {}, follow=False)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "You must agree to the Terms of Service.")
+        self.assertContains(response, "You must acknowledge the Privacy Policy.")
+
+    def test_login_page_redirects_to_google_after_legal_acceptance(self):
+        response = self.client.post(
+            "/users/login/",
+            {"accept_terms": "on", "accept_privacy": "on"},
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/accounts/google/login/")
+
+    def test_google_login_route_redirects_back_to_login_without_legal_acceptance(self):
+        response = self.client.get("/accounts/google/login/", follow=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/users/login/")
 
     def test_allauth_login_post_redirects_back_to_google_only_login(self):
         response = self.client.post("/accounts/login/", {"login": "user@bc.edu"}, follow=False)

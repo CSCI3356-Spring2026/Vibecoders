@@ -11,6 +11,15 @@ class CorePageTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "core/landing.html")
+        self.assertContains(response, "Padly")
+        self.assertContains(response, "Terms of Service")
+        self.assertContains(response, "Privacy Policy")
+
+    def test_root_page_includes_padly_favicon(self):
+        response = self.client.get(reverse("core:landing"))
+
+        self.assertContains(response, 'rel="icon"')
+        self.assertContains(response, "images/padly-mark.svg")
 
     def test_landing_page_exposes_listing_search(self):
         response = self.client.get(reverse("core:landing"))
@@ -102,3 +111,17 @@ class CorePageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, reverse("account_logout"))
         self.assertContains(response, "Log out")
+
+    def test_terms_page_renders(self):
+        response = self.client.get(reverse("core:terms"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Terms of Service")
+        self.assertContains(response, "Padly")
+
+    def test_privacy_page_renders(self):
+        response = self.client.get(reverse("core:privacy"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Privacy Policy")
+        self.assertContains(response, "Padly")

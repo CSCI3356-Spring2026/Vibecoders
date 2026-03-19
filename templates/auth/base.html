@@ -1,19 +1,58 @@
 {% extends "base.html" %}
 
+{% block body_class %}auth-page-body{% endblock %}
+
+{% block site_header %}{% endblock %}
+
+{% block global_messages %}{% endblock %}
+
 {% block content %}
-<section class="app-page">
+<section class="auth-page">
     <div class="container">
-        <div class="auth-layout">
-            <div class="listing-panel auth-panel">
-                <div class="auth-panel-body">
-                    {% if messages %}
-                        {% for message in messages %}
-                            <div class="auth-alert" role="alert">
-                                {{ message }}
-                            </div>
-                        {% endfor %}
-                    {% endif %}
-                    {% block auth_panel %}{% endblock %}
+        <div class="auth-shell">
+            <a class="auth-brand" href="{% url 'core:landing' %}">
+                {% include "includes/site_mark.html" with mark_class="auth-brand-mark" %}
+                <span class="site-brand-copy">
+                    <span class="site-brand-name">{{ site_product_name }}</span>
+                    <span class="site-brand-meta">by {{ site_company_name }}</span>
+                </span>
+            </a>
+
+            <div class="auth-layout">
+                <div class="auth-stage">
+                    <p class="auth-kicker">Boston College Housing</p>
+                    <h1 class="auth-stage-title">Secure access for listings, messages, and account management.</h1>
+                    <p class="auth-stage-copy">
+                        Continue with Google to use the product. Verified `@bc.edu` accounts unlock the full student
+                        marketplace, while external accounts can publish and manage their own listings.
+                    </p>
+                    <div class="auth-stage-list">
+                        <div class="auth-stage-item">
+                            <span class="auth-stage-dot" aria-hidden="true"></span>
+                            <span>Google-based sign in and account verification</span>
+                        </div>
+                        <div class="auth-stage-item">
+                            <span class="auth-stage-dot" aria-hidden="true"></span>
+                            <span>Student browsing and messaging for verified BC users</span>
+                        </div>
+                        <div class="auth-stage-item">
+                            <span class="auth-stage-dot" aria-hidden="true"></span>
+                            <span>Listing management for owners, realtors, and admins</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="listing-panel auth-panel">
+                    <div class="auth-panel-body">
+                        {% if messages %}
+                            {% for message in messages %}
+                                <div class="auth-alert" role="alert">
+                                    {{ message }}
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                        {% block auth_panel %}{% endblock %}
+                    </div>
                 </div>
             </div>
         </div>

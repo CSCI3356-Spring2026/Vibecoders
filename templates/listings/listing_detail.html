@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ listing.title }} | Vibecoders{% endblock %}
+{% block title %}{{ listing.title }} | {{ site_product_name }}{% endblock %}
 
 {% block content %}
 <section class="app-page">
@@ -30,7 +30,7 @@
                     {% if listing_images %}
                         <div class="listing-detail-gallery mb-4">
                             {% for image in listing_images %}
-                                <img src="{{ image.image.url }}" alt="{{ listing.title }}" class="listing-detail-image">
+                                <img src="{{ image.versioned_url }}" alt="{{ listing.title }}" class="listing-detail-image">
                             {% endfor %}
                         </div>
                     {% endif %}

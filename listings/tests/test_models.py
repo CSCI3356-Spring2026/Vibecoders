@@ -1,16 +1,26 @@
 from datetime import date
+from io import BytesIO
+from tempfile import TemporaryDirectory
 
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError
+from django.test.utils import override_settings
+from PIL import Image
 
 from communications.models import ListingConversation
 from communications.services import serialize_conversation_for_user
 
-from ..models import Listing
+from ..models import Listing, ListingImage
 from .base import ListingTestCase
 
 
 class ListingModelTests(ListingTestCase):
+    def _image_upload(self, name="photo.png"):
+        buffer = BytesIO()
+        Image.new("RGB", (8, 8), color=(79, 70, 229)).save(buffer, format="PNG")
+        return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/png")
+
     def test_database_constraint_rejects_invalid_dates(self):
         with self.assertRaises(IntegrityError):
             Listing.objects.create(
@@ -81,3 +91,23 @@ class ListingModelTests(ListingTestCase):
 
         self.assertNotIn("counterparty_email", payload)
         self.assertEqual(payload["counterparty_name"], listing.owner.username)
+
+    def test_listing_image_versioned_url_is_exposed_in_conversation_payload(self):
+        participant = self.user.__class__.objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="test",
+        )
+
+        with TemporaryDirectory() as temp_dir, override_settings(MEDIA_ROOT=temp_dir):
+            listing = self.create_listing()
+            ListingImage.objects.create(listing=listing, image=self._image_upload())
+            conversation = ListingConversation.objects.create(
+                listing=listing,
+                owner=listing.owner,
+                participant=participant,
+            )
+
+            payload = serialize_conversation_for_user(conversation, participant)
+
+        self.assertIn("?v=", payload["listing_image_url"])

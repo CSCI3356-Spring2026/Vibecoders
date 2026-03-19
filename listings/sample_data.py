@@ -35,6 +35,19 @@ DEMO_USERS = [
     },
 ]
 
+DEMO_LISTING_IMAGE_FILENAMES = {
+    "Beacon Street 2BR with study nook": "beacon-street-2br.jpg",
+    "Brighton Center 4BR for roommate group": "brighton-center-4br.jpg",
+    "Chestnut Hill furnished 1BR": "chestnut-hill-furnished-1br.jpg",
+    "Cleveland Circle 2BR with parking": "cleveland-circle-2br.jpg",
+    "Commonwealth Ave 3BR with porch": "commonwealth-ave-3br.jpg",
+    "Foster Street fall sublease near BC shuttle": "foster-street-sublease.jpg",
+    "Newton room in quiet house": "newton-room-house.jpg",
+    "Owner-only draft in Oak Square": "oak-square-draft.jpg",
+    "Reservoir dorm-style room share": "reservoir-room-share.jpg",
+    "South Street summer sublet": "south-street-summer-sublet.jpg",
+}
+
 
 def _offset_date(days, base_date=None):
     anchor = base_date or timezone.localdate()

@@ -1,15 +1,42 @@
 {% extends "auth/base.html" %}
-{% load socialaccount %}
-
-{% block title %}Sign In | Vibecoders{% endblock %}
+{% block title %}Sign In | {{ site_product_name }} by {{ site_company_name }}{% endblock %}
 
 {% block auth_panel %}
     <div class="auth-minimal">
+        <p class="auth-eyebrow">Account access</p>
         <h1 class="auth-title">Sign in with Google</h1>
-        <p class="auth-copy">Use a verified `@bc.edu` account for full student access. External Google accounts can list and manage their own inventory.</p>
-        <a class="auth-google-btn" href="{% provider_login_url 'google' process='login' %}">
-            <span class="auth-google-mark">{% include "auth/google_mark.html" %}</span>
-            <span>Continue with Google</span>
-        </a>
+        <p class="auth-copy">Use the Google account tied to your BC or listing profile.</p>
+        <form method="post" class="auth-acceptance-form">
+            {% csrf_token %}
+            {% if next_url %}
+                <input type="hidden" name="next" value="{{ next_url }}">
+            {% endif %}
+
+            {% if login_form.non_field_errors %}
+                <div class="auth-alert" role="alert">
+                    {{ login_form.non_field_errors }}
+                </div>
+            {% endif %}
+
+            <div class="auth-check-group">
+                <label class="auth-check-option" for="{{ login_form.accept_terms.id_for_label }}">
+                    {{ login_form.accept_terms }}
+                    <span>I agree to the <a href="{% url 'core:terms' %}" target="_blank" rel="noopener noreferrer">Terms of Service</a>.</span>
+                </label>
+                {{ login_form.accept_terms.errors }}
+
+                <label class="auth-check-option" for="{{ login_form.accept_privacy.id_for_label }}">
+                    {{ login_form.accept_privacy }}
+                    <span>I acknowledge the <a href="{% url 'core:privacy' %}" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.</span>
+                </label>
+                {{ login_form.accept_privacy.errors }}
+            </div>
+
+            <button class="auth-google-btn" type="submit">
+                <span class="auth-google-mark">{% include "auth/google_mark.html" %}</span>
+                <span>Continue with Google</span>
+            </button>
+        </form>
+        <p class="auth-footnote">Verified `@bc.edu` accounts get full student access. External accounts can manage listings only.</p>
     </div>
 {% endblock %}

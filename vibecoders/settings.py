@@ -40,6 +40,9 @@ def env_int(name, default):
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+SITE_PRODUCT_NAME = os.getenv("SITE_PRODUCT_NAME", "Padly").strip() or "Padly"
+SITE_COMPANY_NAME = os.getenv("SITE_COMPANY_NAME", "Vibecoders").strip() or "Vibecoders"
+LEGAL_DOCUMENT_VERSION = os.getenv("LEGAL_DOCUMENT_VERSION", "2026-03-18").strip() or "2026-03-18"
 
 
 # Quick-start development settings - unsuitable for production
@@ -117,6 +120,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "core.context_processors.branding",
             ],
         },
     },

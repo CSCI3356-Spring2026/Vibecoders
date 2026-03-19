@@ -1,14 +1,15 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Messages | Vibecoders{% endblock %}
+{% block title %}Messages | {{ site_product_name }}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/messages.css' %}">
+<link rel="stylesheet" href="{% static 'css/messages-shell.css' %}">
+<link rel="stylesheet" href="{% static 'css/messages-thread.css' %}">
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/messages.js' %}"></script>
+<script type="module" src="{% static 'js/messages.js' %}"></script>
 {% endblock %}
 
 {% block content %}
@@ -65,7 +66,7 @@
                                     <div class="messages-list-row">
                                         <div class="messages-list-media" data-role="conversation-media">
                                             {% if conversation.ui_listing_image %}
-                                                <img src="{{ conversation.ui_listing_image.image.url }}" alt="{{ conversation.listing.title }}">
+                                                <img src="{{ conversation.ui_listing_image.versioned_url }}" alt="{{ conversation.listing.title }}">
                                             {% else %}
                                                 <span class="messages-list-avatar" aria-hidden="true">{{ conversation.ui_counterparty_name|slice:":1"|upper }}</span>
                                             {% endif %}
@@ -121,7 +122,7 @@
                             <a class="messages-thread-context-card" href="{% url 'listings:detail' selected_conversation.listing.id %}">
                                 <div class="messages-thread-context-media">
                                     {% if selected_conversation.ui_listing_image %}
-                                        <img src="{{ selected_conversation.ui_listing_image.image.url }}" alt="{{ selected_conversation.listing.title }}">
+                                        <img src="{{ selected_conversation.ui_listing_image.versioned_url }}" alt="{{ selected_conversation.listing.title }}">
                                     {% else %}
                                         <span>{{ selected_conversation.listing.get_property_type_display }}</span>
                                     {% endif %}

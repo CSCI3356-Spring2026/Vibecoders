@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.test import RequestFactory, TestCase
 
 from ..adapters import MarketplaceSocialAccountAdapter, NoSignupAccountAdapter
+from ..legal import set_pending_legal_acceptance
 from ..models import Role
 from .helpers import User, add_middleware, message_texts
 
@@ -46,22 +47,36 @@ class MarketplaceSocialAccountAdapterTests(TestCase):
 
     def test_student_email_signup_allowed(self):
         adapter = MarketplaceSocialAccountAdapter()
-        request = RequestFactory().get("/")
+        request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
         sociallogin = self.make_sociallogin("eagle@bc.edu")
 
         self.assertTrue(adapter.is_open_for_signup(request, sociallogin))
 
     def test_external_email_signup_allowed(self):
         adapter = MarketplaceSocialAccountAdapter()
-        request = RequestFactory().get("/")
+        request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
         sociallogin = self.make_sociallogin("agent@gmail.com")
 
         self.assertTrue(adapter.is_open_for_signup(request, sociallogin))
+
+    def test_signup_requires_legal_acceptance(self):
+        adapter = MarketplaceSocialAccountAdapter()
+        request = add_middleware(RequestFactory().get("/"))
+        sociallogin = self.make_sociallogin("eagle@bc.edu")
+
+        with self.assertRaises(ImmediateHttpResponse) as ctx:
+            adapter.is_open_for_signup(request, sociallogin)
+
+        self.assertEqual(ctx.exception.response.url, "/users/login/")
+        self.assertIn(adapter.legal_error_message, message_texts(request))
 
     def test_missing_signup_email_is_rejected(self):
         adapter = MarketplaceSocialAccountAdapter()
 
         request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
         sociallogin = self.make_sociallogin("", verified=False)
 
         with self.assertRaises(ImmediateHttpResponse) as ctx:
@@ -73,6 +88,7 @@ class MarketplaceSocialAccountAdapterTests(TestCase):
     def test_unverified_signup_email_is_rejected(self):
         adapter = MarketplaceSocialAccountAdapter()
         request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
         sociallogin = self.make_sociallogin("eagle@bc.edu", verified=False)
 
         with self.assertRaises(ImmediateHttpResponse) as ctx:
@@ -83,21 +99,35 @@ class MarketplaceSocialAccountAdapterTests(TestCase):
 
     def test_student_email_login_allowed(self):
         adapter = MarketplaceSocialAccountAdapter()
-        request = RequestFactory().get("/")
+        request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
         sociallogin = self.make_sociallogin("eagle@bc.edu")
 
         adapter.pre_social_login(request, sociallogin)
 
     def test_external_email_login_allowed(self):
         adapter = MarketplaceSocialAccountAdapter()
-        request = RequestFactory().get("/")
+        request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
         sociallogin = self.make_sociallogin("agent@gmail.com")
 
         adapter.pre_social_login(request, sociallogin)
 
+    def test_login_requires_legal_acceptance(self):
+        adapter = MarketplaceSocialAccountAdapter()
+        request = add_middleware(RequestFactory().get("/"))
+        sociallogin = self.make_sociallogin("eagle@bc.edu")
+
+        with self.assertRaises(ImmediateHttpResponse) as ctx:
+            adapter.pre_social_login(request, sociallogin)
+
+        self.assertEqual(ctx.exception.response.url, "/users/login/")
+        self.assertIn(adapter.legal_error_message, message_texts(request))
+
     def test_missing_email_login_raises(self):
         adapter = MarketplaceSocialAccountAdapter()
         request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
         sociallogin = self.make_sociallogin("", verified=False)
 
         with self.assertRaises(ImmediateHttpResponse) as ctx:
@@ -109,6 +139,7 @@ class MarketplaceSocialAccountAdapterTests(TestCase):
     def test_unverified_email_login_raises(self):
         adapter = MarketplaceSocialAccountAdapter()
         request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
         sociallogin = self.make_sociallogin("eagle@bc.edu", verified=False)
 
         with self.assertRaises(ImmediateHttpResponse) as ctx:
