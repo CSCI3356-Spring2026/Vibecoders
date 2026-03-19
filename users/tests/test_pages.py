@@ -1,6 +1,8 @@
 from django.test import TestCase
 from django.urls import reverse
 
+from communications.models import ListingConversation
+
 from .helpers import User
 
 
@@ -69,6 +71,7 @@ class UserPageTests(TestCase):
         response = self.client.get("/")
 
         self.assertContains(response, "profile-menu")
+        self.assertContains(response, "/users/messages/")
         self.assertContains(response, "Log out")
         self.assertContains(response, "/accounts/logout/")
 
@@ -94,6 +97,12 @@ class UserPageTests(TestCase):
 
     def test_posts_page_requires_login(self):
         response = self.client.get("/users/posts/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response.url)
+
+    def test_messages_page_requires_login(self):
+        response = self.client.get("/users/messages/")
 
         self.assertEqual(response.status_code, 302)
         self.assertIn("/accounts/login/", response.url)
@@ -143,6 +152,144 @@ class UserPageTests(TestCase):
 
         self.assertContains(response, realtor.display_role)
         self.assertContains(response, "listing-only")
+
+    def test_messages_page_renders_accessible_conversation(self):
+        listing = self.user.listings.create(
+            title="My listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+        )
+        participant = User.objects.create_user(username="student", email="student@bc.edu", password="test")
+        conversation = ListingConversation.objects.create(
+            listing=listing,
+            owner=self.user,
+            participant=participant,
+        )
+        conversation.add_message(sender=participant, body="Is this still available?")
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("communications:messages"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Listing conversations")
+        self.assertContains(response, listing.title)
+        self.assertContains(response, "Is this still available?")
+
+    def test_opening_conversation_marks_it_read_for_current_user(self):
+        listing = self.user.listings.create(
+            title="My listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+        )
+        participant = User.objects.create_user(username="student", email="student@bc.edu", password="test")
+        conversation = ListingConversation.objects.create(
+            listing=listing,
+            owner=self.user,
+            participant=participant,
+        )
+        conversation.add_message(sender=participant, body="Interested.")
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("communications:detail", args=[conversation.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "0 unread")
+        conversation.refresh_from_db()
+        self.assertFalse(conversation.owner_has_unread_messages)
+
+    def test_message_thread_is_paginated_to_latest_messages(self):
+        listing = self.user.listings.create(
+            title="My listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+        )
+        participant = User.objects.create_user(username="student", email="student@bc.edu", password="test")
+        conversation = ListingConversation.objects.create(
+            listing=listing,
+            owner=self.user,
+            participant=participant,
+        )
+        for index in range(51):
+            conversation.add_message(sender=participant, body=f"Message {index}")
+
+        self.client.force_login(self.user)
+
+        latest_page = self.client.get(reverse("communications:detail", args=[conversation.id]))
+        older_page = self.client.get(reverse("communications:detail", args=[conversation.id]) + "?thread_page=2")
+
+        self.assertEqual(latest_page.status_code, 200)
+        self.assertEqual(older_page.status_code, 200)
+        self.assertNotContains(latest_page, "Message 0")
+        self.assertContains(latest_page, "Message 50")
+        self.assertContains(older_page, "Message 0")
+
+    def test_selected_conversation_stays_visible_when_not_on_current_inbox_page(self):
+        selected_conversation = None
+
+        for index in range(13):
+            participant = User.objects.create_user(
+                username=f"student{index}",
+                email=f"student{index}@bc.edu",
+                password="test",
+            )
+            listing = self.user.listings.create(
+                title=f"Listing {index}",
+                address=f"{index} Commonwealth Ave",
+                price="1200.00",
+                lease_type="FULL",
+                start_date="2026-09-01",
+                end_date="2027-05-31",
+            )
+            conversation = ListingConversation.objects.create(
+                listing=listing,
+                owner=self.user,
+                participant=participant,
+            )
+            conversation.add_message(sender=participant, body=f"Message {index}")
+            if index == 0:
+                selected_conversation = conversation
+
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("communications:detail", args=[selected_conversation.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="messages-list-item is-active"')
+        self.assertContains(response, selected_conversation.listing.address)
+
+    def test_reply_conversation_requires_membership(self):
+        owner = User.objects.create_user(username="owner", email="owner@bc.edu", password="test")
+        listing = owner.listings.create(
+            title="Owner listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+        )
+        participant = User.objects.create_user(username="student", email="student@bc.edu", password="test")
+        conversation = ListingConversation.objects.create(
+            listing=listing,
+            owner=owner,
+            participant=participant,
+        )
+        conversation.add_message(sender=participant, body="Interested.")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("communications:reply_conversation", args=[conversation.id]), {"body": "Hello"}
+        )
+
+        self.assertEqual(response.status_code, 404)
 
     def test_admin_nav_includes_admin_dashboard_link(self):
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")

@@ -41,33 +41,83 @@ class NoSignupAccountAdapter(DefaultAccountAdapter):
 class MarketplaceSocialAccountAdapter(DefaultSocialAccountAdapter):
     """Allow Google login for both student and listing-only accounts."""
 
-    error_message = "Your Google account must provide an email address."
+    error_message = "Your Google account must provide a verified email address."
 
     def _reject_invalid_login(self, request):
         messages.error(request, self.error_message)
         raise ImmediateHttpResponse(redirect("users:login"))
 
     @staticmethod
-    def _email_from_sociallogin(sociallogin):
-        return sociallogin.account.extra_data.get("email", "").strip().lower()
+    def _normalize_truthy(value):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return bool(value)
+
+    @classmethod
+    def _email_from_sociallogin(cls, sociallogin, data=None):
+        extra_data = getattr(sociallogin.account, "extra_data", {}) or {}
+        email = (data or {}).get("email") or extra_data.get("email", "")
+        user_model = get_user_model()
+        return user_model.normalize_email_address(email)
+
+    @classmethod
+    def _has_verified_email(cls, sociallogin, data=None):
+        extra_data = getattr(sociallogin.account, "extra_data", {}) or {}
+        for key in ("email_verified", "verified_email"):
+            if key in extra_data:
+                return cls._normalize_truthy(extra_data[key])
+
+        email = cls._email_from_sociallogin(sociallogin, data=data)
+        for email_address in getattr(sociallogin, "email_addresses", []) or []:
+            is_matching_email = getattr(email_address, "email", "").strip().lower() == email
+            if is_matching_email and getattr(email_address, "verified", False):
+                return True
+        return False
+
+    def _validate_sociallogin_or_reject(self, request, sociallogin, data=None):
+        has_email = self._email_from_sociallogin(sociallogin, data=data)
+        has_verified_email = self._has_verified_email(sociallogin, data=data)
+        if not has_email or not has_verified_email:
+            self._reject_invalid_login(request)
+
+    @staticmethod
+    def _apply_signup_identity(user, email):
+        user_model = get_user_model()
+        user.email = email
+        is_new_user = getattr(getattr(user, "_state", None), "adding", getattr(user, "pk", None) is None)
+        if is_new_user:
+            user.username = user_model.username_from_email(email)
+            user.role = user_model.default_role_for_email(email)
+
+    @staticmethod
+    def _preserve_existing_identity(user, fallback_email):
+        user_model = get_user_model()
+        preserved_email = user.email or fallback_email
+        user.email = user_model.normalize_email_address(preserved_email)
+        return user
 
     def is_open_for_signup(self, request, sociallogin):
-        """Allow Google signups as long as the provider supplies an email."""
-        if not self._email_from_sociallogin(sociallogin):
-            self._reject_invalid_login(request)
+        """Allow Google signups as long as the provider supplies a verified email."""
+        self._validate_sociallogin_or_reject(request, sociallogin)
         return True
 
     def populate_user(self, request, sociallogin, data):
-        """Derive the username and default role from the Google email."""
+        """Derive the initial username and role from the verified Google email."""
+        existing_user = sociallogin.user if getattr(sociallogin.user, "pk", None) else None
+        preserved_username = getattr(existing_user, "username", "")
+        preserved_role = getattr(existing_user, "role", None)
         user = super().populate_user(request, sociallogin, data)
-        email = (data.get("email") or "").strip().lower()
+        email = self._email_from_sociallogin(sociallogin, data=data)
         if email:
-            user_model = get_user_model()
-            user.username = user_model.username_from_email(email)
-            user.role = user_model.default_role_for_email(email)
+            self._apply_signup_identity(user, email)
+            if existing_user:
+                user.username = preserved_username
+                user.role = preserved_role
+                self._preserve_existing_identity(user, email)
         return user
 
     def pre_social_login(self, request, sociallogin):
-        """Reject provider responses without an email before login completes."""
-        if not self._email_from_sociallogin(sociallogin):
-            self._reject_invalid_login(request)
+        """Reject provider responses without a verified email before login completes."""
+        self._validate_sociallogin_or_reject(request, sociallogin)
