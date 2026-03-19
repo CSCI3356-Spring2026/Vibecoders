@@ -8,6 +8,7 @@ from users import views as user_views
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include("core.urls")),
+    path("users/messages/", include("communications.urls")),
     path("users/", include("users.urls")),
     path("accounts/login/", user_views.login_page),
     path("accounts/", include("allauth.urls")),
