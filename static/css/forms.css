@@ -1,0 +1,82 @@
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-height: 2.75rem;
+    border-radius: var(--radius-md);
+    font-size: 0.93rem;
+    font-weight: 600;
+    line-height: 1.1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.btn-sm {
+    min-height: 2.15rem;
+    padding: 0.35rem 0.8rem;
+    font-size: 0.84rem;
+}
+
+.btn-brand {
+    border-color: var(--primary-600);
+    background: var(--primary-600);
+    color: var(--white);
+}
+
+.btn-brand:hover,
+.btn-brand:focus {
+    border-color: var(--primary-500);
+    background: var(--primary-500);
+    color: var(--white);
+}
+
+.btn-outline-secondary {
+    border-color: var(--gray-300);
+    color: var(--gray-900);
+}
+
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus {
+    border-color: var(--border-primary);
+    background: var(--surface-primary);
+    color: var(--primary-600);
+}
+
+.btn-outline-primary {
+    border-color: rgba(var(--primary-rgb), 0.22);
+    color: var(--primary-600);
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary:focus {
+    border-color: var(--border-primary);
+    background: var(--surface-primary);
+    color: var(--primary-600);
+}
+
+.form-control,
+.form-select {
+    min-height: 3rem;
+    border-color: rgba(var(--gray-300-rgb), 0.65);
+    border-radius: var(--radius-md);
+    background: var(--white);
+    color: var(--text-strong);
+    font-size: 0.94rem;
+    box-shadow: none;
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: rgba(var(--primary-rgb), 0.38);
+    box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.12);
+}
+
+textarea.form-control {
+    min-height: 8rem;
+}
+
+input[type="file"].form-control {
+    padding: 0.7rem 0.95rem;
+}
