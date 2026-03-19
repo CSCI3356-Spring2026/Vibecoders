@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Boston College Housing | Vibecoders{% endblock %}
+{% block title %}Boston College Housing | {{ site_product_name }}{% endblock %}
 
 {% block content %}
 <section class="home-hero">
@@ -46,7 +46,7 @@
                     <a class="home-stage-card" href="{% url 'listings:detail' hero_listing.pk %}">
                         <div class="home-stage-card-media">
                             {% if hero_listing.primary_image %}
-                                <img src="{{ hero_listing.primary_image.image.url }}" alt="{{ hero_listing.title }}">
+                                <img src="{{ hero_listing.primary_image.versioned_url }}" alt="{{ hero_listing.title }}">
                             {% else %}
                                 <div class="home-stage-card-placeholder">{{ hero_listing.get_property_type_display }}</div>
                             {% endif %}
@@ -107,7 +107,7 @@
                     <a class="listing-card" href="{% url 'listings:detail' listing.pk %}">
                         <div class="listing-card-media">
                             {% if listing.primary_image %}
-                                <img src="{{ listing.primary_image.image.url }}" alt="{{ listing.title }}">
+                                <img src="{{ listing.primary_image.versioned_url }}" alt="{{ listing.title }}">
                             {% else %}
                                 <div class="listing-card-placeholder">
                                     <span>{{ listing.get_property_type_display }}</span>

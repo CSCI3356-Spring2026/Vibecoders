@@ -11,6 +11,7 @@ urlpatterns = [
     path("users/messages/", include("communications.urls")),
     path("users/", include("users.urls")),
     path("accounts/login/", user_views.login_page),
+    path("accounts/google/login/", user_views.google_login_gate),
     path("accounts/", include("allauth.urls")),
     path("listings/", include("listings.urls")),
 ]

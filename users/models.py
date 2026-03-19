@@ -39,6 +39,9 @@ class CustomUser(AbstractUser):
         db_index=True,
         help_text="Access level for the housing platform.",
     )
+    terms_accepted_at = models.DateTimeField(null=True, blank=True)
+    privacy_accepted_at = models.DateTimeField(null=True, blank=True)
+    legal_policy_version = models.CharField(max_length=32, blank=True)
 
     @staticmethod
     def normalize_email_address(email):
@@ -125,6 +128,14 @@ class CustomUser(AbstractUser):
     def display_role(self):
         """Human-readable role label for templates (e.g. 'Student', 'Admin')."""
         return self.get_role_display()
+
+    @property
+    def has_current_legal_acceptance(self):
+        return (
+            self.terms_accepted_at is not None
+            and self.privacy_accepted_at is not None
+            and self.legal_policy_version == getattr(settings, "LEGAL_DOCUMENT_VERSION", "")
+        )
 
     def apply_email_role_policy(self):
         if self.role != Role.ADMIN:

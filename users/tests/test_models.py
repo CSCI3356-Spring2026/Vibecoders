@@ -1,7 +1,11 @@
+from django.contrib.auth.signals import user_logged_in
 from django.test import TestCase
+from django.test.client import RequestFactory
+from django.utils import timezone
 
+from ..legal import set_pending_legal_acceptance
 from ..models import Role
-from .helpers import User
+from .helpers import User, add_middleware
 
 
 class CustomUserModelTests(TestCase):
@@ -79,3 +83,15 @@ class CustomUserModelTests(TestCase):
         user = User.objects.create_user(username="eagle", email="eagle@bc.edu", password="test")
 
         self.assertEqual(str(user), "eagle (Student)")
+
+    def test_legal_acceptance_is_persisted_on_login(self):
+        user = User.objects.create_user(username="eagle", email="eagle@bc.edu", password="test")
+        request = add_middleware(RequestFactory().get("/accounts/google/login/"))
+        set_pending_legal_acceptance(request, accepted_at=timezone.now())
+
+        user_logged_in.send(sender=user.__class__, request=request, user=user)
+        user.refresh_from_db()
+
+        self.assertIsNotNone(user.terms_accepted_at)
+        self.assertIsNotNone(user.privacy_accepted_at)
+        self.assertTrue(user.has_current_legal_acceptance)

@@ -5,6 +5,8 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.shortcuts import redirect
 
+from .legal import has_current_legal_acceptance
+
 
 class NoSignupAccountAdapter(DefaultAccountAdapter):
     """Disable regular email/password signup — users must use Google OAuth."""
@@ -42,9 +44,14 @@ class MarketplaceSocialAccountAdapter(DefaultSocialAccountAdapter):
     """Allow Google login for both student and listing-only accounts."""
 
     error_message = "Your Google account must provide a verified email address."
+    legal_error_message = "Review and accept the Terms of Service and Privacy Policy before continuing."
 
     def _reject_invalid_login(self, request):
         messages.error(request, self.error_message)
+        raise ImmediateHttpResponse(redirect("users:login"))
+
+    def _reject_missing_legal_acceptance(self, request):
+        messages.error(request, self.legal_error_message)
         raise ImmediateHttpResponse(redirect("users:login"))
 
     @staticmethod
@@ -77,6 +84,8 @@ class MarketplaceSocialAccountAdapter(DefaultSocialAccountAdapter):
         return False
 
     def _validate_sociallogin_or_reject(self, request, sociallogin, data=None):
+        if not has_current_legal_acceptance(request):
+            self._reject_missing_legal_acceptance(request)
         has_email = self._email_from_sociallogin(sociallogin, data=data)
         has_verified_email = self._has_verified_email(sociallogin, data=data)
         if not has_email or not has_verified_email:

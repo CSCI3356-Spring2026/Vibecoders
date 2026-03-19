@@ -36,7 +36,7 @@ def get_or_create_listing_conversation(listing, participant):
 def _listing_image_url(conversation):
     primary_image = conversation.listing.primary_image
     if primary_image and primary_image.image:
-        return primary_image.image.url
+        return primary_image.versioned_url
     return ""
 
 

@@ -126,6 +126,19 @@ class ListingImage(models.Model):
     def __str__(self):
         return f"Image for {self.listing.title}"
 
+    @property
+    def versioned_url(self):
+        if not self.image:
+            return ""
+
+        url = self.image.url
+        try:
+            modified_at = self.image.storage.get_modified_time(self.image.name)
+        except (FileNotFoundError, NotImplementedError, OSError, ValueError):
+            return url
+
+        return f"{url}?v={int(modified_at.timestamp())}"
+
 
 @receiver(post_delete, sender=ListingImage)
 def delete_listing_image_file(sender, instance, **kwargs):
