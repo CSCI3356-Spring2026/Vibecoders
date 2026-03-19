@@ -17,7 +17,10 @@
                     </div>
                     <div class="app-price-block">
                         <div class="listing-detail-price">${{ listing.price|floatformat:0 }}/month</div>
-                        <div class="listing-detail-meta">{{ listing.get_lease_type_display }} • {{ listing.get_status_display }}</div>
+                        <div class="listing-detail-meta">
+                            <span class="listing-lease">{{ listing.get_lease_type_display }}</span>
+                            <span class="listing-card-status {% if listing.status == 'AVAILABLE' %}is-available{% elif listing.status == 'PENDING' %}is-pending{% else %}is-taken{% endif %}">{{ listing.get_status_display }}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -39,15 +42,15 @@
                     </div>
 
                     <div class="app-stat-grid app-stat-grid-tight mb-4">
-                        <div class="app-stat-card">
+                        <div class="app-stat-card is-primary">
                             <span class="app-stat-label">Bedrooms</span>
                             <span class="app-stat-value">{{ listing.rooms }}</span>
                         </div>
-                        <div class="app-stat-card">
+                        <div class="app-stat-card is-secondary">
                             <span class="app-stat-label">Bathrooms</span>
                             <span class="app-stat-value">{{ listing.bathrooms }}</span>
                         </div>
-                        <div class="app-stat-card">
+                        <div class="app-stat-card is-accent">
                             <span class="app-stat-label">Square feet</span>
                             <span class="app-stat-value">{{ listing.sq_ft|default:"N/A" }}</span>
                         </div>
@@ -89,10 +92,10 @@
                         </div>
                         <div class="app-chip-row mb-3">
                             <span class="listing-lease">{{ listing.get_lease_type_display }}</span>
-                            <span class="listing-lease">{{ listing.get_property_type_display }}</span>
-                            {% if listing.has_yard %}<span class="listing-lease">Yard</span>{% endif %}
-                            {% if listing.has_parking %}<span class="listing-lease">Parking</span>{% endif %}
-                            {% if listing.is_furnished %}<span class="listing-lease">Furnished</span>{% endif %}
+                            <span class="listing-lease listing-lease-secondary">{{ listing.get_property_type_display }}</span>
+                            {% if listing.has_yard %}<span class="listing-lease listing-lease-muted">Yard</span>{% endif %}
+                            {% if listing.has_parking %}<span class="listing-lease listing-lease-muted">Parking</span>{% endif %}
+                            {% if listing.is_furnished %}<span class="listing-lease listing-lease-muted">Furnished</span>{% endif %}
                         </div>
 
                         <div class="app-compact-list">
@@ -114,7 +117,7 @@
                     <div class="listing-panel">
                         <div class="app-panel-head">
                             <div>
-                                <h2 class="app-section-heading">Inquiry</h2>
+                                <h2 class="app-section-heading">Messages</h2>
                             </div>
                         </div>
 
@@ -122,50 +125,65 @@
                             <div class="app-compact-list">
                                 <div class="app-compact-item app-compact-item-static">
                                     <span class="app-compact-title">Owner view</span>
-                                    <span class="app-compact-meta">You posted this listing. Incoming inquiries appear below.</span>
+                                    <span class="app-compact-meta">You posted this listing. Conversation threads appear below.</span>
                                 </div>
                             </div>
-                        {% elif request.user.can_inquire_on_listings %}
-                            <form method="post" action="{% url 'listings:inquire' listing.pk %}" class="app-stack">
+                        {% elif request.user.can_start_listing_conversations %}
+                            {% if existing_conversation %}
+                                <div class="app-compact-list">
+                                    <a class="app-compact-item" href="{% url 'communications:detail' existing_conversation.id %}">
+                                        <span class="app-compact-title">Open conversation</span>
+                                        <span class="app-compact-meta">
+                                            {% if existing_conversation.ui_has_unread %}Unread reply{% else %}Latest message{% endif %}
+                                            • {{ existing_conversation.last_message_at|date:"M d, Y" }}
+                                        </span>
+                                        <span class="app-compact-meta">{{ existing_conversation.last_message_preview|default:"Open your thread for the latest messages." }}</span>
+                                    </a>
+                                </div>
+                            {% endif %}
+                            <form method="post" action="{% url 'listings:message_listing' listing.pk %}" class="app-stack">
                                 {% csrf_token %}
-                                <label class="form-label fw-semibold" for="{{ inquiry_form.message.id_for_label }}">Message</label>
-                                {{ inquiry_form.message }}
+                                <label class="form-label fw-semibold" for="{{ message_form.body.id_for_label }}">Message</label>
+                                {{ message_form.body }}
                                 <button class="btn btn-brand" type="submit">
-                                    {% if existing_inquiry %}Update inquiry{% else %}Send inquiry{% endif %}
+                                    {% if existing_conversation %}Send message{% else %}Start conversation{% endif %}
                                 </button>
                             </form>
                         {% else %}
                             <div class="app-compact-list">
                                 <div class="app-compact-item app-compact-item-static">
                                     <span class="app-compact-title">Listing-only access</span>
-                                    <span class="app-compact-meta">This account can publish listings but cannot send rental inquiries.</span>
+                                    <span class="app-compact-meta">This account can publish listings but cannot start renter conversations.</span>
                                 </div>
                             </div>
                         {% endif %}
                     </div>
 
-                    {% if show_owner_inquiries %}
+                    {% if show_owner_conversations %}
                         <div class="listing-panel">
                             <div class="app-panel-head">
                                 <div>
-                                    <h2 class="app-section-heading">Incoming inquiries</h2>
+                                    <h2 class="app-section-heading">Conversation threads</h2>
                                 </div>
                             </div>
 
-                            {% if owner_inquiries %}
+                            {% if owner_conversations %}
                                 <div class="app-compact-list">
-                                    {% for inquiry in owner_inquiries %}
-                                        <div class="app-compact-item app-compact-item-static">
-                                            <span class="app-compact-title">{{ inquiry.sender.get_full_name|default:inquiry.sender.username }}</span>
+                                    {% for conversation in owner_conversations %}
+                                        <a class="app-compact-item" href="{% url 'communications:detail' conversation.id %}">
+                                            <span class="app-compact-title">{{ conversation.ui_counterparty_name }}</span>
                                             <span class="app-compact-meta">
-                                                {{ inquiry.sender.email }} • {{ inquiry.created_at|date:"M d, Y" }}
-                                                {% if inquiry.message %}• {{ inquiry.message|truncatewords:16 }}{% endif %}
+                                                {{ conversation.participant.email }} • {{ conversation.last_message_at|date:"M d, Y" }}
                                             </span>
-                                        </div>
+                                            <span class="app-compact-meta">
+                                                {% if conversation.ui_has_unread %}Unread reply{% else %}Latest message{% endif %}
+                                                • {{ conversation.last_message_preview|default:"No messages yet." }}
+                                            </span>
+                                        </a>
                                     {% endfor %}
                                 </div>
                             {% else %}
-                                <p class="app-panel-copy mb-0">No inquiries yet for this listing.</p>
+                                <p class="app-panel-copy mb-0">No messages yet for this listing.</p>
                             {% endif %}
                         </div>
                     {% endif %}

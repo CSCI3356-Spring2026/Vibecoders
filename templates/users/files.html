@@ -20,9 +20,9 @@
                     {% endif %}
                 </div>
                 <div class="app-meta">
-                    <span class="app-meta-chip">{{ files_total }} file{{ files_total|pluralize }}</span>
+                    <span class="app-meta-chip app-meta-chip-primary">{{ files_total }} file{{ files_total|pluralize }}</span>
                     {% if query %}
-                        <span class="app-meta-chip">Search: {{ query }}</span>
+                        <span class="app-meta-chip app-meta-chip-secondary">Search: {{ query }}</span>
                     {% endif %}
                 </div>
             </div>

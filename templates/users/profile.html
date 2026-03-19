@@ -17,19 +17,19 @@
             </div>
 
             <div class="app-stat-grid">
-                <div class="app-stat-card">
+                <div class="app-stat-card is-primary">
                     <span class="app-stat-label">Role</span>
                     <span class="app-stat-value">{{ request.user.display_role }}</span>
                 </div>
-                <div class="app-stat-card">
+                <div class="app-stat-card is-secondary">
                     <span class="app-stat-label">Listings</span>
                     <span class="app-stat-value">{{ listings_count }}</span>
                 </div>
-                <div class="app-stat-card">
-                    <span class="app-stat-label">Inquiries</span>
-                    <span class="app-stat-value">{{ sent_inquiries_count }}</span>
+                <div class="app-stat-card is-accent">
+                    <span class="app-stat-label">Conversations</span>
+                    <span class="app-stat-value">{{ conversations_count }}</span>
                 </div>
-                <div class="app-stat-card">
+                <div class="app-stat-card is-neutral">
                     <span class="app-stat-label">Files</span>
                     <span class="app-stat-value">{{ files_count }}</span>
                 </div>
@@ -82,8 +82,8 @@
                             <span class="app-compact-meta">{% if can_browse_marketplace %}Allowed{% else %}Restricted to your own listings{% endif %}</span>
                         </div>
                         <div class="app-compact-item app-compact-item-static">
-                            <span class="app-compact-title">Send inquiries</span>
-                            <span class="app-compact-meta">{% if can_inquire_on_listings %}Allowed{% else %}Student access required{% endif %}</span>
+                            <span class="app-compact-title">Start conversations</span>
+                            <span class="app-compact-meta">{% if can_start_listing_conversations %}Allowed{% else %}Student access required{% endif %}</span>
                         </div>
                         <div class="app-compact-item app-compact-item-static">
                             <span class="app-compact-title">Create listings</span>

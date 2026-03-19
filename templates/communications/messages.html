@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Messages | Vibecoders{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/messages.css' %}">
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/messages.js' %}"></script>
+{% endblock %}
+
+{% block content %}
+<section
+    class="app-page"
+    data-messages-root
+    data-websocket-path="/ws/messages/"
+    data-current-user-id="{{ request.user.id }}"
+    data-selected-conversation-id="{% if selected_conversation %}{{ selected_conversation.id }}{% endif %}"
+    data-conversation-url-template="{% url 'communications:detail' 0 %}"
+    data-thread-page="{% if thread_messages_page %}{{ thread_messages_page.number }}{% else %}1{% endif %}"
+    data-total-conversations-count="{{ conversations_total }}"
+    data-total-unread-count="{{ unread_conversations_count }}"
+>
+    <div class="container">
+        <div class="app-shell">
+            <div class="app-header app-header-shell listing-panel">
+                <div class="app-header-main">
+                    <div>
+                        <p class="app-kicker">Messages</p>
+                        <h1 class="app-title">Listing conversations</h1>
+                        <p class="app-subtitle">Messages about listings you posted or asked about.</p>
+                    </div>
+                    <div class="app-meta">
+                        <span class="app-meta-chip" data-total-conversations="header">{{ conversations_total }} conversation{{ conversations_total|pluralize }}</span>
+                        <span class="app-meta-chip" data-unread-count>{{ unread_conversations_count }} unread</span>
+                        <span class="app-meta-chip messages-status-chip is-connecting" data-message-connection>Connecting…</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="app-stack" data-message-errors></div>
+
+            <div class="app-grid messages-layout">
+                <div class="listing-panel messages-inbox-panel">
+                    <div class="app-panel-head messages-panel-head">
+                        <div>
+                            <h2 class="app-section-heading">Inbox</h2>
+                            <p class="app-panel-copy">Recent listing threads</p>
+                        </div>
+                        {% if conversations %}
+                            <span class="app-meta-chip" data-total-conversations="sidebar">{{ conversations_total }} total</span>
+                        {% endif %}
+                    </div>
+
+                    {% if conversations %}
+                        <div class="messages-list" data-conversation-list>
+                            {% for conversation in conversation_rows %}
+                                <a
+                                    class="messages-list-item{% if selected_conversation and selected_conversation.id == conversation.id %} is-active{% endif %}"
+                                    href="{% url 'communications:detail' conversation.id %}"
+                                    data-conversation-id="{{ conversation.id }}"
+                                >
+                                    <div class="messages-list-row">
+                                        <div class="messages-list-media" data-role="conversation-media">
+                                            {% if conversation.ui_listing_image %}
+                                                <img src="{{ conversation.ui_listing_image.image.url }}" alt="{{ conversation.listing.title }}">
+                                            {% else %}
+                                                <span class="messages-list-avatar" aria-hidden="true">{{ conversation.ui_counterparty_name|slice:":1"|upper }}</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="messages-list-main">
+                                            <div class="messages-list-topline">
+                                                <span class="messages-list-name" data-role="conversation-name">{{ conversation.ui_counterparty_name }}</span>
+                                                <div class="messages-list-topline-side">
+                                                    <span class="messages-list-date" data-role="conversation-date">{{ conversation.last_message_at|date:"M d" }}</span>
+                                                    {% if conversation.ui_has_unread %}
+                                                        <span class="messages-unread-dot" aria-label="Unread conversation" data-role="conversation-unread"></span>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            <div class="messages-list-subject" data-role="conversation-subject">{{ conversation.listing.title }}</div>
+                                            <div class="messages-list-preview" data-role="conversation-preview">{{ conversation.last_message_preview|default:"No messages yet." }}</div>
+                                        </div>
+                                    </div>
+                                </a>
+                            {% endfor %}
+                        </div>
+                        {% include "includes/pagination.html" with page_obj=conversations pagination_query=pagination_query %}
+                    {% else %}
+                        <div class="app-empty">
+                            <h3 class="app-empty-title">No conversations yet.</h3>
+                            <p class="app-empty-copy">Messages about listings will appear here.</p>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="listing-panel messages-thread-shell">
+                    {% if selected_conversation %}
+                        <div class="messages-thread-toolbar">
+                            <div class="messages-thread-party">
+                                <span class="messages-thread-avatar" aria-hidden="true">{{ selected_conversation.ui_counterparty_name|slice:":1"|upper }}</span>
+                                <div class="messages-thread-toolbar-main">
+                                    <p class="app-kicker mb-0">Conversation</p>
+                                    <h2 class="messages-thread-title">{{ selected_conversation.ui_counterparty_name }}</h2>
+                                    <div class="messages-thread-meta">
+                                        <span>{{ selected_conversation.ui_counterparty_role_label }}</span>
+                                        <span data-thread-message-count="{{ thread_messages_page.paginator.count }}">{{ thread_messages_page.paginator.count }} message{{ thread_messages_page.paginator.count|pluralize }}</span>
+                                        <span data-thread-last-updated>Updated {{ selected_conversation.last_message_at|date:"M d, Y" }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="messages-thread-toolbar-actions">
+                                <span class="app-meta-chip messages-status-chip is-connecting" data-message-connection>Connecting…</span>
+                                <a class="btn btn-outline-secondary" href="{% url 'listings:detail' selected_conversation.listing.id %}">View listing</a>
+                            </div>
+                        </div>
+
+                        <div class="messages-thread-context">
+                            <a class="messages-thread-context-card" href="{% url 'listings:detail' selected_conversation.listing.id %}">
+                                <div class="messages-thread-context-media">
+                                    {% if selected_conversation.ui_listing_image %}
+                                        <img src="{{ selected_conversation.ui_listing_image.image.url }}" alt="{{ selected_conversation.listing.title }}">
+                                    {% else %}
+                                        <span>{{ selected_conversation.listing.get_property_type_display }}</span>
+                                    {% endif %}
+                                </div>
+                                <div class="messages-thread-context-copy">
+                                    <p class="messages-thread-context-kicker">Listing</p>
+                                    <h3 class="messages-thread-context-title">{{ selected_conversation.listing.title }}</h3>
+                                    <p class="messages-thread-context-address">{{ selected_conversation.listing.address }}</p>
+                                </div>
+                                <div class="messages-thread-context-meta">
+                                    <span class="messages-thread-context-price">${{ selected_conversation.listing.price|floatformat:0 }}/mo</span>
+                                    <span class="messages-thread-context-status">{{ selected_conversation.listing.get_status_display }}</span>
+                                </div>
+                            </a>
+                        </div>
+
+                        <div class="messages-thread-panel">
+                            <div class="messages-thread" data-message-thread>
+                                {% for message in thread_messages %}
+                                    <div class="message-bubble{% if message.sender_id == request.user.id %} is-outbound{% else %} is-inbound{% endif %}" data-message-id="{{ message.id }}">
+                                        <div class="message-bubble-meta">
+                                            <span>{{ message.sender.get_full_name|default:message.sender.username }}</span>
+                                            <span>{{ message.created_at|date:"M d, Y g:i A" }}</span>
+                                        </div>
+                                        <div class="message-bubble-body">{{ message.body|linebreaksbr }}</div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            {% if thread_messages_page and thread_messages_page.paginator.num_pages > 1 %}
+                                {% include "includes/pagination.html" with page_obj=thread_messages_page pagination_query=thread_pagination_query page_param="thread_page" %}
+                            {% endif %}
+                        </div>
+
+                        <form
+                            method="post"
+                            action="{% url 'communications:reply_conversation' selected_conversation.id %}"
+                            class="messages-compose"
+                            data-reply-form
+                        >
+                            {% csrf_token %}
+                            <div class="messages-compose-head">
+                                <label class="form-label fw-semibold mb-0" for="{{ reply_form.body.id_for_label }}">Reply</label>
+                                <div class="messages-compose-meta">
+                                    <span class="messages-compose-note">Listing thread</span>
+                                    <span class="messages-compose-count" data-message-count>0 / {{ reply_form.body.field.max_length }}</span>
+                                </div>
+                            </div>
+                            {{ reply_form.body }}
+                            <div class="messages-compose-actions">
+                                <p class="app-panel-copy mb-0" data-message-delivery-state>Live updates on.</p>
+                                <button class="btn btn-brand" type="submit" data-message-submit>Send message</button>
+                            </div>
+                        </form>
+                    {% else %}
+                        <div class="app-empty messages-empty-panel">
+                            <h3 class="app-empty-title">Select a conversation.</h3>
+                            <p class="app-empty-copy">Choose a thread from the inbox to read and reply.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

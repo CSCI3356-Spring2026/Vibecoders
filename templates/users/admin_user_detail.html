@@ -31,8 +31,8 @@
                             <span class="admin-stat-value">{{ managed_files_count }}</span>
                         </div>
                         <div class="admin-stat-card admin-stat-card-warm">
-                            <span class="admin-stat-label">Inquiries</span>
-                            <span class="admin-stat-value">{{ managed_inquiries_count }}</span>
+                            <span class="admin-stat-label">Conversations</span>
+                            <span class="admin-stat-value">{{ managed_conversations_count }}</span>
                         </div>
                         <div class="admin-stat-card admin-stat-card-accent">
                             <span class="admin-stat-label">Role</span>
@@ -90,31 +90,53 @@
 
                     <div class="listing-panel admin-table">
                         <div class="admin-table-head">
-                            <h2 class="app-section-heading">Recent Inquiries</h2>
-                            <span class="admin-table-count">{{ managed_inquiries_count }} inquiries</span>
+                            <h2 class="app-section-heading">Recent Conversations</h2>
+                            <span class="admin-table-count">{{ managed_conversations_count }} conversations</span>
                         </div>
 
-                        {% if managed_inquiries %}
+                        {% if managed_conversations %}
                             <div class="admin-list-grid">
-                                {% for inquiry in managed_inquiries %}
+                                {% for conversation in managed_conversations %}
                                     <div class="admin-list-item">
                                         <div>
-                                            <div class="admin-list-title">{{ inquiry.listing.title }}</div>
-                                            <div class="admin-list-meta">{{ inquiry.sender.email }} • {{ inquiry.created_at|date:"M d, Y" }}</div>
-                                            {% if inquiry.message %}
-                                                <div class="admin-list-meta">{{ inquiry.message|truncatewords:20 }}</div>
-                                            {% endif %}
+                                            <div class="admin-list-title">{{ conversation.listing.title }}</div>
+                                            <div class="admin-list-meta">{{ conversation.owner.email }} → {{ conversation.participant.email }} • {{ conversation.last_message_at|date:"M d, Y" }}</div>
+                                            <div class="admin-list-meta">{{ conversation.last_message_preview|default:"No messages yet." }}</div>
                                         </div>
-                                        <span class="admin-status-pill is-muted">Inquiry</span>
+                                        <span class="admin-status-pill is-muted">Conversation</span>
                                     </div>
                                 {% endfor %}
                             </div>
                         {% else %}
-                            <p class="app-panel-copy mb-0">This user has no inquiries yet.</p>
+                            <p class="app-panel-copy mb-0">This user has no conversations yet.</p>
                         {% endif %}
                     </div>
 
-                    {% if managed_listings_count > activity_preview_limit or managed_files_count > activity_preview_limit or managed_inquiries_count > activity_preview_limit %}
+                    <div class="listing-panel admin-table">
+                        <div class="admin-table-head">
+                            <h2 class="app-section-heading">Recent Messages</h2>
+                            <span class="admin-table-count">{{ managed_messages_count }} messages</span>
+                        </div>
+
+                        {% if managed_messages %}
+                            <div class="admin-list-grid">
+                                {% for message in managed_messages %}
+                                    <div class="admin-list-item">
+                                        <div>
+                                            <div class="admin-list-title">{{ message.conversation.listing.title }}</div>
+                                            <div class="admin-list-meta">{{ message.sender.email }} • {{ message.created_at|date:"M d, Y" }}</div>
+                                            <div class="admin-list-meta">{{ message.body|truncatewords:20 }}</div>
+                                        </div>
+                                        <span class="admin-status-pill is-muted">Message</span>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="app-panel-copy mb-0">This user has no messages yet.</p>
+                        {% endif %}
+                    </div>
+
+                    {% if managed_listings_count > activity_preview_limit or managed_files_count > activity_preview_limit or managed_conversations_count > activity_preview_limit or managed_messages_count > activity_preview_limit %}
                         <p class="app-panel-copy mb-0">Showing the most recent {{ activity_preview_limit }} records per section.</p>
                     {% endif %}
                 </div>
