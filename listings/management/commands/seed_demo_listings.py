@@ -1,22 +1,25 @@
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 
-from ...models import Listing, ListingInquiry
-from ...sample_data import DEMO_USERS, demo_inquiry_definitions, demo_listing_definitions
+from communications.models import ListingConversation
+
+from ...models import Listing
+from ...sample_data import DEMO_USERS, demo_conversation_definitions, demo_listing_definitions
 
 User = get_user_model()
 
 
 class Command(BaseCommand):
-    help = "Seed the local database with deterministic demo users, listings, and inquiries."
+    help = "Seed the local database with deterministic demo users, listings, and message conversations."
 
     def handle(self, *args, **options):
         created_users = 0
         updated_users = 0
         created_listings = 0
         updated_listings = 0
-        created_inquiries = 0
-        updated_inquiries = 0
+        created_conversations = 0
+        updated_conversations = 0
+        created_messages = 0
         users_by_email = {}
         listing_definitions = demo_listing_definitions()
 
@@ -50,32 +53,58 @@ class Command(BaseCommand):
         listing_titles = [data["title"] for data in listing_definitions]
         listings_by_title = {listing.title: listing for listing in Listing.objects.filter(title__in=listing_titles)}
 
-        for inquiry_data in demo_inquiry_definitions():
-            listing = listings_by_title.get(inquiry_data["listing_title"])
-            sender = users_by_email.get(inquiry_data["sender_email"])
+        for conversation_data in demo_conversation_definitions():
+            listing = listings_by_title.get(conversation_data["listing_title"])
+            participant = users_by_email.get(conversation_data["participant_email"])
             if listing is None:
-                raise CommandError(f'Cannot seed inquiry because listing "{inquiry_data["listing_title"]}" is missing.')
-            if sender is None:
-                raise CommandError(f'Cannot seed inquiry because sender "{inquiry_data["sender_email"]}" is missing.')
-            if listing.owner_id == sender.id:
-                raise CommandError(f'Seed inquiry sender "{sender.email}" cannot own listing "{listing.title}".')
+                raise CommandError(
+                    f'Cannot seed conversation because listing "{conversation_data["listing_title"]}" is missing.'
+                )
+            if participant is None:
+                raise CommandError(
+                    "Cannot seed conversation because participant "
+                    f'"{conversation_data["participant_email"]}" is missing.'
+                )
+            if listing.owner_id == participant.id:
+                raise CommandError(
+                    f'Seed conversation participant "{participant.email}" cannot own listing "{listing.title}".'
+                )
 
-            _, created = ListingInquiry.objects.update_or_create(
+            conversation, created = ListingConversation.objects.get_or_create(
                 listing=listing,
-                sender=sender,
-                defaults={"message": inquiry_data["message"]},
+                participant=participant,
+                defaults={"owner": listing.owner},
             )
             if created:
-                created_inquiries += 1
+                created_conversations += 1
             else:
-                updated_inquiries += 1
+                updated_conversations += 1
+
+            if conversation.owner_id != listing.owner_id:
+                conversation.owner = listing.owner
+                conversation.save(update_fields=["owner"])
+
+            conversation.messages.all().delete()
+            conversation.owner_has_unread_messages = False
+            conversation.participant_has_unread_messages = False
+            conversation.last_message_preview = ""
+
+            for message_data in conversation_data["messages"]:
+                sender = users_by_email.get(message_data["sender_email"])
+                if sender is None:
+                    raise CommandError(
+                        f'Cannot seed message because sender "{message_data["sender_email"]}" is missing.'
+                    )
+                conversation.add_message(sender=sender, body=message_data["body"])
+                created_messages += 1
 
         self.stdout.write(
             self.style.SUCCESS(
                 "Seeded demo marketplace data: "
                 f"{created_users} users created, {updated_users} users updated; "
                 f"{created_listings} listings created, {updated_listings} listings updated; "
-                f"{created_inquiries} inquiries created, {updated_inquiries} inquiries updated."
+                f"{created_conversations} conversations created, {updated_conversations} conversations updated; "
+                f"{created_messages} messages created."
             )
         )
 

@@ -30,13 +30,13 @@
 
                 <div class="home-quick-links">
                     {% if has_listing_only_access %}
-                        <a class="home-pill" href="{% url 'users:posts' %}">My listings</a>
-                        <a class="home-pill" href="{% url 'listings:create_listing' %}">Create listing</a>
-                        <a class="home-pill" href="{% url 'listings:listing_list' %}?lease_type=SUBLEASE">My subleases</a>
+                        <a class="home-pill home-pill-primary" href="{% url 'users:posts' %}">My listings</a>
+                        <a class="home-pill home-pill-secondary" href="{% url 'listings:create_listing' %}">Create listing</a>
+                        <a class="home-pill home-pill-accent" href="{% url 'listings:listing_list' %}?lease_type=SUBLEASE">My subleases</a>
                     {% else %}
-                        <a class="home-pill" href="{% url 'listings:listing_list' %}">All listings</a>
-                        <a class="home-pill" href="{% url 'listings:listing_list' %}?lease_type=SUBLEASE">Subleases</a>
-                        <a class="home-pill" href="{% url 'listings:listing_list' %}?max_price=1500">Under $1,500</a>
+                        <a class="home-pill home-pill-primary" href="{% url 'listings:listing_list' %}">All listings</a>
+                        <a class="home-pill home-pill-secondary" href="{% url 'listings:listing_list' %}?lease_type=SUBLEASE">Subleases</a>
+                        <a class="home-pill home-pill-accent" href="{% url 'listings:listing_list' %}?max_price=1500">Under $1,500</a>
                     {% endif %}
                 </div>
             </div>
@@ -118,7 +118,7 @@
                         <div class="listing-card-body">
                             <div class="listing-card-price-row">
                                 <span class="listing-card-price">${{ listing.price|floatformat:0 }}/mo</span>
-                                <span class="listing-card-status">{{ listing.get_status_display }}</span>
+                                <span class="listing-card-status {% if listing.status == 'AVAILABLE' %}is-available{% elif listing.status == 'PENDING' %}is-pending{% else %}is-taken{% endif %}">{{ listing.get_status_display }}</span>
                             </div>
                             <h3 class="listing-card-title">{{ listing.title }}</h3>
                             <p class="listing-card-address">{{ listing.address }}</p>

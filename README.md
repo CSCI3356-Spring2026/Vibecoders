@@ -9,8 +9,9 @@ Vincent Park, John Giglia, Austin Chan-Orsini, Cullen Bartz, Hunter Scheppat, Dr
 ## Tech Stack
 
 - **Backend:** Django 5.2, Python 3.12+
+- **Realtime Messaging:** Django Channels over ASGI/WebSockets
 - **Database:** SQLite (default Django backend)
-- **Authentication:** Google OAuth
+- **Authentication:** Google OAuth with verified-email enforcement
 - **Frontend:** Django templates, Bootstrap 5, custom CSS
 - **Linting:** Ruff (enforced via pre-commit hooks and CI)
 - **CI:** GitHub Actions
@@ -23,7 +24,7 @@ The platform currently supports three access levels:
 - `Realtor`: listing-only access for external Google accounts
 - `Admin`: elevated management access for the internal admin dashboard
 
-Non-admin users are assigned their default role from their email domain at sign-in. Admin access is granted explicitly.
+Non-admin users are assigned their default role from their verified Google email domain at sign-in. Admin access is granted explicitly.
 
 ## Project Structure
 
@@ -35,6 +36,7 @@ Vibecoders/
 │   ├── wsgi.py
 │   └── asgi.py
 ├── core/                  # App for landing page and shared utilities
+├── communications/        # Messaging domain: conversations, websocket consumer, inbox views
 ├── listings/              # App for listing CRUD, search, and filtering
 ├── users/                 # App for authentication, profiles, and dashboards
 ├── templates/             # All HTML templates (organized by app)
@@ -56,13 +58,15 @@ Vibecoders/
 │   │   ├── login.html
 │   │   ├── login_cancelled.html
 │   │   └── login_redirect.html
+│   ├── communications/
+│   │   └── messages.html
 │   └── users/
 │       ├── files.html
 │       ├── login.html
 │       ├── profile.html
 │       └── dashboard.html
 ├── static/                # Static assets (CSS, JS, images)
-│   ├── css/custom.css     # Bootstrap overrides and color scheme
+│   ├── css/               # Shared + feature-specific stylesheets
 │   ├── js/
 │   └── images/
 ├── media/                 # Local user-uploaded files during development (gitignored)
@@ -124,6 +128,13 @@ python manage.py runserver
 The app will be available at `http://127.0.0.1:8000/`.
 
 If you run the app with `DJANGO_DEBUG=false`, you must also provide `DJANGO_SECRET_KEY`.
+For production ASGI/WebSocket deployments, set `CHANNEL_REDIS_URL` to a Redis connection string as well.
+Production messaging must be served through the ASGI app in `vibecoders.asgi`, not the WSGI app in `vibecoders.wsgi`.
+For example, a production process can run:
+
+```bash
+daphne vibecoders.asgi:application
+```
 
 To grant admin access to an existing account:
 
@@ -138,7 +149,7 @@ python manage.py seed_demo_listings
 ```
 
 The seed command is idempotent. It creates a small set of Boston College student accounts, external realtor accounts,
-sample listings, and a few inquiries so the marketplace and owner views have realistic data during local development.
+sample listings, and a few message threads so the marketplace and owner views have realistic data during local development.
 
 ## Development Workflow
 
@@ -195,16 +206,18 @@ Django uses a template inheritance model. `templates/base.html` is the shared la
 
 Auth-specific overrides live in `templates/account/`, `templates/socialaccount/`, and `templates/auth/`. The current listings flow uses `templates/listings/listing_form.html`, `templates/listings/listing_list.html`, and `templates/listings/listing_detail.html`.
 
-Static files (CSS, JS, images) live in the `static/` directory. In templates, reference them using Django's `{% static %}` tag. `static/css/custom.css` is the main stylesheet entrypoint.
+Static files (CSS, JS, images) live in the `static/` directory. In templates, reference them using Django's `{% static %}` tag. Shared tokens live in `static/css/base.css`, shared shell/layout styles are split across `navigation.css`, `forms.css`, `layout.css`, and `components.css`, and feature styles live in `listings.css`, `files.css`, `messages.css`, `auth.css`, `home.css`, `admin.css`, and `responsive.css`.
+Realtime listing messages run over Django Channels and the ASGI app in [vibecoders/asgi.py](/Users/hunterschep/Vibecoders/vibecoders/asgi.py), with Redis-backed channel layers outside local debug mode.
 
 User-uploaded files are stored under `media/` in development and are intentionally ignored by git.
 Private user document previews/downloads are served through authenticated Django views instead of raw template links.
 
 ## Tests
 
-Tests are organized by app:
+Tests are organized by app/domain:
 
 - `core/tests/`
+- `communications/` behavior is covered through focused messaging tests plus user/listing integration tests
 - `listings/tests/`
 - `users/tests/`
 
@@ -212,7 +225,7 @@ The larger `listings` and `users` suites are split by concern so model, view, ad
 
 ## User Interface 
 
-Consistent custom tokens are in `static/css/custom.css`:
+Consistent custom tokens are in `static/css/base.css`:
 
 ```css
 :root {

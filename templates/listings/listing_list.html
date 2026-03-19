@@ -27,8 +27,8 @@
                     </div>
                 </div>
                 <div class="app-meta">
-                    <span class="app-meta-chip">{{ listings_total }} {% if has_listing_only_access %}owned{% else %}active{% endif %}</span>
-                    <span class="app-meta-chip">
+                    <span class="app-meta-chip app-meta-chip-primary">{{ listings_total }} {% if has_listing_only_access %}owned{% else %}active{% endif %}</span>
+                    <span class="app-meta-chip app-meta-chip-secondary">
                         {% if active_filters.q or active_filters.max_price or active_filters.lease_type or active_filters.available_by %}
                             Filtered
                         {% else %}
@@ -133,7 +133,7 @@
                                         <div class="listing-card-body">
                                             <div class="listing-card-price-row">
                                                 <span class="listing-card-price">${{ listing.price|floatformat:0 }}/mo</span>
-                                                <span class="listing-card-status">{{ listing.get_status_display }}</span>
+                                                <span class="listing-card-status {% if listing.status == 'AVAILABLE' %}is-available{% elif listing.status == 'PENDING' %}is-pending{% else %}is-taken{% endif %}">{{ listing.get_status_display }}</span>
                                             </div>
                                             <h3 class="listing-card-title">{{ listing.title }}</h3>
                                             <p class="listing-card-address">{{ listing.address }}</p>

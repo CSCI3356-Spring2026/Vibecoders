@@ -1,0 +1,162 @@
+.site-shell {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.site-header {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    border-bottom: 1px solid rgba(var(--primary-rgb), 0.3);
+    background: var(--primary-600);
+}
+
+.nav-row {
+    min-height: 4.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 0;
+}
+
+.nav-main {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    min-width: 0;
+}
+
+.site-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--white);
+    font-size: 0.98rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.site-brand-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(var(--white-rgb), 0.28);
+    background: var(--white);
+    color: var(--primary-600);
+    font-size: 0.95rem;
+}
+
+.nav-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.nav-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.65rem;
+    padding: 0.65rem 0.9rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: rgba(var(--white-rgb), 0.88);
+    font-size: 0.91rem;
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+    transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.nav-button:hover {
+    border-color: rgba(var(--white-rgb), 0.18);
+    background: rgba(var(--white-rgb), 0.1);
+    color: var(--white);
+}
+
+.nav-button-primary {
+    border-color: rgba(var(--white-rgb), 0.16);
+    background: var(--white);
+    color: var(--primary-600);
+    font-weight: 600;
+}
+
+.nav-button-primary:hover {
+    border-color: rgba(var(--white-rgb), 0.16);
+    background: var(--white);
+    color: var(--primary-600);
+}
+
+.profile-menu {
+    position: relative;
+}
+
+.profile-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7rem;
+    color: var(--white);
+    text-decoration: none;
+}
+
+.profile-link:hover {
+    color: var(--white);
+}
+
+.profile-button {
+    min-height: 2.85rem;
+    padding: 0.35rem 0.45rem;
+    border: 1px solid rgba(var(--white-rgb), 0.18);
+    border-radius: var(--radius-md);
+    background: rgba(var(--white-rgb), 0.08);
+}
+
+.profile-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: var(--radius-sm);
+    background: var(--white);
+    color: var(--primary-600);
+    font-weight: 700;
+}
+
+.profile-name {
+    font-size: 0.91rem;
+    font-weight: 600;
+}
+
+.profile-menu .dropdown-menu {
+    padding: 0.55rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+}
+
+.profile-menu .dropdown-item {
+    border-radius: var(--radius-sm);
+    color: var(--gray-900);
+    font-weight: 500;
+}
+
+.profile-menu .dropdown-item:hover {
+    background: var(--gray-100);
+}
+
+.profile-menu form {
+    margin: 0;
+}
+
+.page-wrap {
+    flex: 1;
+}

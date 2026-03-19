@@ -20,15 +20,15 @@
             </div>
 
             <div class="app-stat-grid">
-                <div class="app-stat-card">
+                <div class="app-stat-card is-primary">
                     <span class="app-stat-label">Listings</span>
                     <span class="app-stat-value">{{ listings_count }}</span>
                 </div>
-                <div class="app-stat-card">
-                    <span class="app-stat-label">Inbound inquiries</span>
-                    <span class="app-stat-value">{{ incoming_inquiries_count }}</span>
+                <div class="app-stat-card is-secondary">
+                    <span class="app-stat-label">Conversations</span>
+                    <span class="app-stat-value">{{ conversations_count }}</span>
                 </div>
-                <div class="app-stat-card">
+                <div class="app-stat-card is-neutral">
                     <span class="app-stat-label">Role</span>
                     <span class="app-stat-value">{{ request.user.display_role }}</span>
                 </div>
@@ -48,7 +48,7 @@
                     </div>
                     </div>
                     <div class="app-meta mb-4">
-                        <span class="app-meta-chip">{{ listings_total }} listing{{ listings_total|pluralize }}</span>
+                        <span class="app-meta-chip app-meta-chip-primary">{{ listings_total }} listing{{ listings_total|pluralize }}</span>
                     </div>
 
                     {% if listings %}
@@ -67,7 +67,7 @@
                                             <div class="app-compact-title">{{ listing.title }}</div>
                                             <div class="app-compact-meta">{{ listing.address }}</div>
                                             <div class="app-compact-meta">
-                                                ${{ listing.price|floatformat:0 }}/mo • {{ listing.get_status_display }} • {{ listing.inquiry_count }} inquiry{{ listing.inquiry_count|pluralize }}
+                                                ${{ listing.price|floatformat:0 }}/mo • {{ listing.get_status_display }} • {{ listing.conversation_count }} conversation{{ listing.conversation_count|pluralize }}
                                             </div>
                                         </div>
                                     </div>

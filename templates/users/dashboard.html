@@ -35,19 +35,19 @@
             </div>
 
             <div class="app-stat-grid">
-                <div class="app-stat-card">
+                <div class="app-stat-card is-primary">
                     <span class="app-stat-label">Listings</span>
                     <span class="app-stat-value">{{ listings_count }}</span>
                 </div>
-                <div class="app-stat-card">
-                    <span class="app-stat-label">Inbound inquiries</span>
-                    <span class="app-stat-value">{{ incoming_inquiries_count }}</span>
+                <div class="app-stat-card is-secondary">
+                    <span class="app-stat-label">Conversations</span>
+                    <span class="app-stat-value">{{ conversations_count }}</span>
                 </div>
-                <div class="app-stat-card">
-                    <span class="app-stat-label">{% if has_listing_only_access %}Marketplace access{% else %}Sent inquiries{% endif %}</span>
-                    <span class="app-stat-value">{% if has_listing_only_access %}Restricted{% else %}{{ sent_inquiries_count }}{% endif %}</span>
+                <div class="app-stat-card is-accent">
+                    <span class="app-stat-label">Unread threads</span>
+                    <span class="app-stat-value">{{ unread_conversations_count }}</span>
                 </div>
-                <div class="app-stat-card">
+                <div class="app-stat-card is-neutral">
                     <span class="app-stat-label">Files</span>
                     <span class="app-stat-value">{{ files_count }}</span>
                 </div>
@@ -78,26 +78,28 @@
                 </div>
 
                 <div class="listing-panel">
-                        <div class="app-panel-head">
-                            <div>
-                                <h2 class="app-section-heading">Recent inquiries</h2>
-                                <p class="app-panel-copy">Latest inquiries.</p>
-                            </div>
+                    <div class="app-panel-head">
+                        <div>
+                            <h2 class="app-section-heading">Recent messages</h2>
+                            <p class="app-panel-copy">Latest listing conversations.</p>
                         </div>
+                        <a class="listing-reset-link" href="{% url 'communications:messages' %}">Open inbox</a>
+                    </div>
 
-                    {% if recent_inquiries %}
+                    {% if recent_conversations %}
                         <div class="app-compact-list">
-                            {% for inquiry in recent_inquiries %}
-                                <div class="app-compact-item app-compact-item-static">
-                                    <span class="app-compact-title">{{ inquiry.listing.title }}</span>
+                            {% for conversation in recent_conversations %}
+                                <a class="app-compact-item" href="{% url 'communications:detail' conversation.id %}">
+                                    <span class="app-compact-title">{{ conversation.listing.title }}</span>
                                     <span class="app-compact-meta">
-                                        {{ inquiry.sender.get_full_name|default:inquiry.sender.username }} • {{ inquiry.created_at|date:"M d, Y" }}
+                                        {{ conversation.ui_counterparty.get_full_name|default:conversation.ui_counterparty.username }} • {{ conversation.last_message_at|date:"M d, Y" }}
                                     </span>
-                                </div>
+                                    <span class="app-compact-meta">{{ conversation.last_message_preview|default:"No messages yet." }}</span>
+                                </a>
                             {% endfor %}
                         </div>
                     {% else %}
-                        <p class="app-panel-copy mb-0">No inquiries yet.</p>
+                        <p class="app-panel-copy mb-0">No messages yet.</p>
                     {% endif %}
                 </div>
 

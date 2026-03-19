@@ -1,0 +1,107 @@
+.auth-layout {
+    display: flex;
+    justify-content: center;
+}
+
+.auth-panel {
+    width: 100%;
+    max-width: 32rem;
+}
+
+.auth-panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding: 1.75rem;
+}
+
+.auth-minimal {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    text-align: center;
+}
+
+.auth-title {
+    margin: 0;
+    color: var(--gray-950);
+    font-size: clamp(1.8rem, 3.3vw, 2.35rem);
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    line-height: 1.02;
+}
+
+.auth-copy {
+    margin: 0;
+    color: var(--gray-500);
+    font-size: 0.93rem;
+    line-height: 1.6;
+}
+
+.auth-alert {
+    margin: 0;
+    padding: 0.9rem 1rem;
+    border: 1px solid rgba(var(--gray-300-rgb), 0.8);
+    border-radius: var(--radius-md);
+    background: var(--white);
+    color: var(--gray-950);
+    font-weight: 500;
+}
+
+.auth-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.auth-google-btn,
+.auth-ghost-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.9rem;
+    width: 100%;
+    min-height: 3.25rem;
+    padding: 0.9rem 1.15rem;
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.auth-google-btn {
+    border: 1px solid rgba(var(--gray-900-rgb), 0.12);
+    background: var(--gray-950);
+    color: var(--white);
+}
+
+.auth-google-btn:hover {
+    background: var(--gray-950);
+    color: var(--white);
+}
+
+.auth-ghost-btn {
+    border: 1px solid var(--gray-300);
+    background: var(--white);
+    color: var(--gray-900);
+}
+
+.auth-ghost-btn:hover {
+    background: var(--gray-100);
+    color: var(--gray-950);
+}
+
+.auth-google-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: var(--radius-sm);
+    background: var(--white);
+    color: var(--gray-900);
+}
+
+.auth-google-mark svg {
+    width: 1rem;
+    height: 1rem;
+}

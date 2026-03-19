@@ -44,17 +44,17 @@ class CustomUserModelTests(TestCase):
 
         self.assertEqual(user.display_role, "Admin")
 
-    def test_realtor_cannot_inquire(self):
+    def test_realtor_cannot_start_listing_conversations(self):
         user = User.objects.create_user(username="agent", email="agent@gmail.com", password="test")
 
-        self.assertFalse(user.can_inquire_on_listings)
+        self.assertFalse(user.can_start_listing_conversations)
         self.assertTrue(user.has_listing_only_access)
 
-    def test_student_can_browse_and_inquire(self):
+    def test_student_can_browse_and_message(self):
         user = User.objects.create_user(username="stu", email="stu@bc.edu", password="test")
 
         self.assertTrue(user.can_browse_marketplace)
-        self.assertTrue(user.can_inquire_on_listings)
+        self.assertTrue(user.can_start_listing_conversations)
 
     def test_set_admin_access_false_restores_email_based_role(self):
         user = User.objects.create_user(username="agent", email="agent@gmail.com", password="test", role=Role.ADMIN)

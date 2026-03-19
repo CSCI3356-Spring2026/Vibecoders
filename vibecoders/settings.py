@@ -67,9 +67,11 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
+    "daphne",
     "django.contrib.staticfiles",
     # Sub apps
     "core",
+    "communications",
     "listings",
     "users",
     "django.contrib.sites",  # Required by allauth
@@ -78,6 +80,7 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
+    "channels",
 ]
 
 MIDDLEWARE = [
@@ -120,6 +123,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "vibecoders.wsgi.application"
+ASGI_APPLICATION = "vibecoders.asgi.application"
 
 
 # Database
@@ -203,9 +207,12 @@ ACCOUNT_SIGNUP_FIELDS = ["email*"]  # No password fields; actual blocking is via
 ACCOUNT_EMAIL_VERIFICATION = "none"  # Google provides the verified email identity
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_LOGIN_ON_GET = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+SOCIALACCOUNT_STORE_TOKENS = False
 ACCOUNT_LOGIN_BY_CODE_ENABLED = False
 ACCOUNT_PASSWORD_RESET_BY_CODE_ENABLED = False
 ACCOUNT_EMAIL_VERIFICATION_BY_CODE_ENABLED = False
+LOGIN_URL = "/accounts/login/"
 
 LOGIN_REDIRECT_URL = "/users/dashboard/"  # Where to go after login
 LOGOUT_REDIRECT_URL = "/"  # Where to go after logout
@@ -213,6 +220,7 @@ LOGOUT_REDIRECT_URL = "/"  # Where to go after logout
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
         "SCOPE": ["profile", "email"],
+        "EMAIL_AUTHENTICATION": True,
         "AUTH_PARAMS": {"access_type": "online"},
         "APP": {
             "client_id": os.environ.get("GOOGLE_CLIENT_ID", ""),
@@ -223,3 +231,21 @@ SOCIALACCOUNT_PROVIDERS = {
 
 ACCOUNT_ADAPTER = "users.adapters.NoSignupAccountAdapter"
 SOCIALACCOUNT_ADAPTER = "users.adapters.MarketplaceSocialAccountAdapter"
+
+CHANNEL_REDIS_URL = os.getenv("CHANNEL_REDIS_URL", "").strip()
+if not DEBUG and not CHANNEL_REDIS_URL:
+    raise ImproperlyConfigured("Set CHANNEL_REDIS_URL when running with DJANGO_DEBUG=false.")
+
+if CHANNEL_REDIS_URL:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {"hosts": [CHANNEL_REDIS_URL]},
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }

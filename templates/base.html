@@ -17,7 +17,18 @@
         integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr"
         crossorigin="anonymous"
     >
-    <link rel="stylesheet" href="{% static 'css/custom.css' %}">
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+    <link rel="stylesheet" href="{% static 'css/navigation.css' %}">
+    <link rel="stylesheet" href="{% static 'css/forms.css' %}">
+    <link rel="stylesheet" href="{% static 'css/layout.css' %}">
+    <link rel="stylesheet" href="{% static 'css/components.css' %}">
+    <link rel="stylesheet" href="{% static 'css/listings.css' %}">
+    <link rel="stylesheet" href="{% static 'css/files.css' %}">
+    <link rel="stylesheet" href="{% static 'css/auth.css' %}">
+    <link rel="stylesheet" href="{% static 'css/home.css' %}">
+    <link rel="stylesheet" href="{% static 'css/admin.css' %}">
+    {% block extra_css %}{% endblock %}
+    <link rel="stylesheet" href="{% static 'css/responsive.css' %}">
 </head>
 <body>
     <div class="site-shell">
@@ -41,6 +52,9 @@
                                 {% endif %}
                                 {% if request.user.is_authenticated and not request.user.has_listing_only_access %}
                                     <a class="nav-button" href="{% url 'users:posts' %}">My Listings</a>
+                                {% endif %}
+                                {% if request.user.is_authenticated %}
+                                    <a class="nav-button" href="{% url 'communications:messages' %}">Messages</a>
                                 {% endif %}
                                 <a class="nav-button nav-button-primary" href="{% url 'listings:create_listing' %}">Create Listing</a>
                             {% endblock %}
@@ -102,5 +116,6 @@
         integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q"
         crossorigin="anonymous"
     ></script>
+    {% block extra_js %}{% endblock %}
 </body>
 </html>

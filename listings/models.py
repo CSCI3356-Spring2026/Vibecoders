@@ -127,25 +127,6 @@ class ListingImage(models.Model):
         return f"Image for {self.listing.title}"
 
 
-class ListingInquiry(models.Model):
-    listing = models.ForeignKey(Listing, related_name="inquiries", on_delete=models.CASCADE)
-    sender = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="sent_inquiries", on_delete=models.CASCADE)
-    message = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-        constraints = [
-            models.UniqueConstraint(fields=["listing", "sender"], name="unique_listing_inquiry_sender"),
-        ]
-        indexes = [
-            models.Index(fields=["listing", "created_at"], name="listing_inquiry_idx"),
-        ]
-
-    def __str__(self):
-        return f"Inquiry from {self.sender} about {self.listing}"
-
-
 @receiver(post_delete, sender=ListingImage)
 def delete_listing_image_file(sender, instance, **kwargs):
     if instance.image:

@@ -10,8 +10,12 @@ from django.dispatch import receiver
 from .validators import validate_user_upload
 
 
+def _normalize_email_address(email):
+    return (email or "").strip().lower()
+
+
 def _email_domain(email):
-    normalized_email = (email or "").strip().lower()
+    normalized_email = _normalize_email_address(email)
     if "@" not in normalized_email:
         return ""
     return normalized_email.rsplit("@", 1)[1]
@@ -35,6 +39,10 @@ class CustomUser(AbstractUser):
         db_index=True,
         help_text="Access level for the housing platform.",
     )
+
+    @staticmethod
+    def normalize_email_address(email):
+        return _normalize_email_address(email)
 
     @classmethod
     def student_email_domains(cls):
@@ -98,7 +106,7 @@ class CustomUser(AbstractUser):
         return self.is_student or self.is_bc_admin
 
     @property
-    def can_inquire_on_listings(self):
+    def can_start_listing_conversations(self):
         return self.is_student or self.is_bc_admin
 
     @property
@@ -110,7 +118,7 @@ class CustomUser(AbstractUser):
         if self.is_bc_admin:
             return "Admin access with marketplace oversight."
         if self.can_browse_marketplace:
-            return "Verified student access to browse, inquire, and list."
+            return "Verified student access to browse, message, and list."
         return "Listing-only access for external listers."
 
     @property
@@ -126,7 +134,7 @@ class CustomUser(AbstractUser):
         self.role = Role.ADMIN if enabled else self.default_role_for_email(self.email)
 
     def save(self, *args, **kwargs):
-        normalized_email = (self.email or "").strip().lower()
+        normalized_email = self.normalize_email_address(self.email)
         if not normalized_email:
             raise ValueError("Users must have an email address.")
         self.email = normalized_email
