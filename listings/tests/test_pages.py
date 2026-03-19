@@ -8,7 +8,9 @@ from django.test import override_settings
 from django.urls import reverse
 from PIL import Image
 
-from ..models import ListingImage, ListingInquiry
+from communications.models import ListingConversation, ListingMessage
+
+from ..models import ListingImage
 from .base import ListingTestCase
 
 
@@ -294,39 +296,81 @@ class ListingPageTests(ListingTestCase):
 
         self.assertEqual(response.status_code, 404)
 
-    def test_student_can_send_inquiry(self):
+    def test_student_can_start_listing_conversation(self):
         student = get_user_model().objects.create_user(username="student", email="student@bc.edu", password="test")
         listing = self.create_listing()
         self.client.force_login(student)
 
-        response = self.client.post(reverse("listings:inquire", args=[listing.pk]), {"message": "Interested for fall."})
+        response = self.client.post(
+            reverse("listings:message_listing", args=[listing.pk]),
+            {"body": "Interested for fall."},
+        )
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(ListingInquiry.objects.count(), 1)
-        inquiry = ListingInquiry.objects.get()
-        self.assertEqual(inquiry.sender, student)
-        self.assertEqual(inquiry.listing, listing)
-        self.assertEqual(inquiry.message, "Interested for fall.")
+        self.assertEqual(ListingConversation.objects.count(), 1)
+        self.assertEqual(ListingMessage.objects.count(), 1)
+        conversation = ListingConversation.objects.get()
+        self.assertEqual(conversation.participant, student)
+        self.assertEqual(conversation.owner, listing.owner)
+        self.assertEqual(conversation.listing, listing)
+        self.assertEqual(conversation.last_message_preview, "Interested for fall.")
+        self.assertTrue(conversation.owner_has_unread_messages)
+        self.assertFalse(conversation.participant_has_unread_messages)
+        message = ListingMessage.objects.get()
+        self.assertEqual(message.sender, student)
+        self.assertEqual(message.body, "Interested for fall.")
 
-    def test_realtor_cannot_send_inquiry(self):
+    def test_student_reuses_existing_listing_conversation(self):
+        student = get_user_model().objects.create_user(username="student", email="student@bc.edu", password="test")
+        listing = self.create_listing()
+        conversation = ListingConversation.objects.create(
+            listing=listing,
+            owner=listing.owner,
+            participant=student,
+        )
+        conversation.add_message(sender=student, body="First note.")
+        self.client.force_login(student)
+
+        response = self.client.post(
+            reverse("listings:message_listing", args=[listing.pk]),
+            {"body": "Following up on availability."},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(ListingConversation.objects.count(), 1)
+        self.assertEqual(ListingMessage.objects.count(), 2)
+        conversation.refresh_from_db()
+        self.assertEqual(conversation.last_message_preview, "Following up on availability.")
+
+    def test_realtor_cannot_start_listing_conversation(self):
         realtor = get_user_model().objects.create_user(username="agent", email="agent@gmail.com", password="test")
         listing = self.create_listing()
         self.client.force_login(realtor)
 
-        response = self.client.post(reverse("listings:inquire", args=[listing.pk]), {"message": "Interested."})
+        response = self.client.post(reverse("listings:message_listing", args=[listing.pk]), {"body": "Interested."})
 
         self.assertEqual(response.status_code, 403)
-        self.assertFalse(ListingInquiry.objects.exists())
+        self.assertFalse(ListingConversation.objects.exists())
 
-    def test_inquiry_endpoint_requires_post(self):
+    def test_blank_message_does_not_create_conversation(self):
+        student = get_user_model().objects.create_user(username="student", email="student@bc.edu", password="test")
+        listing = self.create_listing()
+        self.client.force_login(student)
+
+        response = self.client.post(reverse("listings:message_listing", args=[listing.pk]), {"body": "   "})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(ListingConversation.objects.exists())
+
+    def test_message_endpoint_requires_post(self):
         listing = self.create_listing()
         student = get_user_model().objects.create_user(username="student", email="student@bc.edu", password="test")
         self.client.force_login(student)
 
-        response = self.client.get(reverse("listings:inquire", args=[listing.pk]))
+        response = self.client.get(reverse("listings:message_listing", args=[listing.pk]))
 
         self.assertEqual(response.status_code, 405)
-        self.assertFalse(ListingInquiry.objects.exists())
+        self.assertFalse(ListingConversation.objects.exists())
 
     def test_delete_listing_endpoint_requires_post(self):
         listing = self.create_listing()
@@ -337,14 +381,19 @@ class ListingPageTests(ListingTestCase):
         self.assertEqual(response.status_code, 405)
         self.assertTrue(self.user.listings.filter(pk=listing.pk).exists())
 
-    def test_listing_owner_sees_incoming_inquiries_on_detail_page(self):
+    def test_listing_owner_sees_conversations_on_detail_page(self):
         listing = self.create_listing()
         student = get_user_model().objects.create_user(username="student", email="student@bc.edu", password="test")
-        ListingInquiry.objects.create(listing=listing, sender=student, message="Can I tour this week?")
+        conversation = ListingConversation.objects.create(
+            listing=listing,
+            owner=listing.owner,
+            participant=student,
+        )
+        conversation.add_message(sender=student, body="Can I tour this week?")
         self.client.force_login(self.user)
 
         response = self.client.get(reverse("listings:detail", args=[listing.pk]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Incoming inquiries")
+        self.assertContains(response, "Conversation threads")
         self.assertContains(response, "Can I tour this week?")

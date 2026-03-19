@@ -286,28 +286,67 @@ def demo_listing_definitions(base_date=None):
     ]
 
 
-def demo_inquiry_definitions():
+def demo_conversation_definitions():
     return [
         {
             "listing_title": "Cleveland Circle 2BR with parking",
-            "sender_email": "maya.sullivan@bc.edu",
-            "message": "Interested for the fall semester. Is parking included in the monthly rent?",
+            "participant_email": "maya.sullivan@bc.edu",
+            "messages": [
+                {
+                    "sender_email": "maya.sullivan@bc.edu",
+                    "body": "Interested for the fall semester. Is parking included in the monthly rent?",
+                },
+                {
+                    "sender_email": "olivia@chestnuthillrealty.com",
+                    "body": "Yes, one off-street parking spot is included and the lease can start in early September.",
+                },
+            ],
         },
         {
             "listing_title": "South Street summer sublet",
-            "sender_email": "liam.chen@bc.edu",
-            "message": "I need a place from June through August. Are utilities fully covered?",
+            "participant_email": "liam.chen@bc.edu",
+            "messages": [
+                {
+                    "sender_email": "liam.chen@bc.edu",
+                    "body": "I need a place from June through August. Are utilities fully covered?",
+                },
+                {
+                    "sender_email": "team@commaveproperties.com",
+                    "body": "Heat, hot water, and WiFi are included; electricity is billed separately.",
+                },
+            ],
         },
         {
             "listing_title": "Chestnut Hill furnished 1BR",
-            "sender_email": "zoe.kim@bc.edu",
-            "message": (
-                "Could you share the earliest move-in date and whether the unit is quiet enough for remote work?"
-            ),
+            "participant_email": "zoe.kim@bc.edu",
+            "messages": [
+                {
+                    "sender_email": "zoe.kim@bc.edu",
+                    "body": (
+                        "Could you share the earliest move-in date and whether the unit is quiet enough "
+                        "for remote work?"
+                    ),
+                },
+                {
+                    "sender_email": "olivia@chestnuthillrealty.com",
+                    "body": (
+                        "The current tenant can move out a week early, and the building stays quiet during the workday."
+                    ),
+                },
+                {
+                    "sender_email": "zoe.kim@bc.edu",
+                    "body": "That works for me. Could I schedule a video tour this weekend?",
+                },
+            ],
         },
         {
             "listing_title": "Commonwealth Ave 3BR with porch",
-            "sender_email": "zoe.kim@bc.edu",
-            "message": "A roommate group is interested. Are showings available this week?",
+            "participant_email": "zoe.kim@bc.edu",
+            "messages": [
+                {
+                    "sender_email": "zoe.kim@bc.edu",
+                    "body": "A roommate group is interested. Are showings available this week?",
+                },
+            ],
         },
     ]

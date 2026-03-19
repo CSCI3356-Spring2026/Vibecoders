@@ -39,7 +39,7 @@ Instructions for AI coding agents working in this repository.
   - `users`: auth/profile/dashboard logic
 - Place templates in app-specific folders under `templates/<app>/`.
 - Put shared layout in `templates/base.html` and use template inheritance.
-- Put styling in `static/css/custom.css` and JavaScript in `static/js/main.js`.
+- Keep design tokens in `static/css/base.css`, shared shell styles split under `static/css/`, feature styles under `static/css/`, and page-specific JavaScript under `static/js/`.
 - If adding routes, update `vibecoders/urls.py` and use app-level `urls.py` modules when appropriate.
 
 ## 5) Git and PR Expectations
@@ -60,7 +60,7 @@ Instructions for AI coding agents working in this repository.
 
 ## 7) UI and Color System
 
-When implementing UI, use Bootstrap 5 plus consistent custom tokens in `static/css/custom.css`:
+When implementing UI, use Bootstrap 5 plus consistent custom tokens in `static/css/base.css`:
 
 ```css
 :root {

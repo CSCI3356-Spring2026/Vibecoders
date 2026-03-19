@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Listing, ListingInquiry
+from .models import Listing
 
 
 class ListingForm(forms.ModelForm):
@@ -75,18 +75,3 @@ class ListingForm(forms.ModelForm):
             instance.save()
 
         return instance
-
-
-class ListingInquiryForm(forms.ModelForm):
-    class Meta:
-        model = ListingInquiry
-        fields = ["message"]
-        widgets = {
-            "message": forms.Textarea(
-                attrs={
-                    "class": "form-control",
-                    "rows": 4,
-                    "placeholder": "Share timing, questions, or anything the lister should know.",
-                }
-            )
-        }

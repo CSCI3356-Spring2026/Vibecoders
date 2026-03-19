@@ -12,10 +12,13 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from communications.forms import ConversationMessageForm
+from communications.models import ListingConversation
+from communications.services import start_listing_conversation
 from core.utils import get_page, preserved_query_suffix
 
-from .forms import ListingForm, ListingInquiryForm
-from .models import Listing, ListingImage, ListingInquiry
+from .forms import ListingForm
+from .models import Listing, ListingImage
 from .selectors import marketplace_listings_for_user
 
 LISTINGS_PER_PAGE = 12
@@ -146,26 +149,35 @@ def listing_list(request):
 def listing_detail(request, pk):
     listing = _get_listing_for_user(request.user, pk)
     listing_images = list(listing.images.all())
-    inquiry_form = None
-    existing_inquiry = None
-    owner_inquiries = None
+    message_form = None
+    existing_conversation = None
+    owner_conversations = None
     back_url_name, back_label = _workspace_destination(request.user)
-    show_owner_inquiries = request.user.is_bc_admin or listing.owner_id == request.user.id
+    show_owner_conversations = listing.owner_id == request.user.id
 
-    if request.user.can_inquire_on_listings and listing.owner_id != request.user.id:
-        existing_inquiry = ListingInquiry.objects.filter(listing=listing, sender=request.user).first()
-        inquiry_form = ListingInquiryForm(instance=existing_inquiry)
+    if request.user.can_start_listing_conversations and listing.owner_id != request.user.id:
+        existing_conversation = ListingConversation.objects.visible_to(request.user).filter(listing=listing).first()
+        if existing_conversation:
+            existing_conversation.ui_has_unread = existing_conversation.has_unread_for(request.user)
+        message_form = ConversationMessageForm()
 
-    if show_owner_inquiries:
-        owner_inquiries = list(listing.inquiries.select_related("sender"))
+    if show_owner_conversations:
+        owner_conversations = list(
+            listing.conversations.select_related("participant").order_by("-last_message_at", "-created_at")[:8]
+        )
+        for conversation in owner_conversations:
+            conversation.ui_counterparty_name = (
+                conversation.participant.get_full_name() or conversation.participant.username
+            )
+            conversation.ui_has_unread = conversation.has_unread_for(request.user)
 
     context = {
         "listing": listing,
         "listing_images": listing_images,
-        "inquiry_form": inquiry_form,
-        "existing_inquiry": existing_inquiry,
-        "owner_inquiries": owner_inquiries,
-        "show_owner_inquiries": show_owner_inquiries,
+        "message_form": message_form,
+        "existing_conversation": existing_conversation,
+        "owner_conversations": owner_conversations,
+        "show_owner_conversations": show_owner_conversations,
         "back_url_name": back_url_name,
         "back_label": back_label,
     }
@@ -174,28 +186,26 @@ def listing_detail(request, pk):
 
 @login_required
 @require_POST
-def inquire_listing(request, pk):
-    if not request.user.can_inquire_on_listings:
-        return HttpResponseForbidden("Verified student access is required to inquire about listings.")
+def message_listing(request, pk):
+    if not request.user.can_start_listing_conversations:
+        return HttpResponseForbidden("Verified student access is required to message about listings.")
 
     listing = _get_listing_for_user(request.user, pk)
     if listing.owner_id == request.user.id:
-        messages.error(request, "You cannot inquire about your own listing.")
+        messages.error(request, "You cannot message yourself about your own listing.")
         return redirect("listings:detail", pk=listing.pk)
 
-    form = ListingInquiryForm(request.POST)
+    form = ConversationMessageForm(request.POST)
     if form.is_valid():
-        _, created = ListingInquiry.objects.update_or_create(
-            listing=listing,
-            sender=request.user,
-            defaults={"message": form.cleaned_data["message"]},
-        )
-        if created:
-            messages.success(request, "Inquiry sent.")
+        try:
+            conversation, _, created = start_listing_conversation(listing, request.user, form.cleaned_data["body"])
+        except ValidationError:
+            messages.error(request, "Enter a message before sending.")
         else:
-            messages.success(request, "Inquiry updated.")
+            messages.success(request, "Conversation started." if created else "Message sent.")
+            return redirect("communications:detail", conversation_id=conversation.pk)
     else:
-        messages.error(request, "Add a short note before sending your inquiry.")
+        messages.error(request, "Enter a message before sending.")
 
     return redirect("listings:detail", pk=listing.pk)
 
