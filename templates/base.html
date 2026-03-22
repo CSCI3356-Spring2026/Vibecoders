@@ -5,13 +5,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}{{ site_product_name }} by {{ site_company_name }}{% endblock %}</title>
-    <meta name="theme-color" content="#4f46e5">
+    <meta name="theme-color" content="#18324a">
     <link rel="icon" type="image/svg+xml" href="{% static 'images/padly-mark.svg' %}">
     <link rel="shortcut icon" href="{% static 'images/padly-mark.svg' %}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&display=swap"
         rel="stylesheet"
     >
     <link
@@ -76,9 +76,9 @@
                                     data-bs-toggle="dropdown"
                                     aria-expanded="false"
                                 >
-                                    {% include "includes/user_avatar.html" with user=request.user size_class="user-avatar-sm profile-icon" %}
+                                    {% include "includes/user_avatar.html" with user_obj=request.user avatar_class="profile-icon user-avatar" %}
                                     <span class="profile-name">
-                                        {{ request.user.get_full_name|default:request.user.username }}
+                                        {{ request.user.display_name }}
                                     </span>
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end">
@@ -107,7 +107,7 @@
         <main class="page-wrap">
             {% block global_messages %}
                 {% if messages %}
-                    <div class="container pt-3">
+                    <div class="container pt-3 app-global-messages">
                         {% for message in messages %}
                             <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags|default:'info' }}{% endif %} mb-3" role="alert">
                                 {{ message }}
@@ -131,8 +131,7 @@
                             </span>
                         </a>
                         <p class="footer-copy">
-                            {{ site_product_name }} is a housing marketplace product built by {{ site_company_name }}
-                            for Boston College students.
+                            Housing marketplace for the Boston College community.
                         </p>
                     </div>
 
@@ -159,7 +158,7 @@
                     </div>
                 </div>
                 <div class="footer-meta">
-                    <span>&copy; 2026 {{ site_company_name }}. All rights reserved.</span>
+                    <span>&copy; 2026 {{ site_company_name }}</span>
                 </div>
             </div>
         </footer>

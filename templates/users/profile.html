@@ -8,11 +8,11 @@
         <div class="app-shell">
             <div class="app-header app-header-shell">
                 <div class="app-header-main">
-                    <div class="d-flex align-items-center gap-3">
-                        {% include "includes/user_avatar.html" with user=request.user size_class="user-avatar-lg" %}
-                        <div>
+                    <div class="identity-row profile-hero-row">
+                        {% include "includes/user_avatar.html" with user_obj=request.user avatar_class="profile-hero-avatar user-avatar user-avatar-xl" %}
+                        <div class="identity-copy">
                             <p class="app-kicker">Profile</p>
-                            <h1 class="app-title">{{ request.user.get_full_name|default:request.user.username }}</h1>
+                            <h1 class="app-title">{{ request.user.display_name }}</h1>
                             <p class="app-subtitle">{{ request.user.email|default:"No email on file" }}</p>
                         </div>
                     </div>
@@ -42,7 +42,7 @@
                 <div class="listing-panel">
                     <div class="app-panel-head">
                         <div>
-                            <h2 class="app-section-heading">Access model</h2>
+                            <h2 class="app-section-heading">Access</h2>
                             <p class="app-panel-copy">{{ request.user.access_summary }}</p>
                         </div>
                     </div>
@@ -106,7 +106,7 @@
                     <div class="app-compact-list">
                         <div class="app-compact-item app-compact-item-static">
                             <span class="app-compact-title">Delete account</span>
-                            <span class="app-compact-meta">This removes your profile, listings, files, and conversations.</span>
+                            <span class="app-compact-meta">This removes your profile, listings, files, and conversations. A recent sign-in is required.</span>
                         </div>
                     </div>
 

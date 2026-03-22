@@ -31,7 +31,7 @@
                     <div>
                         <p class="app-kicker">Messages</p>
                         <h1 class="app-title">Listing conversations</h1>
-                        <p class="app-subtitle">Messages about listings you posted or asked about.</p>
+                        <p class="app-subtitle">Threads tied to active listings.</p>
                     </div>
                     <div class="app-meta">
                         <span class="app-meta-chip" data-total-conversations="header">{{ conversations_total }} conversation{{ conversations_total|pluralize }}</span>
@@ -63,7 +63,7 @@
                                     href="{% url 'communications:detail' conversation.id %}"
                                     data-conversation-id="{{ conversation.id }}"
                                 >
-                                        <div class="messages-list-row">
+                                    <div class="messages-list-row">
                                         <div class="messages-list-media" data-role="conversation-media">
                                             {% include "includes/user_avatar.html" with user=conversation.ui_counterparty size_class="user-avatar-md" extra_class="messages-list-user-avatar" %}
                                         </div>
@@ -88,7 +88,7 @@
                     {% else %}
                         <div class="app-empty">
                             <h3 class="app-empty-title">No conversations yet.</h3>
-                            <p class="app-empty-copy">Messages about listings will appear here.</p>
+                            <p class="app-empty-copy">Threads will appear here.</p>
                         </div>
                     {% endif %}
                 </div>
@@ -141,10 +141,12 @@
                             <div class="messages-thread" data-message-thread>
                                 {% for message in thread_messages %}
                                     <div class="message-row{% if message.sender_id == request.user.id %} is-outbound{% else %} is-inbound{% endif %}" data-message-id="{{ message.id }}">
-                                        {% include "includes/user_avatar.html" with user=message.sender size_class="user-avatar-sm" extra_class="message-avatar" %}
-                                        <div class="message-bubble-stack">
+                                        <div class="message-avatar-slot">
+                                            {% include "includes/user_avatar.html" with user=message.sender size_class="user-avatar-sm" extra_class="message-avatar" %}
+                                        </div>
+                                        <div class="message-bubble-stack message-card">
                                             <div class="message-bubble-meta">
-                                                <span class="message-sender-name">{% if message.sender_id == request.user.id %}You{% else %}{{ message.sender.get_full_name|default:message.sender.username }}{% endif %}</span>
+                                                <span class="message-sender-name">{% if message.sender_id == request.user.id %}You{% else %}{{ message.sender.display_name }}{% endif %}</span>
                                                 <span class="message-timestamp">{{ message.created_at|date:"M d, Y g:i A" }}</span>
                                             </div>
                                             <div class="message-bubble{% if message.sender_id == request.user.id %} is-outbound{% else %} is-inbound{% endif %}">
@@ -170,7 +172,7 @@
                                 <label class="form-label fw-semibold mb-0" for="{{ reply_form.body.id_for_label }}">Reply</label>
                                 <div class="messages-compose-meta">
                                     <span class="messages-compose-note">Listing thread</span>
-                                    <span class="messages-compose-count" data-message-count>0 / {{ reply_form.body.field.max_length }}</span>
+                                    <span class="messages-compose-count" data-message-count>0 / {{ reply_max_length }}</span>
                                 </div>
                             </div>
                             {{ reply_form.body }}
