@@ -5,11 +5,11 @@ from django.db import transaction
 from .models import ListingImage
 
 
-def save_uploaded_listing_images(listing, uploaded_images):
+def build_validated_listing_images(listing, uploaded_images, *, removed_images_count=0):
     if len(uploaded_images) > settings.LISTING_IMAGE_UPLOAD_LIMIT:
         raise ValidationError({"images": f"You can upload up to {settings.LISTING_IMAGE_UPLOAD_LIMIT} images."})
 
-    existing_images_count = listing.images.count()
+    existing_images_count = max(listing.images.count() - removed_images_count, 0)
     if existing_images_count + len(uploaded_images) > settings.LISTING_IMAGE_TOTAL_LIMIT:
         raise ValidationError(
             {"images": f"Each listing can have up to {settings.LISTING_IMAGE_TOTAL_LIMIT} images total."}
@@ -21,6 +21,10 @@ def save_uploaded_listing_images(listing, uploaded_images):
         listing_image.full_clean()
         pending_images.append(listing_image)
 
+    return pending_images
+
+
+def save_uploaded_listing_images(pending_images):
     for listing_image in pending_images:
         listing_image.save()
 
@@ -53,9 +57,15 @@ def save_listing_form(form, owner, uploaded_images):
         if listing._state.adding:
             listing.owner = owner
         listing.save()
-        for image in form.cleaned_data.get("remove_images", []):
+        images_to_remove = list(form.cleaned_data.get("remove_images", []))
+        pending_images = build_validated_listing_images(
+            listing,
+            uploaded_images,
+            removed_images_count=len(images_to_remove),
+        )
+        for image in images_to_remove:
             image.delete()
-        save_uploaded_listing_images(listing, uploaded_images)
+        save_uploaded_listing_images(pending_images)
         return listing
 
 

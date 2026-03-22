@@ -1,5 +1,7 @@
 from datetime import date
+from pathlib import Path
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -14,6 +16,7 @@ class CorePageTests(TestCase):
         self.assertContains(response, "Padly")
         self.assertContains(response, "Terms of Service")
         self.assertContains(response, "Privacy Policy")
+        self.assertContains(response, 'class="landing-page-body"')
 
     def test_root_page_includes_padly_favicon(self):
         response = self.client.get(reverse("core:landing"))
@@ -27,11 +30,10 @@ class CorePageTests(TestCase):
         self.assertContains(response, 'action="%s"' % reverse("listings:listing_list"))
         self.assertContains(response, 'name="q"')
 
-    def test_landing_page_uses_full_page_photo_backdrop(self):
-        response = self.client.get(reverse("core:landing"))
+    def test_landing_background_asset_exists(self):
+        landing_background = Path(settings.BASE_DIR / "static" / "images" / "landing.jpg")
 
-        self.assertContains(response, "home-page-backdrop")
-        self.assertContains(response, "home-section-feature")
+        self.assertTrue(landing_background.exists())
 
     def test_landing_page_shows_live_listing_preview(self):
         user = get_user_model().objects.create_user(username="owner", email="owner@bc.edu", password="pass12345")
