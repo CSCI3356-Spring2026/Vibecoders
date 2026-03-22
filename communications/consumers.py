@@ -1,9 +1,16 @@
+from asgiref.sync import sync_to_async
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from django.core.exceptions import ValidationError
 
-from .selectors import accessible_conversations_for_user
-from .services import mark_conversation_read, send_listing_message, user_messages_group_name
+from .models import ListingConversation
+from .services import (
+    MESSAGE_SEND_RATE_LIMIT_ERROR,
+    consume_message_send_rate_limit,
+    mark_conversation_read,
+    send_listing_message,
+    user_messages_group_name,
+)
 
 
 class MessagesConsumer(AsyncJsonWebsocketConsumer):
@@ -51,6 +58,9 @@ class MessagesConsumer(AsyncJsonWebsocketConsumer):
         if not isinstance(conversation_id, int):
             await self.send_json({"type": "error", "message": "A valid conversation id is required."})
             return
+        if not await self._consume_send_rate_limit():
+            await self.send_json({"type": "error", "message": MESSAGE_SEND_RATE_LIMIT_ERROR})
+            return
 
         body = content.get("body", "")
         try:
@@ -78,7 +88,7 @@ class MessagesConsumer(AsyncJsonWebsocketConsumer):
 
     @database_sync_to_async
     def _send_message(self, conversation_id, body):
-        conversation = accessible_conversations_for_user(self.user).filter(id=conversation_id).first()
+        conversation = ListingConversation.objects.visible_to(self.user).only("id").filter(id=conversation_id).first()
         if conversation is None:
             return False
         send_listing_message(conversation, self.user, body)
@@ -86,7 +96,7 @@ class MessagesConsumer(AsyncJsonWebsocketConsumer):
 
     @database_sync_to_async
     def _mark_read(self, conversation_id):
-        conversation = accessible_conversations_for_user(self.user).filter(id=conversation_id).first()
+        conversation = ListingConversation.objects.visible_to(self.user).only("id").filter(id=conversation_id).first()
         if conversation is None:
             return False
         mark_conversation_read(conversation, self.user)
@@ -95,3 +105,7 @@ class MessagesConsumer(AsyncJsonWebsocketConsumer):
     @database_sync_to_async
     def _user_is_active(self):
         return self.user.__class__._default_manager.filter(pk=self.user.pk, is_active=True).exists()
+
+    @sync_to_async
+    def _consume_send_rate_limit(self):
+        return consume_message_send_rate_limit(self.user)

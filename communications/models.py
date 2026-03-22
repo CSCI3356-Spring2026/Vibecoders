@@ -19,12 +19,16 @@ def normalize_message_body(body):
 
 class ListingConversationQuerySet(models.QuerySet):
     def with_related(self):
-        return self.select_related("listing", "owner", "participant")
+        return self.select_related("listing", "owner", "participant").prefetch_related(
+            "listing__images",
+            "owner__socialaccount_set",
+            "participant__socialaccount_set",
+        )
 
     def visible_to(self, user):
         if not getattr(user, "is_authenticated", False):
             return self.none()
-        return self.with_related().filter(
+        return self.filter(
             Q(owner=user, owner_deleted_at__isnull=True) | Q(participant=user, participant_deleted_at__isnull=True)
         )
 

@@ -1,9 +1,14 @@
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 
+from core.rate_limits import consume_rate_limit
+
 from .models import ListingConversation
+
+MESSAGE_SEND_RATE_LIMIT_ERROR = "Too many messages sent too quickly. Wait a minute and try again."
 
 
 def user_messages_group_name(user_id):
@@ -36,6 +41,8 @@ def get_or_create_listing_conversation(listing, participant):
 def _validate_listing_conversation_participant(listing, participant):
     if not getattr(participant, "is_authenticated", False) or not getattr(participant, "is_active", False):
         raise ValidationError({"body": "Active account access is required to message about listings."})
+    if not type(listing).objects.public().filter(pk=listing.pk).exists():
+        raise ValidationError({"body": "This listing is no longer accepting new messages."})
     if participant.id == listing.owner_id:
         raise ValidationError({"body": "You cannot message yourself about your own listing."})
     if not getattr(participant, "can_start_listing_conversations", False):
@@ -57,7 +64,20 @@ def _summary_delta(conversation_delta=0, unread_delta=0):
 
 
 def _profile_image_url(user):
-    return getattr(user, "profile_image_url", "") or ""
+    return getattr(user, "avatar_url", "") or ""
+
+
+def consume_message_send_rate_limit(user):
+    user_id = getattr(user, "id", None)
+    if not user_id:
+        return False
+
+    return consume_rate_limit(
+        scope="message-send",
+        identifier=str(user_id),
+        limit=getattr(settings, "MESSAGE_SEND_RATE_LIMIT", 20),
+        window_seconds=getattr(settings, "MESSAGE_SEND_RATE_WINDOW_SECONDS", 60),
+    )
 
 
 def serialize_conversation_for_user(conversation, user):
@@ -72,7 +92,7 @@ def serialize_conversation_for_user(conversation, user):
         "listing_price": str(conversation.listing.price),
         "listing_status": conversation.listing.get_status_display(),
         "listing_image_url": _listing_image_url(conversation),
-        "counterparty_name": counterparty.get_full_name() or counterparty.username,
+        "counterparty_name": counterparty.display_name,
         "counterparty_avatar_url": _profile_image_url(counterparty),
         "counterparty_role_label": conversation.counterparty_role_label_for(user),
         "last_message_at": conversation.last_message_at.isoformat(),
@@ -87,7 +107,7 @@ def serialize_message(message):
         "id": message.id,
         "conversation_id": message.conversation_id,
         "sender_id": sender.id,
-        "sender_name": sender.get_full_name() or sender.username,
+        "sender_name": sender.display_name,
         "sender_avatar_url": _profile_image_url(sender),
         "body": message.body,
         "created_at": message.created_at.isoformat(),
@@ -128,7 +148,7 @@ def publish_conversation_read(conversation, user, *, unread_delta=0):
 def mark_conversation_read(conversation, user):
     changed = False
     with transaction.atomic():
-        locked_conversation = ListingConversation.objects.select_for_update().get(pk=conversation.pk)
+        locked_conversation = ListingConversation.objects.with_related().select_for_update().get(pk=conversation.pk)
         changed = locked_conversation.mark_read_for(user)
         if changed:
             transaction.on_commit(lambda: publish_conversation_read(locked_conversation, user, unread_delta=-1))
@@ -197,7 +217,7 @@ def _send_listing_message_locked(conversation, sender, body, *, conversation_cre
 
 def send_listing_message(conversation, sender, body, *, conversation_created=False):
     with transaction.atomic():
-        locked_conversation = ListingConversation.objects.select_for_update().get(pk=conversation.pk)
+        locked_conversation = ListingConversation.objects.with_related().select_for_update().get(pk=conversation.pk)
         message = _send_listing_message_locked(
             locked_conversation,
             sender,
@@ -211,7 +231,7 @@ def start_listing_conversation(listing, participant, body):
     _validate_listing_conversation_participant(listing, participant)
     with transaction.atomic():
         conversation, created = get_or_create_listing_conversation(listing, participant)
-        locked_conversation = ListingConversation.objects.select_for_update().get(pk=conversation.pk)
+        locked_conversation = ListingConversation.objects.with_related().select_for_update().get(pk=conversation.pk)
         message = _send_listing_message_locked(
             locked_conversation,
             participant,
