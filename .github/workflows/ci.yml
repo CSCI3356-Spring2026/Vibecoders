@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   test:
-    name: Django Checks & Tests
+    name: Test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
