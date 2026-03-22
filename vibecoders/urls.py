@@ -1,7 +1,7 @@
 from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
+from django.views.static import serve
 
 from users import views as user_views
 
@@ -17,4 +17,12 @@ urlpatterns = [
 ]
 
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Listing images need a simple dev-time media route, but private user uploads must stay behind
+    # authenticated preview/download views instead of being served directly.
+    urlpatterns += [
+        path(
+            "media/listing_photos/<path:path>",
+            serve,
+            {"document_root": settings.MEDIA_ROOT / "listing_photos"},
+        )
+    ]
