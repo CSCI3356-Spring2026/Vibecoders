@@ -118,7 +118,8 @@ class UserFilesViewTests(TestCase):
                 stored_name = user_file.file.name
                 self.assertTrue(user_file.file.storage.exists(stored_name))
 
-                response = self.client.post(reverse("users:file_delete", args=[user_file.id]))
+                with self.captureOnCommitCallbacks(execute=True):
+                    response = self.client.post(reverse("users:file_delete", args=[user_file.id]))
 
                 self.assertEqual(response.status_code, 302)
                 self.assertFalse(user_file.file.storage.exists(stored_name))
@@ -134,6 +135,34 @@ class UserFilesViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Upload a PDF, image, text file, DOC, or DOCX file.")
         self.assertFalse(UserFile.objects.filter(owner=self.user, title="Bad").exists())
+
+    def test_upload_rejects_invalid_pdf_content(self):
+        self.client.force_login(self.user)
+        upload = SimpleUploadedFile("lease.pdf", b"not actually a pdf", content_type="application/pdf")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                response = self.client.post(reverse("users:files"), {"title": "Bad PDF", "file": upload}, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Upload a valid PDF file.")
+        self.assertFalse(UserFile.objects.filter(owner=self.user, title="Bad PDF").exists())
+
+    def test_upload_rejects_invalid_image_content(self):
+        self.client.force_login(self.user)
+        upload = SimpleUploadedFile("avatar.png", b"not an image", content_type="image/png")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                response = self.client.post(
+                    reverse("users:files"),
+                    {"title": "Bad Image", "file": upload},
+                    follow=True,
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Upload a valid image file.")
+        self.assertFalse(UserFile.objects.filter(owner=self.user, title="Bad Image").exists())
 
     def test_owner_can_preview_file_through_authenticated_view(self):
         self.client.force_login(self.user)
@@ -151,6 +180,7 @@ class UserFilesViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["X-Frame-Options"], "SAMEORIGIN")
         self.assertEqual(response["Cache-Control"], "private, no-store")
+        self.assertEqual(response["X-Content-Type-Options"], "nosniff")
 
     def test_other_user_cannot_preview_private_file(self):
         other_user = User.objects.create_user(username="other", email="other@bc.edu", password="test")
@@ -165,6 +195,21 @@ class UserFilesViewTests(TestCase):
 
                 self.client.force_login(other_user)
                 response = self.client.get(reverse("users:file_preview", args=[user_file.id]))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_private_file_is_not_served_from_raw_media_url(self):
+        self.client.force_login(self.user)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                user_file = UserFile.objects.create(
+                    owner=self.user,
+                    title="Lease",
+                    file=SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain"),
+                )
+
+                response = self.client.get(user_file.file.url)
 
         self.assertEqual(response.status_code, 404)
 
@@ -199,3 +244,4 @@ class UserFilesViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Cache-Control"], "private, no-store")
+        self.assertEqual(response["X-Content-Type-Options"], "nosniff")

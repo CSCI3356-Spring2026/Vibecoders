@@ -5,12 +5,12 @@ from allauth.socialaccount.models import SocialAccount
 
 def _is_allowed_profile_image_url(url):
     parsed = urlparse(url)
-    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+    return parsed.scheme == "https" and bool(parsed.netloc)
 
 
 def profile_image_url_from_data(data):
     payload = data or {}
-    for key in ("picture", "picture_url", "avatar_url"):
+    for key in ("picture", "picture_url", "avatar_url", "image_url", "photo"):
         value = (payload.get(key) or "").strip()
         if value and _is_allowed_profile_image_url(value):
             return value

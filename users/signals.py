@@ -6,12 +6,16 @@ from django.dispatch import receiver
 from .legal import get_pending_legal_acceptance, persist_legal_acceptance_for_user
 from .models import AdminProfile, Role, StudentProfile
 from .profile_images import sync_profile_image_for_user
+from .session_security import mark_recent_auth
 
 User = get_user_model()
 
 
 @receiver(user_logged_in)
 def persist_login_legal_acceptance(sender, request, user, **kwargs):
+    request_path = getattr(request, "path", "") or ""
+    if request_path.startswith("/accounts/"):
+        mark_recent_auth(request)
     payload = get_pending_legal_acceptance(request)
     if payload is None:
         sync_profile_image_for_user(user)

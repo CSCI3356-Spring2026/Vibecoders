@@ -1,11 +1,13 @@
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth.signals import user_logged_in
+from django.db import IntegrityError
 from django.test import TestCase
 from django.test.client import RequestFactory
 from django.utils import timezone
 
 from ..legal import set_pending_legal_acceptance
 from ..models import AdminProfile, Role, StudentProfile
+from ..session_security import RECENT_AUTH_SESSION_KEY, get_recent_auth_at
 from .helpers import User, add_middleware
 
 
@@ -99,6 +101,12 @@ class CustomUserModelTests(TestCase):
 
         self.assertEqual(user.role, Role.ADMIN)
 
+    def test_database_constraint_rejects_invalid_role_updates(self):
+        user = User.objects.create_user(username="stu", email="stu@bc.edu", password="test")
+
+        with self.assertRaises(IntegrityError):
+            User.objects.filter(pk=user.pk).update(role="broken")
+
     def test_student_and_admin_profiles_are_created_for_matching_roles(self):
         student = User.objects.create_user(username="stu", email="stu@bc.edu", password="test")
         admin = User.objects.create_user(username="adm", email="adm@bc.edu", password="test", role=Role.ADMIN)
@@ -122,6 +130,49 @@ class CustomUserModelTests(TestCase):
 
         self.assertEqual(str(user), "eagle (Student)")
 
+    def test_google_avatar_url_uses_google_socialaccount_picture(self):
+        user = User.objects.create_user(username="eagle", email="eagle@bc.edu", password="test")
+        SocialAccount.objects.create(
+            user=user,
+            provider="google",
+            uid="google-eagle",
+            extra_data={"picture": "https://example.com/avatar.png"},
+        )
+
+        self.assertEqual(user.google_avatar_url, "https://example.com/avatar.png")
+
+    def test_google_avatar_url_rejects_non_http_values(self):
+        user = User.objects.create_user(username="eagle", email="eagle@bc.edu", password="test")
+        SocialAccount.objects.create(
+            user=user,
+            provider="google",
+            uid="google-unsafe-avatar",
+            extra_data={"picture": "javascript:alert('xss')"},
+        )
+
+        self.assertEqual(user.google_avatar_url, "")
+
+    def test_google_avatar_url_rejects_http_values(self):
+        user = User.objects.create_user(username="eagle", email="eagle@bc.edu", password="test")
+        SocialAccount.objects.create(
+            user=user,
+            provider="google",
+            uid="google-http-avatar",
+            extra_data={"picture": "http://example.com/avatar.png"},
+        )
+
+        self.assertEqual(user.google_avatar_url, "")
+
+    def test_avatar_url_falls_back_to_profile_image_url(self):
+        user = User.objects.create_user(
+            username="eagle",
+            email="eagle@bc.edu",
+            password="test",
+            profile_image_url="https://example.com/fallback-avatar.jpg",
+        )
+
+        self.assertEqual(user.avatar_url, "https://example.com/fallback-avatar.jpg")
+
     def test_legal_acceptance_is_persisted_on_login(self):
         user = User.objects.create_user(username="eagle", email="eagle@bc.edu", password="test")
         request = add_middleware(RequestFactory().get("/accounts/google/login/"))
@@ -133,6 +184,8 @@ class CustomUserModelTests(TestCase):
         self.assertIsNotNone(user.terms_accepted_at)
         self.assertIsNotNone(user.privacy_accepted_at)
         self.assertTrue(user.has_current_legal_acceptance)
+        self.assertIn(RECENT_AUTH_SESSION_KEY, request.session)
+        self.assertIsNotNone(get_recent_auth_at(request))
 
     def test_google_profile_image_is_synced_on_login(self):
         user = User.objects.create_user(username="eagle", email="eagle@bc.edu", password="test")
