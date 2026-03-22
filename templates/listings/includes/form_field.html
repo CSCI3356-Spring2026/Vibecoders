@@ -1,0 +1,10 @@
+<div class="{{ wrapper_class|default:'col-12' }}">
+    <label class="form-label fw-semibold" for="{{ field.id_for_label }}">{{ label|default:field.label }}</label>
+    {{ field }}
+    {% if hint %}
+        <p class="app-field-note">{{ hint }}</p>
+    {% endif %}
+    {% for error in field.errors %}
+        <div class="app-field-error">{{ error }}</div>
+    {% endfor %}
+</div>

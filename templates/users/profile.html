@@ -8,10 +8,13 @@
         <div class="app-shell">
             <div class="app-header app-header-shell">
                 <div class="app-header-main">
-                    <div>
-                        <p class="app-kicker">Profile</p>
-                        <h1 class="app-title">{{ request.user.get_full_name|default:request.user.username }}</h1>
-                        <p class="app-subtitle">{{ request.user.email|default:"No email on file" }}</p>
+                    <div class="d-flex align-items-center gap-3">
+                        {% include "includes/user_avatar.html" with user=request.user size_class="user-avatar-lg" %}
+                        <div>
+                            <p class="app-kicker">Profile</p>
+                            <h1 class="app-title">{{ request.user.get_full_name|default:request.user.username }}</h1>
+                            <p class="app-subtitle">{{ request.user.email|default:"No email on file" }}</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -89,6 +92,27 @@
                             <span class="app-compact-title">Create listings</span>
                             <span class="app-compact-meta">Allowed</span>
                         </div>
+                    </div>
+                </div>
+
+                <div class="listing-panel">
+                    <div class="app-panel-head">
+                        <div>
+                            <h2 class="app-section-heading">Account</h2>
+                            <p class="app-panel-copy">Manage this account.</p>
+                        </div>
+                    </div>
+
+                    <div class="app-compact-list">
+                        <div class="app-compact-item app-compact-item-static">
+                            <span class="app-compact-title">Delete account</span>
+                            <span class="app-compact-meta">This removes your profile, listings, files, and conversations.</span>
+                        </div>
+                    </div>
+
+                    <div class="app-actions mt-3">
+                        {% url 'users:delete_account' as delete_account_url %}
+                        {% include "includes/inline_confirm.html" with trigger_label="Delete account" prompt_text="Delete your account?" action_url=delete_account_url confirm_label="Confirm delete" %}
                     </div>
                 </div>
             </div>

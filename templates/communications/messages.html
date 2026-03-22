@@ -63,13 +63,9 @@
                                     href="{% url 'communications:detail' conversation.id %}"
                                     data-conversation-id="{{ conversation.id }}"
                                 >
-                                    <div class="messages-list-row">
+                                        <div class="messages-list-row">
                                         <div class="messages-list-media" data-role="conversation-media">
-                                            {% if conversation.ui_listing_image %}
-                                                <img src="{{ conversation.ui_listing_image.versioned_url }}" alt="{{ conversation.listing.title }}">
-                                            {% else %}
-                                                <span class="messages-list-avatar" aria-hidden="true">{{ conversation.ui_counterparty_name|slice:":1"|upper }}</span>
-                                            {% endif %}
+                                            {% include "includes/user_avatar.html" with user=conversation.ui_counterparty size_class="user-avatar-md" extra_class="messages-list-user-avatar" %}
                                         </div>
                                         <div class="messages-list-main">
                                             <div class="messages-list-topline">
@@ -101,7 +97,7 @@
                     {% if selected_conversation %}
                         <div class="messages-thread-toolbar">
                             <div class="messages-thread-party">
-                                <span class="messages-thread-avatar" aria-hidden="true">{{ selected_conversation.ui_counterparty_name|slice:":1"|upper }}</span>
+                                {% include "includes/user_avatar.html" with user=selected_conversation.ui_counterparty size_class="user-avatar-md" extra_class="messages-thread-user-avatar" %}
                                 <div class="messages-thread-toolbar-main">
                                     <p class="app-kicker mb-0">Conversation</p>
                                     <h2 class="messages-thread-title">{{ selected_conversation.ui_counterparty_name }}</h2>
@@ -115,6 +111,8 @@
                             <div class="messages-thread-toolbar-actions">
                                 <span class="app-meta-chip messages-status-chip is-connecting" data-message-connection>Connecting…</span>
                                 <a class="btn btn-outline-secondary" href="{% url 'listings:detail' selected_conversation.listing.id %}">View listing</a>
+                                {% url 'communications:delete_conversation' selected_conversation.id as delete_conversation_url %}
+                                {% include "includes/inline_confirm.html" with trigger_label="Delete thread" prompt_text="Delete this thread?" action_url=delete_conversation_url trigger_button_class="btn btn-outline-danger" confirm_label="Confirm delete" %}
                             </div>
                         </div>
 
@@ -142,12 +140,17 @@
                         <div class="messages-thread-panel">
                             <div class="messages-thread" data-message-thread>
                                 {% for message in thread_messages %}
-                                    <div class="message-bubble{% if message.sender_id == request.user.id %} is-outbound{% else %} is-inbound{% endif %}" data-message-id="{{ message.id }}">
-                                        <div class="message-bubble-meta">
-                                            <span>{{ message.sender.get_full_name|default:message.sender.username }}</span>
-                                            <span>{{ message.created_at|date:"M d, Y g:i A" }}</span>
+                                    <div class="message-row{% if message.sender_id == request.user.id %} is-outbound{% else %} is-inbound{% endif %}" data-message-id="{{ message.id }}">
+                                        {% include "includes/user_avatar.html" with user=message.sender size_class="user-avatar-sm" extra_class="message-avatar" %}
+                                        <div class="message-bubble-stack">
+                                            <div class="message-bubble-meta">
+                                                <span class="message-sender-name">{% if message.sender_id == request.user.id %}You{% else %}{{ message.sender.get_full_name|default:message.sender.username }}{% endif %}</span>
+                                                <span class="message-timestamp">{{ message.created_at|date:"M d, Y g:i A" }}</span>
+                                            </div>
+                                            <div class="message-bubble{% if message.sender_id == request.user.id %} is-outbound{% else %} is-inbound{% endif %}">
+                                                <div class="message-bubble-body">{{ message.body|linebreaksbr }}</div>
+                                            </div>
                                         </div>
-                                        <div class="message-bubble-body">{{ message.body|linebreaksbr }}</div>
                                     </div>
                                 {% endfor %}
                             </div>

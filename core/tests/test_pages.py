@@ -27,8 +27,16 @@ class CorePageTests(TestCase):
         self.assertContains(response, 'action="%s"' % reverse("listings:listing_list"))
         self.assertContains(response, 'name="q"')
 
+    def test_landing_page_uses_full_page_photo_backdrop(self):
+        response = self.client.get(reverse("core:landing"))
+
+        self.assertContains(response, "home-page-backdrop")
+        self.assertContains(response, "home-section-feature")
+
     def test_landing_page_shows_live_listing_preview(self):
         user = get_user_model().objects.create_user(username="owner", email="owner@bc.edu", password="pass12345")
+        user.profile_image_url = "https://example.com/owner-avatar.jpg"
+        user.save(update_fields=["profile_image_url"])
         user.listings.create(
             title="Beacon Street apartment",
             address="1731 Beacon St",
@@ -42,6 +50,7 @@ class CorePageTests(TestCase):
 
         self.assertContains(response, "Beacon Street apartment")
         self.assertContains(response, "$1800/mo")
+        self.assertContains(response, "https://example.com/owner-avatar.jpg")
 
     def test_realtor_landing_only_surfaces_owned_listings(self):
         realtor = get_user_model().objects.create_user(username="agent", email="agent@gmail.com", password="pass12345")

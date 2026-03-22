@@ -8,6 +8,7 @@ from django.test.utils import override_settings
 from PIL import Image
 
 from communications.models import ListingConversation, ListingMessage
+from communications.services import delete_conversation_for_user
 
 from ..models import Listing
 from ..sample_data import (
@@ -89,3 +90,22 @@ class SeedDemoListingsCommandTests(TestCase):
                     "listing_photos/cleveland-circle-2br.jpg",
                 )
                 self.assertFalse(old_path.exists())
+
+    def test_command_restores_deleted_demo_conversations(self):
+        with TemporaryDirectory() as temp_dir:
+            media_root = Path(temp_dir)
+            self._create_demo_source_images(media_root)
+
+            with override_settings(MEDIA_ROOT=media_root):
+                call_command("seed_demo_listings", stdout=StringIO())
+
+                conversation = ListingConversation.objects.first()
+                delete_conversation_for_user(conversation, conversation.participant)
+                conversation.refresh_from_db()
+                self.assertIsNotNone(conversation.participant_deleted_at)
+
+                call_command("seed_demo_listings", stdout=StringIO())
+
+                conversation.refresh_from_db()
+                self.assertIsNone(conversation.owner_deleted_at)
+                self.assertIsNone(conversation.participant_deleted_at)

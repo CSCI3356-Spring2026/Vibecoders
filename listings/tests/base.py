@@ -19,6 +19,7 @@ class ListingTestCase(TestCase):
             "start_date": date(2026, 9, 1),
             "end_date": date(2027, 5, 31),
             "property_type": "apartment",
+            "description": "Sunny place near campus.",
         }
         payload.update(overrides)
         return self.user.listings.create(**payload)

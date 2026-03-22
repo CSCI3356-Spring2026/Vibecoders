@@ -33,6 +33,15 @@ def get_or_create_listing_conversation(listing, participant):
     return conversation, created
 
 
+def _validate_listing_conversation_participant(listing, participant):
+    if not getattr(participant, "is_authenticated", False) or not getattr(participant, "is_active", False):
+        raise ValidationError({"body": "Active account access is required to message about listings."})
+    if participant.id == listing.owner_id:
+        raise ValidationError({"body": "You cannot message yourself about your own listing."})
+    if not getattr(participant, "can_start_listing_conversations", False):
+        raise ValidationError({"body": "Verified student access is required to message about listings."})
+
+
 def _listing_image_url(conversation):
     primary_image = conversation.listing.primary_image
     if primary_image and primary_image.image:
@@ -45,6 +54,10 @@ def _summary_delta(conversation_delta=0, unread_delta=0):
         "conversation_delta": conversation_delta,
         "unread_delta": unread_delta,
     }
+
+
+def _profile_image_url(user):
+    return getattr(user, "profile_image_url", "") or ""
 
 
 def serialize_conversation_for_user(conversation, user):
@@ -60,6 +73,7 @@ def serialize_conversation_for_user(conversation, user):
         "listing_status": conversation.listing.get_status_display(),
         "listing_image_url": _listing_image_url(conversation),
         "counterparty_name": counterparty.get_full_name() or counterparty.username,
+        "counterparty_avatar_url": _profile_image_url(counterparty),
         "counterparty_role_label": conversation.counterparty_role_label_for(user),
         "last_message_at": conversation.last_message_at.isoformat(),
         "last_message_preview": conversation.last_message_preview,
@@ -74,17 +88,19 @@ def serialize_message(message):
         "conversation_id": message.conversation_id,
         "sender_id": sender.id,
         "sender_name": sender.get_full_name() or sender.username,
+        "sender_avatar_url": _profile_image_url(sender),
         "body": message.body,
         "created_at": message.created_at.isoformat(),
     }
 
 
-def publish_conversation_message(message, *, conversation_created=False, unread_deltas=None):
+def publish_conversation_message(message, *, summary_deltas=None):
     conversation = message.conversation
     recipients = (conversation.owner, conversation.participant)
     serialized_message = serialize_message(message)
-    unread_deltas = unread_deltas or {}
+    summary_deltas = summary_deltas or {}
     for recipient in recipients:
+        summary = summary_deltas.get(recipient.id, _summary_delta())
         _publish_to_user_group(
             recipient.id,
             {
@@ -92,10 +108,7 @@ def publish_conversation_message(message, *, conversation_created=False, unread_
                 "event": "message.created",
                 "conversation": serialize_conversation_for_user(conversation, recipient),
                 "message": serialized_message,
-                "summary": _summary_delta(
-                    conversation_delta=1 if conversation_created else 0,
-                    unread_delta=unread_deltas.get(recipient.id, 0),
-                ),
+                "summary": summary,
             },
         )
 
@@ -122,33 +135,61 @@ def mark_conversation_read(conversation, user):
     return changed
 
 
-def _message_unread_deltas(conversation, sender_id, owner_had_unread, participant_had_unread):
+def _message_summary_deltas(
+    conversation,
+    sender_id,
+    owner_had_unread,
+    participant_had_unread,
+    owner_was_deleted,
+    participant_was_deleted,
+    *,
+    conversation_created=False,
+):
+    owner_conversation_delta = 1 if conversation_created or owner_was_deleted else 0
+    participant_conversation_delta = 1 if conversation_created or participant_was_deleted else 0
+
     if sender_id == conversation.owner_id:
         return {
-            conversation.owner_id: -1 if owner_had_unread else 0,
-            conversation.participant_id: 1 if not participant_had_unread else 0,
+            conversation.owner_id: _summary_delta(
+                conversation_delta=owner_conversation_delta,
+                unread_delta=-1 if owner_had_unread else 0,
+            ),
+            conversation.participant_id: _summary_delta(
+                conversation_delta=participant_conversation_delta,
+                unread_delta=1 if not participant_had_unread else 0,
+            ),
         }
     return {
-        conversation.owner_id: 1 if not owner_had_unread else 0,
-        conversation.participant_id: -1 if participant_had_unread else 0,
+        conversation.owner_id: _summary_delta(
+            conversation_delta=owner_conversation_delta,
+            unread_delta=1 if not owner_had_unread else 0,
+        ),
+        conversation.participant_id: _summary_delta(
+            conversation_delta=participant_conversation_delta,
+            unread_delta=-1 if participant_had_unread else 0,
+        ),
     }
 
 
 def _send_listing_message_locked(conversation, sender, body, *, conversation_created=False):
     owner_had_unread = conversation.owner_has_unread_messages
     participant_had_unread = conversation.participant_has_unread_messages
+    owner_was_deleted = conversation.owner_deleted_at is not None
+    participant_was_deleted = conversation.participant_deleted_at is not None
     message = conversation.add_message(sender=sender, body=body)
-    unread_deltas = _message_unread_deltas(
+    summary_deltas = _message_summary_deltas(
         conversation,
         sender.id,
         owner_had_unread,
         participant_had_unread,
+        owner_was_deleted,
+        participant_was_deleted,
+        conversation_created=conversation_created,
     )
     transaction.on_commit(
         lambda: publish_conversation_message(
             message,
-            conversation_created=conversation_created,
-            unread_deltas=unread_deltas,
+            summary_deltas=summary_deltas,
         )
     )
     return message
@@ -167,6 +208,7 @@ def send_listing_message(conversation, sender, body, *, conversation_created=Fal
 
 
 def start_listing_conversation(listing, participant, body):
+    _validate_listing_conversation_participant(listing, participant)
     with transaction.atomic():
         conversation, created = get_or_create_listing_conversation(listing, participant)
         locked_conversation = ListingConversation.objects.select_for_update().get(pk=conversation.pk)
@@ -177,3 +219,9 @@ def start_listing_conversation(listing, participant, body):
             conversation_created=created,
         )
     return locked_conversation, message, created
+
+
+def delete_conversation_for_user(conversation, user):
+    with transaction.atomic():
+        locked_conversation = ListingConversation.objects.select_for_update().get(pk=conversation.pk)
+        return locked_conversation.delete_for(user)

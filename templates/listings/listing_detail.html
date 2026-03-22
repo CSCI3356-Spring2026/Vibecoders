@@ -17,6 +17,9 @@
                     </div>
                     <div class="app-price-block">
                         <div class="listing-detail-price">${{ listing.price|floatformat:0 }}/month</div>
+                        {% if listing.utilities_estimate or listing.parking_fee %}
+                            <div class="listing-card-summary">Est. total ${{ listing.estimated_monthly_total|floatformat:0 }}/month including monthly extras</div>
+                        {% endif %}
                         <div class="listing-detail-meta">
                             <span class="listing-lease">{{ listing.get_lease_type_display }}</span>
                             <span class="listing-card-status {% if listing.status == 'AVAILABLE' %}is-available{% elif listing.status == 'PENDING' %}is-pending{% else %}is-taken{% endif %}">{{ listing.get_status_display }}</span>
@@ -78,9 +81,14 @@
                                 <span class="app-compact-meta">{{ listing.end_date }}</span>
                             </div>
                             <div class="app-compact-item app-compact-item-static">
-                                <span class="app-compact-title">Posted by</span>
-                                <span class="app-compact-meta">{{ listing.owner.get_full_name|default:listing.owner.email }}</span>
+                                {% include "listings/includes/owner_meta.html" with listing=listing size_class="user-avatar-md" expanded=True show_role=True %}
                             </div>
+                            {% if listing.distance_to_campus %}
+                                <div class="app-compact-item app-compact-item-static">
+                                    <span class="app-compact-title">Distance to campus</span>
+                                    <span class="app-compact-meta">{{ listing.distance_to_campus }} mi</span>
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
 
@@ -100,6 +108,40 @@
 
                         <div class="app-compact-list">
                             <div class="app-compact-item app-compact-item-static">
+                                <span class="app-compact-title">Base rent</span>
+                                <span class="app-compact-meta">${{ listing.price|floatformat:0 }}/month</span>
+                            </div>
+                            {% if listing.utilities_estimate %}
+                                <div class="app-compact-item app-compact-item-static">
+                                    <span class="app-compact-title">Utilities estimate</span>
+                                    <span class="app-compact-meta">${{ listing.utilities_estimate|floatformat:0 }}/month</span>
+                                </div>
+                            {% endif %}
+                            {% if listing.parking_fee %}
+                                <div class="app-compact-item app-compact-item-static">
+                                    <span class="app-compact-title">Parking fee</span>
+                                    <span class="app-compact-meta">${{ listing.parking_fee|floatformat:0 }}/month</span>
+                                </div>
+                            {% endif %}
+                            {% if listing.security_deposit %}
+                                <div class="app-compact-item app-compact-item-static">
+                                    <span class="app-compact-title">Security deposit</span>
+                                    <span class="app-compact-meta">${{ listing.security_deposit|floatformat:0 }}</span>
+                                </div>
+                            {% endif %}
+                            {% if listing.application_fee %}
+                                <div class="app-compact-item app-compact-item-static">
+                                    <span class="app-compact-title">Application fee</span>
+                                    <span class="app-compact-meta">${{ listing.application_fee|floatformat:0 }}</span>
+                                </div>
+                            {% endif %}
+                            {% if listing.utilities_estimate or listing.parking_fee %}
+                                <div class="app-compact-item app-compact-item-static">
+                                    <span class="app-compact-title">Estimated monthly total</span>
+                                    <span class="app-compact-meta">${{ listing.estimated_monthly_total|floatformat:0 }}/month</span>
+                                </div>
+                            {% endif %}
+                            <div class="app-compact-item app-compact-item-static">
                                 <span class="app-compact-title">Utilities</span>
                                 <span class="app-compact-meta">{{ listing.utilities_included|default:"Not listed" }}</span>
                             </div>
@@ -110,6 +152,10 @@
                             <div class="app-compact-item app-compact-item-static">
                                 <span class="app-compact-title">Amenities</span>
                                 <span class="app-compact-meta">{{ listing.amenities|default:"Not listed" }}</span>
+                            </div>
+                            <div class="app-compact-item app-compact-item-static">
+                                <span class="app-compact-title">Security features</span>
+                                <span class="app-compact-meta">{{ listing.security_features|default:"Not listed" }}</span>
                             </div>
                         </div>
                     </div>

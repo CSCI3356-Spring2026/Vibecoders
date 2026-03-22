@@ -1,0 +1,10 @@
+<div class="listing-owner-meta{% if expanded %} is-expanded{% endif %}">
+    {% include "includes/user_avatar.html" with user=listing.owner size_class=size_class|default:"user-avatar-sm" extra_class=avatar_class %}
+    <div class="listing-owner-copy">
+        <span class="listing-owner-label">{{ label|default:"Posted by" }}</span>
+        <span class="listing-owner-name">{{ listing.owner.get_full_name|default:listing.owner.username }}</span>
+        {% if show_role %}
+            <span class="listing-owner-role">{{ listing.owner.display_role }}</span>
+        {% endif %}
+    </div>
+</div>

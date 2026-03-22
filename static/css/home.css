@@ -1,3 +1,55 @@
+.page-home {
+    --home-header-overlap: 5.5rem;
+    background: var(--gray-100);
+}
+
+.page-home .site-shell {
+    background:
+        linear-gradient(
+            180deg,
+            rgba(var(--primary-rgb), 0.18) 0%,
+            rgba(var(--primary-rgb), 0.1) 16%,
+            rgba(var(--white-rgb), 0.04) 34%,
+            rgba(var(--white-rgb), 0.24) 44%,
+            rgba(var(--white-rgb), 0.74) 54%,
+            rgba(var(--gray-100-rgb), 0.96) 62%,
+            rgba(var(--gray-100-rgb), 1) 68%,
+            rgba(var(--gray-100-rgb), 1) 100%
+        ),
+        url("../images/landing-campus.jpg") center top / 100% auto no-repeat,
+        var(--gray-100);
+}
+
+.page-home .site-header {
+    margin-bottom: calc(var(--home-header-overlap) * -1);
+}
+
+.home-page-backdrop {
+    position: relative;
+    overflow: hidden;
+    padding-top: var(--home-header-overlap);
+}
+
+.home-page-backdrop::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: transparent;
+}
+
+.home-page-backdrop::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: transparent;
+    pointer-events: none;
+}
+
+.home-page-backdrop > * {
+    position: relative;
+    z-index: 1;
+}
+
 .home-hero {
     padding: clamp(1.6rem, 3vw, 2.4rem) 0 2rem;
 }
@@ -181,7 +233,6 @@
 }
 
 .home-stage-card-topline,
-.home-stage-card-footer,
 .home-stage-card-specs {
     display: flex;
     align-items: center;
@@ -218,7 +269,6 @@
 }
 
 .home-stage-card-address,
-.home-stage-card-footer,
 .home-stage-empty-copy {
     margin: 0;
     color: var(--text-muted);
@@ -234,8 +284,24 @@
 }
 
 .home-stage-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
     padding-top: 0.35rem;
     border-top: 1px solid rgba(var(--gray-300-rgb), 0.4);
+}
+
+.home-stage-card-owner {
+    min-width: 0;
+}
+
+.home-stage-card-status {
+    display: flex;
+    flex-direction: column;
+    gap: 0.12rem;
+    align-items: flex-end;
+    flex-shrink: 0;
 }
 
 .home-stage-empty {
@@ -260,6 +326,44 @@
 
 .home-section {
     padding: 0 0 2rem;
+}
+
+.home-section-feature {
+    padding: 1.35rem 0 2.3rem;
+    background: transparent;
+}
+
+.home-feature-panel {
+    position: relative;
+    overflow: hidden;
+    padding: 1.35rem;
+    border: 1px solid rgba(var(--gray-300-rgb), 0.72);
+    border-radius: var(--radius-md);
+    background: var(--white);
+}
+
+.home-feature-panel::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: transparent;
+    pointer-events: none;
+}
+
+.home-feature-panel > * {
+    position: relative;
+    z-index: 1;
+}
+
+@media (max-width: 991.98px) {
+    .page-home {
+        --home-header-overlap: 6.35rem;
+    }
+
+    .page-home .site-shell {
+        background-size: auto, 150% auto, auto;
+        background-position: center top, center top, center top;
+    }
 }
 
 .home-section-head {
@@ -287,7 +391,7 @@
 
 .home-listing-grid {
     display: grid;
-    gap: 1rem;
+    gap: 1.1rem;
 }
 
 .home-listing-grid {

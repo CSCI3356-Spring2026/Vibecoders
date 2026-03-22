@@ -147,6 +147,9 @@
                                             {% if listing.description %}
                                                 <p class="listing-card-summary">{{ listing.description|truncatewords:14 }}</p>
                                             {% endif %}
+                                            <div class="listing-card-owner">
+                                                {% include "listings/includes/owner_meta.html" with listing=listing size_class="user-avatar-sm" %}
+                                            </div>
                                         </div>
                                     </a>
                                 {% endfor %}

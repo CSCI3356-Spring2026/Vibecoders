@@ -4,8 +4,9 @@ from urllib.parse import urlencode
 
 from allauth.socialaccount.providers.google import views as google_views
 from django.contrib import messages
+from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -25,7 +26,12 @@ POSTS_PER_PAGE = 12
 
 
 def _files_redirect(request):
-    query_string = request.GET.urlencode()
+    preserved = {}
+    for key in ("page", "q"):
+        value = request.GET.get(key) or request.POST.get(key)
+        if value:
+            preserved[key] = value
+    query_string = urlencode(preserved)
     if not query_string:
         return redirect("users:files")
     return redirect(f"{reverse('users:files')}?{query_string}")
@@ -138,7 +144,14 @@ def dashboard(request):
 @login_required
 def posts(request):
     listings_qs = (
-        request.user.listings.with_related().annotate(conversation_count=Count("conversations")).order_by("-created_at")
+        request.user.listings.with_related()
+        .annotate(
+            conversation_count=Count(
+                "conversations",
+                filter=Q(conversations__owner_deleted_at__isnull=True),
+            )
+        )
+        .order_by("-created_at")
     )
     listings_page = get_page(listings_qs, request.GET.get("page"), POSTS_PER_PAGE)
     context = {
@@ -228,3 +241,13 @@ def delete_file(request, file_id):
     user_file = get_object_or_404(UserFile, id=file_id, owner=request.user)
     user_file.delete()
     return _files_redirect(request)
+
+
+@login_required
+@require_POST
+def delete_account(request):
+    user = request.user
+    logout(request)
+    user.delete()
+    messages.success(request, "Account deleted.")
+    return redirect("core:landing")

@@ -13,7 +13,7 @@ from core.utils import get_page, preserved_query_suffix, safe_next_url
 from listings.models import Listing
 
 from .models import Role
-from .selectors import admin_listings_queryset, admin_users_queryset
+from .selectors import admin_dashboard_metrics, admin_listings_queryset, admin_users_queryset
 
 ADMIN_LISTINGS_PER_PAGE = 20
 ADMIN_USERS_PER_PAGE = 20
@@ -37,17 +37,12 @@ def admin_dashboard(request):
     selected_status = request.GET.get("status", "").strip()
     listings_qs = admin_listings_queryset(query=query, selected_status=selected_status)
 
-    User = get_user_model()
     filtered_listings_count = listings_qs.count()
+    metrics = admin_dashboard_metrics()
     context = {
         "listings": listings_qs[:10],
         "filtered_listings_count": filtered_listings_count,
-        "total_listings": Listing.objects.count(),
-        "pending_listings": Listing.objects.filter(status="PENDING").count(),
-        "approved_listings": Listing.objects.filter(status="AVAILABLE").count(),
-        "student_users": User.objects.filter(role=Role.STUDENT).count(),
-        "realtor_users": User.objects.filter(role=Role.REALTOR).count(),
-        "admin_users_total": User.objects.filter(role=Role.ADMIN).count(),
+        **metrics,
         "total_conversations": ListingConversation.objects.count(),
         "total_messages": ListingMessage.objects.count(),
         "query": query,

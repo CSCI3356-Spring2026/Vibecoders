@@ -24,7 +24,9 @@ class ListingConversationQuerySet(models.QuerySet):
     def visible_to(self, user):
         if not getattr(user, "is_authenticated", False):
             return self.none()
-        return self.with_related().filter(Q(owner=user) | Q(participant=user))
+        return self.with_related().filter(
+            Q(owner=user, owner_deleted_at__isnull=True) | Q(participant=user, participant_deleted_at__isnull=True)
+        )
 
 
 class ListingConversation(models.Model):
@@ -44,6 +46,8 @@ class ListingConversation(models.Model):
     last_message_preview = models.CharField(max_length=MESSAGE_PREVIEW_MAX_LENGTH, blank=True)
     owner_has_unread_messages = models.BooleanField(default=False)
     participant_has_unread_messages = models.BooleanField(default=False)
+    owner_deleted_at = models.DateTimeField(null=True, blank=True)
+    participant_deleted_at = models.DateTimeField(null=True, blank=True)
     objects = ListingConversationQuerySet.as_manager()
 
     class Meta:
@@ -65,6 +69,14 @@ class ListingConversation(models.Model):
             models.Index(
                 fields=["participant", "participant_has_unread_messages", "last_message_at"],
                 name="listing_conv_participant_idx",
+            ),
+            models.Index(
+                fields=["owner", "owner_deleted_at", "last_message_at"],
+                name="list_conv_owner_vis_idx",
+            ),
+            models.Index(
+                fields=["participant", "participant_deleted_at", "last_message_at"],
+                name="list_conv_part_vis_idx",
             ),
         ]
 
@@ -100,6 +112,13 @@ class ListingConversation(models.Model):
             return self.participant_has_unread_messages
         return False
 
+    def is_deleted_for(self, user):
+        if user.id == self.owner_id:
+            return self.owner_deleted_at is not None
+        if user.id == self.participant_id:
+            return self.participant_deleted_at is not None
+        return False
+
     def mark_read_for(self, user):
         if user.id == self.owner_id and self.owner_has_unread_messages:
             self.owner_has_unread_messages = False
@@ -108,6 +127,36 @@ class ListingConversation(models.Model):
         if user.id == self.participant_id and self.participant_has_unread_messages:
             self.participant_has_unread_messages = False
             self.save(update_fields=["participant_has_unread_messages"])
+            return True
+        return False
+
+    def delete_for(self, user):
+        timestamp = timezone.now()
+        update_fields = []
+
+        if user.id == self.owner_id:
+            if self.owner_deleted_at is None:
+                self.owner_deleted_at = timestamp
+                update_fields.append("owner_deleted_at")
+            if self.owner_has_unread_messages:
+                self.owner_has_unread_messages = False
+                update_fields.append("owner_has_unread_messages")
+        elif user.id == self.participant_id:
+            if self.participant_deleted_at is None:
+                self.participant_deleted_at = timestamp
+                update_fields.append("participant_deleted_at")
+            if self.participant_has_unread_messages:
+                self.participant_has_unread_messages = False
+                update_fields.append("participant_has_unread_messages")
+        else:
+            raise ValidationError("Conversation access denied.")
+
+        if self.owner_deleted_at is not None and self.participant_deleted_at is not None:
+            self.delete()
+            return True
+
+        if update_fields:
+            self.save(update_fields=update_fields)
             return True
         return False
 
@@ -121,6 +170,8 @@ class ListingConversation(models.Model):
             message = self.messages.create(sender=sender, body=normalized_body)
             self.last_message_at = message.created_at
             self.last_message_preview = normalized_body[:MESSAGE_PREVIEW_MAX_LENGTH]
+            self.owner_deleted_at = None
+            self.participant_deleted_at = None
             if sender.id == self.owner_id:
                 self.owner_has_unread_messages = False
                 self.participant_has_unread_messages = True
@@ -133,6 +184,8 @@ class ListingConversation(models.Model):
                     "last_message_preview",
                     "owner_has_unread_messages",
                     "participant_has_unread_messages",
+                    "owner_deleted_at",
+                    "participant_deleted_at",
                 ]
             )
         return message

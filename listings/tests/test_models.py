@@ -9,8 +9,15 @@ from django.test.utils import override_settings
 from PIL import Image
 
 from communications.models import ListingConversation
-from communications.services import serialize_conversation_for_user
+from communications.selectors import accessible_conversations_for_user
+from communications.services import (
+    delete_conversation_for_user,
+    send_listing_message,
+    serialize_conversation_for_user,
+    start_listing_conversation,
+)
 
+from ..forms import ListingForm
 from ..models import Listing, ListingImage
 from .base import ListingTestCase
 
@@ -80,6 +87,8 @@ class ListingModelTests(ListingTestCase):
             email="student@bc.edu",
             password="test",
         )
+        self.user.profile_image_url = "https://example.com/owner-avatar.jpg"
+        self.user.save(update_fields=["profile_image_url"])
         listing = self.create_listing()
         conversation = ListingConversation.objects.create(
             listing=listing,
@@ -91,6 +100,7 @@ class ListingModelTests(ListingTestCase):
 
         self.assertNotIn("counterparty_email", payload)
         self.assertEqual(payload["counterparty_name"], listing.owner.username)
+        self.assertEqual(payload["counterparty_avatar_url"], "https://example.com/owner-avatar.jpg")
 
     def test_listing_image_versioned_url_is_exposed_in_conversation_payload(self):
         participant = self.user.__class__.objects.create_user(
@@ -111,3 +121,103 @@ class ListingModelTests(ListingTestCase):
             payload = serialize_conversation_for_user(conversation, participant)
 
         self.assertIn("?v=", payload["listing_image_url"])
+
+    def test_listing_estimated_totals_include_optional_cost_fields(self):
+        listing = self.create_listing(
+            price="1800.00",
+            utilities_estimate="125.00",
+            parking_fee="150.00",
+            security_deposit="1800.00",
+            application_fee="45.00",
+        )
+
+        self.assertEqual(listing.estimated_monthly_total, 2075)
+        self.assertEqual(listing.estimated_upfront_total, 3645)
+
+    def test_listing_form_prepopulates_known_and_other_utilities(self):
+        listing = self.create_listing(utilities_included="Water, WiFi, Heat")
+
+        form = ListingForm(instance=listing)
+
+        self.assertEqual(form.fields["common_utilities"].initial, ["Water", "WiFi"])
+        self.assertEqual(form.fields["other_utilities"].initial, "Heat")
+
+    def test_start_listing_conversation_rejects_listing_only_user(self):
+        listing = self.create_listing()
+        realtor = self.user.__class__.objects.create_user(
+            username="agent",
+            email="agent@gmail.com",
+            password="test",
+        )
+
+        with self.assertRaises(ValidationError) as exc:
+            start_listing_conversation(listing, realtor, "Interested.")
+
+        self.assertIn("Verified student access is required", exc.exception.message_dict["body"][0])
+
+    def test_start_listing_conversation_rejects_owner(self):
+        listing = self.create_listing()
+
+        with self.assertRaises(ValidationError) as exc:
+            start_listing_conversation(listing, listing.owner, "Interested.")
+
+        self.assertIn("You cannot message yourself", exc.exception.message_dict["body"][0])
+
+    def test_deleting_conversation_hides_it_for_one_user_only(self):
+        participant = self.user.__class__.objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="test",
+        )
+        listing = self.create_listing()
+        conversation = ListingConversation.objects.create(
+            listing=listing,
+            owner=listing.owner,
+            participant=participant,
+        )
+
+        deleted = delete_conversation_for_user(conversation, participant)
+        conversation.refresh_from_db()
+
+        self.assertTrue(deleted)
+        self.assertIsNotNone(conversation.participant_deleted_at)
+        self.assertFalse(accessible_conversations_for_user(participant).filter(pk=conversation.pk).exists())
+        self.assertTrue(accessible_conversations_for_user(listing.owner).filter(pk=conversation.pk).exists())
+
+    def test_new_message_restores_deleted_conversation_visibility(self):
+        participant = self.user.__class__.objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="test",
+        )
+        listing = self.create_listing()
+        conversation = ListingConversation.objects.create(
+            listing=listing,
+            owner=listing.owner,
+            participant=participant,
+        )
+        delete_conversation_for_user(conversation, participant)
+
+        send_listing_message(conversation, listing.owner, "Still available.")
+        conversation.refresh_from_db()
+
+        self.assertIsNone(conversation.participant_deleted_at)
+        self.assertTrue(accessible_conversations_for_user(participant).filter(pk=conversation.pk).exists())
+
+    def test_conversation_is_removed_when_both_users_delete_it(self):
+        participant = self.user.__class__.objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="test",
+        )
+        listing = self.create_listing()
+        conversation = ListingConversation.objects.create(
+            listing=listing,
+            owner=listing.owner,
+            participant=participant,
+        )
+
+        delete_conversation_for_user(conversation, participant)
+        delete_conversation_for_user(conversation, listing.owner)
+
+        self.assertFalse(ListingConversation.objects.filter(pk=conversation.pk).exists())

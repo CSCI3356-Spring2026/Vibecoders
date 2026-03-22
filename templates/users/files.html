@@ -81,15 +81,8 @@
                                                 <div class="files-list-meta">Uploaded {{ item.uploaded_at|date:"M d, Y" }}</div>
                                             </a>
                                             <div class="files-list-actions">
-                                                <form
-                                                    method="post"
-                                                    action="{% url 'users:file_delete' item.id %}?page={{ files.number }}{% if query %}&q={{ query }}{% endif %}"
-                                                    class="files-delete-form"
-                                                    onsubmit="return confirm('Delete this file?');"
-                                                >
-                                                    {% csrf_token %}
-                                                    <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
-                                                </form>
+                                                {% url 'users:file_delete' item.id as delete_file_url %}
+                                                {% include "includes/inline_confirm.html" with trigger_label="Delete" prompt_text="Delete this file?" action_url=delete_file_url confirm_label="Confirm delete" extra_hidden_name="page" extra_hidden_value=files.number extra_hidden_name_2="q" extra_hidden_value_2=query %}
                                             </div>
                                         </div>
                                     </div>
