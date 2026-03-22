@@ -1,16 +1,19 @@
 import io
 import tempfile
-from datetime import date
+from datetime import date, timedelta
 
+from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from django.urls import reverse
 from PIL import Image
 
 from communications.models import ListingConversation, ListingMessage
+from users.models import Role
 
-from ..models import ListingImage
+from ..models import Listing, ListingImage
 from .base import ListingTestCase
 
 
@@ -83,6 +86,49 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, visible_listing.title)
         self.assertNotContains(response, "Hidden listing")
 
+    def test_listing_list_omits_taken_and_expired_listings(self):
+        today = date.today()
+        visible_listing = self.create_listing(title="Visible listing")
+        self.create_listing(
+            title="Taken listing",
+            address="200 Beacon St",
+            price="1400.00",
+            lease_type="SUBLEASE",
+            description="Taken",
+            status=Listing.STATUS_TAKEN,
+        )
+        self.create_listing(
+            title="Expired listing",
+            address="300 Beacon St",
+            price="1500.00",
+            lease_type="FULL",
+            description="Expired",
+            start_date=today - timedelta(days=90),
+            end_date=today - timedelta(days=30),
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"))
+
+        self.assertContains(response, visible_listing.title)
+        self.assertNotContains(response, "Taken listing")
+        self.assertNotContains(response, "Expired listing")
+
+    def test_listing_list_shows_owner_avatar_when_available(self):
+        listing = self.create_listing()
+        SocialAccount.objects.create(
+            user=self.user,
+            provider="google",
+            uid="google-owner",
+            extra_data={"picture": "https://example.com/listing-owner.png"},
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"))
+
+        self.assertContains(response, listing.owner.display_name)
+        self.assertContains(response, "https://example.com/listing-owner.png")
+
     def test_listing_list_filters_by_budget_and_lease_type(self):
         affordable_listing = self.create_listing(title="Affordable", price="950.00", lease_type="SUBLEASE")
         self.create_listing(title="Expensive", price="2200.00", lease_type="FULL")
@@ -142,6 +188,17 @@ class ListingPageTests(ListingTestCase):
         response = self.client.get(reverse("listings:create_listing"))
 
         self.assertEqual(response.status_code, 200)
+
+    def test_create_listing_uses_guided_wizard_flow(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:create_listing"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "data-listing-form-wizard")
+        self.assertContains(response, 'data-step-panel="0"')
+        self.assertContains(response, "data-step-next")
+        self.assertContains(response, "Publishing flow")
 
     def test_authenticated_user_can_create_listing(self):
         self.client.force_login(self.user)
@@ -251,6 +308,21 @@ class ListingPageTests(ListingTestCase):
         self.assertEqual(listing.title, "Updated listing")
         self.assertEqual(listing.status, "PENDING")
 
+    def test_listing_detail_shows_owner_avatar_when_available(self):
+        listing = self.create_listing()
+        SocialAccount.objects.create(
+            user=self.user,
+            provider="google",
+            uid="google-owner-detail",
+            extra_data={"picture": "https://example.com/listing-owner-detail.png"},
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:detail", args=[listing.pk]))
+
+        self.assertContains(response, listing.owner.display_name)
+        self.assertContains(response, "https://example.com/listing-owner-detail.png")
+
     def test_edit_listing_rejects_total_image_limit(self):
         listing = self.create_listing()
         self.client.force_login(self.user)
@@ -332,7 +404,8 @@ class ListingPageTests(ListingTestCase):
                 self.assertTrue(listing.images.exists())
                 self.assertTrue(listing_image.image.storage.exists(stored_name))
 
-                response = self.client.post(reverse("listings:delete_listing", args=[listing.pk]))
+                with self.captureOnCommitCallbacks(execute=True):
+                    response = self.client.post(reverse("listings:delete_listing", args=[listing.pk]))
 
                 self.assertEqual(response.status_code, 302)
                 self.assertFalse(listing_image.image.storage.exists(stored_name))
@@ -352,7 +425,7 @@ class ListingPageTests(ListingTestCase):
 
         response = self.client.get(reverse("listings:listing_list"))
 
-        self.assertContains(response, "listing-only account")
+        self.assertContains(response, "This account can manage its own listings only.")
         self.assertContains(response, owned_listing.title)
         self.assertNotContains(response, "Student listing")
 
@@ -364,6 +437,15 @@ class ListingPageTests(ListingTestCase):
         response = self.client.get(reverse("listings:detail", args=[listing.pk]))
 
         self.assertEqual(response.status_code, 404)
+
+    def test_listing_owner_can_view_own_taken_listing_detail(self):
+        listing = self.create_listing(status=Listing.STATUS_TAKEN)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:detail", args=[listing.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, listing.title)
 
     def test_student_can_start_listing_conversation(self):
         student = get_user_model().objects.create_user(username="student", email="student@bc.edu", password="test")
@@ -411,6 +493,29 @@ class ListingPageTests(ListingTestCase):
         conversation.refresh_from_db()
         self.assertEqual(conversation.last_message_preview, "Following up on availability.")
 
+    @override_settings(MESSAGE_SEND_RATE_LIMIT=1, MESSAGE_SEND_RATE_WINDOW_SECONDS=60)
+    def test_student_message_rate_limit_blocks_follow_up_post(self):
+        student = get_user_model().objects.create_user(username="student", email="student@bc.edu", password="test")
+        listing = self.create_listing()
+        self.client.force_login(student)
+        cache.clear()
+
+        first_response = self.client.post(
+            reverse("listings:message_listing", args=[listing.pk]),
+            {"body": "Interested for fall."},
+            follow=False,
+        )
+        second_response = self.client.post(
+            reverse("listings:message_listing", args=[listing.pk]),
+            {"body": "Following up."},
+            follow=True,
+        )
+
+        self.assertEqual(first_response.status_code, 302)
+        self.assertEqual(second_response.status_code, 200)
+        self.assertContains(second_response, "Too many messages sent too quickly. Wait a minute and try again.")
+        self.assertEqual(ListingMessage.objects.count(), 1)
+
     def test_realtor_cannot_start_listing_conversation(self):
         realtor = get_user_model().objects.create_user(username="agent", email="agent@gmail.com", password="test")
         listing = self.create_listing()
@@ -449,6 +554,58 @@ class ListingPageTests(ListingTestCase):
 
         self.assertEqual(response.status_code, 405)
         self.assertTrue(self.user.listings.filter(pk=listing.pk).exists())
+
+    def test_student_cannot_message_taken_listing(self):
+        student = get_user_model().objects.create_user(username="student", email="student@bc.edu", password="test")
+        listing = self.create_listing(status=Listing.STATUS_TAKEN)
+        self.client.force_login(student)
+
+        response = self.client.post(reverse("listings:message_listing", args=[listing.pk]), {"body": "Interested."})
+
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(ListingConversation.objects.exists())
+
+    def test_admin_can_start_listing_conversation_for_public_listing(self):
+        admin = get_user_model().objects.create_user(
+            username="admin",
+            email="admin@bc.edu",
+            password="test",
+            role=Role.ADMIN,
+        )
+        listing = self.create_listing()
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            reverse("listings:message_listing", args=[listing.pk]),
+            {"body": "I need to follow up on this listing."},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(ListingConversation.objects.count(), 1)
+        conversation = ListingConversation.objects.get()
+        self.assertEqual(conversation.participant, admin)
+        self.assertEqual(conversation.listing, listing)
+
+    def test_admin_non_public_listing_post_redirects_with_error_instead_of_404(self):
+        admin = get_user_model().objects.create_user(
+            username="admin",
+            email="admin@bc.edu",
+            password="test",
+            role=Role.ADMIN,
+        )
+        listing = self.create_listing(status=Listing.STATUS_TAKEN)
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            reverse("listings:message_listing", args=[listing.pk]),
+            {"body": "Still available?"},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "This listing is no longer accepting new messages.")
+        self.assertContains(response, "This listing is no longer accepting new conversations.")
+        self.assertFalse(ListingConversation.objects.exists())
 
     def test_listing_owner_sees_conversations_on_detail_page(self):
         listing = self.create_listing()

@@ -7,14 +7,18 @@ from django.views.decorators.http import require_POST
 
 from communications.forms import ConversationMessageForm
 from communications.models import ListingConversation
-from communications.services import start_listing_conversation
+from communications.services import (
+    MESSAGE_SEND_RATE_LIMIT_ERROR,
+    consume_message_send_rate_limit,
+    start_listing_conversation,
+)
 from core.utils import get_page, preserved_query_suffix
 
 from .filtering import MAX_PRICE_FILTERS, MOVE_IN_FILTERS, apply_listing_filters
 from .form_services import handle_listing_form_submission, validation_message
 from .forms import ListingForm
 from .models import Listing
-from .selectors import marketplace_listings_for_user
+from .selectors import accessible_listing_detail_queryset, marketplace_listings_for_user, messageable_listings_for_user
 
 LISTINGS_PER_PAGE = 12
 
@@ -46,7 +50,7 @@ def _listing_form_context(form, *, is_edit, back_url_name, back_label, listing=N
 
 
 def _get_listing_for_user(user, pk):
-    return get_object_or_404(marketplace_listings_for_user(user), pk=pk)
+    return get_object_or_404(accessible_listing_detail_queryset(user), pk=pk)
 
 
 @login_required
@@ -77,24 +81,30 @@ def listing_detail(request, pk):
     owner_conversations = None
     back_url_name, back_label = _workspace_destination(request.user)
     show_owner_conversations = listing.owner_id == request.user.id
+    can_message_listing = (
+        request.user.can_start_listing_conversations
+        and listing.owner_id != request.user.id
+        and listing.is_publicly_active
+    )
 
     if request.user.can_start_listing_conversations and listing.owner_id != request.user.id:
-        existing_conversation = ListingConversation.objects.visible_to(request.user).filter(listing=listing).first()
+        existing_conversation = (
+            ListingConversation.objects.visible_to(request.user).with_related().filter(listing=listing).first()
+        )
         if existing_conversation:
             existing_conversation.ui_has_unread = existing_conversation.has_unread_for(request.user)
-        message_form = ConversationMessageForm()
+        if can_message_listing:
+            message_form = ConversationMessageForm()
 
     if show_owner_conversations:
         owner_conversations = list(
             ListingConversation.objects.visible_to(request.user)
+            .with_related()
             .filter(listing=listing)
-            .select_related("participant")
             .order_by("-last_message_at", "-created_at")[:8]
         )
         for conversation in owner_conversations:
-            conversation.ui_counterparty_name = (
-                conversation.participant.get_full_name() or conversation.participant.username
-            )
+            conversation.ui_counterparty_name = conversation.participant.display_name
             conversation.ui_has_unread = conversation.has_unread_for(request.user)
 
     context = {
@@ -102,6 +112,7 @@ def listing_detail(request, pk):
         "listing_images": listing_images,
         "message_form": message_form,
         "existing_conversation": existing_conversation,
+        "can_message_listing": can_message_listing,
         "owner_conversations": owner_conversations,
         "show_owner_conversations": show_owner_conversations,
         "back_url_name": back_url_name,
@@ -116,9 +127,12 @@ def message_listing(request, pk):
     if not request.user.can_start_listing_conversations:
         return HttpResponseForbidden("Verified student access is required to message about listings.")
 
-    listing = _get_listing_for_user(request.user, pk)
+    listing = get_object_or_404(messageable_listings_for_user(request.user), pk=pk)
     if listing.owner_id == request.user.id:
         messages.error(request, "You cannot message yourself about your own listing.")
+        return redirect("listings:detail", pk=listing.pk)
+    if not consume_message_send_rate_limit(request.user):
+        messages.error(request, MESSAGE_SEND_RATE_LIMIT_ERROR)
         return redirect("listings:detail", pk=listing.pk)
 
     form = ConversationMessageForm(request.POST)
