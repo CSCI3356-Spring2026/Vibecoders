@@ -137,6 +137,9 @@ class ListingForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["images"].widget.attrs.update({"accept": ".jpg,.jpeg,.png,.webp,image/*", "class": "form-control"})
 
+        for field in self.fields.values():
+            field.help_text = ""
+
         for field_name in self.DEFAULTED_FIELDS:
             self.fields[field_name].required = False
             if not self.is_bound:
@@ -282,6 +285,7 @@ class ListingForm(forms.ModelForm):
             ),
             ("Photos", bool(photo_count)),
         ]
+        completed_sections = sum(1 for _, complete in checklist if complete)
 
         return {
             "title": self.preview_value("title") or "New listing",
@@ -304,4 +308,6 @@ class ListingForm(forms.ModelForm):
             "sq_ft": self.preview_value("sq_ft"),
             "photo_count": photo_count,
             "checklist": checklist,
+            "completed_sections": completed_sections,
+            "total_sections": len(checklist),
         }

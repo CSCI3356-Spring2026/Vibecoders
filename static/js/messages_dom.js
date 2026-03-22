@@ -174,15 +174,18 @@ export function createMessagesUi(root) {
         row.dataset.messageId = String(message.id);
         row.classList.add(message.sender_id === currentUserId ? "is-outbound" : "is-inbound");
 
+        const avatarSlot = document.createElement("div");
+        avatarSlot.className = "message-avatar-slot";
         const avatar = buildUserAvatar({
             name: message.sender_name,
             imageUrl: message.sender_avatar_url,
             sizeClass: "user-avatar-sm",
             extraClass: "message-avatar",
         });
+        avatarSlot.appendChild(avatar);
 
         const stack = document.createElement("div");
-        stack.className = "message-bubble-stack";
+        stack.className = "message-bubble-stack message-card";
 
         const meta = document.createElement("div");
         meta.className = "message-bubble-meta";
@@ -208,7 +211,7 @@ export function createMessagesUi(root) {
 
         stack.appendChild(meta);
         stack.appendChild(bubble);
-        row.appendChild(avatar);
+        row.appendChild(avatarSlot);
         row.appendChild(stack);
         messageThread.appendChild(row);
 

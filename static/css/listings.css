@@ -1,7 +1,8 @@
 .listing-filter-form .form-label {
     color: var(--gray-700);
-    font-size: 0.9rem;
-    font-weight: 600;
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
 }
 
 .listing-results-grid {
@@ -11,21 +12,33 @@
 }
 
 .listing-card {
+    position: relative;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    border: 1px solid rgba(var(--gray-300-rgb), 0.55);
-    border-top: 3px solid var(--primary-600);
+    border: 1px solid rgba(var(--gray-700-rgb), 0.18);
     border-radius: var(--radius-lg);
-    background: var(--white);
+    background: var(--surface-gradient);
     color: inherit;
     text-decoration: none;
-    transition: border-color 140ms ease, background-color 140ms ease;
+    box-shadow: var(--shadow-sm);
+    transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.listing-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: rgba(var(--gray-700-rgb), 0.14);
+    z-index: 2;
 }
 
 .listing-card:hover {
-    border-color: var(--border-primary);
-    background: var(--white);
+    border-color: rgba(var(--gray-700-rgb), 0.22);
+    background: var(--surface-gradient-strong);
+    box-shadow: var(--shadow-sm);
+    transform: none;
 }
 
 .listing-card:focus-visible {
@@ -38,6 +51,10 @@
     aspect-ratio: 16 / 10;
     overflow: hidden;
     background: var(--gray-100);
+}
+
+.listing-card-media::after {
+    display: none;
 }
 
 .listing-card-media img {
@@ -61,22 +78,25 @@
 .listing-card-badge {
     position: absolute;
     top: 0.85rem;
-    left: 0.85rem;
+    right: 0.85rem;
     padding: 0.38rem 0.65rem;
     border: 1px solid var(--border-primary);
-    border-radius: var(--radius-sm);
-    background: rgba(var(--white-rgb), 0.96);
-    color: var(--primary-600);
-    font-size: 0.76rem;
+    border-radius: 0.5rem;
+    background: rgba(var(--gray-100-rgb), 0.96);
+    color: var(--gray-900);
+    font-size: 0.72rem;
     font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    z-index: 2;
 }
 
 .listing-card-body {
     display: flex;
     flex: 1;
     flex-direction: column;
-    gap: 0.45rem;
-    padding: 1rem 1rem 1.05rem;
+    gap: 0.5rem;
+    padding: 1.08rem 1.08rem 1.12rem;
 }
 
 .listing-card-price-row {
@@ -88,10 +108,10 @@
 
 .listing-card-price,
 .listing-detail-price {
-    color: var(--primary-600);
-    font-size: 1.1rem;
+    color: var(--text-strong);
+    font-size: 1.18rem;
     font-weight: 700;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
 }
 
 .listing-card-status {
@@ -99,46 +119,47 @@
     align-items: center;
     min-height: 1.9rem;
     padding: 0.28rem 0.58rem;
-    border: 1px solid rgba(var(--gray-300-rgb), 0.8);
-    border-radius: var(--radius-sm);
-    background: var(--white);
+    border: 1px solid rgba(var(--gray-700-rgb), 0.16);
+    border-radius: 0.5rem;
+    background: rgba(var(--gray-300-rgb), 0.18);
     color: var(--gray-700);
-    font-size: 0.76rem;
+    font-size: 0.7rem;
     font-weight: 700;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
 }
 
 .listing-card-status.is-available {
-    border-color: var(--border-secondary);
-    background: var(--surface-secondary);
-    color: var(--secondary-600);
+    border-color: var(--border-primary);
+    background: rgba(var(--primary-rgb), 0.12);
+    color: var(--primary-600);
 }
 
 .listing-card-status.is-pending {
     border-color: var(--border-accent);
-    background: var(--surface-accent);
+    background: rgba(var(--accent-rgb), 0.1);
     color: var(--accent-ink);
 }
 
 .listing-card-status.is-taken {
-    border-color: rgba(var(--gray-300-rgb), 0.9);
-    background: rgba(var(--gray-300-rgb), 0.16);
+    border-color: rgba(var(--gray-700-rgb), 0.16);
+    background: rgba(var(--gray-100-rgb), 0.92);
     color: var(--gray-700);
 }
 
 .listing-card-title {
     margin: 0;
     color: var(--text-strong);
-    font-size: 1rem;
+    font-size: 1.06rem;
     font-weight: 700;
     line-height: 1.3;
+    letter-spacing: -0.03em;
 }
 
 .listing-card-address {
     margin: 0;
     color: var(--text-muted);
-    font-size: 0.9rem;
+    font-size: 0.86rem;
 }
 
 .listing-card-specs {
@@ -146,21 +167,22 @@
     flex-wrap: wrap;
     gap: 0.7rem;
     color: var(--gray-700);
-    font-size: 0.84rem;
+    font-size: 0.8rem;
     font-weight: 600;
+    letter-spacing: 0.03em;
 }
 
 .listing-card-summary {
     margin: 0;
     color: var(--text-muted);
-    font-size: 0.9rem;
-    line-height: 1.55;
+    font-size: 0.88rem;
+    line-height: 1.58;
 }
 
 .listing-card-owner {
     margin-top: auto;
-    padding-top: 0.7rem;
-    border-top: 1px solid rgba(var(--gray-300-rgb), 0.45);
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--rule-color);
 }
 
 .listing-owner-meta {
@@ -183,9 +205,9 @@
 
 .listing-owner-label {
     color: var(--text-muted);
-    font-size: 0.75rem;
+    font-size: 0.68rem;
     font-weight: 700;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
 }
 
@@ -198,7 +220,7 @@
 
 .listing-owner-name {
     color: var(--text-strong);
-    font-size: 0.88rem;
+    font-size: 0.87rem;
     font-weight: 600;
 }
 
@@ -207,8 +229,19 @@
     font-size: 0.8rem;
 }
 
+.listing-card-owner-avatar,
+.listing-person-avatar {
+    border: 1px solid rgba(var(--primary-rgb), 0.14);
+    background: rgba(var(--primary-rgb), 0.08);
+}
+
+.listing-person-row {
+    align-items: flex-start;
+}
 .listing-detail-price {
-    font-size: clamp(1.9rem, 3vw, 2.5rem);
+    font-family: var(--font-display);
+    font-size: clamp(2.4rem, 4vw, 3.4rem);
+    font-weight: 600;
 }
 
 .listing-lease {
@@ -217,22 +250,24 @@
     min-height: 1.85rem;
     padding: 0.35rem 0.62rem;
     border: 1px solid var(--border-primary);
-    border-radius: var(--radius-sm);
-    background: var(--surface-primary);
+    border-radius: 0.5rem;
+    background: rgba(var(--primary-rgb), 0.08);
     color: var(--primary-600);
-    font-size: 0.78rem;
+    font-size: 0.72rem;
     font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
 }
 
 .listing-lease-secondary {
     border-color: var(--border-secondary);
-    background: var(--surface-secondary);
+    background: rgba(var(--secondary-rgb), 0.1);
     color: var(--secondary-600);
 }
 
 .listing-lease-muted {
     border-color: rgba(var(--gray-300-rgb), 0.8);
-    background: var(--white);
+    background: rgba(var(--gray-300-rgb), 0.18);
     color: var(--gray-700);
 }
 
@@ -240,9 +275,9 @@
     display: flex;
     justify-content: flex-end;
     flex-wrap: wrap;
-    gap: 0.45rem;
+    gap: 0.55rem;
     color: var(--gray-500);
-    font-size: 0.92rem;
+    font-size: 0.88rem;
     font-weight: 600;
 }
 
@@ -252,11 +287,17 @@
     gap: 1rem;
 }
 
+.listing-detail-image:first-child {
+    grid-column: span 2;
+    height: 22rem;
+}
+
 .listing-detail-image {
     width: 100%;
-    height: 15rem;
+    height: 15.5rem;
     border-radius: var(--radius-md);
     object-fit: cover;
+    box-shadow: var(--shadow-sm);
 }
 
 @media (max-width: 991.98px) {

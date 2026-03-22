@@ -187,19 +187,28 @@
                                     </a>
                                 </div>
                             {% endif %}
-                            <form method="post" action="{% url 'listings:message_listing' listing.pk %}" class="app-stack">
-                                {% csrf_token %}
-                                <label class="form-label fw-semibold" for="{{ message_form.body.id_for_label }}">Message</label>
-                                {{ message_form.body }}
-                                <button class="btn btn-brand" type="submit">
-                                    {% if existing_conversation %}Send message{% else %}Start conversation{% endif %}
-                                </button>
-                            </form>
+                            {% if can_message_listing %}
+                                <form method="post" action="{% url 'listings:message_listing' listing.pk %}" class="app-stack">
+                                    {% csrf_token %}
+                                    <label class="form-label fw-semibold" for="{{ message_form.body.id_for_label }}">Message</label>
+                                    {{ message_form.body }}
+                                    <button class="btn btn-brand" type="submit">
+                                        {% if existing_conversation %}Send message{% else %}Start conversation{% endif %}
+                                    </button>
+                                </form>
+                            {% else %}
+                                <div class="app-compact-list">
+                                    <div class="app-compact-item app-compact-item-static">
+                                        <span class="app-compact-title">Messaging unavailable</span>
+                                        <span class="app-compact-meta">This listing is no longer accepting new conversations.</span>
+                                    </div>
+                                </div>
+                            {% endif %}
                         {% else %}
                             <div class="app-compact-list">
                                 <div class="app-compact-item app-compact-item-static">
                                     <span class="app-compact-title">Listing-only access</span>
-                                    <span class="app-compact-meta">This account can publish listings but cannot start renter conversations.</span>
+                                    <span class="app-compact-meta">This account can publish listings but cannot start new renter threads.</span>
                                 </div>
                             </div>
                         {% endif %}
@@ -217,14 +226,19 @@
                                 <div class="app-compact-list">
                                     {% for conversation in owner_conversations %}
                                         <a class="app-compact-item" href="{% url 'communications:detail' conversation.id %}">
-                                            <span class="app-compact-title">{{ conversation.ui_counterparty_name }}</span>
-                                            <span class="app-compact-meta">
-                                                {{ conversation.participant.email }} • {{ conversation.last_message_at|date:"M d, Y" }}
-                                            </span>
-                                            <span class="app-compact-meta">
-                                                {% if conversation.ui_has_unread %}Unread reply{% else %}Latest message{% endif %}
-                                                • {{ conversation.last_message_preview|default:"No messages yet." }}
-                                            </span>
+                                            <div class="identity-row listing-person-row">
+                                                {% include "includes/user_avatar.html" with user_obj=conversation.participant avatar_class="listing-person-avatar user-avatar user-avatar-sm" %}
+                                                <div class="identity-copy">
+                                                    <span class="app-compact-title">{{ conversation.ui_counterparty_name }}</span>
+                                                    <span class="app-compact-meta">
+                                                        {{ conversation.participant.email }} • {{ conversation.last_message_at|date:"M d, Y" }}
+                                                    </span>
+                                                    <span class="app-compact-meta">
+                                                        {% if conversation.ui_has_unread %}Unread reply{% else %}Latest message{% endif %}
+                                                        • {{ conversation.last_message_preview|default:"No messages yet." }}
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </a>
                                     {% endfor %}
                                 </div>

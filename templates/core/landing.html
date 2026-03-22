@@ -1,158 +1,154 @@
 {% extends "base.html" %}
 
 {% block title %}Boston College Housing | {{ site_product_name }}{% endblock %}
-{% block body_class %}page-home{% endblock %}
+{% block body_class %}landing-page-body{% endblock %}
 
 {% block content %}
-<div class="home-page-backdrop">
-    <section class="home-hero">
-        <div class="container">
-            <div class="home-hero-shell">
-                <div class="home-hero-copy">
-                    <p class="home-eyebrow">{% if has_listing_only_access %}Listing Workspace{% else %}Boston College Housing{% endif %}</p>
-                    <h1 class="home-title">{% if has_listing_only_access %}Manage the places you have listed.{% else %}Find the right place near campus.{% endif %}</h1>
-                    <p class="home-subtitle">
-                        {% if has_listing_only_access %}
-                            Manage your listings.
-                        {% else %}
-                            Search Boston College housing.
-                        {% endif %}
-                    </p>
-
-                    <form class="home-search-bar" method="get" action="{% url 'listings:listing_list' %}">
-                        <input
-                            class="home-search-input"
-                            type="search"
-                            name="q"
-                            placeholder="{% if has_listing_only_access %}Search your listings by address or title{% else %}Search by address, neighborhood, or title{% endif %}"
-                            aria-label="Search listings"
-                        >
-                        <button class="btn btn-brand home-search-button" type="submit">Search</button>
-                    </form>
-
-                    <div class="home-quick-links">
-                        {% if has_listing_only_access %}
-                            <a class="home-pill home-pill-primary" href="{% url 'users:posts' %}">My listings</a>
-                            <a class="home-pill home-pill-secondary" href="{% url 'listings:create_listing' %}">Create listing</a>
-                            <a class="home-pill home-pill-accent" href="{% url 'listings:listing_list' %}?lease_type=SUBLEASE">My subleases</a>
-                        {% else %}
-                            <a class="home-pill home-pill-primary" href="{% url 'listings:listing_list' %}">All listings</a>
-                            <a class="home-pill home-pill-secondary" href="{% url 'listings:listing_list' %}?lease_type=SUBLEASE">Subleases</a>
-                            <a class="home-pill home-pill-accent" href="{% url 'listings:listing_list' %}?max_price=1500">Under $1,500</a>
-                        {% endif %}
-                    </div>
-                </div>
-
-                <div class="home-stage">
-                    {% if hero_listing %}
-                        <a class="home-stage-card" href="{% url 'listings:detail' hero_listing.pk %}">
-                            <div class="home-stage-card-media">
-                                {% if hero_listing.primary_image %}
-                                    <img src="{{ hero_listing.primary_image.versioned_url }}" alt="{{ hero_listing.title }}">
-                                {% else %}
-                                    <div class="home-stage-card-placeholder">{{ hero_listing.get_property_type_display }}</div>
-                                {% endif %}
-                            </div>
-                            <div class="home-stage-card-body">
-                                <div class="home-stage-card-topline">
-                                    <span class="home-stage-price">${{ hero_listing.price|floatformat:0 }}/mo</span>
-                                    <span class="home-stage-tag">{{ hero_listing.get_lease_type_display }}</span>
-                                </div>
-                                <h2 class="home-stage-card-title">{{ hero_listing.title }}</h2>
-                                <p class="home-stage-card-address">{{ hero_listing.address }}</p>
-                                <div class="home-stage-card-specs">
-                                    <span>{{ hero_listing.rooms }} bd</span>
-                                    <span>{{ hero_listing.bathrooms }} ba</span>
-                                    {% if hero_listing.sq_ft %}
-                                        <span>{{ hero_listing.sq_ft }} sqft</span>
-                                    {% endif %}
-                                </div>
-                                <div class="home-stage-card-footer">
-                                    <div class="home-stage-card-owner">
-                                        {% include "listings/includes/owner_meta.html" with listing=hero_listing size_class="user-avatar-sm" %}
-                                    </div>
-                                    <div class="home-stage-card-status">
-                                        <span>Available {{ hero_listing.start_date|date:"M j" }}</span>
-                                        <span>{{ hero_listing.get_status_display }}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </a>
+<section class="home-hero">
+    <div class="container">
+        <div class="home-hero-shell">
+            <div class="home-hero-copy">
+                <p class="home-eyebrow">{% if has_listing_only_access %}Listing Workspace{% else %}Boston College Housing{% endif %}</p>
+                <h1 class="home-title">{% if has_listing_only_access %}Run your listing workflow.{% else %}Find housing near campus.{% endif %}</h1>
+                <p class="home-subtitle">
+                    {% if has_listing_only_access %}
+                        Track active posts and keep inquiries moving.
                     {% else %}
-                        <div class="home-stage-empty">
-                            <h2 class="home-stage-empty-title">{% if has_listing_only_access %}Your listing workspace is ready.{% else %}Listings will appear here.{% endif %}</h2>
-                            <p class="home-stage-empty-copy">
-                                {% if has_listing_only_access %}
-                                    Create your first listing to get started.
-                                {% else %}
-                                    Open the feed or create a listing to get started.
-                                {% endif %}
-                            </p>
-                            <div class="app-actions">
-                                <a class="btn btn-brand" href="{% if has_listing_only_access %}{% url 'users:posts' %}{% else %}{% url 'listings:listing_list' %}{% endif %}">{% if has_listing_only_access %}My listings{% else %}Browse listings{% endif %}</a>
-                                <a class="btn btn-outline-secondary" href="{% url 'listings:create_listing' %}">Create listing</a>
-                            </div>
-                        </div>
+                        Search active rentals and subleases in one place.
+                    {% endif %}
+                </p>
+
+                <form class="home-search-bar" method="get" action="{% url 'listings:listing_list' %}">
+                    <input
+                        class="home-search-input"
+                        type="search"
+                        name="q"
+                        placeholder="{% if has_listing_only_access %}Search your listings by address or title{% else %}Search by address, neighborhood, or title{% endif %}"
+                        aria-label="Search listings"
+                    >
+                    <button class="btn btn-brand home-search-button" type="submit">Search</button>
+                </form>
+
+                <div class="home-quick-links">
+                    {% if has_listing_only_access %}
+                        <a class="home-pill home-pill-primary" href="{% url 'users:posts' %}">My listings</a>
+                        <a class="home-pill home-pill-secondary" href="{% url 'listings:create_listing' %}">Create listing</a>
+                        <a class="home-pill home-pill-accent" href="{% url 'listings:listing_list' %}?lease_type=SUBLEASE">My subleases</a>
+                    {% else %}
+                        <a class="home-pill home-pill-primary" href="{% url 'listings:listing_list' %}">All listings</a>
+                        <a class="home-pill home-pill-secondary" href="{% url 'listings:listing_list' %}?lease_type=SUBLEASE">Subleases</a>
+                        <a class="home-pill home-pill-accent" href="{% url 'listings:listing_list' %}?max_price=1500">Under $1,500</a>
                     {% endif %}
                 </div>
             </div>
-        </div>
-    </section>
 
-    <section class="home-section home-section-feature">
-        <div class="container">
-            <div class="home-feature-panel">
-                <div class="home-section-head">
-                    <div>
-                        <h2 class="home-section-title">Recent listings</h2>
-                    </div>
-                    <a class="home-section-link" href="{% if has_listing_only_access %}{% url 'users:posts' %}{% else %}{% url 'listings:listing_list' %}{% endif %}">View all</a>
-                </div>
-
-                {% if spotlight_listings %}
-                    <div class="home-listing-grid">
-                        {% for listing in spotlight_listings %}
-                            <a class="listing-card" href="{% url 'listings:detail' listing.pk %}">
-                                <div class="listing-card-media">
-                                    {% if listing.primary_image %}
-                                        <img src="{{ listing.primary_image.versioned_url }}" alt="{{ listing.title }}">
-                                    {% else %}
-                                        <div class="listing-card-placeholder">
-                                            <span>{{ listing.get_property_type_display }}</span>
-                                        </div>
-                                    {% endif %}
-                                    <div class="listing-card-badge">{{ listing.get_lease_type_display }}</div>
+            <div class="home-stage">
+                {% if hero_listing %}
+                    <a class="home-stage-card" href="{% url 'listings:detail' hero_listing.pk %}">
+                        <div class="home-stage-card-media">
+                            {% if hero_listing.primary_image %}
+                                <img src="{{ hero_listing.primary_image.versioned_url }}" alt="{{ hero_listing.title }}">
+                            {% else %}
+                                <div class="home-stage-card-placeholder">{{ hero_listing.get_property_type_display }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="home-stage-card-body">
+                            <div class="home-stage-card-topline">
+                                <span class="home-stage-price">${{ hero_listing.price|floatformat:0 }}/mo</span>
+                                <span class="home-stage-tag">{{ hero_listing.get_lease_type_display }}</span>
+                            </div>
+                            <h2 class="home-stage-card-title">{{ hero_listing.title }}</h2>
+                            <p class="home-stage-card-address">{{ hero_listing.address }}</p>
+                            <div class="home-stage-card-specs">
+                                <span>{{ hero_listing.rooms }} bd</span>
+                                <span>{{ hero_listing.bathrooms }} ba</span>
+                                {% if hero_listing.sq_ft %}
+                                    <span>{{ hero_listing.sq_ft }} sqft</span>
+                                {% endif %}
+                            </div>
+                            <div class="home-stage-card-footer">
+                                <div class="home-stage-card-owner">
+                                    {% include "listings/includes/owner_meta.html" with listing=hero_listing size_class="user-avatar-sm" %}
                                 </div>
-                                <div class="listing-card-body">
-                                    <div class="listing-card-price-row">
-                                        <span class="listing-card-price">${{ listing.price|floatformat:0 }}/mo</span>
-                                        <span class="listing-card-status {% if listing.status == 'AVAILABLE' %}is-available{% elif listing.status == 'PENDING' %}is-pending{% else %}is-taken{% endif %}">{{ listing.get_status_display }}</span>
-                                    </div>
-                                    <h3 class="listing-card-title">{{ listing.title }}</h3>
-                                    <p class="listing-card-address">{{ listing.address }}</p>
-                                    <div class="listing-card-specs">
-                                        <span>{{ listing.rooms }} bd</span>
-                                        <span>{{ listing.bathrooms }} ba</span>
-                                        {% if listing.sq_ft %}
-                                            <span>{{ listing.sq_ft }} sqft</span>
-                                        {% endif %}
-                                    </div>
-                                    <p class="listing-card-summary">Available {{ listing.start_date|date:"M j" }}</p>
-                                    <div class="listing-card-owner">
-                                        {% include "listings/includes/owner_meta.html" with listing=listing size_class="user-avatar-sm" %}
-                                    </div>
+                                <div class="home-stage-card-status">
+                                    <span>Available {{ hero_listing.start_date|date:"M j" }}</span>
+                                    <span>{{ hero_listing.get_status_display }}</span>
                                 </div>
-                            </a>
-                        {% endfor %}
-                    </div>
+                            </div>
+                        </div>
+                    </a>
                 {% else %}
-                    <div class="home-empty-panel">
-                        <h3 class="app-empty-title">{% if has_listing_only_access %}No listings posted yet.{% else %}No live listings yet.{% endif %}</h3>
-                        <p class="app-empty-copy">Create a listing to get started.</p>
+                    <div class="home-stage-empty">
+                        <h2 class="home-stage-empty-title">{% if has_listing_only_access %}Your listing workspace is ready.{% else %}Listings will appear here.{% endif %}</h2>
+                        <p class="home-stage-empty-copy">
+                            {% if has_listing_only_access %}
+                                Create a listing to start posting.
+                            {% else %}
+                                Open the feed or post a listing.
+                            {% endif %}
+                        </p>
+                        <div class="app-actions">
+                            <a class="btn btn-brand" href="{% if has_listing_only_access %}{% url 'users:posts' %}{% else %}{% url 'listings:listing_list' %}{% endif %}">{% if has_listing_only_access %}My listings{% else %}Browse listings{% endif %}</a>
+                            <a class="btn btn-outline-secondary" href="{% url 'listings:create_listing' %}">Create listing</a>
+                        </div>
                     </div>
                 {% endif %}
             </div>
         </div>
-    </section>
-</div>
+    </div>
+</section>
+
+<section class="home-section">
+    <div class="container">
+        <div class="home-section-head">
+            <div>
+                <h2 class="home-section-title">Latest listings</h2>
+            </div>
+            <a class="home-section-link" href="{% if has_listing_only_access %}{% url 'users:posts' %}{% else %}{% url 'listings:listing_list' %}{% endif %}">View all</a>
+        </div>
+
+        {% if spotlight_listings %}
+            <div class="home-listing-grid">
+                {% for listing in spotlight_listings %}
+                    <a class="listing-card" href="{% url 'listings:detail' listing.pk %}">
+                        <div class="listing-card-media">
+                            {% if listing.primary_image %}
+                                <img src="{{ listing.primary_image.versioned_url }}" alt="{{ listing.title }}">
+                            {% else %}
+                                <div class="listing-card-placeholder">
+                                    <span>{{ listing.get_property_type_display }}</span>
+                                </div>
+                            {% endif %}
+                            <div class="listing-card-badge">{{ listing.get_lease_type_display }}</div>
+                        </div>
+                        <div class="listing-card-body">
+                            <div class="listing-card-price-row">
+                                <span class="listing-card-price">${{ listing.price|floatformat:0 }}/mo</span>
+                                <span class="listing-card-status {% if listing.status == 'AVAILABLE' %}is-available{% elif listing.status == 'PENDING' %}is-pending{% else %}is-taken{% endif %}">{{ listing.get_status_display }}</span>
+                            </div>
+                            <h3 class="listing-card-title">{{ listing.title }}</h3>
+                            <p class="listing-card-address">{{ listing.address }}</p>
+                            <div class="listing-card-specs">
+                                <span>{{ listing.rooms }} bd</span>
+                                <span>{{ listing.bathrooms }} ba</span>
+                                {% if listing.sq_ft %}
+                                    <span>{{ listing.sq_ft }} sqft</span>
+                                {% endif %}
+                            </div>
+                            <p class="listing-card-summary">Available {{ listing.start_date|date:"M j" }}</p>
+                            <div class="listing-card-owner">
+                                {% include "listings/includes/owner_meta.html" with listing=listing size_class="user-avatar-sm" %}
+                            </div>
+                        </div>
+                    </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="home-empty-panel">
+                <h3 class="app-empty-title">{% if has_listing_only_access %}No listings posted yet.{% else %}No live listings yet.{% endif %}</h3>
+                <p class="app-empty-copy">Create a listing to get started.</p>
+            </div>
+        {% endif %}
+    </div>
+</section>
 {% endblock %}

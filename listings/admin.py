@@ -15,3 +15,8 @@ class ListingAdmin(admin.ModelAdmin):
     search_fields = ("title", "address", "owner__username", "owner__email")
     list_select_related = ("owner",)
     inlines = [ListingImageInline]
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj is not None:
+            return ("owner",)
+        return ()

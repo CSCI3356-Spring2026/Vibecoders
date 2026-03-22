@@ -11,9 +11,11 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
+from django.core.management.utils import get_random_secret_key
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -48,14 +50,18 @@ LEGAL_DOCUMENT_VERSION = os.getenv("LEGAL_DOCUMENT_VERSION", "2026-03-18").strip
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-DEFAULT_SECRET_KEY = "x8v$4p9n#s2m!k7q%t1h@c6r&z5w*l3y^f0j8d2b1e7u4i9o!m6u@r1p%z8k"
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", DEFAULT_SECRET_KEY)
+LOCAL_DEBUG_COMMANDS = {"runserver", "test", "check", "migrate", "makemigrations", "shell", "createsuperuser"}
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env_bool("DJANGO_DEBUG", True)
+DEBUG = env_bool("DJANGO_DEBUG", any(command in sys.argv for command in LOCAL_DEBUG_COMMANDS))
 
-if not DEBUG and SECRET_KEY == DEFAULT_SECRET_KEY:
+configured_secret_key = os.getenv("DJANGO_SECRET_KEY", "").strip()
+if configured_secret_key:
+    SECRET_KEY = configured_secret_key
+elif DEBUG:
+    # Keep development bootstrapping simple without checking in a reusable secret.
+    SECRET_KEY = get_random_secret_key()
+else:
     raise ImproperlyConfigured("Set DJANGO_SECRET_KEY when running with DJANGO_DEBUG=false.")
 
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost,testserver")
@@ -94,6 +100,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "users.middleware.CurrentLegalAcceptanceMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -104,6 +111,9 @@ SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 SECURE_SSL_REDIRECT = not DEBUG
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
+if env_bool("DJANGO_TRUST_X_FORWARDED_PROTO", False):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = env_bool("DJANGO_USE_X_FORWARDED_HOST", False)
 SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 SECURE_HSTS_PRELOAD = not DEBUG
@@ -177,12 +187,18 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
+STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 LISTING_IMAGE_MAX_BYTES = env_int("LISTING_IMAGE_MAX_BYTES", 5 * 1024 * 1024)
 LISTING_IMAGE_UPLOAD_LIMIT = env_int("LISTING_IMAGE_UPLOAD_LIMIT", 10)
 LISTING_IMAGE_TOTAL_LIMIT = env_int("LISTING_IMAGE_TOTAL_LIMIT", 20)
 USER_FILE_MAX_BYTES = env_int("USER_FILE_MAX_BYTES", 10 * 1024 * 1024)
+MESSAGE_SEND_RATE_LIMIT = env_int("MESSAGE_SEND_RATE_LIMIT", 20)
+MESSAGE_SEND_RATE_WINDOW_SECONDS = env_int("MESSAGE_SEND_RATE_WINDOW_SECONDS", 60)
+LOGIN_INIT_RATE_LIMIT = env_int("LOGIN_INIT_RATE_LIMIT", 10)
+LOGIN_INIT_RATE_WINDOW_SECONDS = env_int("LOGIN_INIT_RATE_WINDOW_SECONDS", 300)
+ACCOUNT_DELETION_RECENT_AUTH_SECONDS = env_int("ACCOUNT_DELETION_RECENT_AUTH_SECONDS", 1800)
 
 
 # Default primary key field type

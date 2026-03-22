@@ -1,8 +1,24 @@
 .messages-layout {
-    --messages-pane-height: clamp(40rem, calc(100vh - 16rem), 48rem);
+    --messages-pane-height: clamp(48rem, calc(100dvh - 7.5rem), 70rem);
     grid-template-columns: minmax(20rem, 22rem) minmax(0, 1fr);
-    gap: 1.25rem;
+    gap: 1rem;
     align-items: stretch;
+}
+
+[data-messages-root].app-page {
+    padding: 1rem 0 2.5rem;
+}
+
+[data-messages-root] .app-shell {
+    gap: 1rem;
+}
+
+[data-messages-root] .app-header-shell {
+    padding: 1.2rem 1.3rem 1.15rem;
+}
+
+[data-messages-root] .app-title {
+    font-size: clamp(1.6rem, 2.4vw, 2.1rem);
 }
 
 .messages-inbox-panel,
@@ -11,6 +27,7 @@
     padding: 0;
     height: var(--messages-pane-height);
     overflow: hidden;
+    background: var(--surface-gradient-strong);
 }
 
 .messages-inbox-panel {
@@ -21,16 +38,16 @@
 .messages-panel-head {
     align-items: flex-end;
     margin-bottom: 0;
-    padding: 1rem 1.1rem;
-    border-bottom: 1px solid rgba(var(--gray-300-rgb), 0.5);
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid rgba(var(--gray-700-rgb), 0.14);
 }
 
 .messages-list {
     display: flex;
     flex-direction: column;
+    gap: 0.45rem;
     flex: 1;
-    border: 0;
-    border-radius: 0;
+    padding: 0.6rem;
     background: transparent;
     overflow-y: auto;
     scrollbar-gutter: stable;
@@ -38,25 +55,26 @@
 
 .messages-list-item {
     display: block;
-    padding: 0.9rem 1rem;
-    border-left: 3px solid transparent;
-    border-bottom: 1px solid rgba(var(--gray-300-rgb), 0.4);
-    background: var(--white);
+    padding: 0.95rem 1rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    background: var(--surface-gradient);
     color: inherit;
     text-decoration: none;
-}
-
-.messages-list-item:last-child {
-    border-bottom: 0;
+    transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease,
+        transform 140ms ease;
 }
 
 .messages-list-item:hover {
-    background: rgba(var(--gray-300-rgb), 0.14);
+    border-color: rgba(var(--gray-700-rgb), 0.2);
+    background: var(--surface-gradient-strong);
+    box-shadow: none;
+    transform: none;
 }
 
 .messages-list-item.is-active {
-    border-left-color: var(--primary-600);
-    background: rgba(var(--primary-rgb), 0.05);
+    border-color: rgba(var(--primary-rgb), 0.24);
+    background: rgba(var(--primary-rgb), 0.12);
     box-shadow: none;
 }
 
@@ -74,7 +92,8 @@
 }
 
 .messages-list-user-avatar {
-    box-shadow: 0 0 0 1px rgba(var(--gray-300-rgb), 0.25);
+    border-color: rgba(var(--primary-rgb), 0.16);
+    box-shadow: none;
 }
 
 .messages-list-main {
@@ -155,9 +174,9 @@
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: start;
     gap: 1rem;
-    padding: 1.05rem 1.25rem;
-    border-bottom: 1px solid rgba(var(--gray-300-rgb), 0.5);
-    background: var(--white);
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid rgba(var(--gray-700-rgb), 0.14);
+    background: var(--surface-gradient);
 }
 
 .messages-thread-toolbar-actions {
@@ -182,7 +201,8 @@
 }
 
 .messages-thread-user-avatar {
-    box-shadow: 0 0 0 1px rgba(var(--primary-rgb), 0.12);
+    border-color: rgba(var(--primary-rgb), 0.2);
+    box-shadow: none;
 }
 
 .messages-thread-toolbar-main {
@@ -208,6 +228,7 @@
     min-width: 7rem;
     justify-content: center;
     font-weight: 600;
+    border-radius: 0.5rem;
 }
 
 .messages-status-chip.is-connecting,
@@ -217,9 +238,9 @@
 }
 
 .messages-status-chip.is-live {
-    border-color: rgba(var(--secondary-rgb), 0.22);
-    background: rgba(var(--secondary-rgb), 0.1);
-    color: var(--secondary-600);
+    border-color: rgba(var(--primary-rgb), 0.22);
+    background: rgba(var(--primary-rgb), 0.1);
+    color: var(--primary-600);
 }
 
 .messages-status-chip.is-offline {
@@ -230,6 +251,6 @@
 
 .messages-inbox-panel .app-pagination {
     margin-top: 0;
-    padding: 0.95rem 1rem 1rem;
-    border-top: 1px solid rgba(var(--gray-300-rgb), 0.4);
+    padding: 0.85rem 1rem 0.95rem;
+    border-top: 1px solid rgba(var(--gray-700-rgb), 0.14);
 }

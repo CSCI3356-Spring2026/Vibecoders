@@ -3,10 +3,11 @@ from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
-from django.db import models
+from django.db import models, transaction
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
 
+from .profile_images import profile_image_url_from_data
 from .validators import validate_user_upload
 
 
@@ -44,6 +45,14 @@ class CustomUser(AbstractUser):
     privacy_accepted_at = models.DateTimeField(null=True, blank=True)
     legal_policy_version = models.CharField(max_length=32, blank=True)
 
+    class Meta(AbstractUser.Meta):
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(role__in=[role.value for role in Role]),
+                name="customuser_role_valid",
+            ),
+        ]
+
     @staticmethod
     def normalize_email_address(email):
         return _normalize_email_address(email)
@@ -76,9 +85,41 @@ class CustomUser(AbstractUser):
 
         return candidate
 
+    @staticmethod
+    def _avatar_url_from_extra_data(extra_data):
+        return profile_image_url_from_data(extra_data)
+
+    def _google_social_account(self):
+        if not self.pk:
+            return None
+
+        prefetched_accounts = getattr(self, "_prefetched_objects_cache", {}).get("socialaccount_set")
+        if prefetched_accounts is not None:
+            for account in prefetched_accounts:
+                if account.provider == "google":
+                    return account
+            return None
+
+        return self.socialaccount_set.filter(provider="google").only("extra_data").first()
+
     @property
     def email_domain(self):
         return _email_domain(self.email)
+
+    @property
+    def display_name(self):
+        return self.get_full_name() or self.username or self.email
+
+    @property
+    def google_avatar_url(self):
+        account = self._google_social_account()
+        if not account:
+            return ""
+        return self._avatar_url_from_extra_data(getattr(account, "extra_data", None))
+
+    @property
+    def avatar_url(self):
+        return self.google_avatar_url or self.profile_image_url or ""
 
     @property
     def has_verified_student_email(self):
@@ -236,4 +277,7 @@ class UserFile(models.Model):
 @receiver(post_delete, sender=UserFile)
 def delete_user_file_blob(sender, instance, **kwargs):
     if instance.file:
-        instance.file.delete(save=False)
+        storage = instance.file.storage
+        name = instance.file.name
+        if name:
+            transaction.on_commit(lambda: storage.delete(name))

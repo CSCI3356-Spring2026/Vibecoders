@@ -3,6 +3,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 
 from allauth.socialaccount.providers.google import views as google_views
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
@@ -14,15 +15,27 @@ from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_GET, require_POST
 
 from communications.selectors import accessible_conversations_for_user, conversation_summary_for_user
+from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
 
 from .forms import GoogleLoginAcceptanceForm, UserFileUploadForm
 from .legal import has_current_legal_acceptance, set_pending_legal_acceptance
-from .models import UserFile
+from .models import Role, UserFile
 from .selectors import accessible_user_files_queryset
+from .session_security import has_recent_auth
 
 FILES_PER_PAGE = 12
 POSTS_PER_PAGE = 12
+LOGIN_RATE_LIMIT_ERROR = "Too many sign-in attempts. Wait a few minutes and try again."
+
+
+def _consume_login_rate_limit(request):
+    return consume_rate_limit(
+        scope="login-init",
+        identifier=request_rate_limit_identifier(request),
+        limit=getattr(settings, "LOGIN_INIT_RATE_LIMIT", 10),
+        window_seconds=getattr(settings, "LOGIN_INIT_RATE_WINDOW_SECONDS", 300),
+    )
 
 
 def _files_redirect(request):
@@ -85,6 +98,10 @@ def login_page(request):
         return redirect("users:dashboard")
     next_url = safe_next_url(request, request.POST.get("next") or request.GET.get("next"), "")
     if request.method == "POST":
+        if not _consume_login_rate_limit(request):
+            messages.error(request, LOGIN_RATE_LIMIT_ERROR)
+            form = GoogleLoginAcceptanceForm(request.POST)
+            return render(request, "users/login.html", {"login_form": form, "next_url": next_url})
         is_legacy_login_post = request.path == reverse("account_login")
         has_legal_fields = "accept_terms" in request.POST or "accept_privacy" in request.POST
         if is_legacy_login_post and not has_legal_fields:
@@ -99,6 +116,9 @@ def login_page(request):
 
 
 def google_login_gate(request):
+    if not _consume_login_rate_limit(request):
+        messages.error(request, LOGIN_RATE_LIMIT_ERROR)
+        return redirect(_login_redirect_with_next(request))
     if not has_current_legal_acceptance(request):
         messages.error(request, "Review and accept the Terms of Service and Privacy Policy before continuing.")
         return redirect(_login_redirect_with_next(request))
@@ -218,6 +238,7 @@ def file_preview(request, file_id):
     response = FileResponse(file_handle, content_type=content_type)
     response["Content-Disposition"] = f'inline; filename="{Path(user_file.file.name).name}"'
     response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
     return response
 
 
@@ -232,6 +253,7 @@ def file_download(request, file_id):
         filename=Path(user_file.file.name).name,
     )
     response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
     return response
 
 
@@ -246,7 +268,21 @@ def delete_file(request, file_id):
 @login_required
 @require_POST
 def delete_account(request):
+    if not has_recent_auth(request):
+        messages.error(request, "Sign in again before deleting your account.")
+        return redirect("users:profile")
     user = request.user
+    if (
+        user.role == Role.ADMIN
+        and not user.__class__._default_manager.exclude(pk=user.pk)
+        .filter(
+            role=Role.ADMIN,
+            is_active=True,
+        )
+        .exists()
+    ):
+        messages.error(request, "You cannot delete the last active admin account.")
+        return redirect("users:profile")
     logout(request)
     user.delete()
     messages.success(request, "Account deleted.")

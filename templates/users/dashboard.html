@@ -10,16 +10,14 @@
                 <div class="app-header-main">
                     <div>
                         <p class="app-kicker">Dashboard</p>
-                        <h1 class="app-title">
-                            Welcome, {{ request.user.get_full_name|default:request.user.username }} - {{ request.user.display_role }}
-                        </h1>
+                        <h1 class="app-title">Dashboard</h1>
                         <p class="app-subtitle">
                             {% if has_listing_only_access %}
-                                This listing-only account is limited to your listings.
+                                {{ request.user.display_name }} · {{ request.user.display_role }} · Listing access only
                             {% elif request.user.can_access_admin_panel %}
-                                Student access with admin controls.
+                                {{ request.user.display_name }} · {{ request.user.display_role }} · Admin controls enabled
                             {% else %}
-                                Browse listings and manage your posts.
+                                {{ request.user.display_name }} · {{ request.user.display_role }}
                             {% endif %}
                         </p>
                     </div>
@@ -58,7 +56,7 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading">Recent listings</h2>
-                            <p class="app-panel-copy">Your latest listings.</p>
+                            <p class="app-panel-copy">Latest posts from your account.</p>
                         </div>
                         <a class="listing-reset-link" href="{% url 'users:posts' %}">View all</a>
                     </div>
@@ -81,7 +79,7 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading">Recent messages</h2>
-                            <p class="app-panel-copy">Latest listing conversations.</p>
+                            <p class="app-panel-copy">Latest activity across your threads.</p>
                         </div>
                         <a class="listing-reset-link" href="{% url 'communications:messages' %}">Open inbox</a>
                     </div>
@@ -107,7 +105,7 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading">Documents</h2>
-                            <p class="app-panel-copy">Your uploaded files.</p>
+                            <p class="app-panel-copy">Recent documents in your library.</p>
                         </div>
                         <a class="listing-reset-link" href="{% url 'users:files' %}">Open library</a>
                     </div>

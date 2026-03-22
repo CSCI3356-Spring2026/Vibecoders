@@ -20,8 +20,8 @@
     align-items: center;
     padding: 0.45rem 0.9rem;
     border: 1px solid rgba(var(--gray-300-rgb), 0.8);
-    border-radius: var(--radius-sm);
-    background: var(--white);
+    border-radius: 0.5rem;
+    background: var(--surface-gradient-soft);
     color: var(--gray-700);
     font-size: 0.82rem;
     font-weight: 500;
@@ -54,7 +54,7 @@
     padding: 0.5rem 0.9rem;
     border-radius: var(--radius-md);
     border: 1px solid rgba(var(--gray-300-rgb), 0.7);
-    background: var(--white);
+    background: var(--surface-gradient);
     color: var(--gray-700);
     font-weight: 500;
     text-decoration: none;
@@ -64,12 +64,12 @@
 .admin-nav-item:hover {
     border-color: rgba(var(--gray-300-rgb), 0.8);
     color: var(--gray-900);
-    background: var(--gray-100);
+    background: var(--surface-gradient-soft);
 }
 
 .admin-nav-item.is-active {
     border-color: rgba(var(--gray-700-rgb), 0.45);
-    background: var(--white);
+    background: rgba(var(--primary-rgb), 0.08);
     color: var(--gray-900);
 }
 
@@ -102,10 +102,11 @@
 .admin-stat-card {
     padding: 1.25rem 1.35rem;
     border: 1px solid rgba(var(--gray-300-rgb), 0.6);
-    border-top-width: 3px;
+    border-top-width: 1px;
     border-radius: var(--radius-md);
-    background: var(--white);
+    background: var(--surface-gradient);
     color: var(--gray-900);
+    box-shadow: none;
 }
 
 .admin-stat-label {
@@ -243,14 +244,14 @@
     padding: 0.9rem 1.1rem;
     border-radius: var(--radius-md);
     border: 1px solid rgba(var(--gray-300-rgb), 0.5);
-    background: var(--white);
+    background: var(--surface-gradient);
     text-decoration: none;
     color: inherit;
 }
 
 .admin-list-item:hover {
     border-color: rgba(var(--gray-300-rgb), 0.8);
-    background: var(--gray-100);
+    background: var(--surface-gradient-soft);
 }
 
 .admin-list-title {
@@ -297,10 +298,10 @@
     align-items: center;
     padding: 0.4rem 0.85rem;
     border: 1px solid rgba(var(--gray-300-rgb), 0.8);
-    border-radius: var(--radius-sm);
+    border-radius: 0.5rem;
     font-size: 0.82rem;
     font-weight: 500;
-    background: var(--white);
+    background: rgba(var(--gray-300-rgb), 0.18);
 }
 
 .admin-status-pill.is-pending {

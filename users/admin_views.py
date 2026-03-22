@@ -2,6 +2,7 @@ from functools import wraps
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.db.models import Count
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -109,8 +110,14 @@ def admin_users(request):
 
 @admin_required_view
 def admin_user_detail(request, user_id):
-    User = get_user_model()
-    user_obj = get_object_or_404(User, id=user_id)
+    user_model = get_user_model()
+    user_obj = get_object_or_404(
+        user_model.objects.annotate(
+            managed_listings_count=Count("listings", distinct=True),
+            managed_files_count=Count("files", distinct=True),
+        ),
+        id=user_id,
+    )
     listings_qs = user_obj.listings.with_related()
     files_qs = user_obj.files.all()
     conversations_qs = user_related_conversations_queryset(user_obj)
@@ -122,8 +129,8 @@ def admin_user_detail(request, user_id):
         "managed_files": files_qs[:ADMIN_USER_DETAIL_PREVIEW_LIMIT],
         "managed_conversations": conversations_qs[:ADMIN_USER_DETAIL_PREVIEW_LIMIT],
         "managed_messages": messages_qs.order_by("-created_at")[:ADMIN_USER_DETAIL_PREVIEW_LIMIT],
-        "managed_listings_count": listings_qs.count(),
-        "managed_files_count": files_qs.count(),
+        "managed_listings_count": user_obj.managed_listings_count,
+        "managed_files_count": user_obj.managed_files_count,
         "managed_conversations_count": conversations_qs.count(),
         "managed_messages_count": messages_qs.count(),
         "activity_preview_limit": ADMIN_USER_DETAIL_PREVIEW_LIMIT,
@@ -134,8 +141,8 @@ def admin_user_detail(request, user_id):
 @admin_required_view
 @require_POST
 def admin_set_role(request, user_id):
-    User = get_user_model()
-    user_obj = get_object_or_404(User, id=user_id)
+    user_model = get_user_model()
+    user_obj = get_object_or_404(user_model, id=user_id)
     if user_obj.id == request.user.id:
         return HttpResponseForbidden("You cannot change your own role.")
 
@@ -154,8 +161,8 @@ def admin_set_role(request, user_id):
 @admin_required_view
 @require_POST
 def admin_toggle_active(request, user_id):
-    User = get_user_model()
-    user_obj = get_object_or_404(User, id=user_id)
+    user_model = get_user_model()
+    user_obj = get_object_or_404(user_model, id=user_id)
     if user_obj.id == request.user.id:
         return HttpResponseForbidden("You cannot deactivate your own account.")
 

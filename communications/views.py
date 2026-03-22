@@ -7,7 +7,13 @@ from core.utils import get_page, preserved_query_suffix
 
 from .forms import ConversationMessageForm
 from .selectors import accessible_conversations_for_user, conversation_summary_for_user, inbox_conversations_for_user
-from .services import delete_conversation_for_user, mark_conversation_read, send_listing_message
+from .services import (
+    MESSAGE_SEND_RATE_LIMIT_ERROR,
+    consume_message_send_rate_limit,
+    delete_conversation_for_user,
+    mark_conversation_read,
+    send_listing_message,
+)
 
 MESSAGES_PER_PAGE = 12
 THREAD_MESSAGES_PER_PAGE = 50
@@ -21,9 +27,7 @@ def _decorate_conversation_for_user(conversation, user):
     if conversation is None:
         return None
     conversation.ui_counterparty = conversation.counterparty_for(user)
-    conversation.ui_counterparty_name = (
-        conversation.ui_counterparty.get_full_name() or conversation.ui_counterparty.username
-    )
+    conversation.ui_counterparty_name = conversation.ui_counterparty.display_name
     conversation.ui_counterparty_role_label = conversation.counterparty_role_label_for(user)
     conversation.ui_has_unread = conversation.has_unread_for(user)
     conversation.ui_listing_image = conversation.listing.primary_image
@@ -46,6 +50,7 @@ def messages_inbox(request, conversation_id=None):
     conversations_qs = inbox_conversations_for_user(request.user)
     conversations_page = get_page(conversations_qs, request.GET.get("page"), MESSAGES_PER_PAGE)
     _decorate_conversations_for_user(conversations_page.object_list, request.user)
+    reply_form = ConversationMessageForm()
 
     selected_conversation = None
     if conversation_id:
@@ -58,6 +63,7 @@ def messages_inbox(request, conversation_id=None):
     if selected_conversation:
         mark_conversation_read(selected_conversation, request.user)
         _decorate_conversation_for_user(selected_conversation, request.user)
+        selected_conversation.ui_has_unread = False
         for conversation in conversations_page.object_list:
             if conversation.id == selected_conversation.id:
                 conversation.ui_has_unread = False
@@ -67,7 +73,11 @@ def messages_inbox(request, conversation_id=None):
     thread_messages_page = None
     thread_pagination_query = ""
     if selected_conversation:
-        messages_qs = selected_conversation.messages.select_related("sender").order_by("-created_at")
+        messages_qs = (
+            selected_conversation.messages.select_related("sender")
+            .prefetch_related("sender__socialaccount_set")
+            .order_by("-created_at")
+        )
         thread_messages_page = get_page(messages_qs, request.GET.get("thread_page"), THREAD_MESSAGES_PER_PAGE)
         thread_messages = list(reversed(list(thread_messages_page.object_list)))
         thread_pagination_query = preserved_query_suffix(request.GET, "thread_page")
@@ -82,7 +92,8 @@ def messages_inbox(request, conversation_id=None):
         "thread_messages": thread_messages,
         "thread_messages_page": thread_messages_page,
         "thread_pagination_query": thread_pagination_query,
-        "reply_form": ConversationMessageForm(),
+        "reply_form": reply_form,
+        "reply_max_length": reply_form.fields["body"].max_length,
     }
     return render(request, "communications/messages.html", context)
 
@@ -91,6 +102,9 @@ def messages_inbox(request, conversation_id=None):
 @require_POST
 def reply_conversation(request, conversation_id):
     conversation = _accessible_conversation_or_404(request.user, conversation_id)
+    if not consume_message_send_rate_limit(request.user):
+        messages.error(request, MESSAGE_SEND_RATE_LIMIT_ERROR)
+        return redirect("communications:detail", conversation_id=conversation.pk)
     form = ConversationMessageForm(request.POST)
     if form.is_valid():
         send_listing_message(conversation, request.user, form.cleaned_data["body"])

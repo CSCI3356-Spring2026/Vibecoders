@@ -11,7 +11,7 @@
                     <div>
                         <p class="app-kicker">My Listings</p>
                         <h1 class="app-title">Your listings</h1>
-                        <p class="app-subtitle">Manage your listings.</p>
+                        <p class="app-subtitle">Listings managed by this account.</p>
                     </div>
                     <div class="app-actions">
                         <a class="btn btn-brand" href="{% url 'listings:create_listing' %}">Create listing</a>
@@ -34,24 +34,24 @@
                 </div>
             </div>
 
-                <div class="listing-panel">
-                    <div class="app-panel-head">
-                        <div>
-                            <h2 class="app-section-heading">Listing inventory</h2>
+            <div class="listing-panel">
+                <div class="app-panel-head">
+                    <div>
+                        <h2 class="app-section-heading">Listing inventory</h2>
                         <p class="app-panel-copy">
                             {% if has_listing_only_access %}
-                                Only your own listings are visible from this account.
+                                Only listings owned by this account appear here.
                             {% else %}
-                                Review your inventory.
+                                Review and manage your active inventory.
                             {% endif %}
                         </p>
                     </div>
-                    </div>
-                    <div class="app-meta mb-4">
-                        <span class="app-meta-chip app-meta-chip-primary">{{ listings_total }} listing{{ listings_total|pluralize }}</span>
-                    </div>
+                </div>
+                <div class="app-meta mb-4">
+                    <span class="app-meta-chip app-meta-chip-primary">{{ listings_total }} listing{{ listings_total|pluralize }}</span>
+                </div>
 
-                    {% if listings %}
+                {% if listings %}
                     <div class="app-compact-list">
                         {% for listing in listings %}
                             <div class="app-compact-item app-compact-item-static workspace-item">

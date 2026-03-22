@@ -1,7 +1,9 @@
+from allauth.socialaccount.models import SocialAccount
 from asgiref.sync import async_to_sync
 from channels.db import database_sync_to_async
 from channels.testing import WebsocketCommunicator
-from django.test import TransactionTestCase
+from django.core.cache import cache
+from django.test import TransactionTestCase, override_settings
 
 from communications.consumers import MessagesConsumer
 from communications.models import ListingConversation
@@ -14,6 +16,12 @@ class MessagesRealtimeTests(TransactionTestCase):
         self.owner = User.objects.create_user(username="owner", email="owner@bc.edu", password="test")
         self.participant = User.objects.create_user(username="student", email="student@bc.edu", password="test")
         self.outsider = User.objects.create_user(username="outsider", email="outsider@bc.edu", password="test")
+        SocialAccount.objects.create(
+            user=self.owner,
+            provider="google",
+            uid="google-owner",
+            extra_data={"picture": "https://example.com/realtime-owner.png"},
+        )
         self.listing = self.owner.listings.create(
             title="Realtime listing",
             address="140 Commonwealth Ave",
@@ -85,12 +93,15 @@ class MessagesRealtimeTests(TransactionTestCase):
             self.assertFalse(participant_payload["conversation"]["has_unread"])
             self.assertEqual(owner_payload["conversation"]["counterparty_role_label"], "Interested renter")
             self.assertEqual(participant_payload["conversation"]["counterparty_role_label"], "Listing owner")
+            self.assertEqual(
+                participant_payload["conversation"]["counterparty_avatar_url"], "https://example.com/realtime-owner.png"
+            )
             self.assertEqual(owner_payload["conversation"]["listing_address"], self.listing.address)
             self.assertEqual(
                 owner_payload["conversation"]["counterparty_avatar_url"], "https://example.com/student-avatar.jpg"
             )
             self.assertEqual(
-                participant_payload["conversation"]["counterparty_avatar_url"], "https://example.com/owner-avatar.jpg"
+                participant_payload["conversation"]["counterparty_avatar_url"], "https://example.com/realtime-owner.png"
             )
             self.assertEqual(owner_payload["message"]["sender_avatar_url"], "https://example.com/student-avatar.jpg")
             self.assertEqual(owner_payload["summary"]["conversation_delta"], 0)
@@ -178,6 +189,52 @@ class MessagesRealtimeTests(TransactionTestCase):
             await participant_socket.disconnect()
 
         async_to_sync(scenario)()
+
+    @override_settings(MESSAGE_SEND_RATE_LIMIT=1, MESSAGE_SEND_RATE_WINDOW_SECONDS=60)
+    def test_websocket_message_rate_limit_returns_error(self):
+        cache.clear()
+
+        async def scenario():
+            owner_socket = WebsocketCommunicator(MessagesConsumer.as_asgi(), "/ws/messages/")
+            owner_socket.scope["user"] = self.owner
+            participant_socket = WebsocketCommunicator(MessagesConsumer.as_asgi(), "/ws/messages/")
+            participant_socket.scope["user"] = self.participant
+
+            owner_connected, _ = await owner_socket.connect()
+            participant_connected, _ = await participant_socket.connect()
+            self.assertTrue(owner_connected)
+            self.assertTrue(participant_connected)
+
+            await participant_socket.send_json_to(
+                {
+                    "action": "send_message",
+                    "conversation_id": self.conversation.id,
+                    "body": "First note",
+                }
+            )
+
+            await owner_socket.receive_json_from()
+            await participant_socket.receive_json_from()
+
+            await participant_socket.send_json_to(
+                {
+                    "action": "send_message",
+                    "conversation_id": self.conversation.id,
+                    "body": "Second note",
+                }
+            )
+            error_payload = await participant_socket.receive_json_from()
+
+            self.assertEqual(error_payload["type"], "error")
+            self.assertEqual(
+                error_payload["message"], "Too many messages sent too quickly. Wait a minute and try again."
+            )
+
+            await owner_socket.disconnect()
+            await participant_socket.disconnect()
+
+        async_to_sync(scenario)()
+        self.assertEqual(self.conversation.messages.count(), 1)
 
     def test_unsupported_action_returns_error(self):
         async def scenario():

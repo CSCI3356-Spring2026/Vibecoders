@@ -1,250 +1,155 @@
-# Vibecoders
+# Padly
 
-Vibecoders is a student housing and subletting platform built for Boston College students. This project is being developed for CSCI 3356 Software Engineering, Spring 2026.
+Padly is a student housing and subletting marketplace built by Vibecoders for the Boston College community. It combines listing creation, search, role-based access control, Google-authenticated accounts, and real-time messaging in a single Django application.
 
-## Team
+## Overview
 
-Vincent Park, John Giglia, Austin Chan-Orsini, Cullen Bartz, Hunter Scheppat, Drew Petaccia
+- Google OAuth sign-in with verified-email-based role assignment
+- Marketplace flows for creating, managing, browsing, and messaging about listings
+- Role model for `Student`, `Realtor`, and `Admin` users
+- Real-time conversations between listing owners and interested renters
+- Admin tooling for moderation and operations
+- Private user-file handling through authenticated views
 
-## Tech Stack
+## Architecture
 
-- **Backend:** Django 5.2, Python 3.12+
-- **Realtime Messaging:** Django Channels over ASGI/WebSockets
-- **Database:** SQLite (default Django backend)
-- **Authentication:** Google OAuth with verified-email enforcement
-- **Frontend:** Django templates, Bootstrap 5, custom CSS
-- **Linting:** Ruff (enforced via pre-commit hooks and CI)
-- **CI:** GitHub Actions
+Padly is a Django 5.2 monolith with a small number of clear app boundaries:
 
-## Access Model
+- `core`: landing page, shared utilities, branding context
+- `listings`: listing models, forms, search, media, and publishing flows
+- `communications`: inbox, conversations, websocket messaging
+- `users`: authentication, profiles, dashboards, admin operations
+- `templates/`: server-rendered UI organized by app
+- `static/`: shared design tokens plus page-specific CSS and JavaScript
 
-The platform currently supports three access levels:
+Runtime notes:
 
-- `Student`: full marketplace access for verified domains listed in `STUDENT_EMAIL_DOMAINS` (defaults to `bc.edu`)
-- `Realtor`: listing-only access for external Google accounts
-- `Admin`: elevated management access for the internal admin dashboard
+- HTTP is served by Django; websockets run through Channels
+- Local development uses SQLite and an in-memory channel layer
+- Production websocket delivery requires Redis and the ASGI app
+- Local media is stored under `media/`
 
-Non-admin users are assigned their default role from their verified Google email domain at sign-in. Admin access is granted explicitly.
+## Stack
 
-## Project Structure
+- Python 3.12+
+- Django 5.2
+- Django Channels + Daphne
+- Django Allauth with Google provider
+- Bootstrap 5 with custom CSS/JS
+- SQLite by default
+- Ruff for linting and formatting
 
-```
-Vibecoders/
-├── vibecoders/            # Main Django project settings and root URL config
-│   ├── settings.py
-│   ├── urls.py
-│   ├── wsgi.py
-│   └── asgi.py
-├── core/                  # App for landing page and shared utilities
-├── communications/        # Messaging domain: conversations, websocket consumer, inbox views
-├── listings/              # App for listing CRUD, search, and filtering
-├── users/                 # App for authentication, profiles, and dashboards
-├── templates/             # All HTML templates (organized by app)
-│   ├── base.html          # Shared layout: Bootstrap, navbar, footer
-│   ├── auth/              # Shared auth fragments/layout
-│   │   ├── base.html
-│   │   └── google_mark.html
-│   ├── core/
-│   │   └── landing.html
-│   ├── listings/
-│   │   ├── listing_form.html
-│   │   ├── listing_list.html
-│   │   ├── listing_detail.html
-│   ├── account/
-│   │   ├── login.html
-│   │   └── logout.html
-│   ├── socialaccount/
-│   │   ├── authentication_error.html
-│   │   ├── login.html
-│   │   ├── login_cancelled.html
-│   │   └── login_redirect.html
-│   ├── communications/
-│   │   └── messages.html
-│   └── users/
-│       ├── files.html
-│       ├── login.html
-│       ├── profile.html
-│       └── dashboard.html
-├── static/                # Static assets (CSS, JS, images)
-│   ├── css/               # Shared + feature-specific stylesheets
-│   ├── js/
-│   └── images/
-├── media/                 # Local user-uploaded files during development (gitignored)
-├── manage.py
-├── requirements.txt       # Runtime dependencies
-├── requirements-dev.txt   # Local development tools (ruff, pre-commit)
-├── pyproject.toml          # Ruff linting configuration
-├── .pre-commit-config.yaml # Pre-commit hook definitions
-└── .github/workflows/ci.yml  # GitHub Actions CI pipeline
-```
+## Local Setup
 
-## Getting Started
-
-### Prerequisites
-
-- Python 3.12 or higher
-- Git
-
-### Setup
-
-1. Clone the repository:
+### 1. Clone and create a virtual environment
 
 ```bash
 git clone https://github.com/CSCI3356-Spring2026/Vibecoders.git
 cd Vibecoders
-```
-
-2. Create and activate a virtual environment:
-
-```bash
 python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-3. Install development dependencies:
+### 2. Install dependencies
 
 ```bash
-pip install -r requirements-dev.txt
-```
-
-4. Install pre-commit hooks (required for all contributors):
-
-```bash
+pip install -r requirements.txt
 pre-commit install
 ```
 
-5. Run database migrations:
+### 3. Create a local `.env`
+
+At minimum, set Google OAuth credentials if you want login to work locally:
+
+```env
+DJANGO_DEBUG=true
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+```
+
+Optional local configuration:
+
+```env
+SITE_PRODUCT_NAME=Padly
+SITE_COMPANY_NAME=Vibecoders
+STUDENT_EMAIL_DOMAINS=bc.edu
+```
+
+### 4. Apply migrations
 
 ```bash
 python manage.py migrate
 ```
 
-6. Start the development server:
-
-```bash
-python manage.py runserver
-```
-
-The app will be available at `http://127.0.0.1:8000/`.
-
-If you run the app with `DJANGO_DEBUG=false`, you must also provide `DJANGO_SECRET_KEY`.
-For production ASGI/WebSocket deployments, set `CHANNEL_REDIS_URL` to a Redis connection string as well.
-Production messaging must be served through the ASGI app in `vibecoders.asgi`, not the WSGI app in `vibecoders.wsgi`.
-For example, a production process can run:
-
-```bash
-daphne vibecoders.asgi:application
-```
-
-To grant admin access to an existing account:
-
-```bash
-python manage.py set_user_role user@bc.edu admin
-```
-
-To seed the local database with demo marketplace data:
+### 5. Seed demo data (optional)
 
 ```bash
 python manage.py seed_demo_listings
 ```
 
-The seed command is idempotent. It creates a small set of Boston College student accounts, external realtor accounts,
-sample listings, and a few message threads so the marketplace and owner views have realistic data during local development.
+This command is idempotent and creates demo users, listings, listing images, and sample conversations for local development.
 
-## Development Workflow
-
-### Branching
-
-All development happens on feature branches. Direct commits to `main` are NOT allowed. The branch protection rules require:
-
-- A pull request for all changes to `main`
-- CI checks (lint + tests) must pass before merging
-- At least one approving review before merging
-
-Name your branches descriptively, for example: `feature/landing-page`, `feature/user-profile`, `fix/search-filter-bug`.
-
-### Linting
-
-This project uses [Ruff](https://docs.astral.sh/ruff/) for linting and formatting. Pre-commit hooks run Ruff automatically on every commit. If your code has lint errors, the commit will be blocked until they are fixed.
-
-To manually check linting:
+### 6. Run the app
 
 ```bash
+python manage.py runserver
+```
+
+Open `http://127.0.0.1:8000/`.
+
+## Useful Commands
+
+```bash
+python manage.py test
 ruff check .
-```
-
-To auto-fix issues:
-
-```bash
-ruff check --fix .
-```
-
-To check formatting:
-
-```bash
 ruff format --check .
+python manage.py seed_demo_listings
+python manage.py set_user_role user@bc.edu admin
 ```
 
-To auto-format:
+`set_user_role` is useful after a real user has signed in once and needs elevated access.
+
+## Configuration
+
+Common environment variables:
+
+- `DJANGO_DEBUG`: enables local debug mode
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`: required for Google sign-in
+- `STUDENT_EMAIL_DOMAINS`: comma-separated student domains, defaults to `bc.edu`
+- `SITE_PRODUCT_NAME` / `SITE_COMPANY_NAME`: branding
+- `LEGAL_DOCUMENT_VERSION`: forces re-acceptance when legal text changes
+
+Production-only requirements:
+
+- `DJANGO_DEBUG=false`
+- `DJANGO_SECRET_KEY`
+- `CHANNEL_REDIS_URL`
+- `DJANGO_ALLOWED_HOSTS`
+- `DJANGO_CSRF_TRUSTED_ORIGINS`
+
+Optional proxy-aware production settings:
+
+- `DJANGO_TRUST_X_FORWARDED_PROTO=true`
+- `DJANGO_USE_X_FORWARDED_HOST=true`
+
+## Production Notes
+
+- Run the ASGI app, not WSGI, when deploying realtime messaging:
 
 ```bash
-ruff format .
+daphne vibecoders.asgi:application
 ```
 
-### CI
+- Redis is required for production channels.
+- The repo defaults to SQLite and local media storage; a real production deployment should move to a managed database and shared/object-backed media storage.
+- Private user uploads are intentionally served through authenticated views, not raw `/media/` routes.
 
-GitHub Actions runs on every pull request to `main`. The pipeline runs two jobs:
+## Development Standards
 
-1. **Lint** - Runs `ruff check` and `ruff format --check`
-2. **Test** - Runs `python manage.py test`
+- Open pull requests against `main`; do not commit directly to `main`
+- CI runs `ruff check .`, `ruff format --check .`, and `python manage.py test`
+- Keep changes scoped to the feature or fix being shipped
 
-Both must pass before a PR can be merged.
+## License
 
-### How Templates and Static Files Work
-
-Django uses a template inheritance model. `templates/base.html` is the shared layout that all app pages extend. It contains the HTML skeleton, Bootstrap CDN links, the navbar, footer, and a content block that child templates override.
-
-Auth-specific overrides live in `templates/account/`, `templates/socialaccount/`, and `templates/auth/`. The current listings flow uses `templates/listings/listing_form.html`, `templates/listings/listing_list.html`, and `templates/listings/listing_detail.html`.
-
-Static files (CSS, JS, images) live in the `static/` directory. In templates, reference them using Django's `{% static %}` tag. Shared tokens live in `static/css/base.css`, shared shell/layout styles are split across `navigation.css`, `footer.css`, `forms.css`, `layout.css`, and `components.css`, and feature styles live in `listings.css`, `listing-form.css`, `files.css`, `messages-shell.css`, `messages-thread.css`, `auth.css`, `home.css`, `admin.css`, and `responsive.css`.
-The messaging page JavaScript is also split into a small entrypoint plus focused realtime/UI modules under `static/js/` so the inbox behavior can grow without turning into a single large script.
-Realtime listing messages run over Django Channels and the ASGI app in [vibecoders/asgi.py](/Users/hunterschep/Vibecoders/vibecoders/asgi.py), with Redis-backed channel layers outside local debug mode.
-
-User-uploaded files are stored under `media/` in development and are intentionally ignored by git.
-Private user document previews/downloads are served through authenticated Django views instead of raw template links.
-
-## Tests
-
-Tests are organized by app/domain:
-
-- `core/tests/`
-- `communications/` behavior is covered through focused messaging tests plus user/listing integration tests
-- `listings/tests/`
-- `users/tests/`
-
-The larger `listings` and `users` suites are split by concern so model, view, adapter, management-command, and file-library tests can evolve independently as the project grows.
-
-## User Interface 
-
-Consistent custom tokens are in `static/css/base.css`:
-
-```css
-:root {
-  --primary-600: #4f46e5;
-  --primary-500: #6366f1;
-  --primary-100: #e0e7ff;
-
-  --secondary-600: #0d9488;
-  --secondary-500: #14b8a6;
-  --secondary-100: #ccfbf1;
-
-  --accent-500: #f59e0b;
-
-  --gray-900: #111827;
-  --gray-700: #374151;
-  --gray-500: #6b7280;
-  --gray-300: #d1d5db;
-  --gray-100: #f3f4f6;
-  --white: #ffffff;
-}
-```
+See [LICENSE](LICENSE).

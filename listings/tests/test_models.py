@@ -1,10 +1,11 @@
-from datetime import date
+from datetime import date, timedelta
 from io import BytesIO
 from tempfile import TemporaryDirectory
 
+from allauth.socialaccount.models import SocialAccount
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.test.utils import override_settings
 from PIL import Image
 
@@ -39,6 +40,61 @@ class ListingModelTests(ListingTestCase):
                 start_date=date(2027, 5, 31),
                 end_date=date(2026, 9, 1),
             )
+
+    def test_database_constraint_rejects_negative_distance_to_campus(self):
+        with self.assertRaises(IntegrityError):
+            Listing.objects.create(
+                owner=self.user,
+                title="Broken listing",
+                address="140 Commonwealth Ave",
+                price="1200.00",
+                lease_type="FULL",
+                start_date=date(2026, 9, 1),
+                end_date=date(2027, 5, 31),
+                distance_to_campus="-1.00",
+            )
+
+    def test_database_constraint_rejects_invalid_listing_status(self):
+        with self.assertRaises(IntegrityError):
+            Listing.objects.create(
+                owner=self.user,
+                title="Broken listing",
+                address="140 Commonwealth Ave",
+                price="1200.00",
+                lease_type="FULL",
+                start_date=date(2026, 9, 1),
+                end_date=date(2027, 5, 31),
+                status="BROKEN",
+            )
+
+    def test_public_queryset_only_returns_active_marketplace_listings(self):
+        today = date.today()
+        active_listing = self.create_listing(title="Active listing")
+        self.create_listing(title="Taken listing", status=Listing.STATUS_TAKEN)
+        self.create_listing(
+            title="Expired listing",
+            start_date=today - timedelta(days=90),
+            end_date=today - timedelta(days=30),
+        )
+        self.create_listing(title="Hidden listing", is_hidden=True)
+
+        listings = list(Listing.objects.public())
+
+        self.assertEqual([listing.pk for listing in listings], [active_listing.pk])
+
+    def test_listing_owner_cannot_be_reassigned_after_creation(self):
+        listing = self.create_listing()
+        new_owner = self.user.__class__.objects.create_user(
+            username="new-owner",
+            email="new-owner@bc.edu",
+            password="test",
+        )
+        listing.owner = new_owner
+
+        with self.assertRaises(ValidationError) as exc:
+            listing.save()
+
+        self.assertIn("Listing ownership cannot be reassigned after creation.", exc.exception.message_dict["owner"][0])
 
     def test_conversation_add_message_updates_unread_state(self):
         participant = self.user.__class__.objects.create_user(
@@ -122,6 +178,20 @@ class ListingModelTests(ListingTestCase):
 
         self.assertIn("?v=", payload["listing_image_url"])
 
+    def test_listing_image_file_is_not_deleted_when_transaction_rolls_back(self):
+        with TemporaryDirectory() as temp_dir, override_settings(MEDIA_ROOT=temp_dir):
+            listing = self.create_listing()
+            listing_image = ListingImage.objects.create(listing=listing, image=self._image_upload("one.png"))
+            stored_name = listing_image.image.name
+
+            with self.assertRaises(RuntimeError):
+                with transaction.atomic():
+                    listing_image.delete()
+                    self.assertTrue(listing_image.image.storage.exists(stored_name))
+                    raise RuntimeError("rollback")
+
+            self.assertTrue(listing_image.image.storage.exists(stored_name))
+
     def test_listing_estimated_totals_include_optional_cost_fields(self):
         listing = self.create_listing(
             price="1800.00",
@@ -162,6 +232,42 @@ class ListingModelTests(ListingTestCase):
             start_listing_conversation(listing, listing.owner, "Interested.")
 
         self.assertIn("You cannot message yourself", exc.exception.message_dict["body"][0])
+
+    def test_start_listing_conversation_rejects_inactive_listing(self):
+        participant = self.user.__class__.objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="test",
+        )
+        listing = self.create_listing(status=Listing.STATUS_TAKEN)
+
+        with self.assertRaises(ValidationError) as exc:
+            start_listing_conversation(listing, participant, "Interested.")
+
+        self.assertIn("no longer accepting new messages", exc.exception.message_dict["body"][0])
+
+    def test_counterparty_avatar_url_is_exposed_in_conversation_payload(self):
+        participant = self.user.__class__.objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="test",
+        )
+        SocialAccount.objects.create(
+            user=self.user,
+            provider="google",
+            uid="google-owner",
+            extra_data={"picture": "https://example.com/owner-avatar.png"},
+        )
+        listing = self.create_listing()
+        conversation = ListingConversation.objects.create(
+            listing=listing,
+            owner=listing.owner,
+            participant=participant,
+        )
+
+        payload = serialize_conversation_for_user(conversation, participant)
+
+        self.assertEqual(payload["counterparty_avatar_url"], "https://example.com/owner-avatar.png")
 
     def test_deleting_conversation_hides_it_for_one_user_only(self):
         participant = self.user.__class__.objects.create_user(
@@ -221,3 +327,14 @@ class ListingModelTests(ListingTestCase):
         delete_conversation_for_user(conversation, listing.owner)
 
         self.assertFalse(ListingConversation.objects.filter(pk=conversation.pk).exists())
+
+    @override_settings(LISTING_IMAGE_TOTAL_LIMIT=1)
+    def test_listing_image_total_limit_applies_to_direct_model_saves(self):
+        with TemporaryDirectory() as temp_dir, override_settings(MEDIA_ROOT=temp_dir):
+            listing = self.create_listing()
+            ListingImage.objects.create(listing=listing, image=self._image_upload("one.png"))
+
+            with self.assertRaises(ValidationError) as exc:
+                ListingImage.objects.create(listing=listing, image=self._image_upload("two.png"))
+
+        self.assertIn("Each listing can have up to 1 images total.", exc.exception.message_dict["image"][0])

@@ -6,16 +6,15 @@ from .models import CustomUser, UserFile
 
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
-    """Admin configuration for CustomUser with role field visible."""
+    """Admin configuration for CustomUser with role visible but not editable in raw admin."""
 
     list_display = ("username", "email", "role", "is_staff", "is_active")
     list_filter = ("role", "is_staff", "is_active")
-
-    # Add 'role' to the existing fieldsets
     fieldsets = UserAdmin.fieldsets + (("Role", {"fields": ("role",)}),)
+    readonly_fields = ("role",)
 
-    # Add 'role' to the add-user form
-    add_fieldsets = UserAdmin.add_fieldsets + (("Role", {"fields": ("role",)}),)
+    def get_add_fieldsets(self, request, obj=None):
+        return self.add_fieldsets
 
 
 @admin.register(UserFile)

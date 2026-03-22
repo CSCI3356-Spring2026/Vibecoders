@@ -8,6 +8,13 @@ ALLOWED_LISTING_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
 ALLOWED_LISTING_IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 
+def _configured_upload_size_label(max_bytes):
+    size_in_mb = max_bytes / (1024 * 1024)
+    if size_in_mb.is_integer():
+        return f"{int(size_in_mb)} MB"
+    return f"{size_in_mb:.1f} MB"
+
+
 def validate_listing_image(upload):
     extension = Path(upload.name).suffix.lower().lstrip(".")
     if extension not in ALLOWED_LISTING_IMAGE_EXTENSIONS:
@@ -18,7 +25,9 @@ def validate_listing_image(upload):
         raise ValidationError("Unsupported image format.")
 
     if upload.size > settings.LISTING_IMAGE_MAX_BYTES:
-        raise ValidationError("Each image must be 5 MB or smaller.")
+        raise ValidationError(
+            f"Each image must be {_configured_upload_size_label(settings.LISTING_IMAGE_MAX_BYTES)} or smaller."
+        )
 
     current_position = upload.tell() if hasattr(upload, "tell") else None
     try:

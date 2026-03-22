@@ -45,6 +45,10 @@
         grid-template-columns: 1fr;
     }
 
+    .home-hero-shell {
+        padding: 1.65rem;
+    }
+
     .app-sidebar {
         position: static;
     }
@@ -102,6 +106,10 @@
 
     .auth-stage {
         padding: 0.25rem 0 0.5rem;
+    }
+
+    .auth-stage::after {
+        display: none;
     }
 
     .auth-stage-title {
@@ -220,6 +228,11 @@
     .auth-stage-title {
         max-width: none;
         font-size: clamp(1.8rem, 8vw, 2.5rem);
+    }
+
+    .listing-detail-image:first-child {
+        grid-column: auto;
+        height: 15.5rem;
     }
 
     .footer-grid {
