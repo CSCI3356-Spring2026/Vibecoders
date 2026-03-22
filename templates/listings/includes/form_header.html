@@ -1,0 +1,18 @@
+<div class="listing-panel app-header app-header-shell">
+    <div class="app-header-main">
+        <div>
+            <p class="listing-hero-eyebrow mb-2">{% if is_edit %}Edit Listing{% else %}Create Listing{% endif %}</p>
+            <h1 class="listing-hero-title app-title">{% if is_edit %}Edit listing{% else %}Create listing{% endif %}</h1>
+            <p class="listing-hero-subtitle app-subtitle">
+                {% if is_edit %}
+                    Update the details and save.
+                {% else %}
+                    Add the basics and save.
+                {% endif %}
+            </p>
+        </div>
+        <div class="app-actions">
+            <a class="btn btn-outline-secondary" href="{% url back_url_name %}">Back to {{ back_label }}</a>
+        </div>
+    </div>
+</div>

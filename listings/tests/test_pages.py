@@ -52,6 +52,16 @@ class ListingPageTests(ListingTestCase):
 
         self.assertContains(response, reverse("listings:detail", args=[listing.pk]))
 
+    def test_listing_list_shows_owner_avatar(self):
+        self.user.profile_image_url = "https://example.com/owner-avatar.jpg"
+        self.user.save(update_fields=["profile_image_url"])
+        self.create_listing()
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"))
+
+        self.assertContains(response, "https://example.com/owner-avatar.jpg")
+
     def test_listing_list_omits_hidden_listings(self):
         visible_listing = self.create_listing(
             title="Visible listing",
@@ -143,13 +153,18 @@ class ListingPageTests(ListingTestCase):
             "start_date": date(2026, 9, 1),
             "end_date": date(2027, 5, 31),
             "description": "Close to dining hall.",
+            "utilities_estimate": "90.00",
+            "security_deposit": "1200.00",
         }
 
         response = self.client.post(reverse("listings:create_listing"), payload)
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response["Location"], reverse("listings:listing_list"))
+        created_listing = self.user.listings.get()
+        self.assertEqual(response["Location"], reverse("listings:detail", args=[created_listing.pk]))
         self.assertEqual(self.user.listings.count(), 1)
+        self.assertEqual(created_listing.utilities_estimate, 90)
+        self.assertEqual(created_listing.security_deposit, 1200)
 
     def test_create_listing_rejects_end_date_before_start_date(self):
         self.client.force_login(self.user)
@@ -190,6 +205,27 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, "Upload a JPG, PNG, or WebP image.")
         self.assertFalse(self.user.listings.exists())
 
+    def test_create_listing_can_save_multiple_images(self):
+        self.client.force_login(self.user)
+        payload = {
+            "title": "Quiet dorm near campus",
+            "address": "140 Commonwealth Ave",
+            "price": "1200.00",
+            "lease_type": "FULL",
+            "start_date": date(2026, 9, 1),
+            "end_date": date(2027, 5, 31),
+            "description": "Close to dining hall.",
+            "images": [self.make_image_upload("one.png"), self.make_image_upload("two.png")],
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                response = self.client.post(reverse("listings:create_listing"), payload)
+
+        self.assertEqual(response.status_code, 302)
+        listing = self.user.listings.get()
+        self.assertEqual(listing.images.count(), 2)
+
     def test_listing_owner_can_edit_listing(self):
         listing = self.create_listing()
         self.client.force_login(self.user)
@@ -204,13 +240,16 @@ class ListingPageTests(ListingTestCase):
                 "start_date": listing.start_date,
                 "end_date": listing.end_date,
                 "property_type": listing.property_type,
+                "description": listing.description,
+                "status": "PENDING",
             },
         )
 
         listing.refresh_from_db()
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response["Location"], reverse("users:posts"))
+        self.assertEqual(response["Location"], reverse("listings:detail", args=[listing.pk]))
         self.assertEqual(listing.title, "Updated listing")
+        self.assertEqual(listing.status, "PENDING")
 
     def test_edit_listing_rejects_total_image_limit(self):
         listing = self.create_listing()
@@ -231,6 +270,7 @@ class ListingPageTests(ListingTestCase):
                         "start_date": listing.start_date,
                         "end_date": listing.end_date,
                         "property_type": listing.property_type,
+                        "description": listing.description,
                         "images": self.make_image_upload("three.png"),
                     },
                 )
@@ -238,6 +278,35 @@ class ListingPageTests(ListingTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Each listing can have up to 2 images total.")
         self.assertEqual(listing.images.count(), 2)
+
+    def test_edit_listing_can_remove_existing_images(self):
+        listing = self.create_listing()
+        self.client.force_login(self.user)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                image_one = ListingImage.objects.create(listing=listing, image=self.make_image_upload("one.png"))
+                image_two = ListingImage.objects.create(listing=listing, image=self.make_image_upload("two.png"))
+
+                response = self.client.post(
+                    reverse("listings:edit_listing", args=[listing.pk]),
+                    {
+                        "title": listing.title,
+                        "address": listing.address,
+                        "price": listing.price,
+                        "lease_type": listing.lease_type,
+                        "start_date": listing.start_date,
+                        "end_date": listing.end_date,
+                        "property_type": listing.property_type,
+                        "description": listing.description,
+                        "remove_images": [str(image_one.pk)],
+                    },
+                )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(listing.images.count(), 1)
+        self.assertFalse(listing.images.filter(pk=image_one.pk).exists())
+        self.assertTrue(listing.images.filter(pk=image_two.pk).exists())
 
     def test_listing_owner_can_delete_listing(self):
         listing = self.create_listing()
@@ -397,3 +466,13 @@ class ListingPageTests(ListingTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Conversation threads")
         self.assertContains(response, "Can I tour this week?")
+
+    def test_listing_detail_shows_owner_avatar(self):
+        self.user.profile_image_url = "https://example.com/owner-avatar.jpg"
+        self.user.save(update_fields=["profile_image_url"])
+        listing = self.create_listing()
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:detail", args=[listing.pk]))
+
+        self.assertContains(response, "https://example.com/owner-avatar.jpg")

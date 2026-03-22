@@ -107,7 +107,18 @@ class Command(BaseCommand):
             conversation.messages.all().delete()
             conversation.owner_has_unread_messages = False
             conversation.participant_has_unread_messages = False
+            conversation.owner_deleted_at = None
+            conversation.participant_deleted_at = None
             conversation.last_message_preview = ""
+            conversation.save(
+                update_fields=[
+                    "owner_has_unread_messages",
+                    "participant_has_unread_messages",
+                    "owner_deleted_at",
+                    "participant_deleted_at",
+                    "last_message_preview",
+                ]
+            )
 
             for message_data in conversation_data["messages"]:
                 sender = users_by_email.get(message_data["sender_email"])

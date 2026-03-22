@@ -64,6 +64,7 @@ class UserFilesViewTests(TestCase):
         self.assertEqual(second_page.status_code, 200)
         self.assertNotContains(first_page, "Doc 0")
         self.assertContains(second_page, "Doc 0")
+        self.assertNotContains(first_page, "confirm(")
 
     def test_delete_redirect_preserves_page_and_query(self):
         self.client.force_login(self.user)
@@ -83,6 +84,26 @@ class UserFilesViewTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], f"{reverse('users:files')}?page=2&q=lease")
+
+    def test_delete_redirect_preserves_posted_query_with_url_encoding(self):
+        self.client.force_login(self.user)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                user_file = UserFile.objects.create(
+                    owner=self.user,
+                    title="Lease",
+                    file=SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain"),
+                )
+
+                response = self.client.post(
+                    reverse("users:file_delete", args=[user_file.id]),
+                    {"page": "2", "q": "lease & forms"},
+                    follow=False,
+                )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], f"{reverse('users:files')}?page=2&q=lease+%26+forms")
 
     def test_delete_removes_file_from_storage(self):
         self.client.force_login(self.user)

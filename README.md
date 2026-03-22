@@ -206,7 +206,7 @@ Django uses a template inheritance model. `templates/base.html` is the shared la
 
 Auth-specific overrides live in `templates/account/`, `templates/socialaccount/`, and `templates/auth/`. The current listings flow uses `templates/listings/listing_form.html`, `templates/listings/listing_list.html`, and `templates/listings/listing_detail.html`.
 
-Static files (CSS, JS, images) live in the `static/` directory. In templates, reference them using Django's `{% static %}` tag. Shared tokens live in `static/css/base.css`, shared shell/layout styles are split across `navigation.css`, `footer.css`, `forms.css`, `layout.css`, and `components.css`, and feature styles live in `listings.css`, `files.css`, `messages-shell.css`, `messages-thread.css`, `auth.css`, `home.css`, `admin.css`, and `responsive.css`.
+Static files (CSS, JS, images) live in the `static/` directory. In templates, reference them using Django's `{% static %}` tag. Shared tokens live in `static/css/base.css`, shared shell/layout styles are split across `navigation.css`, `footer.css`, `forms.css`, `layout.css`, and `components.css`, and feature styles live in `listings.css`, `listing-form.css`, `files.css`, `messages-shell.css`, `messages-thread.css`, `auth.css`, `home.css`, `admin.css`, and `responsive.css`.
 The messaging page JavaScript is also split into a small entrypoint plus focused realtime/UI modules under `static/js/` so the inbox behavior can grow without turning into a single large script.
 Realtime listing messages run over Django Channels and the ASGI app in [vibecoders/asgi.py](/Users/hunterschep/Vibecoders/vibecoders/asgi.py), with Redis-backed channel layers outside local debug mode.
 

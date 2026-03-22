@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
 from allauth.core.exceptions import ImmediateHttpResponse
+from allauth.socialaccount.models import SocialAccount
 from django.conf import settings
 from django.contrib import messages
 from django.test import RequestFactory, TestCase
@@ -36,11 +37,12 @@ class AuthSettingsTests(TestCase):
 
 
 class MarketplaceSocialAccountAdapterTests(TestCase):
-    def make_sociallogin(self, email, verified=True, user=None):
+    def make_sociallogin(self, email, verified=True, user=None, picture="https://example.com/avatar.jpg"):
         sociallogin = MagicMock()
         sociallogin.account.extra_data = {
             "email": email,
             "email_verified": verified,
+            "picture": picture,
         }
         sociallogin.user = user or User()
         return sociallogin
@@ -156,6 +158,15 @@ class MarketplaceSocialAccountAdapterTests(TestCase):
 
         self.assertEqual(user.username, "student")
         self.assertEqual(user.role, Role.STUDENT)
+        self.assertEqual(user.profile_image_url, "https://example.com/avatar.jpg")
+
+    def test_populate_user_ignores_non_http_profile_image_urls(self):
+        adapter = MarketplaceSocialAccountAdapter()
+        sociallogin = self.make_sociallogin("student@bc.edu", picture="javascript:alert(1)")
+
+        user = adapter.populate_user(RequestFactory().get("/"), sociallogin, {"email": "student@bc.edu"})
+
+        self.assertEqual(user.profile_image_url, "")
 
     def test_populate_user_assigns_realtor_role_for_external_email(self):
         adapter = MarketplaceSocialAccountAdapter()
@@ -199,3 +210,59 @@ class MarketplaceSocialAccountAdapterTests(TestCase):
 
         self.assertEqual(user.username, "admin-user")
         self.assertEqual(user.role, Role.ADMIN)
+
+    def test_pre_social_login_updates_existing_user_profile_image(self):
+        user = User.objects.create_user(username="eagle", email="eagle@bc.edu", password="test")
+        adapter = MarketplaceSocialAccountAdapter()
+        request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
+        sociallogin = self.make_sociallogin(
+            "eagle@bc.edu",
+            user=user,
+            picture="https://example.com/updated-avatar.jpg",
+        )
+
+        adapter.pre_social_login(request, sociallogin)
+        user.refresh_from_db()
+
+        self.assertEqual(user.profile_image_url, "https://example.com/updated-avatar.jpg")
+
+    def test_pre_social_login_keeps_existing_profile_image_when_google_picture_missing(self):
+        user = User.objects.create_user(
+            username="eagle",
+            email="eagle@bc.edu",
+            password="test",
+            profile_image_url="https://example.com/original-avatar.jpg",
+        )
+        SocialAccount.objects.create(
+            user=user,
+            provider="google",
+            uid="google-user-1",
+            extra_data={"email": "eagle@bc.edu", "email_verified": True},
+        )
+        adapter = MarketplaceSocialAccountAdapter()
+        request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
+        sociallogin = self.make_sociallogin("eagle@bc.edu", user=user, picture="")
+
+        adapter.pre_social_login(request, sociallogin)
+        user.refresh_from_db()
+
+        self.assertEqual(user.profile_image_url, "https://example.com/original-avatar.jpg")
+
+    def test_pre_social_login_ignores_non_http_profile_image_urls(self):
+        user = User.objects.create_user(
+            username="eagle",
+            email="eagle@bc.edu",
+            password="test",
+            profile_image_url="https://example.com/original-avatar.jpg",
+        )
+        adapter = MarketplaceSocialAccountAdapter()
+        request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
+        sociallogin = self.make_sociallogin("eagle@bc.edu", user=user, picture="ftp://example.com/avatar.jpg")
+
+        adapter.pre_social_login(request, sociallogin)
+        user.refresh_from_db()
+
+        self.assertEqual(user.profile_image_url, "https://example.com/original-avatar.jpg")

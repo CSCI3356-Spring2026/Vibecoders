@@ -19,6 +19,7 @@
     --gray-700-rgb: 55, 65, 81;
     --gray-500-rgb: 107, 114, 128;
     --gray-300-rgb: 209, 213, 219;
+    --gray-100-rgb: 243, 244, 246;
     --white-rgb: 255, 255, 255;
     --font-sans: "Inter", sans-serif;
     --page-background: var(--gray-100);
@@ -39,14 +40,15 @@
     --accent-ink: var(--accent-500);
     --shadow-sm: none;
     --shadow-md: none;
-    --radius-sm: 0.1875rem;
-    --radius-md: 0.25rem;
-    --radius-lg: 0.25rem;
+    --radius-sm: 0.25rem;
+    --radius-md: 0.375rem;
+    --radius-lg: 0.5rem;
 }
 
 html {
     font-size: 93.75%;
     scrollbar-gutter: stable;
+    background: var(--page-background);
 }
 
 *,

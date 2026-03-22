@@ -1,3 +1,5 @@
+import { buildUserAvatar } from "./messages_avatar.js";
+
 export function createConversationListController({ conversationList, conversationUrl, selectedConversationId }) {
     const formatShortDate = (isoString) =>
         new Date(isoString).toLocaleDateString(undefined, {
@@ -5,30 +7,19 @@ export function createConversationListController({ conversationList, conversatio
             day: "numeric",
         });
 
-    const initialFromName = (name) => {
-        const trimmed = (name || "").trim();
-        return trimmed ? trimmed.charAt(0).toUpperCase() : "?";
-    };
-
     const appendConversationMedia = (container, conversation) => {
         if (!container) {
             return;
         }
         container.innerHTML = "";
-
-        if (conversation.listing_image_url) {
-            const image = document.createElement("img");
-            image.src = conversation.listing_image_url;
-            image.alt = conversation.listing_title;
-            container.appendChild(image);
-            return;
-        }
-
-        const fallback = document.createElement("span");
-        fallback.className = "messages-list-avatar";
-        fallback.setAttribute("aria-hidden", "true");
-        fallback.textContent = initialFromName(conversation.counterparty_name);
-        container.appendChild(fallback);
+        container.appendChild(
+            buildUserAvatar({
+                name: conversation.counterparty_name,
+                imageUrl: conversation.counterparty_avatar_url,
+                sizeClass: "user-avatar-md",
+                extraClass: "messages-list-user-avatar",
+            })
+        );
     };
 
     const ensureUnreadDot = (item, hasUnread) => {

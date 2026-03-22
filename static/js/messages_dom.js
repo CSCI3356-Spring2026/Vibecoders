@@ -1,4 +1,5 @@
 import { createConversationListController } from "./messages_list.js";
+import { buildUserAvatar } from "./messages_avatar.js";
 
 export function createMessagesUi(root) {
     const conversationUrlTemplate = root.dataset.conversationUrlTemplate || "";
@@ -168,19 +169,31 @@ export function createMessagesUi(root) {
 
         const shouldStickToBottom = message.sender_id === currentUserId || threadIsNearBottom();
 
-        const bubble = document.createElement("div");
-        bubble.className = "message-bubble";
-        bubble.dataset.messageId = String(message.id);
-        bubble.classList.add(message.sender_id === currentUserId ? "is-outbound" : "is-inbound");
+        const row = document.createElement("div");
+        row.className = "message-row";
+        row.dataset.messageId = String(message.id);
+        row.classList.add(message.sender_id === currentUserId ? "is-outbound" : "is-inbound");
+
+        const avatar = buildUserAvatar({
+            name: message.sender_name,
+            imageUrl: message.sender_avatar_url,
+            sizeClass: "user-avatar-sm",
+            extraClass: "message-avatar",
+        });
+
+        const stack = document.createElement("div");
+        stack.className = "message-bubble-stack";
 
         const meta = document.createElement("div");
         meta.className = "message-bubble-meta";
 
         const sender = document.createElement("span");
-        sender.textContent = message.sender_name;
+        sender.className = "message-sender-name";
+        sender.textContent = message.sender_id === currentUserId ? "You" : message.sender_name;
         meta.appendChild(sender);
 
         const timestamp = document.createElement("span");
+        timestamp.className = "message-timestamp";
         timestamp.textContent = formatLongDate(message.created_at);
         meta.appendChild(timestamp);
 
@@ -188,9 +201,16 @@ export function createMessagesUi(root) {
         body.className = "message-bubble-body";
         body.textContent = message.body;
 
-        bubble.appendChild(meta);
+        const bubble = document.createElement("div");
+        bubble.className = "message-bubble";
+        bubble.classList.add(message.sender_id === currentUserId ? "is-outbound" : "is-inbound");
         bubble.appendChild(body);
-        messageThread.appendChild(bubble);
+
+        stack.appendChild(meta);
+        stack.appendChild(bubble);
+        row.appendChild(avatar);
+        row.appendChild(stack);
+        messageThread.appendChild(row);
 
         if (shouldStickToBottom) {
             messageThread.scrollTop = messageThread.scrollHeight;

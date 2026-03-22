@@ -1,10 +1,11 @@
+from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth.signals import user_logged_in
 from django.test import TestCase
 from django.test.client import RequestFactory
 from django.utils import timezone
 
 from ..legal import set_pending_legal_acceptance
-from ..models import Role
+from ..models import AdminProfile, Role, StudentProfile
 from .helpers import User, add_middleware
 
 
@@ -79,6 +80,43 @@ class CustomUserModelTests(TestCase):
         self.assertEqual(user.role, Role.ADMIN)
         self.assertTrue(hasattr(user, "admin_profile"))
 
+    def test_partial_email_save_updates_role_policy(self):
+        user = User.objects.create_user(username="stu", email="stu@bc.edu", password="test")
+
+        user.email = "stu@gmail.com"
+        user.save(update_fields=["email"])
+        user.refresh_from_db()
+
+        self.assertEqual(user.email, "stu@gmail.com")
+        self.assertEqual(user.role, Role.REALTOR)
+
+    def test_partial_role_save_preserves_admin_role(self):
+        user = User.objects.create_user(username="agent", email="agent@gmail.com", password="test")
+
+        user.set_admin_access(True)
+        user.save(update_fields=["role"])
+        user.refresh_from_db()
+
+        self.assertEqual(user.role, Role.ADMIN)
+
+    def test_student_and_admin_profiles_are_created_for_matching_roles(self):
+        student = User.objects.create_user(username="stu", email="stu@bc.edu", password="test")
+        admin = User.objects.create_user(username="adm", email="adm@bc.edu", password="test", role=Role.ADMIN)
+
+        self.assertTrue(StudentProfile.objects.filter(user=student).exists())
+        self.assertTrue(AdminProfile.objects.filter(user=admin).exists())
+
+    def test_realtor_role_transition_removes_role_specific_profiles(self):
+        user = User.objects.create_user(username="stu", email="stu@bc.edu", password="test")
+
+        self.assertTrue(StudentProfile.objects.filter(user=user).exists())
+
+        user.email = "stu@gmail.com"
+        user.save(update_fields=["email"])
+
+        self.assertFalse(StudentProfile.objects.filter(user=user).exists())
+        self.assertFalse(AdminProfile.objects.filter(user=user).exists())
+
     def test_str_representation(self):
         user = User.objects.create_user(username="eagle", email="eagle@bc.edu", password="test")
 
@@ -95,3 +133,22 @@ class CustomUserModelTests(TestCase):
         self.assertIsNotNone(user.terms_accepted_at)
         self.assertIsNotNone(user.privacy_accepted_at)
         self.assertTrue(user.has_current_legal_acceptance)
+
+    def test_google_profile_image_is_synced_on_login(self):
+        user = User.objects.create_user(username="eagle", email="eagle@bc.edu", password="test")
+        SocialAccount.objects.create(
+            user=user,
+            provider="google",
+            uid="google-user-2",
+            extra_data={
+                "email": "eagle@bc.edu",
+                "email_verified": True,
+                "picture": "https://example.com/google-avatar.jpg",
+            },
+        )
+
+        request = add_middleware(RequestFactory().get("/accounts/google/login/"))
+        user_logged_in.send(sender=user.__class__, request=request, user=user)
+        user.refresh_from_db()
+
+        self.assertEqual(user.profile_image_url, "https://example.com/google-avatar.jpg")

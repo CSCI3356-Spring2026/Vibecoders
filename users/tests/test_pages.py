@@ -2,6 +2,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from communications.models import ListingConversation
+from communications.selectors import accessible_conversations_for_user
 
 from .helpers import User
 
@@ -25,10 +26,10 @@ class UserPageTests(TestCase):
     def test_login_page_has_google_call_to_action(self):
         response = self.client.get("/users/login/")
 
-        self.assertContains(response, "Sign in with Google")
+        self.assertContains(response, 'class="auth-acceptance-form"')
+        self.assertContains(response, 'name="accept_terms"')
+        self.assertContains(response, 'name="accept_privacy"')
         self.assertContains(response, "Continue with Google")
-        self.assertContains(response, "full student access")
-        self.assertContains(response, "Boston College Housing")
         self.assertContains(response, "Terms of Service")
         self.assertContains(response, "Privacy Policy")
         self.assertNotContains(response, '<header class="site-header">')
@@ -37,9 +38,10 @@ class UserPageTests(TestCase):
     def test_allauth_login_page_uses_custom_google_ui(self):
         response = self.client.get("/accounts/login/")
 
-        self.assertContains(response, "Sign in with Google")
+        self.assertContains(response, 'class="auth-acceptance-form"')
+        self.assertContains(response, 'name="accept_terms"')
+        self.assertContains(response, 'name="accept_privacy"')
         self.assertContains(response, "Continue with Google")
-        self.assertContains(response, "Secure access for listings, messages, and account management.")
         self.assertNotContains(response, '<header class="site-header">')
         self.assertNotContains(response, "If you have not created an account yet")
 
@@ -92,22 +94,28 @@ class UserPageTests(TestCase):
         self.assertEqual(response["Location"], "/users/dashboard/")
 
     def test_authenticated_header_shows_profile_menu_and_logout(self):
+        self.user.profile_image_url = "https://example.com/avatar.jpg"
+        self.user.save(update_fields=["profile_image_url"])
         self.client.force_login(self.user)
 
         response = self.client.get("/")
 
         self.assertContains(response, "profile-menu")
+        self.assertContains(response, "https://example.com/avatar.jpg")
         self.assertContains(response, "/users/messages/")
         self.assertContains(response, "Log out")
         self.assertContains(response, "/accounts/logout/")
 
     def test_authenticated_profile_and_dashboard_render(self):
+        self.user.profile_image_url = "https://example.com/avatar.jpg"
+        self.user.save(update_fields=["profile_image_url"])
         self.client.force_login(self.user)
 
         profile_response = self.client.get("/users/profile/")
         dashboard_response = self.client.get("/users/dashboard/")
 
         self.assertEqual(profile_response.status_code, 200)
+        self.assertContains(profile_response, "https://example.com/avatar.jpg")
         self.assertContains(profile_response, self.user.display_role)
         self.assertContains(profile_response, "Access model")
         self.assertEqual(dashboard_response.status_code, 200)
@@ -149,6 +157,7 @@ class UserPageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Your listings")
         self.assertContains(response, listing.title)
+        self.assertNotContains(response, "confirm(")
 
     def test_posts_page_is_paginated(self):
         for index in range(13):
@@ -189,6 +198,8 @@ class UserPageTests(TestCase):
             end_date="2027-05-31",
         )
         participant = User.objects.create_user(username="student", email="student@bc.edu", password="test")
+        participant.profile_image_url = "https://example.com/student-avatar.jpg"
+        participant.save(update_fields=["profile_image_url"])
         conversation = ListingConversation.objects.create(
             listing=listing,
             owner=self.user,
@@ -203,6 +214,32 @@ class UserPageTests(TestCase):
         self.assertContains(response, "Listing conversations")
         self.assertContains(response, listing.title)
         self.assertContains(response, "Is this still available?")
+        self.assertContains(response, "https://example.com/student-avatar.jpg")
+
+    def test_user_can_delete_message_thread_for_themselves(self):
+        listing = self.user.listings.create(
+            title="My listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+        )
+        participant = User.objects.create_user(username="student", email="student@bc.edu", password="test")
+        conversation = ListingConversation.objects.create(
+            listing=listing,
+            owner=self.user,
+            participant=participant,
+        )
+        conversation.add_message(sender=participant, body="Interested.")
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse("communications:delete_conversation", args=[conversation.id]))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("communications:messages"))
+        self.assertFalse(accessible_conversations_for_user(self.user).filter(pk=conversation.pk).exists())
+        self.assertTrue(accessible_conversations_for_user(participant).filter(pk=conversation.pk).exists())
 
     def test_opening_conversation_marks_it_read_for_current_user(self):
         listing = self.user.listings.create(
@@ -347,6 +384,17 @@ class UserPageTests(TestCase):
         self.assertEqual(second_page.status_code, 200)
         self.assertNotContains(first_page, "Admin listing 0")
         self.assertContains(second_page, "Admin listing 0")
+        self.assertNotContains(first_page, "confirm(")
+
+    def test_user_can_delete_their_account(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse("users:delete_account"), follow=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("core:landing"))
+        self.assertFalse(User.objects.filter(pk=self.user.pk).exists())
+        self.assertNotIn("_auth_user_id", self.client.session)
 
     def test_admin_users_page_is_paginated(self):
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")

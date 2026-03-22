@@ -4,7 +4,7 @@ from pathlib import Path
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
-from django.db.models.signals import post_delete, post_save
+from django.db.models.signals import post_delete
 from django.dispatch import receiver
 
 from .validators import validate_user_upload
@@ -32,6 +32,7 @@ class CustomUser(AbstractUser):
 
     REQUIRED_FIELDS = ["email"]
     email = models.EmailField("email address", unique=True)
+    profile_image_url = models.URLField(blank=True, max_length=500)
     role = models.CharField(
         max_length=12,
         choices=Role.choices,
@@ -137,6 +138,11 @@ class CustomUser(AbstractUser):
             and self.legal_policy_version == getattr(settings, "LEGAL_DOCUMENT_VERSION", "")
         )
 
+    @property
+    def avatar_initial(self):
+        source = self.get_full_name() or self.username or self.email or ""
+        return source[:1].upper()
+
     def apply_email_role_policy(self):
         if self.role != Role.ADMIN:
             self.role = self.default_role_for_email(self.email)
@@ -145,11 +151,23 @@ class CustomUser(AbstractUser):
         self.role = Role.ADMIN if enabled else self.default_role_for_email(self.email)
 
     def save(self, *args, **kwargs):
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None:
+            update_fields = set(update_fields)
+
+        original_email = self.email
+        original_role = self.role
         normalized_email = self.normalize_email_address(self.email)
         if not normalized_email:
             raise ValueError("Users must have an email address.")
         self.email = normalized_email
         self.apply_email_role_policy()
+        if update_fields is not None:
+            if self.email != original_email:
+                update_fields.add("email")
+            if self.role != original_role:
+                update_fields.add("role")
+            kwargs["update_fields"] = update_fields
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -213,14 +231,6 @@ class UserFile(models.Model):
 
     def __str__(self):
         return f"{self.display_title} ({self.owner})"
-
-
-@receiver(post_save, sender=settings.AUTH_USER_MODEL)
-def create_role_profile(sender, instance, **kwargs):
-    if instance.role == Role.STUDENT:
-        StudentProfile.objects.get_or_create(user=instance)
-    elif instance.role == Role.ADMIN:
-        AdminProfile.objects.get_or_create(user=instance)
 
 
 @receiver(post_delete, sender=UserFile)

@@ -1,0 +1,60 @@
+<aside class="app-sidebar listing-form-sidebar">
+    <div class="listing-panel listing-form-sidecard">
+        <div class="app-panel-head">
+            <div>
+                <h2 class="app-section-heading mb-0">Preview</h2>
+            </div>
+        </div>
+
+        <div class="listing-form-summary">
+            <div class="listing-form-summary-head">
+                <p class="listing-form-summary-kicker">{{ form_summary.property_type }} • {{ form_summary.lease_type }}</p>
+                <h3 class="listing-form-summary-title">{{ form_summary.title }}</h3>
+                <p class="listing-form-summary-address">{{ form_summary.address }}</p>
+            </div>
+
+            <div class="app-stat-grid app-stat-grid-tight listing-form-stat-grid">
+                <div class="app-stat-card is-primary">
+                    <span class="app-stat-label">Rent</span>
+                    <span class="app-stat-value">{% if form_summary.price %}${{ form_summary.price|floatformat:0 }}{% else %}--{% endif %}</span>
+                </div>
+                <div class="app-stat-card is-secondary">
+                    <span class="app-stat-label">Monthly</span>
+                    <span class="app-stat-value">{% if form_summary.monthly_total %}${{ form_summary.monthly_total|floatformat:0 }}{% else %}--{% endif %}</span>
+                </div>
+                <div class="app-stat-card is-accent">
+                    <span class="app-stat-label">Upfront</span>
+                    <span class="app-stat-value">{% if form_summary.upfront_total %}${{ form_summary.upfront_total|floatformat:0 }}{% else %}--{% endif %}</span>
+                </div>
+            </div>
+
+            <div class="app-compact-list">
+                <div class="app-compact-item app-compact-item-static">
+                    <span class="app-compact-title">Availability</span>
+                    <span class="app-compact-meta">{% if form_summary.is_hidden %}Hidden{% else %}{{ form_summary.status }}{% endif %}</span>
+                </div>
+                <div class="app-compact-item app-compact-item-static">
+                    <span class="app-compact-title">Layout</span>
+                    <span class="app-compact-meta">{{ form_summary.rooms }} bd • {{ form_summary.bathrooms }} ba{% if form_summary.sq_ft %} • {{ form_summary.sq_ft }} sqft{% endif %}</span>
+                </div>
+                <div class="app-compact-item app-compact-item-static">
+                    <span class="app-compact-title">Dates</span>
+                    <span class="app-compact-meta">{{ form_summary.start_date|default:"Start" }} to {{ form_summary.end_date|default:"End" }}</span>
+                </div>
+                <div class="app-compact-item app-compact-item-static">
+                    <span class="app-compact-title">Photos</span>
+                    <span class="app-compact-meta">{{ form_summary.photo_count }} total</span>
+                </div>
+            </div>
+
+            <div class="listing-form-checklist">
+                {% for label, complete in form_summary.checklist %}
+                    <div class="listing-form-checkitem{% if complete %} is-complete{% endif %}">
+                        <span class="listing-form-checkicon">{% if complete %}Ready{% else %}Open{% endif %}</span>
+                        <span class="listing-form-checklabel">{{ label }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</aside>

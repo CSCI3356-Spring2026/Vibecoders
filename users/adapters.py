@@ -6,6 +6,7 @@ from django.contrib.auth import get_user_model
 from django.shortcuts import redirect
 
 from .legal import has_current_legal_acceptance
+from .profile_images import profile_image_url_from_data, sync_profile_image_for_user
 
 
 class NoSignupAccountAdapter(DefaultAccountAdapter):
@@ -121,6 +122,11 @@ class MarketplaceSocialAccountAdapter(DefaultSocialAccountAdapter):
         email = self._email_from_sociallogin(sociallogin, data=data)
         if email:
             self._apply_signup_identity(user, email)
+            profile_image_url = profile_image_url_from_data(data) or profile_image_url_from_data(
+                getattr(sociallogin.account, "extra_data", {})
+            )
+            if profile_image_url:
+                user.profile_image_url = profile_image_url
             if existing_user:
                 user.username = preserved_username
                 user.role = preserved_role
@@ -130,3 +136,5 @@ class MarketplaceSocialAccountAdapter(DefaultSocialAccountAdapter):
     def pre_social_login(self, request, sociallogin):
         """Reject provider responses without a verified email before login completes."""
         self._validate_sociallogin_or_reject(request, sociallogin)
+        if getattr(sociallogin.user, "pk", None):
+            sync_profile_image_for_user(sociallogin.user, extra_data=getattr(sociallogin.account, "extra_data", {}))

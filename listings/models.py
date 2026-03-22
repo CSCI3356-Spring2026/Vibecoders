@@ -1,3 +1,5 @@
+from decimal import Decimal, InvalidOperation
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -59,6 +61,10 @@ class Listing(models.Model):
     distance_to_campus = models.DecimalField(
         max_digits=4, decimal_places=2, null=True, blank=True, help_text="Distance in miles"
     )
+    utilities_estimate = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    parking_fee = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    security_deposit = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    application_fee = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
 
     utilities_included = models.TextField(blank=True, help_text="List included utilities (e.g. WiFi, Water)")
     pet_policy = models.TextField(blank=True)
@@ -93,6 +99,22 @@ class Listing(models.Model):
                 condition=Q(bathrooms__gt=0),
                 name="listing_bathrooms_gt_zero",
             ),
+            models.CheckConstraint(
+                condition=Q(utilities_estimate__isnull=True) | Q(utilities_estimate__gte=0),
+                name="listing_utilities_estimate_gte_zero",
+            ),
+            models.CheckConstraint(
+                condition=Q(parking_fee__isnull=True) | Q(parking_fee__gte=0),
+                name="listing_parking_fee_gte_zero",
+            ),
+            models.CheckConstraint(
+                condition=Q(security_deposit__isnull=True) | Q(security_deposit__gte=0),
+                name="listing_security_deposit_gte_zero",
+            ),
+            models.CheckConstraint(
+                condition=Q(application_fee__isnull=True) | Q(application_fee__gte=0),
+                name="listing_application_fee_gte_zero",
+            ),
         ]
 
     def clean(self):
@@ -102,6 +124,33 @@ class Listing(models.Model):
 
     def __str__(self):
         return f"{self.title} - ${self.price}"
+
+    def _decimal_value(self, field_name):
+        value = getattr(self, field_name)
+        if value in (None, ""):
+            return Decimal("0")
+        if isinstance(value, Decimal):
+            return value
+        try:
+            return Decimal(str(value))
+        except (InvalidOperation, TypeError, ValueError):
+            return Decimal("0")
+
+    @property
+    def estimated_monthly_total(self):
+        return (
+            self._decimal_value("price")
+            + self._decimal_value("utilities_estimate")
+            + self._decimal_value("parking_fee")
+        )
+
+    @property
+    def estimated_upfront_total(self):
+        return (
+            self._decimal_value("price")
+            + self._decimal_value("security_deposit")
+            + self._decimal_value("application_fee")
+        )
 
     @property
     def primary_image(self):

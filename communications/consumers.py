@@ -9,7 +9,7 @@ from .services import mark_conversation_read, send_listing_message, user_message
 class MessagesConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         self.user = self.scope.get("user")
-        if not self.user or self.user.is_anonymous:
+        if not self.user or self.user.is_anonymous or not self.user.is_active:
             await self.close(code=4401)
             return
 
@@ -22,6 +22,10 @@ class MessagesConsumer(AsyncJsonWebsocketConsumer):
             await self.channel_layer.group_discard(self.user_group_name, self.channel_name)
 
     async def receive_json(self, content, **kwargs):
+        if not await self._user_is_active():
+            await self.close(code=4401)
+            return
+
         action = (content.get("action") or "").strip()
         if action == "send_message":
             await self._handle_send_message(content)
@@ -87,3 +91,7 @@ class MessagesConsumer(AsyncJsonWebsocketConsumer):
             return False
         mark_conversation_read(conversation, self.user)
         return True
+
+    @database_sync_to_async
+    def _user_is_active(self):
+        return self.user.__class__._default_manager.filter(pk=self.user.pk, is_active=True).exists()

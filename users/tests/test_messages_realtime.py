@@ -1,4 +1,5 @@
 from asgiref.sync import async_to_sync
+from channels.db import database_sync_to_async
 from channels.testing import WebsocketCommunicator
 from django.test import TransactionTestCase
 
@@ -36,7 +37,25 @@ class MessagesRealtimeTests(TransactionTestCase):
 
         async_to_sync(scenario)()
 
+    def test_inactive_socket_is_rejected(self):
+        self.participant.is_active = False
+        self.participant.save(update_fields=["is_active"])
+
+        async def scenario():
+            communicator = WebsocketCommunicator(MessagesConsumer.as_asgi(), "/ws/messages/")
+            communicator.scope["user"] = self.participant
+            connected, close_code = await communicator.connect()
+            self.assertFalse(connected)
+            self.assertEqual(close_code, 4401)
+
+        async_to_sync(scenario)()
+
     def test_participants_receive_realtime_message_event(self):
+        self.owner.profile_image_url = "https://example.com/owner-avatar.jpg"
+        self.owner.save(update_fields=["profile_image_url"])
+        self.participant.profile_image_url = "https://example.com/student-avatar.jpg"
+        self.participant.save(update_fields=["profile_image_url"])
+
         async def scenario():
             owner_socket = WebsocketCommunicator(MessagesConsumer.as_asgi(), "/ws/messages/")
             owner_socket.scope["user"] = self.owner
@@ -67,6 +86,13 @@ class MessagesRealtimeTests(TransactionTestCase):
             self.assertEqual(owner_payload["conversation"]["counterparty_role_label"], "Interested renter")
             self.assertEqual(participant_payload["conversation"]["counterparty_role_label"], "Listing owner")
             self.assertEqual(owner_payload["conversation"]["listing_address"], self.listing.address)
+            self.assertEqual(
+                owner_payload["conversation"]["counterparty_avatar_url"], "https://example.com/student-avatar.jpg"
+            )
+            self.assertEqual(
+                participant_payload["conversation"]["counterparty_avatar_url"], "https://example.com/owner-avatar.jpg"
+            )
+            self.assertEqual(owner_payload["message"]["sender_avatar_url"], "https://example.com/student-avatar.jpg")
             self.assertEqual(owner_payload["summary"]["conversation_delta"], 0)
             self.assertEqual(owner_payload["summary"]["unread_delta"], 1)
             self.assertEqual(participant_payload["summary"]["conversation_delta"], 0)
@@ -168,5 +194,32 @@ class MessagesRealtimeTests(TransactionTestCase):
             self.assertEqual(payload["message"], "Unsupported websocket action.")
 
             await participant_socket.disconnect()
+
+        async_to_sync(scenario)()
+
+    def test_socket_closes_if_user_is_deactivated_after_connect(self):
+        async def scenario():
+            participant_socket = WebsocketCommunicator(MessagesConsumer.as_asgi(), "/ws/messages/")
+            participant_socket.scope["user"] = self.participant
+
+            connected, _ = await participant_socket.connect()
+            self.assertTrue(connected)
+
+            deactivate_participant = database_sync_to_async(
+                self.participant.__class__._default_manager.filter(pk=self.participant.pk).update
+            )
+            await deactivate_participant(is_active=False)
+
+            await participant_socket.send_json_to(
+                {
+                    "action": "send_message",
+                    "conversation_id": self.conversation.id,
+                    "body": "Still here?",
+                }
+            )
+            output = await participant_socket.receive_output()
+
+            self.assertEqual(output["type"], "websocket.close")
+            self.assertEqual(output["code"], 4401)
 
         async_to_sync(scenario)()

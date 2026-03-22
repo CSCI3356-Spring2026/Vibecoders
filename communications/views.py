@@ -7,7 +7,7 @@ from core.utils import get_page, preserved_query_suffix
 
 from .forms import ConversationMessageForm
 from .selectors import accessible_conversations_for_user, conversation_summary_for_user, inbox_conversations_for_user
-from .services import mark_conversation_read, send_listing_message
+from .services import delete_conversation_for_user, mark_conversation_read, send_listing_message
 
 MESSAGES_PER_PAGE = 12
 THREAD_MESSAGES_PER_PAGE = 50
@@ -99,3 +99,12 @@ def reply_conversation(request, conversation_id):
         messages.error(request, "Enter a message before sending.")
 
     return redirect("communications:detail", conversation_id=conversation.pk)
+
+
+@login_required
+@require_POST
+def delete_conversation(request, conversation_id):
+    conversation = _accessible_conversation_or_404(request.user, conversation_id)
+    delete_conversation_for_user(conversation, request.user)
+    messages.success(request, "Conversation deleted.")
+    return redirect("communications:messages")

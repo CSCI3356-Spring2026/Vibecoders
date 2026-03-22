@@ -1,0 +1,69 @@
+from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.db import transaction
+
+from .models import ListingImage
+
+
+def save_uploaded_listing_images(listing, uploaded_images):
+    if len(uploaded_images) > settings.LISTING_IMAGE_UPLOAD_LIMIT:
+        raise ValidationError({"images": f"You can upload up to {settings.LISTING_IMAGE_UPLOAD_LIMIT} images."})
+
+    existing_images_count = listing.images.count()
+    if existing_images_count + len(uploaded_images) > settings.LISTING_IMAGE_TOTAL_LIMIT:
+        raise ValidationError(
+            {"images": f"Each listing can have up to {settings.LISTING_IMAGE_TOTAL_LIMIT} images total."}
+        )
+
+    pending_images = []
+    for image in uploaded_images:
+        listing_image = ListingImage(listing=listing, image=image)
+        listing_image.full_clean()
+        pending_images.append(listing_image)
+
+    for listing_image in pending_images:
+        listing_image.save()
+
+
+def add_form_validation_errors(form, exc):
+    if hasattr(exc, "message_dict"):
+        for field_name, messages_list in exc.message_dict.items():
+            target_field = "images" if field_name == "image" else field_name
+            for message in messages_list:
+                form.add_error(target_field, message)
+        return
+
+    for message in exc.messages:
+        form.add_error("images", message)
+
+
+def validation_message(exc, default_message):
+    if hasattr(exc, "message_dict"):
+        for messages_list in exc.message_dict.values():
+            if messages_list:
+                return messages_list[0]
+    if getattr(exc, "messages", None):
+        return exc.messages[0]
+    return default_message
+
+
+def save_listing_form(form, owner, uploaded_images):
+    with transaction.atomic():
+        listing = form.save(commit=False)
+        if listing._state.adding:
+            listing.owner = owner
+        listing.save()
+        for image in form.cleaned_data.get("remove_images", []):
+            image.delete()
+        save_uploaded_listing_images(listing, uploaded_images)
+        return listing
+
+
+def handle_listing_form_submission(*, form, owner):
+    if form.is_valid():
+        uploaded_images = form.cleaned_data.get("images", [])
+        try:
+            return save_listing_form(form, owner, uploaded_images)
+        except ValidationError as exc:
+            add_form_validation_errors(form, exc)
+    return None

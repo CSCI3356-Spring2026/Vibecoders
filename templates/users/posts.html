@@ -75,16 +75,8 @@
                                     <div class="workspace-item-actions">
                                         <a class="btn btn-outline-secondary btn-sm" href="{% url 'listings:detail' listing.pk %}">View</a>
                                         <a class="btn btn-outline-secondary btn-sm" href="{% url 'listings:edit_listing' listing.pk %}">Edit</a>
-                                        <form method="post" action="{% url 'listings:delete_listing' listing.pk %}">
-                                            {% csrf_token %}
-                                            <button
-                                                type="submit"
-                                                class="btn btn-outline-danger btn-sm"
-                                                onclick="return confirm('Delete this listing?');"
-                                            >
-                                                Delete
-                                            </button>
-                                        </form>
+                                        {% url 'listings:delete_listing' listing.pk as delete_listing_url %}
+                                        {% include "includes/inline_confirm.html" with trigger_label="Delete" prompt_text="Delete this listing?" action_url=delete_listing_url confirm_label="Confirm delete" %}
                                     </div>
                                 </div>
                             </div>

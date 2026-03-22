@@ -76,9 +76,7 @@
                                     data-bs-toggle="dropdown"
                                     aria-expanded="false"
                                 >
-                                    <span class="profile-icon">
-                                        {{ request.user.username|slice:":1"|upper }}
-                                    </span>
+                                    {% include "includes/user_avatar.html" with user=request.user size_class="user-avatar-sm profile-icon" %}
                                     <span class="profile-name">
                                         {{ request.user.get_full_name|default:request.user.username }}
                                     </span>
@@ -134,7 +132,7 @@
                         </a>
                         <p class="footer-copy">
                             {{ site_product_name }} is a housing marketplace product built by {{ site_company_name }}
-                            Boston College students.
+                            for Boston College students.
                         </p>
                     </div>
 
@@ -172,6 +170,7 @@
         integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q"
         crossorigin="anonymous"
     ></script>
+    <script src="{% static 'js/inline-confirm.js' %}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

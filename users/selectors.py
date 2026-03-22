@@ -1,5 +1,5 @@
 from django.contrib.auth import get_user_model
-from django.db.models import Q
+from django.db.models import Count, Q
 
 from listings.models import Listing
 
@@ -41,6 +41,24 @@ def admin_users_queryset(query="", selected_role="", selected_active=""):
         queryset = queryset.filter(is_active=(selected_active == "active"))
 
     return queryset
+
+
+def admin_dashboard_metrics():
+    user_model = get_user_model()
+    listing_metrics = Listing.objects.aggregate(
+        total_listings=Count("id"),
+        pending_listings=Count("id", filter=Q(status="PENDING")),
+        approved_listings=Count("id", filter=Q(status="AVAILABLE")),
+    )
+    user_metrics = user_model.objects.aggregate(
+        student_users=Count("id", filter=Q(role=Role.STUDENT)),
+        realtor_users=Count("id", filter=Q(role=Role.REALTOR)),
+        admin_users_total=Count("id", filter=Q(role=Role.ADMIN)),
+    )
+    return {
+        **listing_metrics,
+        **user_metrics,
+    }
 
 
 def accessible_user_files_queryset(user):
