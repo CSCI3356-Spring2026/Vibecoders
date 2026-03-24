@@ -1,6 +1,19 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Listings | {{ site_product_name }}{% endblock %}
+{% block extra_css %}
+    {% if listing_maps_enabled and map_data %}
+        <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.css">
+    {% endif %}
+{% endblock %}
+{% block extra_js %}
+    {% if listing_maps_enabled and map_data %}
+        <script src="https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.js"></script>
+        {{ map_data|json_script:"listing-map-data" }}
+        <script src="{% static 'js/listings-map.js' %}"></script>
+    {% endif %}
+{% endblock %}
 
 {% block content %}
 <section class="app-page">
@@ -96,6 +109,41 @@
                 </aside>
 
                 <div class="app-main">
+                    {% if listing_maps_enabled %}
+                        <div class="listing-panel listing-map-panel">
+                            <div class="app-panel-head">
+                                <div>
+                                    <h2 class="app-section-heading">Map</h2>
+                                    <p class="app-panel-copy">
+                                        {% if map_data %}
+                                            Geocoded listings on this page.
+                                        {% else %}
+                                            Geocoded listings will appear here when their addresses resolve successfully.
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {% if map_data %}
+                                <div
+                                    class="listing-map-frame"
+                                    data-listing-map-root
+                                    data-default-lat="{{ listing_map_default_lat }}"
+                                    data-default-lng="{{ listing_map_default_lng }}"
+                                >
+                                    <div class="listing-map" data-listing-map-canvas></div>
+                                </div>
+                            {% else %}
+                                <div class="listing-map-empty">
+                                    <h3 class="listing-map-empty-title">No map-ready listings on this page.</h3>
+                                    <p class="listing-map-empty-copy">
+                                        New and updated listings pin here automatically after address lookup succeeds.
+                                    </p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+
                     <div class="listing-panel">
                         <div class="app-panel-head">
                             <div>

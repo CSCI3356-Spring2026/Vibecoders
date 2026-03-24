@@ -118,6 +118,9 @@ Common environment variables:
 - `STUDENT_EMAIL_DOMAINS`: comma-separated student domains, defaults to `bc.edu`
 - `SITE_PRODUCT_NAME` / `SITE_COMPANY_NAME`: branding
 - `LEGAL_DOCUMENT_VERSION`: forces re-acceptance when legal text changes
+- `LISTING_MAPS_ENABLED`: enables the listings map UI, defaults to `true`
+- `LISTING_GEOCODING_ENABLED`: enables address geocoding on create/edit, defaults to `true` outside tests
+- `LISTING_GEOCODER_URL` / `LISTING_GEOCODER_USER_AGENT` / `LISTING_GEOCODER_TIMEOUT_SECONDS`: geocoder controls
 
 Production-only requirements:
 

@@ -1,6 +1,7 @@
 import io
 import tempfile
 from datetime import date, timedelta
+from unittest.mock import patch
 
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
@@ -54,6 +55,31 @@ class ListingPageTests(ListingTestCase):
         response = self.client.get(reverse("listings:listing_list"))
 
         self.assertContains(response, reverse("listings:detail", args=[listing.pk]))
+
+    def test_listing_list_context_includes_map_data_for_geocoded_results(self):
+        mapped_listing = self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
+        self.create_listing(title="Unmapped listing", address="200 Beacon St")
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"))
+
+        self.assertContains(response, "data-listing-map-root")
+        map_data = response.context["map_data"]
+        self.assertEqual(len(map_data), 1)
+        self.assertEqual(map_data[0]["title"], mapped_listing.title)
+        self.assertEqual(map_data[0]["url"], reverse("listings:detail", args=[mapped_listing.pk]))
+        self.assertAlmostEqual(map_data[0]["lat"], 42.3355)
+        self.assertAlmostEqual(map_data[0]["lng"], -71.1685)
+
+    @override_settings(LISTING_MAPS_ENABLED=False)
+    def test_listing_list_hides_map_when_feature_flag_is_disabled(self):
+        self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"))
+
+        self.assertNotContains(response, "data-listing-map-root")
+        self.assertEqual(response.context["map_data"], [])
 
     def test_listing_list_shows_owner_avatar(self):
         self.user.profile_image_url = "https://example.com/owner-avatar.jpg"
@@ -223,6 +249,28 @@ class ListingPageTests(ListingTestCase):
         self.assertEqual(created_listing.utilities_estimate, 90)
         self.assertEqual(created_listing.security_deposit, 1200)
 
+    @override_settings(LISTING_GEOCODING_ENABLED=True)
+    @patch("listings.form_services.geocode_listing_address", return_value=(42.3355, -71.1685))
+    def test_authenticated_user_can_create_listing_and_geocode_address(self, geocode_mock):
+        self.client.force_login(self.user)
+        payload = {
+            "title": "Quiet dorm near campus",
+            "address": "140 Commonwealth Ave",
+            "price": "1200.00",
+            "lease_type": "FULL",
+            "start_date": date(2026, 9, 1),
+            "end_date": date(2027, 5, 31),
+            "description": "Close to dining hall.",
+        }
+
+        response = self.client.post(reverse("listings:create_listing"), payload)
+
+        self.assertEqual(response.status_code, 302)
+        created_listing = self.user.listings.get()
+        self.assertAlmostEqual(created_listing.latitude, 42.3355)
+        self.assertAlmostEqual(created_listing.longitude, -71.1685)
+        geocode_mock.assert_called_once_with("140 Commonwealth Ave")
+
     def test_create_listing_rejects_end_date_before_start_date(self):
         self.client.force_login(self.user)
         payload = {
@@ -307,6 +355,89 @@ class ListingPageTests(ListingTestCase):
         self.assertEqual(response["Location"], reverse("listings:detail", args=[listing.pk]))
         self.assertEqual(listing.title, "Updated listing")
         self.assertEqual(listing.status, "PENDING")
+
+    @override_settings(LISTING_GEOCODING_ENABLED=True)
+    @patch("listings.form_services.geocode_listing_address", return_value=(42.3402, -71.1587))
+    def test_listing_owner_edit_regeocodes_when_address_changes(self, geocode_mock):
+        listing = self.create_listing(latitude=42.3355, longitude=-71.1685)
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("listings:edit_listing", args=[listing.pk]),
+            {
+                "title": listing.title,
+                "address": "215 Commonwealth Ave",
+                "price": listing.price,
+                "lease_type": listing.lease_type,
+                "start_date": listing.start_date,
+                "end_date": listing.end_date,
+                "property_type": listing.property_type,
+                "description": listing.description,
+                "status": listing.status,
+            },
+        )
+
+        listing.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertAlmostEqual(listing.latitude, 42.3402)
+        self.assertAlmostEqual(listing.longitude, -71.1587)
+        geocode_mock.assert_called_once_with("215 Commonwealth Ave")
+
+    @override_settings(LISTING_GEOCODING_ENABLED=True)
+    @patch("listings.form_services.geocode_listing_address")
+    def test_listing_owner_edit_does_not_regeocode_when_address_is_unchanged_and_coordinates_exist(self, geocode_mock):
+        listing = self.create_listing(latitude=42.3355, longitude=-71.1685)
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("listings:edit_listing", args=[listing.pk]),
+            {
+                "title": "Updated listing",
+                "address": listing.address,
+                "price": listing.price,
+                "lease_type": listing.lease_type,
+                "start_date": listing.start_date,
+                "end_date": listing.end_date,
+                "property_type": listing.property_type,
+                "description": listing.description,
+                "status": listing.status,
+            },
+        )
+
+        listing.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(listing.latitude, 42.3355)
+        self.assertEqual(listing.longitude, -71.1685)
+        geocode_mock.assert_not_called()
+
+    @override_settings(LISTING_GEOCODING_ENABLED=True)
+    @patch("listings.form_services.geocode_listing_address", return_value=(None, None))
+    def test_listing_owner_edit_clears_stale_coordinates_when_regeocoding_fails_after_address_change(
+        self, geocode_mock
+    ):
+        listing = self.create_listing(latitude=42.3355, longitude=-71.1685)
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("listings:edit_listing", args=[listing.pk]),
+            {
+                "title": listing.title,
+                "address": "999 Missing Address Ave",
+                "price": listing.price,
+                "lease_type": listing.lease_type,
+                "start_date": listing.start_date,
+                "end_date": listing.end_date,
+                "property_type": listing.property_type,
+                "description": listing.description,
+                "status": listing.status,
+            },
+        )
+
+        listing.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertIsNone(listing.latitude)
+        self.assertIsNone(listing.longitude)
+        geocode_mock.assert_called_once_with("999 Missing Address Ave")
 
     def test_listing_detail_shows_owner_avatar_when_available(self):
         listing = self.create_listing()

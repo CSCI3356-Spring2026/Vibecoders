@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 from io import BytesIO
 from tempfile import TemporaryDirectory
+from unittest.mock import Mock, patch
 
 from allauth.socialaccount.models import SocialAccount
 from django.core.exceptions import ValidationError
@@ -19,6 +20,7 @@ from communications.services import (
 )
 
 from ..forms import ListingForm
+from ..geocoding import geocode_listing_address
 from ..models import Listing, ListingImage
 from .base import ListingTestCase
 
@@ -327,6 +329,66 @@ class ListingModelTests(ListingTestCase):
         delete_conversation_for_user(conversation, listing.owner)
 
         self.assertFalse(ListingConversation.objects.filter(pk=conversation.pk).exists())
+
+
+class ListingGeocodingTests(ListingTestCase):
+    def _image_upload(self, name="photo.png"):
+        buffer = BytesIO()
+        Image.new("RGB", (8, 8), color=(79, 70, 229)).save(buffer, format="PNG")
+        return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/png")
+
+    @override_settings(LISTING_GEOCODING_ENABLED=False)
+    @patch("listings.geocoding.requests.get")
+    def test_geocode_listing_address_returns_none_without_network_when_disabled(self, requests_get_mock):
+        latitude, longitude = geocode_listing_address("140 Commonwealth Ave")
+
+        self.assertIsNone(latitude)
+        self.assertIsNone(longitude)
+        requests_get_mock.assert_not_called()
+
+    @override_settings(
+        LISTING_GEOCODING_ENABLED=True,
+        LISTING_GEOCODER_URL="https://photon.example/api/",
+        LISTING_GEOCODER_USER_AGENT="PadlyTests/1.0",
+        LISTING_GEOCODER_TIMEOUT_SECONDS=7,
+    )
+    @patch("listings.geocoding.requests.get")
+    def test_geocode_listing_address_parses_first_feature_coordinates(self, requests_get_mock):
+        response_mock = Mock()
+        response_mock.raise_for_status.return_value = None
+        response_mock.json.return_value = {
+            "features": [
+                {"geometry": {"coordinates": [-71.1685, 42.3355]}},
+            ]
+        }
+        requests_get_mock.return_value = response_mock
+
+        latitude, longitude = geocode_listing_address("140 Commonwealth Ave")
+
+        self.assertEqual((latitude, longitude), (42.3355, -71.1685))
+        requests_get_mock.assert_called_once_with(
+            "https://photon.example/api/",
+            params={"q": "140 Commonwealth Ave", "limit": 1, "lat": 42.3355, "lon": -71.1685},
+            headers={"User-Agent": "PadlyTests/1.0"},
+            timeout=7,
+        )
+
+    @override_settings(LISTING_GEOCODING_ENABLED=True)
+    @patch("listings.geocoding.requests.get")
+    def test_geocode_listing_address_rejects_invalid_coordinate_payload(self, requests_get_mock):
+        response_mock = Mock()
+        response_mock.raise_for_status.return_value = None
+        response_mock.json.return_value = {
+            "features": [
+                {"geometry": {"coordinates": ["not-a-number", "still-not-a-number"]}},
+            ]
+        }
+        requests_get_mock.return_value = response_mock
+
+        latitude, longitude = geocode_listing_address("140 Commonwealth Ave")
+
+        self.assertIsNone(latitude)
+        self.assertIsNone(longitude)
 
     @override_settings(LISTING_IMAGE_TOTAL_LIMIT=1)
     def test_listing_image_total_limit_applies_to_direct_model_saves(self):

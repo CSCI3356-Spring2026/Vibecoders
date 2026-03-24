@@ -58,6 +58,8 @@ class Listing(models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="listings")
     title = models.CharField(max_length=200)
     address = models.CharField(max_length=255, help_text="Street address or Area")
+    latitude = models.FloatField(blank=True, null=True)
+    longitude = models.FloatField(blank=True, null=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     description = models.TextField(blank=True, help_text="Minimal description of the dorm")
 
@@ -217,6 +219,10 @@ class Listing(models.Model):
     @property
     def is_publicly_active(self):
         return not self.is_hidden and self.status == self.STATUS_AVAILABLE and self.end_date >= timezone.localdate()
+
+    @property
+    def has_map_coordinates(self):
+        return self.latitude is not None and self.longitude is not None
 
 
 class ListingImage(models.Model):

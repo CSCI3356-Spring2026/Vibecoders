@@ -1,8 +1,10 @@
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from communications.forms import ConversationMessageForm
@@ -17,8 +19,13 @@ from core.utils import get_page, preserved_query_suffix
 from .filtering import MAX_PRICE_FILTERS, MOVE_IN_FILTERS, apply_listing_filters
 from .form_services import handle_listing_form_submission, validation_message
 from .forms import ListingForm
+from .geocoding import BOSTON_COLLEGE_LATITUDE, BOSTON_COLLEGE_LONGITUDE
 from .models import Listing
-from .selectors import accessible_listing_detail_queryset, marketplace_listings_for_user, messageable_listings_for_user
+from .selectors import (
+    accessible_listing_detail_queryset,
+    marketplace_listings_for_user,
+    messageable_listings_for_user,
+)
 
 LISTINGS_PER_PAGE = 12
 
@@ -53,11 +60,31 @@ def _get_listing_for_user(user, pk):
     return get_object_or_404(accessible_listing_detail_queryset(user), pk=pk)
 
 
+def _listing_map_data(listings):
+    map_data = []
+    for listing in listings:
+        if not listing.has_map_coordinates:
+            continue
+        map_data.append(
+            {
+                "title": listing.title,
+                "address": listing.address,
+                "price": str(listing.price),
+                "lat": round(float(listing.latitude), 6),
+                "lng": round(float(listing.longitude), 6),
+                "url": reverse("listings:detail", args=[listing.pk]),
+            }
+        )
+    return map_data
+
+
 @login_required
 def listing_list(request):
     base_queryset = marketplace_listings_for_user(request.user)
     listings, active_filters = apply_listing_filters(base_queryset, request.GET)
     listings_page = get_page(listings, request.GET.get("page"), LISTINGS_PER_PAGE)
+    map_enabled = settings.LISTING_MAPS_ENABLED
+    map_data = _listing_map_data(listings_page.object_list) if map_enabled else []
 
     context = {
         "listings": listings_page,
@@ -68,6 +95,10 @@ def listing_list(request):
         "lease_type_filters": Listing.LEASE_TYPES,
         "move_in_filters": MOVE_IN_FILTERS,
         "has_listing_only_access": request.user.has_listing_only_access,
+        "listing_maps_enabled": map_enabled,
+        "map_data": map_data,
+        "listing_map_default_lat": BOSTON_COLLEGE_LATITUDE,
+        "listing_map_default_lng": BOSTON_COLLEGE_LONGITUDE,
     }
     return render(request, "listings/listing_list.html", context)
 

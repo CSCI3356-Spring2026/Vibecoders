@@ -238,6 +238,96 @@
 .listing-person-row {
     align-items: flex-start;
 }
+
+.listing-map-panel {
+    margin-bottom: 1rem;
+}
+
+.listing-map-frame {
+    overflow: hidden;
+    border: 1px solid rgba(var(--gray-700-rgb), 0.16);
+    border-radius: var(--radius-lg);
+    background:
+        linear-gradient(180deg, rgba(var(--primary-rgb), 0.08), rgba(var(--gray-100-rgb), 0.96)),
+        var(--white);
+    box-shadow: var(--shadow-sm);
+}
+
+.listing-map {
+    min-height: 24rem;
+}
+
+.listing-map-empty {
+    min-height: 14rem;
+    padding: 2rem;
+    border: 1px dashed rgba(var(--primary-rgb), 0.22);
+    border-radius: var(--radius-lg);
+    background:
+        radial-gradient(circle at top left, rgba(var(--secondary-rgb), 0.12), transparent 55%),
+        linear-gradient(180deg, rgba(var(--gray-100-rgb), 0.96), rgba(var(--white-rgb), 0.98));
+    text-align: center;
+}
+
+.listing-map-empty-title {
+    margin: 0 0 0.45rem;
+    color: var(--text-strong);
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+.listing-map-empty-copy {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.92rem;
+    line-height: 1.6;
+}
+
+.listing-map-popup {
+    display: grid;
+    gap: 0.28rem;
+    min-width: 12rem;
+}
+
+.listing-map-popup-title {
+    margin: 0;
+    color: var(--text-strong);
+    font-size: 0.94rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.listing-map-popup-address,
+.listing-map-popup-price {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.listing-map-popup-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-top: 0.15rem;
+    color: var(--primary-600);
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.listing-map-popup-link:hover {
+    color: var(--primary-500);
+}
+
+.maplibregl-popup-content {
+    border-radius: 0.9rem;
+    padding: 0.95rem 1rem 0.9rem;
+}
+
+.maplibregl-popup-close-button {
+    color: var(--gray-700);
+}
+
 .listing-detail-price {
     font-family: var(--font-display);
     font-size: clamp(2.4rem, 4vw, 3.4rem);
@@ -315,5 +405,9 @@
     .listing-results-grid,
     .listing-detail-gallery {
         grid-template-columns: minmax(0, 1fr);
+    }
+
+    .listing-map {
+        min-height: 20rem;
     }
 }
