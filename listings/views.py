@@ -10,6 +10,8 @@ from core.utils import get_page, preserved_query_suffix
 from .forms import ListingForm
 from .models import Listing, ListingImage
 
+import json
+
 LISTINGS_PER_PAGE = 12
 
 MAX_PRICE_FILTERS = [
@@ -68,8 +70,20 @@ def listing_list(request):
     listings, active_filters = _apply_listing_filters(_visible_listings(), request.GET)
     listings_page = get_page(listings, request.GET.get("page"), LISTINGS_PER_PAGE)
 
+    map_data = [
+        {
+            "title": l.title,
+            "price": str(l.price),
+            "lat": float(l.latitude),
+            "lng": float(l.longitude),
+            "url": f"/listings/{l.pk}/"
+        }
+        for l in listings if l.latitude and l.longitude
+    ]
+
     context = {
         "listings": listings_page,
+        "map_data": map_data,
         "listings_total": listings_page.paginator.count,
         "pagination_query": preserved_query_suffix(request.GET, "page"),
         "active_filters": active_filters,

@@ -3,6 +3,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import F, Q
 
+import requests
+
 
 class ListingQuerySet(models.QuerySet):
     def with_related(self):
@@ -35,6 +37,8 @@ class Listing(models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="listings")
     title = models.CharField(max_length=200)
     address = models.CharField(max_length=255, help_text="Street address or Area")
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, help_text="Latitude for MapLibre")
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, help_text="Longitude for MapLibre")
     price = models.DecimalField(max_digits=10, decimal_places=2)
     description = models.TextField(blank=True, help_text="Minimal description of the dorm")
 
@@ -64,6 +68,41 @@ class Listing(models.Model):
     is_hidden = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     objects = ListingQuerySet.as_manager()
+    latitude = models.FloatField(blank=True, null=True)
+    longitude = models.FloatField(blank=True, null=True)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._original_address = self.address
+
+    def save(self, *args, **kwargs):
+        address_changed = self.address != self._original_address
+        coords_missing = not self.latitude or not self.longitude
+
+        if self.address and (address_changed or coords_missing):
+            lat, lon = self.geocode_address(self.address)
+            if lat and lon:
+                self.latitude = lat
+                self.longitude = lon
+        
+        super().save(*args, **kwargs)
+        self._original_address = self.address
+
+    def geocode_address(self, address):
+        """Helper method to fetch coordinates"""
+        url = f"https://photon.komoot.io/api/?q={address}&limit=1&lat=42.36&lon=-71.05"
+        headers = {'User-Agent': 'VibecodersProject/1.0'}
+        try:
+            r = requests.get(url, headers=headers, timeout=5)
+            if r.status_code == 200:
+                data = r.json()
+                if data['features']:
+                    # Photon returns [longitude, latitude]
+                    lon, lat = data['features'][0]['geometry']['coordinates']
+                    return lat, lon
+        except Exception as e:
+            print(f"Geocoding error for {address}: {e}")
+        return None, None
 
     class Meta:
         ordering = ["-created_at"]
@@ -115,3 +154,19 @@ class ListingImage(models.Model):
 
     def __str__(self):
         return f"Image for {self.listing.title}"
+
+
+def get_coords(address):
+    #Helper to fetch lat/lng from Photon
+    url = f"https://photon.komoot.io/api/?q={address}&limit=1"
+    headers = {'User-Agent': 'VibecodersProject/1.0'}
+    try:
+        r = requests.get(url, headers=headers, timeout=5)
+        if r.status_code == 200:
+            data = r.json()
+            if data['features']:
+                lon, lat = data['features'][0]['geometry']['coordinates']
+                return lat, lon
+    except Exception as e:
+        print(f"Geocoding error: {e}")
+    return None, None

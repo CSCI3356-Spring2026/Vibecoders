@@ -2,6 +2,22 @@
 
 {% block title %}Listings | Vibecoders{% endblock %}
 
+{% block extra_css %}
+<style>
+    #map {
+        height: 400px;
+        width: 100%;
+    }
+    #map canvas {
+        display: block; /* Essential for MapLibre visibility */
+    }
+    .maplibregl-popup-content {
+        font-family: 'Inter', sans-serif; /* Matches your Vibecoders vibe */
+        padding: 15px;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <section class="app-page">
     <div class="container">
@@ -87,6 +103,9 @@
                 </aside>
 
                 <div class="app-main">
+                    <div id="map-section" style="margin-bottom: 2rem; border-radius: 12px; overflow: hidden; border: 1px solid #ddd; height: 400px;">
+                        <div id="map" style="height: 100%; width: 100%;"></div>
+                    </div>
                     <div class="listing-panel">
                         <div class="app-panel-head">
                             <div>
@@ -182,4 +201,39 @@
         </div>
     </div>
 </section>
+
+
+<link href='https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css' rel='stylesheet' />
+<script src='https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js'></script>
+
+{{ map_data|json_script:"listing-data" }}
+
+<script>
+    window.mapData = JSON.parse(document.getElementById('listing-data').textContent);
+    const mapTilerKey = 'vZTfYAuBsvBtA2WMZtyN'; 
+
+
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${mapTilerKey}`,
+        center: mapData.length > 0 ? [mapData[0].lng, mapData[0].lat] : [-71.17, 42.34], 
+        zoom: 12
+    });
+
+    mapData.forEach(item => {
+        const popup = new maplibregl.Popup({ offset: 25 })
+            .setHTML(`<strong>${item.title}</strong><br>$${item.price}/mo<br><a href="${item.url}">View Details</a>`);
+
+        new maplibregl.Marker({ color: "#6f42c1" }) 
+            .setLngLat([item.lng, item.lat])
+            .setPopup(popup)
+            .addTo(map);
+    });
+
+    if (mapData.length > 1) {
+        const bounds = new maplibregl.LngLatBounds();
+        mapData.forEach(item => bounds.extend([item.lng, item.lat]));
+        map.fitBounds(bounds, { padding: 50 });
+    }
+</script>
 {% endblock %}
