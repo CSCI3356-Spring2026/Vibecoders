@@ -1,8 +1,11 @@
+import logging
+
 import requests
 from django.conf import settings
 
 BOSTON_COLLEGE_LATITUDE = 42.3355
 BOSTON_COLLEGE_LONGITUDE = -71.1685
+logger = logging.getLogger(__name__)
 
 
 def geocode_listing_address(address):
@@ -24,7 +27,8 @@ def geocode_listing_address(address):
         )
         response.raise_for_status()
         payload = response.json()
-    except (requests.RequestException, ValueError):
+    except (requests.RequestException, ValueError) as exc:
+        logger.warning("Listing geocoding request failed.", exc_info=exc)
         return None, None
 
     features = payload.get("features") or []

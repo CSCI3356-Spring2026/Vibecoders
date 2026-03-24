@@ -83,12 +83,13 @@ def sync_listing_coordinates(listing, *, previous_address=None):
 
 
 def save_listing_form(form, owner, uploaded_images):
+    previous_address = _original_listing_address(form.instance)
+    listing = form.save(commit=False)
+    if listing._state.adding:
+        listing.owner = owner
+    sync_listing_coordinates(listing, previous_address=previous_address)
+
     with transaction.atomic():
-        previous_address = _original_listing_address(form.instance)
-        listing = form.save(commit=False)
-        if listing._state.adding:
-            listing.owner = owner
-        sync_listing_coordinates(listing, previous_address=previous_address)
         listing.save()
         images_to_remove = list(form.cleaned_data.get("remove_images", []))
         pending_images = build_validated_listing_images(

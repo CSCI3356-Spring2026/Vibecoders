@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
@@ -82,7 +83,8 @@ def listing_list(request):
     base_queryset = marketplace_listings_for_user(request.user)
     listings, active_filters = apply_listing_filters(base_queryset, request.GET)
     listings_page = get_page(listings, request.GET.get("page"), LISTINGS_PER_PAGE)
-    map_data = _listing_map_data(listings_page.object_list)
+    map_enabled = settings.LISTING_MAPS_ENABLED
+    map_data = _listing_map_data(listings_page.object_list) if map_enabled else []
 
     context = {
         "listings": listings_page,
@@ -93,6 +95,7 @@ def listing_list(request):
         "lease_type_filters": Listing.LEASE_TYPES,
         "move_in_filters": MOVE_IN_FILTERS,
         "has_listing_only_access": request.user.has_listing_only_access,
+        "listing_maps_enabled": map_enabled,
         "map_data": map_data,
         "listing_map_default_lat": BOSTON_COLLEGE_LATITUDE,
         "listing_map_default_lng": BOSTON_COLLEGE_LONGITUDE,
