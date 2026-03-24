@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}{{ listing.title }} | Vibecoders{% endblock %}
+{% block title %}{{ listing.title }} | {{ site_product_name }}{% endblock %}
 
 {% block content %}
 <section class="app-page">
     <div class="container">
         <div class="app-shell">
-            <a class="listing-reset-link" href="{% url 'listings:listing_list' %}">Back to listings</a>
+            <a class="listing-reset-link" href="{% url back_url_name %}">Back to {{ back_label }}</a>
 
             <div class="app-header app-header-shell">
                 <div class="app-header-main">
@@ -17,17 +17,23 @@
                     </div>
                     <div class="app-price-block">
                         <div class="listing-detail-price">${{ listing.price|floatformat:0 }}/month</div>
-                        <div class="listing-detail-meta">{{ listing.get_lease_type_display }} • {{ listing.get_status_display }}</div>
+                        {% if listing.utilities_estimate or listing.parking_fee %}
+                            <div class="listing-card-summary">Est. total ${{ listing.estimated_monthly_total|floatformat:0 }}/month including monthly extras</div>
+                        {% endif %}
+                        <div class="listing-detail-meta">
+                            <span class="listing-lease">{{ listing.get_lease_type_display }}</span>
+                            <span class="listing-card-status {% if listing.status == 'AVAILABLE' %}is-available{% elif listing.status == 'PENDING' %}is-pending{% else %}is-taken{% endif %}">{{ listing.get_status_display }}</span>
+                        </div>
                     </div>
                 </div>
             </div>
 
             <div class="app-detail-grid">
                 <div class="listing-panel">
-                    {% if listing.images.all %}
+                    {% if listing_images %}
                         <div class="listing-detail-gallery mb-4">
-                            {% for image in listing.images.all %}
-                                <img src="{{ image.image.url }}" alt="{{ listing.title }}" class="listing-detail-image">
+                            {% for image in listing_images %}
+                                <img src="{{ image.versioned_url }}" alt="{{ listing.title }}" class="listing-detail-image">
                             {% endfor %}
                         </div>
                     {% endif %}
@@ -39,15 +45,15 @@
                     </div>
 
                     <div class="app-stat-grid app-stat-grid-tight mb-4">
-                        <div class="app-stat-card">
+                        <div class="app-stat-card is-primary">
                             <span class="app-stat-label">Bedrooms</span>
                             <span class="app-stat-value">{{ listing.rooms }}</span>
                         </div>
-                        <div class="app-stat-card">
+                        <div class="app-stat-card is-secondary">
                             <span class="app-stat-label">Bathrooms</span>
                             <span class="app-stat-value">{{ listing.bathrooms }}</span>
                         </div>
-                        <div class="app-stat-card">
+                        <div class="app-stat-card is-accent">
                             <span class="app-stat-label">Square feet</span>
                             <span class="app-stat-value">{{ listing.sq_ft|default:"N/A" }}</span>
                         </div>
@@ -75,9 +81,14 @@
                                 <span class="app-compact-meta">{{ listing.end_date }}</span>
                             </div>
                             <div class="app-compact-item app-compact-item-static">
-                                <span class="app-compact-title">Posted by</span>
-                                <span class="app-compact-meta">{{ listing.owner.get_full_name|default:listing.owner.email }}</span>
+                                {% include "listings/includes/owner_meta.html" with listing=listing size_class="user-avatar-md" expanded=True show_role=True %}
                             </div>
+                            {% if listing.distance_to_campus %}
+                                <div class="app-compact-item app-compact-item-static">
+                                    <span class="app-compact-title">Distance to campus</span>
+                                    <span class="app-compact-meta">{{ listing.distance_to_campus }} mi</span>
+                                </div>
+                            {% endif %}
                         </div>
                     </div>
 
@@ -89,13 +100,47 @@
                         </div>
                         <div class="app-chip-row mb-3">
                             <span class="listing-lease">{{ listing.get_lease_type_display }}</span>
-                            <span class="listing-lease">{{ listing.get_property_type_display }}</span>
-                            {% if listing.has_yard %}<span class="listing-lease">Yard</span>{% endif %}
-                            {% if listing.has_parking %}<span class="listing-lease">Parking</span>{% endif %}
-                            {% if listing.is_furnished %}<span class="listing-lease">Furnished</span>{% endif %}
+                            <span class="listing-lease listing-lease-secondary">{{ listing.get_property_type_display }}</span>
+                            {% if listing.has_yard %}<span class="listing-lease listing-lease-muted">Yard</span>{% endif %}
+                            {% if listing.has_parking %}<span class="listing-lease listing-lease-muted">Parking</span>{% endif %}
+                            {% if listing.is_furnished %}<span class="listing-lease listing-lease-muted">Furnished</span>{% endif %}
                         </div>
 
                         <div class="app-compact-list">
+                            <div class="app-compact-item app-compact-item-static">
+                                <span class="app-compact-title">Base rent</span>
+                                <span class="app-compact-meta">${{ listing.price|floatformat:0 }}/month</span>
+                            </div>
+                            {% if listing.utilities_estimate %}
+                                <div class="app-compact-item app-compact-item-static">
+                                    <span class="app-compact-title">Utilities estimate</span>
+                                    <span class="app-compact-meta">${{ listing.utilities_estimate|floatformat:0 }}/month</span>
+                                </div>
+                            {% endif %}
+                            {% if listing.parking_fee %}
+                                <div class="app-compact-item app-compact-item-static">
+                                    <span class="app-compact-title">Parking fee</span>
+                                    <span class="app-compact-meta">${{ listing.parking_fee|floatformat:0 }}/month</span>
+                                </div>
+                            {% endif %}
+                            {% if listing.security_deposit %}
+                                <div class="app-compact-item app-compact-item-static">
+                                    <span class="app-compact-title">Security deposit</span>
+                                    <span class="app-compact-meta">${{ listing.security_deposit|floatformat:0 }}</span>
+                                </div>
+                            {% endif %}
+                            {% if listing.application_fee %}
+                                <div class="app-compact-item app-compact-item-static">
+                                    <span class="app-compact-title">Application fee</span>
+                                    <span class="app-compact-meta">${{ listing.application_fee|floatformat:0 }}</span>
+                                </div>
+                            {% endif %}
+                            {% if listing.utilities_estimate or listing.parking_fee %}
+                                <div class="app-compact-item app-compact-item-static">
+                                    <span class="app-compact-title">Estimated monthly total</span>
+                                    <span class="app-compact-meta">${{ listing.estimated_monthly_total|floatformat:0 }}/month</span>
+                                </div>
+                            {% endif %}
                             <div class="app-compact-item app-compact-item-static">
                                 <span class="app-compact-title">Utilities</span>
                                 <span class="app-compact-meta">{{ listing.utilities_included|default:"Not listed" }}</span>
@@ -108,8 +153,100 @@
                                 <span class="app-compact-title">Amenities</span>
                                 <span class="app-compact-meta">{{ listing.amenities|default:"Not listed" }}</span>
                             </div>
+                            <div class="app-compact-item app-compact-item-static">
+                                <span class="app-compact-title">Security features</span>
+                                <span class="app-compact-meta">{{ listing.security_features|default:"Not listed" }}</span>
+                            </div>
                         </div>
                     </div>
+
+                    <div class="listing-panel">
+                        <div class="app-panel-head">
+                            <div>
+                                <h2 class="app-section-heading">Messages</h2>
+                            </div>
+                        </div>
+
+                        {% if listing.owner_id == request.user.id %}
+                            <div class="app-compact-list">
+                                <div class="app-compact-item app-compact-item-static">
+                                    <span class="app-compact-title">Owner view</span>
+                                    <span class="app-compact-meta">You posted this listing. Conversation threads appear below.</span>
+                                </div>
+                            </div>
+                        {% elif request.user.can_start_listing_conversations %}
+                            {% if existing_conversation %}
+                                <div class="app-compact-list">
+                                    <a class="app-compact-item" href="{% url 'communications:detail' existing_conversation.id %}">
+                                        <span class="app-compact-title">Open conversation</span>
+                                        <span class="app-compact-meta">
+                                            {% if existing_conversation.ui_has_unread %}Unread reply{% else %}Latest message{% endif %}
+                                            • {{ existing_conversation.last_message_at|date:"M d, Y" }}
+                                        </span>
+                                        <span class="app-compact-meta">{{ existing_conversation.last_message_preview|default:"Open your thread for the latest messages." }}</span>
+                                    </a>
+                                </div>
+                            {% endif %}
+                            {% if can_message_listing %}
+                                <form method="post" action="{% url 'listings:message_listing' listing.pk %}" class="app-stack">
+                                    {% csrf_token %}
+                                    <label class="form-label fw-semibold" for="{{ message_form.body.id_for_label }}">Message</label>
+                                    {{ message_form.body }}
+                                    <button class="btn btn-brand" type="submit">
+                                        {% if existing_conversation %}Send message{% else %}Start conversation{% endif %}
+                                    </button>
+                                </form>
+                            {% else %}
+                                <div class="app-compact-list">
+                                    <div class="app-compact-item app-compact-item-static">
+                                        <span class="app-compact-title">Messaging unavailable</span>
+                                        <span class="app-compact-meta">This listing is no longer accepting new conversations.</span>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        {% else %}
+                            <div class="app-compact-list">
+                                <div class="app-compact-item app-compact-item-static">
+                                    <span class="app-compact-title">Listing-only access</span>
+                                    <span class="app-compact-meta">This account can publish listings but cannot start new renter threads.</span>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    {% if show_owner_conversations %}
+                        <div class="listing-panel">
+                            <div class="app-panel-head">
+                                <div>
+                                    <h2 class="app-section-heading">Conversation threads</h2>
+                                </div>
+                            </div>
+
+                            {% if owner_conversations %}
+                                <div class="app-compact-list">
+                                    {% for conversation in owner_conversations %}
+                                        <a class="app-compact-item" href="{% url 'communications:detail' conversation.id %}">
+                                            <div class="identity-row listing-person-row">
+                                                {% include "includes/user_avatar.html" with user_obj=conversation.participant avatar_class="listing-person-avatar user-avatar user-avatar-sm" %}
+                                                <div class="identity-copy">
+                                                    <span class="app-compact-title">{{ conversation.ui_counterparty_name }}</span>
+                                                    <span class="app-compact-meta">
+                                                        {{ conversation.participant.email }} • {{ conversation.last_message_at|date:"M d, Y" }}
+                                                    </span>
+                                                    <span class="app-compact-meta">
+                                                        {% if conversation.ui_has_unread %}Unread reply{% else %}Latest message{% endif %}
+                                                        • {{ conversation.last_message_preview|default:"No messages yet." }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </a>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <p class="app-panel-copy mb-0">No messages yet for this listing.</p>
+                            {% endif %}
+                        </div>
+                    {% endif %}
                 </div>
             </div>
         </div>

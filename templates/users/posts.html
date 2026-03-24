@@ -1,42 +1,97 @@
 {% extends "base.html" %}
 
-{% block title %}My Posts | Vibecoders{% endblock %}
+{% block title %}My Listings | {{ site_product_name }}{% endblock %}
 
 {% block content %}
-<div class="container py-5">
-    <h1 class="fw-bold mb-4">My Posts</h1>
-
-    {% if listings %}
-        <div class="d-flex flex-column gap-3">
-            {% for listing in listings %}
-                <div class="card border-0 shadow-sm p-3">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div class="d-flex align-items-center gap-3">
-                            {% if listing.images.first %}
-                                <img src="{{ listing.images.first.image.url }}" style="width:80px;height:60px;object-fit:cover;border-radius:8px;">
-                            {% else %}
-                                <div style="width:80px;height:60px;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;">
-                                    <span class="text-muted small">No photo</span>
-                                </div>
-                            {% endif %}
-                            <div>
-                                <h5 class="mb-1 fw-semibold">{{ listing.title }}</h5>
-                                <p class="mb-0 text-muted small">{{ listing.address }} · ${{ listing.price|floatformat:0 }}/mo · {{ listing.get_status_display }}</p>
-                            </div>
-                        </div>
-                        <div class="d-flex gap-2">
-                            <a href="{% url 'listings:edit_listing' listing.pk %}" class="btn btn-sm btn-outline-primary">Edit</a>
-                            <form method="post" action="{% url 'listings:delete_listing' listing.pk %}">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Are you sure you want to delete this listing?')">Delete</button>
-                            </form>
-                        </div>
+<section class="app-page">
+    <div class="container">
+        <div class="app-shell">
+            <div class="app-header app-header-shell">
+                <div class="app-header-main">
+                    <div>
+                        <p class="app-kicker">My Listings</p>
+                        <h1 class="app-title">Your listings</h1>
+                        <p class="app-subtitle">Listings managed by this account.</p>
+                    </div>
+                    <div class="app-actions">
+                        <a class="btn btn-brand" href="{% url 'listings:create_listing' %}">Create listing</a>
                     </div>
                 </div>
-            {% endfor %}
+            </div>
+
+            <div class="app-stat-grid">
+                <div class="app-stat-card is-primary">
+                    <span class="app-stat-label">Listings</span>
+                    <span class="app-stat-value">{{ listings_count }}</span>
+                </div>
+                <div class="app-stat-card is-secondary">
+                    <span class="app-stat-label">Conversations</span>
+                    <span class="app-stat-value">{{ conversations_count }}</span>
+                </div>
+                <div class="app-stat-card is-neutral">
+                    <span class="app-stat-label">Role</span>
+                    <span class="app-stat-value">{{ request.user.display_role }}</span>
+                </div>
+            </div>
+
+            <div class="listing-panel">
+                <div class="app-panel-head">
+                    <div>
+                        <h2 class="app-section-heading">Listing inventory</h2>
+                        <p class="app-panel-copy">
+                            {% if has_listing_only_access %}
+                                Only listings owned by this account appear here.
+                            {% else %}
+                                Review and manage your active inventory.
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                <div class="app-meta mb-4">
+                    <span class="app-meta-chip app-meta-chip-primary">{{ listings_total }} listing{{ listings_total|pluralize }}</span>
+                </div>
+
+                {% if listings %}
+                    <div class="app-compact-list">
+                        {% for listing in listings %}
+                            <div class="app-compact-item app-compact-item-static workspace-item">
+                                <div class="workspace-item-row">
+                                    <div class="workspace-item-main">
+                                        {% if listing.primary_image %}
+                                            <img class="workspace-thumb" src="{{ listing.primary_image.versioned_url }}" alt="{{ listing.title }}">
+                                        {% else %}
+                                            <div class="workspace-thumb-placeholder">{{ listing.get_property_type_display }}</div>
+                                        {% endif %}
+
+                                        <div class="workspace-item-copy">
+                                            <div class="app-compact-title">{{ listing.title }}</div>
+                                            <div class="app-compact-meta">{{ listing.address }}</div>
+                                            <div class="app-compact-meta">
+                                                ${{ listing.price|floatformat:0 }}/mo • {{ listing.get_status_display }} • {{ listing.conversation_count }} conversation{{ listing.conversation_count|pluralize }}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="workspace-item-actions">
+                                        <a class="btn btn-outline-secondary btn-sm" href="{% url 'listings:detail' listing.pk %}">View</a>
+                                        <a class="btn btn-outline-secondary btn-sm" href="{% url 'listings:edit_listing' listing.pk %}">Edit</a>
+                                        {% url 'listings:delete_listing' listing.pk as delete_listing_url %}
+                                        {% include "includes/inline_confirm.html" with trigger_label="Delete" prompt_text="Delete this listing?" action_url=delete_listing_url confirm_label="Confirm delete" %}
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    {% include "includes/pagination.html" with page_obj=listings pagination_query=pagination_query %}
+                {% else %}
+                    <div class="app-empty">
+                        <h3 class="app-empty-title">No listings yet.</h3>
+                        <p class="app-empty-copy">Create a listing to get started.</p>
+                        <a class="btn btn-brand" href="{% url 'listings:create_listing' %}">Create listing</a>
+                    </div>
+                {% endif %}
+            </div>
         </div>
-    {% else %}
-        <p class="text-muted">You haven't posted any listings yet. <a href="{% url 'listings:create_listing' %}">Create one!</a></p>
-    {% endif %}
-</div>
+    </div>
+</section>
 {% endblock %}

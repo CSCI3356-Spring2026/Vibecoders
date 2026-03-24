@@ -1,0 +1,15 @@
+<aside class="app-sidebar admin-sidebar">
+    <div class="admin-nav-card listing-panel">
+        <h2 class="admin-nav-title">Dashboard</h2>
+        <nav class="admin-nav">
+            <a class="admin-nav-item{% if active_section == 'dashboard' %} is-active{% endif %}" href="{% url 'users:admin_dashboard' %}">Dashboard</a>
+            <a class="admin-nav-item{% if active_section == 'listings' %} is-active{% endif %}" href="{% url 'users:admin_listings' %}">Manage Listings</a>
+            <span class="admin-nav-item is-disabled">Reports &amp; Issues</span>
+            <a class="admin-nav-item{% if active_section == 'users' %} is-active{% endif %}" href="{% url 'users:admin_users' %}">User Management</a>
+        </nav>
+        <form method="post" action="{% url 'account_logout' %}" class="admin-signout">
+            {% csrf_token %}
+            <button class="btn btn-outline-secondary w-100" type="submit">Sign Out</button>
+        </form>
+    </div>
+</aside>

@@ -1,119 +1,200 @@
-from datetime import timedelta
-
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
+from django.core.exceptions import ValidationError
+from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
+from django.urls import reverse
+from django.views.decorators.http import require_POST
 
+from communications.forms import ConversationMessageForm
+from communications.models import ListingConversation
+from communications.services import (
+    MESSAGE_SEND_RATE_LIMIT_ERROR,
+    consume_message_send_rate_limit,
+    start_listing_conversation,
+)
 from core.utils import get_page, preserved_query_suffix
 
+from .filtering import MAX_PRICE_FILTERS, MOVE_IN_FILTERS, apply_listing_filters
+from .form_services import handle_listing_form_submission, validation_message
 from .forms import ListingForm
-from .models import Listing, ListingImage
-
-import json
+from .geocoding import BOSTON_COLLEGE_LATITUDE, BOSTON_COLLEGE_LONGITUDE
+from .models import Listing
+from .selectors import (
+    accessible_listing_detail_queryset,
+    marketplace_listings_for_user,
+    messageable_listings_for_user,
+)
 
 LISTINGS_PER_PAGE = 12
 
-MAX_PRICE_FILTERS = [
-    ("", "Any budget"),
-    ("1000", "$500 - $1,000"),
-    ("1500", "$1,000 - $1,500"),
-    ("2000", "$1,500 - $2,000"),
-    ("2500", "$2,000 - $2,500"),
-]
 
-MOVE_IN_FILTERS = [
-    ("", "Anytime"),
-    ("30", "Next 30 days"),
-    ("60", "Next 60 days"),
-    ("120", "Next 120 days"),
-]
+def _workspace_destination(user):
+    if user.has_listing_only_access:
+        return "users:posts", "My Listings"
+    return "listings:listing_list", "Listings"
 
 
-def _visible_listings():
-    return Listing.objects.visible()
+def _selected_remove_image_ids(form):
+    if not form.is_bound:
+        return set()
+    return set(form.data.getlist(form.add_prefix("remove_images")))
 
 
-def _get_visible_listing(pk):
-    return get_object_or_404(_visible_listings(), pk=pk)
-
-
-def _apply_listing_filters(queryset, params):
-    query = params.get("q", "").strip()
-    if query:
-        queryset = queryset.filter(
-            Q(title__icontains=query) | Q(address__icontains=query) | Q(description__icontains=query)
-        )
-
-    max_price = params.get("max_price", "").strip()
-    if max_price:
-        queryset = queryset.filter(price__lte=max_price)
-
-    lease_type = params.get("lease_type", "").strip()
-    if lease_type:
-        queryset = queryset.filter(lease_type=lease_type)
-
-    available_by = params.get("available_by", "").strip()
-    if available_by.isdigit():
-        move_in_deadline = timezone.localdate() + timedelta(days=int(available_by))
-        queryset = queryset.filter(start_date__lte=move_in_deadline)
-
-    return queryset, {
-        "q": query,
-        "max_price": max_price,
-        "lease_type": lease_type,
-        "available_by": available_by,
+def _listing_form_context(form, *, is_edit, back_url_name, back_label, listing=None):
+    context = {
+        "form": form,
+        "form_summary": form.build_summary(),
+        "selected_remove_image_ids": _selected_remove_image_ids(form),
+        "is_edit": is_edit,
+        "back_url_name": back_url_name,
+        "back_label": back_label,
     }
+    if listing is not None:
+        context["listing"] = listing
+    return context
 
 
+def _get_listing_for_user(user, pk):
+    return get_object_or_404(accessible_listing_detail_queryset(user), pk=pk)
+
+
+def _listing_map_data(listings):
+    map_data = []
+    for listing in listings:
+        if not listing.has_map_coordinates:
+            continue
+        map_data.append(
+            {
+                "title": listing.title,
+                "address": listing.address,
+                "price": str(listing.price),
+                "lat": round(float(listing.latitude), 6),
+                "lng": round(float(listing.longitude), 6),
+                "url": reverse("listings:detail", args=[listing.pk]),
+            }
+        )
+    return map_data
+
+
+@login_required
 def listing_list(request):
-    listings, active_filters = _apply_listing_filters(_visible_listings(), request.GET)
+    base_queryset = marketplace_listings_for_user(request.user)
+    listings, active_filters = apply_listing_filters(base_queryset, request.GET)
     listings_page = get_page(listings, request.GET.get("page"), LISTINGS_PER_PAGE)
-
-    map_data = [
-        {
-            "title": l.title,
-            "price": str(l.price),
-            "lat": float(l.latitude),
-            "lng": float(l.longitude),
-            "url": f"/listings/{l.pk}/"
-        }
-        for l in listings if l.latitude and l.longitude
-    ]
+    map_data = _listing_map_data(listings_page.object_list)
 
     context = {
         "listings": listings_page,
-        "map_data": map_data,
         "listings_total": listings_page.paginator.count,
         "pagination_query": preserved_query_suffix(request.GET, "page"),
         "active_filters": active_filters,
         "max_price_filters": MAX_PRICE_FILTERS,
         "lease_type_filters": Listing.LEASE_TYPES,
         "move_in_filters": MOVE_IN_FILTERS,
+        "has_listing_only_access": request.user.has_listing_only_access,
+        "map_data": map_data,
+        "listing_map_default_lat": BOSTON_COLLEGE_LATITUDE,
+        "listing_map_default_lng": BOSTON_COLLEGE_LONGITUDE,
     }
     return render(request, "listings/listing_list.html", context)
 
 
+@login_required
 def listing_detail(request, pk):
-    listing = _get_visible_listing(pk)
-    return render(request, "listings/listing_detail.html", {"listing": listing})
+    listing = _get_listing_for_user(request.user, pk)
+    listing_images = list(listing.images.all())
+    message_form = None
+    existing_conversation = None
+    owner_conversations = None
+    back_url_name, back_label = _workspace_destination(request.user)
+    show_owner_conversations = listing.owner_id == request.user.id
+    can_message_listing = (
+        request.user.can_start_listing_conversations
+        and listing.owner_id != request.user.id
+        and listing.is_publicly_active
+    )
+
+    if request.user.can_start_listing_conversations and listing.owner_id != request.user.id:
+        existing_conversation = (
+            ListingConversation.objects.visible_to(request.user).with_related().filter(listing=listing).first()
+        )
+        if existing_conversation:
+            existing_conversation.ui_has_unread = existing_conversation.has_unread_for(request.user)
+        if can_message_listing:
+            message_form = ConversationMessageForm()
+
+    if show_owner_conversations:
+        owner_conversations = list(
+            ListingConversation.objects.visible_to(request.user)
+            .with_related()
+            .filter(listing=listing)
+            .order_by("-last_message_at", "-created_at")[:8]
+        )
+        for conversation in owner_conversations:
+            conversation.ui_counterparty_name = conversation.participant.display_name
+            conversation.ui_has_unread = conversation.has_unread_for(request.user)
+
+    context = {
+        "listing": listing,
+        "listing_images": listing_images,
+        "message_form": message_form,
+        "existing_conversation": existing_conversation,
+        "can_message_listing": can_message_listing,
+        "owner_conversations": owner_conversations,
+        "show_owner_conversations": show_owner_conversations,
+        "back_url_name": back_url_name,
+        "back_label": back_label,
+    }
+    return render(request, "listings/listing_detail.html", context)
+
+
+@login_required
+@require_POST
+def message_listing(request, pk):
+    if not request.user.can_start_listing_conversations:
+        return HttpResponseForbidden("Verified student access is required to message about listings.")
+
+    listing = get_object_or_404(messageable_listings_for_user(request.user), pk=pk)
+    if listing.owner_id == request.user.id:
+        messages.error(request, "You cannot message yourself about your own listing.")
+        return redirect("listings:detail", pk=listing.pk)
+    if not consume_message_send_rate_limit(request.user):
+        messages.error(request, MESSAGE_SEND_RATE_LIMIT_ERROR)
+        return redirect("listings:detail", pk=listing.pk)
+
+    form = ConversationMessageForm(request.POST)
+    if form.is_valid():
+        try:
+            conversation, _, created = start_listing_conversation(listing, request.user, form.cleaned_data["body"])
+        except ValidationError as exc:
+            messages.error(request, validation_message(exc, "Enter a message before sending."))
+        else:
+            messages.success(request, "Conversation started." if created else "Message sent.")
+            return redirect("communications:detail", conversation_id=conversation.pk)
+    else:
+        messages.error(request, "Enter a message before sending.")
+
+    return redirect("listings:detail", pk=listing.pk)
 
 
 @login_required
 def create_listing(request):
     if request.method == "POST":
         form = ListingForm(request.POST, request.FILES)
-        if form.is_valid():
-            listing = form.save(commit=False)
-            listing.owner = request.user
-            listing.save()
-            for image in request.FILES.getlist("images"):
-                ListingImage.objects.create(listing=listing, image=image)
-            return redirect("listings:listing_list")
+        listing = handle_listing_form_submission(form=form, owner=request.user)
+        if listing is not None:
+            messages.success(request, "Listing created.")
+            return redirect("listings:detail", pk=listing.pk)
     else:
         form = ListingForm()
 
-    return render(request, "listings/listing_form.html", {"form": form})
+    back_url_name, back_label = _workspace_destination(request.user)
+    return render(
+        request,
+        "listings/listing_form.html",
+        _listing_form_context(form, is_edit=False, back_url_name=back_url_name, back_label=back_label),
+    )
 
 
 @login_required
@@ -121,19 +202,28 @@ def edit_listing(request, pk):
     listing = get_object_or_404(Listing, pk=pk, owner=request.user)
     if request.method == "POST":
         form = ListingForm(request.POST, request.FILES, instance=listing)
-        if form.is_valid():
-            form.save()
-            for image in request.FILES.getlist("images"):
-                ListingImage.objects.create(listing=listing, image=image)
-            return redirect("users:posts")
+        listing = handle_listing_form_submission(form=form, owner=request.user)
+        if listing is not None:
+            messages.success(request, "Listing updated.")
+            return redirect("listings:detail", pk=listing.pk)
     else:
         form = ListingForm(instance=listing)
-    return render(request, "listings/listing_form.html", {"form": form})
+    return render(
+        request,
+        "listings/listing_form.html",
+        _listing_form_context(
+            form,
+            is_edit=True,
+            listing=listing,
+            back_url_name="users:posts",
+            back_label="My Listings",
+        ),
+    )
 
 
 @login_required
+@require_POST
 def delete_listing(request, pk):
     listing = get_object_or_404(Listing, pk=pk, owner=request.user)
-    if request.method == "POST":
-        listing.delete()
+    listing.delete()
     return redirect("users:posts")

@@ -11,8 +11,11 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+from django.core.management.utils import get_random_secret_key
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -30,20 +33,39 @@ def env_list(name, default=""):
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def env_int(name, default):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return int(value)
+
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+SITE_PRODUCT_NAME = os.getenv("SITE_PRODUCT_NAME", "Padly").strip() or "Padly"
+SITE_COMPANY_NAME = os.getenv("SITE_COMPANY_NAME", "Vibecoders").strip() or "Vibecoders"
+LEGAL_DOCUMENT_VERSION = os.getenv("LEGAL_DOCUMENT_VERSION", "2026-03-18").strip() or "2026-03-18"
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "x8v$4p9n#s2m!k7q%t1h@c6r&z5w*l3y^f0j8d2b1e7u4i9o!m6u@r1p%z8k")
+LOCAL_DEBUG_COMMANDS = {"runserver", "test", "check", "migrate", "makemigrations", "shell", "createsuperuser"}
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env_bool("DJANGO_DEBUG", True)
+DEBUG = env_bool("DJANGO_DEBUG", any(command in sys.argv for command in LOCAL_DEBUG_COMMANDS))
+
+configured_secret_key = os.getenv("DJANGO_SECRET_KEY", "").strip()
+if configured_secret_key:
+    SECRET_KEY = configured_secret_key
+elif DEBUG:
+    # Keep development bootstrapping simple without checking in a reusable secret.
+    SECRET_KEY = get_random_secret_key()
+else:
+    raise ImproperlyConfigured("Set DJANGO_SECRET_KEY when running with DJANGO_DEBUG=false.")
 
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost,testserver")
+CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", "")
 
 
 # Application definition
@@ -54,9 +76,11 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
+    "daphne",
     "django.contrib.staticfiles",
     # Sub apps
     "core",
+    "communications",
     "listings",
     "users",
     "django.contrib.sites",  # Required by allauth
@@ -65,6 +89,7 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
+    "channels",
 ]
 
 MIDDLEWARE = [
@@ -75,14 +100,20 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "users.middleware.CurrentLegalAcceptanceMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-# Allow same-origin embeds so local PDF previews render inside iframes.
-X_FRAME_OPTIONS = "SAMEORIGIN"
+# Deny framing globally. Authenticated file previews opt into same-origin framing explicitly.
+X_FRAME_OPTIONS = "DENY"
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 SECURE_SSL_REDIRECT = not DEBUG
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
+if env_bool("DJANGO_TRUST_X_FORWARDED_PROTO", False):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = env_bool("DJANGO_USE_X_FORWARDED_HOST", False)
 SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 SECURE_HSTS_PRELOAD = not DEBUG
@@ -99,12 +130,14 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "core.context_processors.branding",
             ],
         },
     },
 ]
 
 WSGI_APPLICATION = "vibecoders.wsgi.application"
+ASGI_APPLICATION = "vibecoders.asgi.application"
 
 
 # Database
@@ -154,8 +187,24 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
+STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+LISTING_IMAGE_MAX_BYTES = env_int("LISTING_IMAGE_MAX_BYTES", 5 * 1024 * 1024)
+LISTING_IMAGE_UPLOAD_LIMIT = env_int("LISTING_IMAGE_UPLOAD_LIMIT", 10)
+LISTING_IMAGE_TOTAL_LIMIT = env_int("LISTING_IMAGE_TOTAL_LIMIT", 20)
+LISTING_GEOCODING_ENABLED = env_bool("LISTING_GEOCODING_ENABLED", "test" not in sys.argv)
+LISTING_GEOCODER_URL = os.getenv("LISTING_GEOCODER_URL", "https://photon.komoot.io/api/").strip()
+LISTING_GEOCODER_URL = LISTING_GEOCODER_URL or "https://photon.komoot.io/api/"
+LISTING_GEOCODER_USER_AGENT = os.getenv("LISTING_GEOCODER_USER_AGENT", f"{SITE_PRODUCT_NAME}/1.0").strip()
+LISTING_GEOCODER_USER_AGENT = LISTING_GEOCODER_USER_AGENT or f"{SITE_PRODUCT_NAME}/1.0"
+LISTING_GEOCODER_TIMEOUT_SECONDS = env_int("LISTING_GEOCODER_TIMEOUT_SECONDS", 4)
+USER_FILE_MAX_BYTES = env_int("USER_FILE_MAX_BYTES", 10 * 1024 * 1024)
+MESSAGE_SEND_RATE_LIMIT = env_int("MESSAGE_SEND_RATE_LIMIT", 20)
+MESSAGE_SEND_RATE_WINDOW_SECONDS = env_int("MESSAGE_SEND_RATE_WINDOW_SECONDS", 60)
+LOGIN_INIT_RATE_LIMIT = env_int("LOGIN_INIT_RATE_LIMIT", 10)
+LOGIN_INIT_RATE_WINDOW_SECONDS = env_int("LOGIN_INIT_RATE_WINDOW_SECONDS", 300)
+ACCOUNT_DELETION_RECENT_AUTH_SECONDS = env_int("ACCOUNT_DELETION_RECENT_AUTH_SECONDS", 1800)
 
 
 # Default primary key field type
@@ -165,6 +214,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Custom user model
 AUTH_USER_MODEL = "users.CustomUser"
+STUDENT_EMAIL_DOMAINS = env_list("STUDENT_EMAIL_DOMAINS", "bc.edu")
 
 # ALLAUTH SETTINGS
 # -----------------------------------------------------------------------------
@@ -180,12 +230,15 @@ AUTHENTICATION_BACKENDS = [
 SOCIALACCOUNT_ONLY = True
 ACCOUNT_LOGIN_METHODS = {"email"}  # Required by allauth; actual blocking is via NoSignupAccountAdapter
 ACCOUNT_SIGNUP_FIELDS = ["email*"]  # No password fields; actual blocking is via NoSignupAccountAdapter
-ACCOUNT_EMAIL_VERIFICATION = "none"  # BC email is verified via Google
+ACCOUNT_EMAIL_VERIFICATION = "none"  # Google provides the verified email identity
 SOCIALACCOUNT_AUTO_SIGNUP = True
 SOCIALACCOUNT_LOGIN_ON_GET = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+SOCIALACCOUNT_STORE_TOKENS = False
 ACCOUNT_LOGIN_BY_CODE_ENABLED = False
 ACCOUNT_PASSWORD_RESET_BY_CODE_ENABLED = False
 ACCOUNT_EMAIL_VERIFICATION_BY_CODE_ENABLED = False
+LOGIN_URL = "/accounts/login/"
 
 LOGIN_REDIRECT_URL = "/users/dashboard/"  # Where to go after login
 LOGOUT_REDIRECT_URL = "/"  # Where to go after logout
@@ -193,6 +246,7 @@ LOGOUT_REDIRECT_URL = "/"  # Where to go after logout
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
         "SCOPE": ["profile", "email"],
+        "EMAIL_AUTHENTICATION": True,
         "AUTH_PARAMS": {"access_type": "online"},
         "APP": {
             "client_id": os.environ.get("GOOGLE_CLIENT_ID", ""),
@@ -202,4 +256,22 @@ SOCIALACCOUNT_PROVIDERS = {
 }
 
 ACCOUNT_ADAPTER = "users.adapters.NoSignupAccountAdapter"
-SOCIALACCOUNT_ADAPTER = "users.adapters.BCEmailAdapter"
+SOCIALACCOUNT_ADAPTER = "users.adapters.MarketplaceSocialAccountAdapter"
+
+CHANNEL_REDIS_URL = os.getenv("CHANNEL_REDIS_URL", "").strip()
+if not DEBUG and not CHANNEL_REDIS_URL:
+    raise ImproperlyConfigured("Set CHANNEL_REDIS_URL when running with DJANGO_DEBUG=false.")
+
+if CHANNEL_REDIS_URL:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {"hosts": [CHANNEL_REDIS_URL]},
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }

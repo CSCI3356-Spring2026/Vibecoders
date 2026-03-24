@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Documents | Vibecoders{% endblock %}
+{% block title %}Documents | {{ site_product_name }}{% endblock %}
 
 {% block content %}
 <section class="app-page">
@@ -10,19 +10,19 @@
                 <div class="app-header-main">
                     <div>
                         <p class="listing-hero-eyebrow mb-2">Documents</p>
-                        <h1 class="listing-hero-title app-title">Your file library</h1>
-                        <p class="listing-hero-subtitle app-subtitle">Upload, search, and preview documents in one workspace.</p>
+                        <h1 class="listing-hero-title app-title">Documents</h1>
+                        <p class="listing-hero-subtitle app-subtitle">Private files tied to your account.</p>
                     </div>
                     {% if selected_file %}
                         <div class="app-actions">
-                            <a class="btn btn-outline-secondary" href="{{ selected_file.file.url }}" download>Download</a>
+                            <a class="btn btn-outline-secondary" href="{% url 'users:file_download' selected_file.id %}">Download</a>
                         </div>
                     {% endif %}
                 </div>
                 <div class="app-meta">
-                    <span class="app-meta-chip">{{ files_total }} file{{ files_total|pluralize }}</span>
+                    <span class="app-meta-chip app-meta-chip-primary">{{ files_total }} file{{ files_total|pluralize }}</span>
                     {% if query %}
-                        <span class="app-meta-chip">Search: {{ query }}</span>
+                        <span class="app-meta-chip app-meta-chip-secondary">Search: {{ query }}</span>
                     {% endif %}
                 </div>
             </div>
@@ -32,7 +32,7 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading mb-0">Library</h2>
-                            <p class="app-panel-copy">Add a file, then open any row for preview.</p>
+                            <p class="app-panel-copy">Upload, search, and manage files.</p>
                         </div>
                     </div>
 
@@ -48,6 +48,7 @@
                             </div>
                             <div>
                                 <label class="form-label fw-semibold" for="id_file">File</label>
+                                <div class="app-field-note">PDF, text, DOC, DOCX, or image files up to 10 MB.</div>
                                 {{ form.file }}
                                 {{ form.file.errors }}
                             </div>
@@ -80,15 +81,8 @@
                                                 <div class="files-list-meta">Uploaded {{ item.uploaded_at|date:"M d, Y" }}</div>
                                             </a>
                                             <div class="files-list-actions">
-                                                <form
-                                                    method="post"
-                                                    action="{% url 'users:file_delete' item.id %}?page={{ files.number }}{% if query %}&q={{ query }}{% endif %}"
-                                                    class="files-delete-form"
-                                                    onsubmit="return confirm('Delete this file?');"
-                                                >
-                                                    {% csrf_token %}
-                                                    <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
-                                                </form>
+                                                {% url 'users:file_delete' item.id as delete_file_url %}
+                                                {% include "includes/inline_confirm.html" with trigger_label="Delete" prompt_text="Delete this file?" action_url=delete_file_url confirm_label="Confirm delete" extra_hidden_name="page" extra_hidden_value=files.number extra_hidden_name_2="q" extra_hidden_value_2=query %}
                                             </div>
                                         </div>
                                     </div>
@@ -98,23 +92,7 @@
                             {% endif %}
                         </div>
 
-                        {% if files.paginator.num_pages > 1 %}
-                            <div class="app-pagination">
-                                {% if files.has_previous %}
-                                    <a class="btn btn-outline-secondary" href="?page={{ files.previous_page_number }}{{ pagination_query }}">Previous</a>
-                                {% else %}
-                                    <span class="btn btn-outline-secondary disabled">Previous</span>
-                                {% endif %}
-
-                                <span class="app-pagination-label">Page {{ files.number }} of {{ files.paginator.num_pages }}</span>
-
-                                {% if files.has_next %}
-                                    <a class="btn btn-outline-secondary" href="?page={{ files.next_page_number }}{{ pagination_query }}">Next</a>
-                                {% else %}
-                                    <span class="btn btn-outline-secondary disabled">Next</span>
-                                {% endif %}
-                            </div>
-                        {% endif %}
+                        {% include "includes/pagination.html" with page_obj=files pagination_query=pagination_query %}
                     </div>
                 </div>
 
@@ -122,7 +100,7 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading mb-0">Preview</h2>
-                            <p class="app-panel-copy">Images and PDFs render inline.</p>
+                            <p class="app-panel-copy">Open the current selection.</p>
                         </div>
                     </div>
 
@@ -137,9 +115,9 @@
 
                             <div class="files-preview-frame">
                                 {% if selected_is_image %}
-                                    <img src="{{ selected_file.file.url }}" alt="{{ selected_file.display_title }}" />
+                                    <img src="{% url 'users:file_preview' selected_file.id %}" alt="{{ selected_file.display_title }}" />
                                 {% elif selected_is_pdf %}
-                                    <iframe src="{{ selected_file.file.url }}" title="{{ selected_file.display_title }}"></iframe>
+                                    <iframe src="{% url 'users:file_preview' selected_file.id %}" title="{{ selected_file.display_title }}"></iframe>
                                 {% else %}
                                     <div class="files-preview-placeholder">
                                         Preview unavailable for this file type.

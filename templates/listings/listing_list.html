@@ -1,21 +1,18 @@
 {% extends "base.html" %}
+{% load static %}
 
-{% block title %}Listings | Vibecoders{% endblock %}
-
+{% block title %}Listings | {{ site_product_name }}{% endblock %}
 {% block extra_css %}
-<style>
-    #map {
-        height: 400px;
-        width: 100%;
-    }
-    #map canvas {
-        display: block; /* Essential for MapLibre visibility */
-    }
-    .maplibregl-popup-content {
-        font-family: 'Inter', sans-serif; /* Matches your Vibecoders vibe */
-        padding: 15px;
-    }
-</style>
+    {% if map_data %}
+        <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.css">
+    {% endif %}
+{% endblock %}
+{% block extra_js %}
+    {% if map_data %}
+        <script src="https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.js"></script>
+        {{ map_data|json_script:"listing-map-data" }}
+        <script src="{% static 'js/listings-map.js' %}"></script>
+    {% endif %}
 {% endblock %}
 
 {% block content %}
@@ -26,20 +23,29 @@
                 <div class="app-header-main">
                     <div>
                         <p class="app-kicker">Listings</p>
-                        <h1 class="app-title">Search homes</h1>
-                        <p class="app-subtitle">Clean filters. Clear cards. One fast feed.</p>
+                        <h1 class="app-title">{% if has_listing_only_access %}Your listings{% else %}Listings{% endif %}</h1>
+                        <p class="app-subtitle">
+                            {% if has_listing_only_access %}
+                                Inventory for this account.
+                            {% else %}
+                                Browse active rentals and subleases.
+                            {% endif %}
+                        </p>
                     </div>
                     <div class="app-actions">
                         <a class="btn btn-brand" href="{% url 'listings:create_listing' %}">New listing</a>
+                        {% if has_listing_only_access %}
+                            <a class="btn btn-outline-secondary" href="{% url 'users:posts' %}">Open posts</a>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="app-meta">
-                    <span class="app-meta-chip">{{ listings_total }} active</span>
-                    <span class="app-meta-chip">
+                    <span class="app-meta-chip app-meta-chip-primary">{{ listings_total }} {% if has_listing_only_access %}owned{% else %}active{% endif %}</span>
+                    <span class="app-meta-chip app-meta-chip-secondary">
                         {% if active_filters.q or active_filters.max_price or active_filters.lease_type or active_filters.available_by %}
                             Filtered
                         {% else %}
-                            All listings
+                            {% if has_listing_only_access %}Your inventory{% else %}All listings{% endif %}
                         {% endif %}
                     </span>
                 </div>
@@ -50,7 +56,7 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading">Filters</h2>
-                            <p class="app-panel-copy">Refine the feed.</p>
+                            <p class="app-panel-copy">Refine the current view.</p>
                         </div>
                         <a class="listing-reset-link" href="{% url 'listings:listing_list' %}">Reset</a>
                     </div>
@@ -103,137 +109,109 @@
                 </aside>
 
                 <div class="app-main">
-                    <div id="map-section" style="margin-bottom: 2rem; border-radius: 12px; overflow: hidden; border: 1px solid #ddd; height: 400px;">
-                        <div id="map" style="height: 100%; width: 100%;"></div>
+                    <div class="listing-panel listing-map-panel">
+                        <div class="app-panel-head">
+                            <div>
+                                <h2 class="app-section-heading">Map</h2>
+                                <p class="app-panel-copy">
+                                    {% if map_data %}
+                                        Geocoded listings on this page.
+                                    {% else %}
+                                        Geocoded listings will appear here when their addresses resolve successfully.
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+
+                        {% if map_data %}
+                            <div
+                                class="listing-map-frame"
+                                data-listing-map-root
+                                data-default-lat="{{ listing_map_default_lat }}"
+                                data-default-lng="{{ listing_map_default_lng }}"
+                            >
+                                <div class="listing-map" data-listing-map-canvas></div>
+                            </div>
+                        {% else %}
+                            <div class="listing-map-empty">
+                                <h3 class="listing-map-empty-title">No map-ready listings on this page.</h3>
+                                <p class="listing-map-empty-copy">
+                                    New and updated listings pin here automatically after address lookup succeeds.
+                                </p>
+                            </div>
+                        {% endif %}
                     </div>
+
                     <div class="listing-panel">
                         <div class="app-panel-head">
                             <div>
                                 <h2 class="app-section-heading">Results</h2>
                                 <p class="app-panel-copy">
                                     {% if active_filters.q %}
-                                        {{ listings_total }} home{{ listings_total|pluralize }} matching "{{ active_filters.q }}".
+                                        {{ listings_total }} result{{ listings_total|pluralize }} for "{{ active_filters.q }}".
                                     {% else %}
-                                        {{ listings_total }} home{{ listings_total|pluralize }} in view.
+                                        {{ listings_total }} result{{ listings_total|pluralize }}.
                                     {% endif %}
                                 </p>
                             </div>
                         </div>
 
+                        {% if has_listing_only_access %}
+                            <div class="alert alert-warning mb-4" role="alert">
+                                This account can manage its own listings only.
+                            </div>
+                        {% endif %}
+
                         {% if listings %}
                             <div class="listing-results-grid">
                                 {% for listing in listings %}
-                                    <div class="listing-container"> <a class="listing-card" href="{% url 'listings:detail' listing.pk %}">
-                                            <div class="listing-card-media">
-                                                {% if listing.primary_image %}
-                                                    <img src="{{ listing.primary_image.image.url }}" alt="{{ listing.title }}">
-                                                {% else %}
-                                                    <div class="listing-card-placeholder">
-                                                        <span>{{ listing.get_property_type_display }}</span>
-                                                    </div>
-                                                {% endif %}
-                                                <div class="listing-card-badge">{{ listing.get_lease_type_display }}</div>
+                                    <a class="listing-card" href="{% url 'listings:detail' listing.pk %}">
+                                        <div class="listing-card-media">
+                                            {% if listing.primary_image %}
+                                                <img src="{{ listing.primary_image.versioned_url }}" alt="{{ listing.title }}">
+                                            {% else %}
+                                                <div class="listing-card-placeholder">
+                                                    <span>{{ listing.get_property_type_display }}</span>
+                                                </div>
+                                            {% endif %}
+                                            <div class="listing-card-badge">{{ listing.get_lease_type_display }}</div>
+                                        </div>
+                                        <div class="listing-card-body">
+                                            <div class="listing-card-price-row">
+                                                <span class="listing-card-price">${{ listing.price|floatformat:0 }}/mo</span>
+                                                <span class="listing-card-status {% if listing.status == 'AVAILABLE' %}is-available{% elif listing.status == 'PENDING' %}is-pending{% else %}is-taken{% endif %}">{{ listing.get_status_display }}</span>
                                             </div>
-                                            <div class="listing-card-body">
-                                                <div class="listing-card-price-row">
-                                                    <span class="listing-card-price">${{ listing.price|floatformat:0 }}/mo</span>
-                                                    <span class="listing-card-status">{{ listing.get_status_display }}</span>
-                                                </div>
-                                                <h3 class="listing-card-title">{{ listing.title }}</h3>
-                                                <p class="listing-card-address">{{ listing.address }}</p>
-                                                <div class="listing-card-specs">
-                                                    <span>{{ listing.rooms }} bd</span>
-                                                    <span>{{ listing.bathrooms }} ba</span>
-                                                    {% if listing.sq_ft %}
-                                                        <span>{{ listing.sq_ft }} sqft</span>
-                                                    {% endif %}
-                                                </div>
-                                                {% if listing.description %}
-                                                    <p class="listing-card-summary">{{ listing.description|truncatewords:14 }}</p>
+                                            <h3 class="listing-card-title">{{ listing.title }}</h3>
+                                            <p class="listing-card-address">{{ listing.address }}</p>
+                                            <div class="listing-card-specs">
+                                                <span>{{ listing.rooms }} bd</span>
+                                                <span>{{ listing.bathrooms }} ba</span>
+                                                {% if listing.sq_ft %}
+                                                    <span>{{ listing.sq_ft }} sqft</span>
                                                 {% endif %}
                                             </div>
-                                        </a>
-                                        {% if user == listing.owner %}
-                                            <div class="px-3 pb-3">
-                                                <div class="d-grid gap-2">
-                                                    <a href="{% url 'listings:listing_update' listing.pk %}" 
-                                                    class="btn text-white fw-bold text-center" 
-                                                    style="background-color: #6f42c1; border-color: #6f42c1;">
-                                                    Edit Listing
-                                                    </a>
-                                                    <a href="{% url 'listings:listing_delete' listing.pk %}" 
-                                                    class="btn btn-sm btn-link text-danger text-decoration-none">
-                                                    Delete Listing
-                                                    </a>
-                                                </div>
+                                            {% if listing.description %}
+                                                <p class="listing-card-summary">{{ listing.description|truncatewords:14 }}</p>
+                                            {% endif %}
+                                            <div class="listing-card-owner">
+                                                {% include "listings/includes/owner_meta.html" with listing=listing size_class="user-avatar-sm" %}
                                             </div>
-                                        {% endif %}
-                                    </div>
+                                        </div>
+                                    </a>
                                 {% endfor %}
                             </div>
                         {% else %}
                             <div class="app-empty">
                                 <h3 class="app-empty-title">No listings match these filters.</h3>
-                                <p class="app-empty-copy">Reset the feed or adjust one filter to see more homes.</p>
+                                <p class="app-empty-copy">Reset the view or adjust a filter to see more results.</p>
                             </div>
                         {% endif %}
 
-                        {% if listings.paginator.num_pages > 1 %}
-                            <div class="app-pagination">
-                                {% if listings.has_previous %}
-                                    <a class="btn btn-outline-secondary" href="?page={{ listings.previous_page_number }}{{ pagination_query }}">Previous</a>
-                                {% else %}
-                                    <span class="btn btn-outline-secondary disabled">Previous</span>
-                                {% endif %}
-
-                                <span class="app-pagination-label">Page {{ listings.number }} of {{ listings.paginator.num_pages }}</span>
-
-                                {% if listings.has_next %}
-                                    <a class="btn btn-outline-secondary" href="?page={{ listings.next_page_number }}{{ pagination_query }}">Next</a>
-                                {% else %}
-                                    <span class="btn btn-outline-secondary disabled">Next</span>
-                                {% endif %}
-                            </div>
-                        {% endif %}
+                        {% include "includes/pagination.html" with page_obj=listings pagination_query=pagination_query %}
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </section>
-
-
-<link href='https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css' rel='stylesheet' />
-<script src='https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js'></script>
-
-{{ map_data|json_script:"listing-data" }}
-
-<script>
-    window.mapData = JSON.parse(document.getElementById('listing-data').textContent);
-    const mapTilerKey = 'vZTfYAuBsvBtA2WMZtyN'; 
-
-
-    const map = new maplibregl.Map({
-        container: 'map',
-        style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${mapTilerKey}`,
-        center: mapData.length > 0 ? [mapData[0].lng, mapData[0].lat] : [-71.17, 42.34], 
-        zoom: 12
-    });
-
-    mapData.forEach(item => {
-        const popup = new maplibregl.Popup({ offset: 25 })
-            .setHTML(`<strong>${item.title}</strong><br>$${item.price}/mo<br><a href="${item.url}">View Details</a>`);
-
-        new maplibregl.Marker({ color: "#6f42c1" }) 
-            .setLngLat([item.lng, item.lat])
-            .setPopup(popup)
-            .addTo(map);
-    });
-
-    if (mapData.length > 1) {
-        const bounds = new maplibregl.LngLatBounds();
-        mapData.forEach(item => bounds.extend([item.lng, item.lat]));
-        map.fitBounds(bounds, { padding: 50 });
-    }
-</script>
 {% endblock %}

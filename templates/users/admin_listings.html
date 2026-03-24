@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Manage Listings | Vibecoders{% endblock %}
+{% block title %}Manage Listings | {{ site_product_name }}{% endblock %}
 
 {% block content %}
 <section class="app-page admin-dashboard">
@@ -9,8 +9,8 @@
             <div class="admin-header listing-panel">
                 <div>
                     <p class="app-kicker">Admin Dashboard</p>
-                    <h1 class="app-title">Manage Listings</h1>
-                    <p class="app-subtitle">Review, filter, and remove listings across the platform.</p>
+                    <h1 class="app-title">Listings</h1>
+                    <p class="app-subtitle">Review inventory and moderation actions.</p>
                 </div>
                 <div class="admin-header-meta">
                     <a class="btn btn-outline-secondary" href="{% url 'users:admin_dashboard' %}">Back to dashboard</a>
@@ -18,48 +18,15 @@
             </div>
 
             <div class="app-layout">
-                <aside class="app-sidebar admin-sidebar">
-                    <div class="admin-nav-card listing-panel">
-                        <h2 class="admin-nav-title">Dashboard</h2>
-                        <nav class="admin-nav">
-                            <a class="admin-nav-item" href="{% url 'users:admin_dashboard' %}">Dashboard</a>
-                            <a class="admin-nav-item is-active" href="{% url 'users:admin_listings' %}">Manage Listings</a>
-                            <span class="admin-nav-item is-disabled">Reports &amp; Issues</span>
-                            <a class="admin-nav-item" href="{% url 'users:admin_users' %}">User Management</a>
-                        </nav>
-                        <form method="post" action="{% url 'account_logout' %}" class="admin-signout">
-                            {% csrf_token %}
-                            <button class="btn btn-outline-secondary w-100" type="submit">Sign Out</button>
-                        </form>
-                    </div>
-                </aside>
+                {% include "includes/admin_sidebar.html" with active_section="listings" %}
 
                 <div class="app-main">
-                    <div class="listing-panel admin-filter">
-                        <form method="get" class="admin-filter-form">
-                            <div class="admin-filter-inputs">
-                                <input
-                                    class="form-control"
-                                    type="search"
-                                    name="q"
-                                    placeholder="Search listings..."
-                                    value="{{ query }}"
-                                >
-                                <select class="form-select" name="status">
-                                    <option value="">All Statuses</option>
-                                    {% for value, label in status_options %}
-                                        <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <button class="btn btn-brand" type="submit">Filter</button>
-                        </form>
-                    </div>
+                    {% include "includes/admin_listing_filters.html" %}
 
                     <div class="listing-panel admin-table">
                         <div class="admin-table-head">
                             <h2 class="app-section-heading">Listings</h2>
-                            <span class="admin-table-count">{{ listings|length }} results</span>
+                            <span class="admin-table-count">{{ listings_total }} results</span>
                         </div>
 
                         {% if listings %}
@@ -103,11 +70,8 @@
                                                 <td>
                                                     <div class="admin-user-actions">
                                                         <a class="btn btn-outline-secondary btn-sm" href="{% url 'listings:detail' listing.pk %}">View</a>
-                                                        <form method="post" action="{% url 'users:admin_delete_listing' listing.id %}" onsubmit="return confirm('Remove this listing?');">
-                                                            {% csrf_token %}
-                                                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                                                            <button class="btn btn-outline-secondary btn-sm" type="submit">Remove</button>
-                                                        </form>
+                                                        {% url 'users:admin_delete_listing' listing.id as admin_delete_listing_url %}
+                                                        {% include "includes/inline_confirm.html" with trigger_label="Remove" prompt_text="Remove this listing?" action_url=admin_delete_listing_url trigger_button_class="btn btn-outline-secondary btn-sm" confirm_label="Confirm remove" extra_hidden_name="next" extra_hidden_value=request.get_full_path %}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -115,6 +79,7 @@
                                     </tbody>
                                 </table>
                             </div>
+                            {% include "includes/pagination.html" with page_obj=listings pagination_query=pagination_query %}
                         {% else %}
                             <p class="app-panel-copy mb-0">No listings match the current filters.</p>
                         {% endif %}

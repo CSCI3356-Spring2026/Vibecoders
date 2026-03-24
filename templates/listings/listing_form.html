@@ -1,162 +1,316 @@
 {% extends "base.html" %}
+{% load static %}
 
-{% block title %}Create Listing | Vibecoders{% endblock %}
+{% block title %}{% if is_edit %}Edit Listing{% else %}Create Listing{% endif %} | {{ site_product_name }}{% endblock %}
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/listing-form.css' %}">
+{% endblock %}
+{% block extra_js %}
+    <script type="module" src="{% static 'js/listing-form.js' %}"></script>
+{% endblock %}
 
 {% block content %}
-<section class="app-page">
+<section class="app-page listing-wizard-page">
     <div class="container">
-        <div class="app-shell">
-            <div class="listing-panel app-header">
-                <div class="app-header-main">
-                    <div>
-                        <p class="listing-hero-eyebrow mb-2">Create Listing</p>
-                        <h1 class="listing-hero-title app-title">Add a home</h1>
-                        <p class="listing-hero-subtitle app-subtitle">Clear details, clean photos, ready to publish.</p>
+        <form method="post" enctype="multipart/form-data" class="listing-wizard" data-listing-form-wizard>
+            {% csrf_token %}
+
+            <div class="listing-wizard-header listing-panel">
+                <div>
+                    <p class="listing-wizard-eyebrow">{% if is_edit %}Edit listing{% else %}New listing{% endif %}</p>
+                    <h1 class="listing-wizard-title">{% if is_edit %}Update your listing{% else %}List your place{% endif %}</h1>
+                    <p class="listing-wizard-subtitle">Complete each step to unlock the next.</p>
+                </div>
+                <div class="listing-wizard-header-side">
+                    <div class="listing-wizard-progress">
+                        <span class="listing-wizard-progress-copy" data-wizard-progress-copy>Step 1 of 5</span>
+                        <div class="listing-wizard-progress-bar">
+                            <span data-wizard-progress-bar></span>
+                        </div>
                     </div>
-                    <div class="app-actions">
-                        <a class="btn btn-outline-secondary" href="{% url 'listings:listing_list' %}">Back to listings</a>
-                    </div>
+                    <a class="btn btn-outline-secondary" href="{% url back_url_name %}">Back to {{ back_label }}</a>
                 </div>
             </div>
 
-            <div class="listing-panel">
-                <div class="app-panel-head">
-                    <div>
-                        <h2 class="app-section-heading mb-0">Listing details</h2>
-                        <p class="app-panel-copy">Required fields first. Everything else stays optional.</p>
-                    </div>
+            {% if form.errors %}
+                <div class="alert alert-danger mb-0" role="alert">
+                    {% for error in form.non_field_errors %}
+                        <div>{{ error }}</div>
+                    {% endfor %}
+                    {% for field in form %}
+                        {% for error in field.errors %}
+                            <div>{{ error }}</div>
+                        {% endfor %}
+                    {% endfor %}
                 </div>
+            {% endif %}
 
-                <form method="post" enctype="multipart/form-data" class="app-stack">
-                    {% csrf_token %}
+            <div class="listing-wizard-shell">
+                <aside class="listing-wizard-rail">
+                    <div class="listing-panel listing-wizard-rail-card">
+                        <div class="listing-wizard-rail-head">
+                            <p class="listing-wizard-rail-kicker">Steps</p>
+                            <h2 class="listing-wizard-rail-title">Publishing flow</h2>
+                        </div>
+                        <div class="listing-wizard-step-list">
+                            <button type="button" class="listing-wizard-step" data-step-nav="0">
+                                <span class="listing-wizard-step-index">1</span>
+                                <span class="listing-wizard-step-copy">
+                                    <span class="listing-wizard-step-title">Basics</span>
+                                    <span class="listing-wizard-step-meta">Headline, location, summary</span>
+                                </span>
+                                <span class="listing-wizard-step-state" data-step-state>Current</span>
+                            </button>
+                            <button type="button" class="listing-wizard-step" data-step-nav="1">
+                                <span class="listing-wizard-step-index">2</span>
+                                <span class="listing-wizard-step-copy">
+                                    <span class="listing-wizard-step-title">Availability</span>
+                                    <span class="listing-wizard-step-meta">Dates, pricing, visibility</span>
+                                </span>
+                                <span class="listing-wizard-step-state" data-step-state>Locked</span>
+                            </button>
+                            <button type="button" class="listing-wizard-step" data-step-nav="2">
+                                <span class="listing-wizard-step-index">3</span>
+                                <span class="listing-wizard-step-copy">
+                                    <span class="listing-wizard-step-title">Home details</span>
+                                    <span class="listing-wizard-step-meta">Type, beds, baths</span>
+                                </span>
+                                <span class="listing-wizard-step-state" data-step-state>Locked</span>
+                            </button>
+                            <button type="button" class="listing-wizard-step" data-step-nav="3">
+                                <span class="listing-wizard-step-index">4</span>
+                                <span class="listing-wizard-step-copy">
+                                    <span class="listing-wizard-step-title">Policies</span>
+                                    <span class="listing-wizard-step-meta">Utilities, amenities, rules</span>
+                                </span>
+                                <span class="listing-wizard-step-state" data-step-state>Locked</span>
+                            </button>
+                            <button type="button" class="listing-wizard-step" data-step-nav="4">
+                                <span class="listing-wizard-step-index">5</span>
+                                <span class="listing-wizard-step-copy">
+                                    <span class="listing-wizard-step-title">Review</span>
+                                    <span class="listing-wizard-step-meta">Photos and final check</span>
+                                </span>
+                                <span class="listing-wizard-step-state" data-step-state>Locked</span>
+                            </button>
+                        </div>
+                    </div>
+                </aside>
 
-                    {% if form.errors %}
-                        <div class="alert alert-danger mb-0" role="alert">
-                            {% for error in form.non_field_errors %}
-                                <div>{{ error }}</div>
-                            {% endfor %}
-                            {% for field in form %}
-                                {% for error in field.errors %}
-                                    <div>{{ error }}</div>
+                <div class="listing-wizard-stage">
+                    <section class="listing-panel listing-wizard-panel" data-step-panel="0" data-step-title="Basics" data-step-subtitle="Start with the essentials." data-step-complete-fields="title,address,description">
+                        <div class="listing-wizard-panel-head">
+                            <p class="listing-wizard-panel-kicker">Step 1</p>
+                            <h2 class="listing-wizard-panel-title">Basics</h2>
+                            <p class="listing-wizard-panel-copy">Create the headline renters will see first.</p>
+                        </div>
+                        <div class="row g-4">
+                            {% include "listings/includes/form_field.html" with field=form.title wrapper_class="col-12" %}
+                            {% include "listings/includes/form_field.html" with field=form.address wrapper_class="col-12" %}
+                            {% include "listings/includes/form_field.html" with field=form.description wrapper_class="col-12" %}
+                        </div>
+                    </section>
+
+                    <section class="listing-panel listing-wizard-panel" data-step-panel="1" data-step-title="Availability" data-step-subtitle="Set the dates and rent." data-step-complete-fields="start_date,end_date,price">
+                        <div class="listing-wizard-panel-head">
+                            <p class="listing-wizard-panel-kicker">Step 2</p>
+                            <h2 class="listing-wizard-panel-title">Availability</h2>
+                            <p class="listing-wizard-panel-copy">Set the commercial terms.</p>
+                        </div>
+                        <div class="listing-wizard-grid listing-wizard-grid-3">
+                            {% include "listings/includes/form_field.html" with field=form.lease_type %}
+                            {% include "listings/includes/form_field.html" with field=form.status %}
+                            <div class="listing-wizard-control-card">
+                                <label class="listing-form-label" for="{{ form.is_hidden.id_for_label }}">Visibility</label>
+                                <label class="listing-wizard-toggle" for="{{ form.is_hidden.id_for_label }}">
+                                    {{ form.is_hidden }}
+                                    <span class="listing-wizard-toggle-copy">
+                                        <span class="listing-wizard-toggle-title">{{ form.is_hidden.label }}</span>
+                                        <span class="listing-wizard-toggle-meta">Keep this off search until it is ready.</span>
+                                    </span>
+                                </label>
+                                {% for error in form.is_hidden.errors %}
+                                    <div class="app-field-error">{{ error }}</div>
                                 {% endfor %}
-                            {% endfor %}
+                            </div>
                         </div>
-                    {% endif %}
-
-                    <section class="app-section">
-                        <h3 class="app-section-title">Overview</h3>
-                        <div class="row g-4">
-                            <div class="col-12">
-                                <label class="form-label fw-semibold" for="{{ form.title.id_for_label }}">Title</label>
-                                {{ form.title }}
-                            </div>
-                            <div class="col-lg-8">
-                                <label class="form-label fw-semibold" for="{{ form.address.id_for_label }}">Address</label>
-                                {{ form.address }}
-                            </div>
-                            <div class="col-lg-4">
-                                <label class="form-label fw-semibold" for="{{ form.price.id_for_label }}">Monthly price</label>
-                                {{ form.price }}
-                            </div>
-                            <div class="col-lg-3">
-                                <label class="form-label fw-semibold" for="{{ form.start_date.id_for_label }}">Start date</label>
-                                {{ form.start_date }}
-                            </div>
-                            <div class="col-lg-3">
-                                <label class="form-label fw-semibold" for="{{ form.end_date.id_for_label }}">End date</label>
-                                {{ form.end_date }}
-                            </div>
-                            <div class="col-lg-3">
-                                <label class="form-label fw-semibold" for="{{ form.lease_type.id_for_label }}">Lease type</label>
-                                {{ form.lease_type }}
-                            </div>
-                            <div class="col-lg-3">
-                                <label class="form-label fw-semibold" for="{{ form.property_type.id_for_label }}">Property type</label>
-                                {{ form.property_type }}
-                            </div>
+                        <div class="listing-wizard-grid listing-wizard-grid-4">
+                            {% include "listings/includes/form_field.html" with field=form.start_date %}
+                            {% include "listings/includes/form_field.html" with field=form.end_date %}
+                            {% include "listings/includes/form_field.html" with field=form.price %}
+                            {% include "listings/includes/form_field.html" with field=form.utilities_estimate %}
+                        </div>
+                        <div class="listing-wizard-grid listing-wizard-grid-3">
+                            {% include "listings/includes/form_field.html" with field=form.parking_fee %}
+                            {% include "listings/includes/form_field.html" with field=form.security_deposit %}
+                            {% include "listings/includes/form_field.html" with field=form.application_fee %}
                         </div>
                     </section>
 
-                    <section class="app-section">
-                        <h3 class="app-section-title">Specs</h3>
-                        <div class="row g-4">
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="{{ form.rooms.id_for_label }}">Bedrooms</label>
-                                {{ form.rooms }}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="{{ form.bathrooms.id_for_label }}">Bathrooms</label>
-                                {{ form.bathrooms }}
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label fw-semibold" for="{{ form.sq_ft.id_for_label }}">Square feet</label>
-                                {{ form.sq_ft }}
-                            </div>
+                    <section class="listing-panel listing-wizard-panel" data-step-panel="2" data-step-title="Home details" data-step-subtitle="Add the facts renters compare." data-step-complete-fields="property_type,rooms,bathrooms">
+                        <div class="listing-wizard-panel-head">
+                            <p class="listing-wizard-panel-kicker">Step 3</p>
+                            <h2 class="listing-wizard-panel-title">Home details</h2>
+                            <p class="listing-wizard-panel-copy">Add the core unit facts.</p>
                         </div>
-                    </section>
-
-                    <section class="app-section">
-                        <h3 class="app-section-title">Features</h3>
-                        <div class="app-toggle-group">
-                            <label class="app-toggle-card" for="{{ form.has_yard.id_for_label }}">
+                        <div class="listing-wizard-grid listing-wizard-grid-4">
+                            {% include "listings/includes/form_field.html" with field=form.property_type %}
+                            {% include "listings/includes/form_field.html" with field=form.rooms %}
+                            {% include "listings/includes/form_field.html" with field=form.bathrooms %}
+                            {% include "listings/includes/form_field.html" with field=form.sq_ft %}
+                        </div>
+                        <div class="listing-wizard-grid listing-wizard-grid-1">
+                            {% include "listings/includes/form_field.html" with field=form.distance_to_campus %}
+                        </div>
+                        <div class="listing-wizard-choice-grid">
+                            <label class="listing-wizard-choice" for="{{ form.has_yard.id_for_label }}">
                                 {{ form.has_yard }}
-                                <span>Yard</span>
+                                <span class="listing-wizard-choice-copy">
+                                    <span class="listing-wizard-choice-title">Yard</span>
+                                </span>
                             </label>
-                            <label class="app-toggle-card" for="{{ form.has_parking.id_for_label }}">
+                            <label class="listing-wizard-choice" for="{{ form.has_parking.id_for_label }}">
                                 {{ form.has_parking }}
-                                <span>Parking</span>
+                                <span class="listing-wizard-choice-copy">
+                                    <span class="listing-wizard-choice-title">Parking</span>
+                                </span>
                             </label>
-                            <label class="app-toggle-card" for="{{ form.is_furnished.id_for_label }}">
+                            <label class="listing-wizard-choice" for="{{ form.is_furnished.id_for_label }}">
                                 {{ form.is_furnished }}
-                                <span>Furnished</span>
+                                <span class="listing-wizard-choice-copy">
+                                    <span class="listing-wizard-choice-title">Furnished</span>
+                                </span>
                             </label>
                         </div>
                     </section>
 
-                    <section class="app-section">
-                        <h3 class="app-section-title">Notes</h3>
-                        <div class="row g-4">
-                            <div class="col-lg-6">
-                                <label class="form-label fw-semibold">Utilities</label>
-                                <div class="app-input-panel">
-                                    <div class="app-check-grid mb-3">
-                                        {% for checkbox in form.common_utilities %}
-                                            <label class="app-check-option">
-                                                {{ checkbox.tag }}
-                                                <span>{{ checkbox.choice_label }}</span>
-                                            </label>
-                                        {% endfor %}
+                    <section class="listing-panel listing-wizard-panel" data-step-panel="3" data-step-title="Policies" data-step-subtitle="Add optional details before review." data-step-complete-fields="">
+                        <div class="listing-wizard-panel-head">
+                            <p class="listing-wizard-panel-kicker">Step 4</p>
+                            <h2 class="listing-wizard-panel-title">Policies</h2>
+                            <p class="listing-wizard-panel-copy">Answer the common follow-up questions.</p>
+                        </div>
+                        <div class="listing-wizard-grid listing-wizard-grid-2">
+                            <div class="listing-wizard-control-card">
+                                <label class="listing-form-label">{{ form.common_utilities.label }}</label>
+                                <div class="listing-wizard-choice-grid listing-wizard-choice-grid-compact">
+                                    {% for checkbox in form.common_utilities %}
+                                        <label class="listing-wizard-choice" for="{{ checkbox.id_for_label }}">
+                                            {{ checkbox.tag }}
+                                            <span class="listing-wizard-choice-copy">
+                                                <span class="listing-wizard-choice-title">{{ checkbox.choice_label }}</span>
+                                            </span>
+                                        </label>
+                                    {% endfor %}
+                                </div>
+                                {% include "listings/includes/form_field.html" with field=form.other_utilities wrapper_class="mt-3" %}
+                            </div>
+                            <div class="listing-wizard-stack">
+                                {% include "listings/includes/form_field.html" with field=form.pet_policy %}
+                                {% include "listings/includes/form_field.html" with field=form.security_features %}
+                            </div>
+                        </div>
+                        <div class="listing-wizard-grid listing-wizard-grid-1">
+                            {% include "listings/includes/form_field.html" with field=form.amenities %}
+                        </div>
+                    </section>
+
+                    <section class="listing-panel listing-wizard-panel" data-step-panel="4" data-step-title="Review" data-step-subtitle="Add photos and confirm the summary." data-step-complete-fields="">
+                        <div class="listing-wizard-panel-head">
+                            <p class="listing-wizard-panel-kicker">Step 5</p>
+                            <h2 class="listing-wizard-panel-title">Review</h2>
+                            <p class="listing-wizard-panel-copy">Upload photos and do a final pass.</p>
+                        </div>
+                        <div class="listing-wizard-grid listing-wizard-grid-1">
+                            <div class="listing-form-field">
+                                <label class="form-label fw-semibold listing-form-label" for="{{ form.images.id_for_label }}">{{ form.images.label|default:"Upload photos" }}</label>
+                                {{ form.images }}
+                                {% for error in form.images.errors %}
+                                    <div class="app-field-error">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        {% if is_edit and listing.images.exists %}
+                            <div class="listing-wizard-existing-media">
+                                <div class="listing-wizard-existing-head">
+                                    <h3 class="listing-wizard-existing-title">Current photos</h3>
+                                </div>
+                                <div class="listing-wizard-photo-grid">
+                                    {% for image in listing.images.all %}
+                                        <label class="listing-wizard-photo-tile" for="remove-image-{{ image.pk }}">
+                                            <img src="{{ image.versioned_url }}" alt="{{ listing.title }}">
+                                            <span class="listing-wizard-photo-action">
+                                                <input type="checkbox" name="{{ form.remove_images.html_name }}" value="{{ image.pk }}" id="remove-image-{{ image.pk }}"{% if image.pk|stringformat:"s" in selected_remove_image_ids %} checked{% endif %}>
+                                                <span>Remove</span>
+                                            </span>
+                                        </label>
+                                    {% endfor %}
+                                </div>
+                                {% for error in form.remove_images.errors %}
+                                    <div class="app-field-error mt-2">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        <div class="listing-wizard-review">
+                            <div class="listing-wizard-review-card">
+                                <div class="listing-wizard-review-head">
+                                    <h3 class="listing-wizard-review-title">Summary</h3>
+                                    <span class="listing-wizard-review-chip" data-review-status>{% if form_summary.is_hidden %}Hidden draft{% else %}{{ form_summary.status }}{% endif %}</span>
+                                </div>
+                                <div class="listing-wizard-review-list">
+                                    <div class="listing-wizard-review-item">
+                                        <span class="listing-wizard-review-label">Headline</span>
+                                        <span class="listing-wizard-review-value" data-review-title>{{ form_summary.title }}</span>
                                     </div>
-                                    {{ form.other_utilities }}
+                                    <div class="listing-wizard-review-item">
+                                        <span class="listing-wizard-review-label">Location</span>
+                                        <span class="listing-wizard-review-value" data-review-address>{{ form_summary.address }}</span>
+                                    </div>
+                                    <div class="listing-wizard-review-item">
+                                        <span class="listing-wizard-review-label">Rent</span>
+                                        <span class="listing-wizard-review-value" data-review-rent>{% if form_summary.price %}${{ form_summary.price|floatformat:0 }}/mo{% else %}--{% endif %}</span>
+                                    </div>
+                                    <div class="listing-wizard-review-item">
+                                        <span class="listing-wizard-review-label">Estimated monthly total</span>
+                                        <span class="listing-wizard-review-value" data-review-monthly>{% if form_summary.monthly_total %}${{ form_summary.monthly_total|floatformat:0 }}/mo{% else %}--{% endif %}</span>
+                                    </div>
+                                    <div class="listing-wizard-review-item">
+                                        <span class="listing-wizard-review-label">Layout</span>
+                                        <span class="listing-wizard-review-value" data-review-layout>{{ form_summary.rooms }} bd • {{ form_summary.bathrooms }} ba{% if form_summary.sq_ft %} • {{ form_summary.sq_ft }} sqft{% endif %}</span>
+                                    </div>
+                                    <div class="listing-wizard-review-item">
+                                        <span class="listing-wizard-review-label">Dates</span>
+                                        <span class="listing-wizard-review-value" data-review-dates>{{ form_summary.start_date|default:"Start" }} to {{ form_summary.end_date|default:"End" }}</span>
+                                    </div>
+                                    <div class="listing-wizard-review-item">
+                                        <span class="listing-wizard-review-label">Photos</span>
+                                        <span class="listing-wizard-review-value" data-review-photos>{{ form_summary.photo_count }} photo{{ form_summary.photo_count|pluralize }}</span>
+                                    </div>
+                                    <div class="listing-wizard-review-item">
+                                        <span class="listing-wizard-review-label">Visibility</span>
+                                        <span class="listing-wizard-review-value" data-review-visibility>{% if form_summary.is_hidden %}Hidden draft{% else %}{{ form_summary.status }}{% endif %}</span>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="col-lg-6">
-                                <label class="form-label fw-semibold" for="{{ form.pet_policy.id_for_label }}">Pet policy</label>
-                                {{ form.pet_policy }}
-                            </div>
-                            <div class="col-12">
-                                <label class="form-label fw-semibold" for="{{ form.description.id_for_label }}">Description</label>
-                                {{ form.description }}
-                            </div>
                         </div>
                     </section>
 
-                    <section class="app-section">
-                        <h3 class="app-section-title">Photos</h3>
-                        <label class="form-label fw-semibold" for="{{ form.images.id_for_label }}">Upload images</label>
-                        <div class="app-input-panel">
-                            {{ form.images }}
-                            <p class="app-field-note mb-0">Optional. Add multiple images if you have them.</p>
+                    <div class="listing-panel listing-wizard-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-step-prev>Back</button>
+                        <div class="listing-wizard-footer-copy">
+                            <p class="listing-wizard-footer-title" data-wizard-footer-title>Basics</p>
+                            <p class="listing-wizard-footer-subtitle" data-wizard-footer-subtitle>Start with the essentials.</p>
                         </div>
-                    </section>
-
-                    <div class="d-flex flex-wrap gap-2">
-                        <button type="submit" class="btn btn-brand px-4">Publish listing</button>
-                        <a href="{% url 'listings:listing_list' %}" class="btn btn-outline-secondary px-4">Cancel</a>
+                        <div class="listing-wizard-footer-actions">
+                            <button type="button" class="btn btn-brand" data-step-next>Continue</button>
+                            <button type="submit" class="btn btn-brand" data-step-submit>{% if is_edit %}Save changes{% else %}Create listing{% endif %}</button>
+                        </div>
                     </div>
-                </form>
+                </div>
             </div>
-        </div>
+        </form>
     </div>
 </section>
 {% endblock %}

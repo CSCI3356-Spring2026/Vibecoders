@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Admin Dashboard | Vibecoders{% endblock %}
+{% block title %}Admin Dashboard | {{ site_product_name }}{% endblock %}
 
 {% block content %}
 <section class="app-page admin-dashboard">
@@ -9,8 +9,8 @@
             <div class="admin-header listing-panel">
                 <div>
                     <p class="app-kicker">Admin Dashboard</p>
-                    <h1 class="app-title">Admin Dashboard</h1>
-                    <p class="app-subtitle">Monitor listings, approvals, and platform activity in one place.</p>
+                    <h1 class="app-title">Overview</h1>
+                    <p class="app-subtitle">Marketplace activity and recent listings.</p>
                 </div>
                 <div class="admin-header-meta">
                     <span class="admin-meta-chip">Total listings: {{ total_listings }}</span>
@@ -18,21 +18,7 @@
             </div>
 
             <div class="app-layout">
-                <aside class="app-sidebar admin-sidebar">
-                    <div class="admin-nav-card listing-panel">
-                        <h2 class="admin-nav-title">Dashboard</h2>
-                        <nav class="admin-nav">
-                            <a class="admin-nav-item is-active" href="{% url 'users:admin_dashboard' %}">Dashboard</a>
-                            <a class="admin-nav-item" href="{% url 'users:admin_listings' %}">Manage Listings</a>
-                            <span class="admin-nav-item is-disabled">Reports &amp; Issues</span>
-                            <a class="admin-nav-item" href="{% url 'users:admin_users' %}">User Management</a>
-                        </nav>
-                        <form method="post" action="{% url 'account_logout' %}" class="admin-signout">
-                            {% csrf_token %}
-                            <button class="btn btn-outline-secondary w-100" type="submit">Sign Out</button>
-                        </form>
-                    </div>
-                </aside>
+                {% include "includes/admin_sidebar.html" with active_section="dashboard" %}
 
                 <div class="app-main">
                     <div class="listing-panel admin-stat-panel">
@@ -50,37 +36,39 @@
                                 <span class="admin-stat-value">{{ approved_listings }}</span>
                             </div>
                             <div class="admin-stat-card admin-stat-card-warm">
-                                <span class="admin-stat-label">Reports</span>
-                                <span class="admin-stat-value">{{ reports_count }}</span>
+                                <span class="admin-stat-label">Conversations</span>
+                                <span class="admin-stat-value">{{ total_conversations }}</span>
                             </div>
                         </div>
                     </div>
 
-                    <div class="listing-panel admin-filter">
-                        <form method="get" class="admin-filter-form">
-                            <div class="admin-filter-inputs">
-                                <input
-                                    class="form-control"
-                                    type="search"
-                                    name="q"
-                                    placeholder="Search listings..."
-                                    value="{{ query }}"
-                                >
-                                <select class="form-select" name="status">
-                                    <option value="">All Statuses</option>
-                                    {% for value, label in status_options %}
-                                        <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
-                                    {% endfor %}
-                                </select>
+                    <div class="listing-panel admin-stat-panel">
+                        <div class="admin-stat-grid">
+                            <div class="admin-stat-card admin-stat-card-primary">
+                                <span class="admin-stat-label">Students</span>
+                                <span class="admin-stat-value">{{ student_users }}</span>
                             </div>
-                            <button class="btn btn-brand" type="submit">Filter</button>
-                        </form>
+                            <div class="admin-stat-card admin-stat-card-accent">
+                                <span class="admin-stat-label">Realtors</span>
+                                <span class="admin-stat-value">{{ realtor_users }}</span>
+                            </div>
+                            <div class="admin-stat-card admin-stat-card-secondary">
+                                <span class="admin-stat-label">Admins</span>
+                                <span class="admin-stat-value">{{ admin_users_total }}</span>
+                            </div>
+                            <div class="admin-stat-card admin-stat-card-warm">
+                                <span class="admin-stat-label">Messages</span>
+                                <span class="admin-stat-value">{{ total_messages }}</span>
+                            </div>
+                        </div>
                     </div>
+
+                    {% include "includes/admin_listing_filters.html" %}
 
                     <div class="listing-panel admin-table">
                         <div class="admin-table-head">
-                            <h2 class="app-section-heading">Listings</h2>
-                            <span class="admin-table-count">{{ listings|length }} results</span>
+                            <h2 class="app-section-heading">Recent Listings</h2>
+                            <span class="admin-table-count">{{ filtered_listings_count }} results</span>
                         </div>
 
                         {% if listings %}
@@ -126,4 +114,12 @@
                                 </table>
                             </div>
                         {% else %}
-                            <p class="app-panel-copy mb-0">No listings match the current filters
+                            <p class="app-panel-copy mb-0">No listings match the current filters.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

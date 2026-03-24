@@ -1,0 +1,19 @@
+{% if page_obj.paginator.num_pages > 1 %}
+    {% with page_param=page_param|default:"page" %}
+    <div class="app-pagination">
+        {% if page_obj.has_previous %}
+            <a class="btn btn-outline-secondary" href="?{{ page_param }}={{ page_obj.previous_page_number }}{{ pagination_query }}">Previous</a>
+        {% else %}
+            <span class="btn btn-outline-secondary disabled">Previous</span>
+        {% endif %}
+
+        <span class="app-pagination-label">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+
+        {% if page_obj.has_next %}
+            <a class="btn btn-outline-secondary" href="?{{ page_param }}={{ page_obj.next_page_number }}{{ pagination_query }}">Next</a>
+        {% else %}
+            <span class="btn btn-outline-secondary disabled">Next</span>
+        {% endif %}
+    </div>
+    {% endwith %}
+{% endif %}

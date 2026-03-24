@@ -1,0 +1,17 @@
+{% with avatar_user=user_obj|default:user %}
+    {% with avatar_url=avatar_user.avatar_url %}
+        <span class="{% if avatar_class %}{{ avatar_class }}{% else %}user-avatar {{ size_class|default:'user-avatar-md' }}{% if extra_class %} {{ extra_class }}{% endif %}{% endif %}">
+            {% if avatar_url %}
+                <img
+                    class="{{ image_class|default:'user-avatar-image' }}"
+                    src="{{ avatar_url }}"
+                    alt="{{ avatar_alt|default:avatar_user.display_name }}"
+                >
+            {% else %}
+                <span class="{{ fallback_class|default:'user-avatar-fallback' }}">
+                    {{ avatar_user.avatar_initial }}
+                </span>
+            {% endif %}
+        </span>
+    {% endwith %}
+{% endwith %}

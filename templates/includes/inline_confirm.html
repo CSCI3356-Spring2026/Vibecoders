@@ -1,0 +1,30 @@
+<div class="app-inline-confirm" data-inline-confirm>
+    <button
+        class="{{ trigger_button_class|default:'btn btn-outline-danger btn-sm' }} app-inline-confirm-trigger"
+        type="button"
+        data-inline-confirm-open
+        aria-expanded="false"
+    >
+        {{ trigger_label }}
+    </button>
+    <div class="app-inline-confirm-panel" data-inline-confirm-panel>
+        <span class="app-inline-confirm-text">{{ prompt_text }}</span>
+        <div class="app-inline-confirm-actions">
+            <button class="btn btn-outline-secondary btn-sm" type="button" data-inline-confirm-close>
+                {{ cancel_label|default:"Cancel" }}
+            </button>
+            <form method="post" action="{{ action_url }}" class="app-inline-confirm-form">
+                {% csrf_token %}
+                {% if extra_hidden_name and extra_hidden_value %}
+                    <input type="hidden" name="{{ extra_hidden_name }}" value="{{ extra_hidden_value }}">
+                {% endif %}
+                {% if extra_hidden_name_2 and extra_hidden_value_2 %}
+                    <input type="hidden" name="{{ extra_hidden_name_2 }}" value="{{ extra_hidden_value_2 }}">
+                {% endif %}
+                <button class="{{ confirm_button_class|default:'btn btn-danger btn-sm' }}" type="submit">
+                    {{ confirm_label|default:"Confirm" }}
+                </button>
+            </form>
+        </div>
+    </div>
+</div>

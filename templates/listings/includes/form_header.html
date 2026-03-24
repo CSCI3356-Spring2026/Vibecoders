@@ -1,0 +1,24 @@
+<div class="listing-panel app-header app-header-shell listing-form-header">
+    <div class="app-header-main listing-form-header-main">
+        <div>
+            <p class="listing-hero-eyebrow mb-2">{% if is_edit %}Listing Management{% else %}Listing Operations{% endif %}</p>
+            <h1 class="listing-hero-title app-title">{% if is_edit %}Edit listing{% else %}Create listing{% endif %}</h1>
+            <p class="listing-hero-subtitle app-subtitle">
+                {% if is_edit %}
+                    Update pricing, dates, media, and visibility with the same discipline you would expect from a managed marketplace record.
+                {% else %}
+                    Build a complete, market-ready listing with clear pricing, availability, and policy details before publishing.
+                {% endif %}
+            </p>
+        </div>
+        <div class="listing-form-header-side">
+            <div class="app-meta">
+                <span class="app-meta-chip">{{ form_summary.completed_sections }}/{{ form_summary.total_sections }} sections ready</span>
+                <span class="app-meta-chip app-meta-chip-neutral">{% if form_summary.is_hidden %}Hidden draft{% else %}{{ form_summary.status }}{% endif %}</span>
+            </div>
+            <div class="app-actions">
+                <a class="btn btn-outline-secondary" href="{% url back_url_name %}">Back to {{ back_label }}</a>
+            </div>
+        </div>
+    </div>
+</div>

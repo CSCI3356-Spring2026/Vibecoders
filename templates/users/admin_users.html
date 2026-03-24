@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}User Management | Vibecoders{% endblock %}
+{% block title %}User Management | {{ site_product_name }}{% endblock %}
 
 {% block content %}
 <section class="app-page admin-dashboard">
@@ -9,8 +9,8 @@
             <div class="admin-header listing-panel">
                 <div>
                     <p class="app-kicker">Admin Dashboard</p>
-                    <h1 class="app-title">User Management</h1>
-                    <p class="app-subtitle">Review users, update roles, and control access.</p>
+                    <h1 class="app-title">Users</h1>
+                    <p class="app-subtitle">Search accounts and review access.</p>
                 </div>
                 <div class="admin-header-meta">
                     <a class="btn btn-outline-secondary" href="{% url 'users:admin_dashboard' %}">Back to dashboard</a>
@@ -18,21 +18,7 @@
             </div>
 
             <div class="app-layout">
-                <aside class="app-sidebar admin-sidebar">
-                    <div class="admin-nav-card listing-panel">
-                        <h2 class="admin-nav-title">Dashboard</h2>
-                        <nav class="admin-nav">
-                            <a class="admin-nav-item" href="{% url 'users:admin_dashboard' %}">Dashboard</a>
-                            <a class="admin-nav-item" href="{% url 'users:admin_listings' %}">Manage Listings</a>
-                            <span class="admin-nav-item is-disabled">Reports &amp; Issues</span>
-                            <a class="admin-nav-item is-active" href="{% url 'users:admin_users' %}">User Management</a>
-                        </nav>
-                        <form method="post" action="{% url 'account_logout' %}" class="admin-signout">
-                            {% csrf_token %}
-                            <button class="btn btn-outline-secondary w-100" type="submit">Sign Out</button>
-                        </form>
-                    </div>
-                </aside>
+                {% include "includes/admin_sidebar.html" with active_section="users" %}
 
                 <div class="app-main">
                     <div class="listing-panel admin-filter">
@@ -47,8 +33,9 @@
                                 >
                                 <select class="form-select" name="role">
                                     <option value="">All Roles</option>
-                                    <option value="student" {% if selected_role == 'student' %}selected{% endif %}>Student</option>
-                                    <option value="admin" {% if selected_role == 'admin' %}selected{% endif %}>Admin</option>
+                                    {% for value, label in role_options %}
+                                        <option value="{{ value }}" {% if selected_role == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
                                 </select>
                                 <select class="form-select" name="active">
                                     <option value="">All Statuses</option>
@@ -63,7 +50,7 @@
                     <div class="listing-panel admin-table">
                         <div class="admin-table-head">
                             <h2 class="app-section-heading">Users</h2>
-                            <span class="admin-table-count">{{ users|length }} users</span>
+                            <span class="admin-table-count">{{ users_total }} users</span>
                         </div>
 
                         {% if users %}
@@ -88,7 +75,7 @@
                                                     </div>
                                                 </td>
                                                 <td>
-                                                    <span class="admin-status-pill {% if user.role == 'admin' %}is-approved{% else %}is-muted{% endif %}">
+                                                    <span class="admin-status-pill {% if user.role == 'admin' %}is-approved{% elif user.role == 'student' %}is-pending{% else %}is-muted{% endif %}">
                                                         {{ user.display_role }}
                                                     </span>
                                                 </td>
@@ -107,9 +94,9 @@
                                                         <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:admin_user_detail' user.id %}">View</a>
                                                         <form method="post" action="{% url 'users:admin_set_role' user.id %}">
                                                             {% csrf_token %}
-                                                            <input type="hidden" name="role" value="{% if user.role == 'admin' %}student{% else %}admin{% endif %}">
+                                                            <input type="hidden" name="action" value="{% if user.role == 'admin' %}restore_default{% else %}grant_admin{% endif %}">
                                                             <button class="btn btn-outline-secondary btn-sm" type="submit">
-                                                                {% if user.role == 'admin' %}Make Student{% else %}Make Admin{% endif %}
+                                                                {% if user.role == 'admin' %}Restore Default Access{% else %}Make Admin{% endif %}
                                                             </button>
                                                         </form>
                                                         <form method="post" action="{% url 'users:admin_toggle_active' user.id %}">
@@ -125,6 +112,7 @@
                                     </tbody>
                                 </table>
                             </div>
+                            {% include "includes/pagination.html" with page_obj=users pagination_query=pagination_query %}
                         {% else %}
                             <p class="app-panel-copy mb-0">No users match the current filters.</p>
                         {% endif %}

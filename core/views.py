@@ -1,21 +1,11 @@
-from datetime import timedelta
-
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count, Q
 from django.shortcuts import redirect, render
-from django.utils import timezone
 
-from listings.models import Listing
+from listings.selectors import marketplace_listings_for_user
 
 
 def landing(request):
-    visible_listings = Listing.objects.visible()
-    move_in_cutoff = timezone.localdate() + timedelta(days=30)
-    market_stats = visible_listings.aggregate(
-        active_count=Count("id"),
-        sublease_count=Count("id", filter=Q(lease_type="SUBLEASE")),
-        move_in_count=Count("id", filter=Q(start_date__lte=move_in_cutoff)),
-    )
+    visible_listings = marketplace_listings_for_user(request.user)
     featured_listings = list(visible_listings[:5])
     hero_listing = featured_listings[0] if featured_listings else None
     spotlight_listings = featured_listings[1:5] or featured_listings[:4]
@@ -23,7 +13,7 @@ def landing(request):
     context = {
         "hero_listing": hero_listing,
         "spotlight_listings": spotlight_listings,
-        "market_stats": market_stats,
+        "has_listing_only_access": request.user.is_authenticated and request.user.has_listing_only_access,
     }
     return render(request, "core/landing.html", context)
 
@@ -31,3 +21,11 @@ def landing(request):
 @login_required
 def welcome(request):
     return redirect("users:dashboard")
+
+
+def terms_of_service(request):
+    return render(request, "core/terms_of_service.html")
+
+
+def privacy_policy(request):
+    return render(request, "core/privacy_policy.html")

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Dashboard | Vibecoders{% endblock %}
+{% block title %}Dashboard | {{ site_product_name }}{% endblock %}
 
 {% block content %}
 <section class="app-page">
@@ -10,30 +10,44 @@
                 <div class="app-header-main">
                     <div>
                         <p class="app-kicker">Dashboard</p>
-                        <h1 class="app-title">
-                            Welcome, {{ request.user.get_full_name|default:request.user.username }} - {{ request.user.display_role }}
-                        </h1>
-                        <p class="app-subtitle">Review your listings, open documents, and keep the core housing workflow moving.</p>
+                        <h1 class="app-title">Dashboard</h1>
+                        <p class="app-subtitle">
+                            {% if has_listing_only_access %}
+                                {{ request.user.display_name }} · {{ request.user.display_role }} · Listing access only
+                            {% elif request.user.can_access_admin_panel %}
+                                {{ request.user.display_name }} · {{ request.user.display_role }} · Admin controls enabled
+                            {% else %}
+                                {{ request.user.display_name }} · {{ request.user.display_role }}
+                            {% endif %}
+                        </p>
                     </div>
                     <div class="app-actions">
-                        <a class="btn btn-brand" href="{% url 'listings:listing_list' %}">Browse listings</a>
+                        {% if can_browse_marketplace %}
+                            <a class="btn btn-brand" href="{% url 'listings:listing_list' %}">Browse listings</a>
+                        {% else %}
+                            <a class="btn btn-brand" href="{% url 'users:posts' %}">Open my listings</a>
+                        {% endif %}
                         <a class="btn btn-outline-secondary" href="{% url 'listings:create_listing' %}">Create listing</a>
                     </div>
                 </div>
             </div>
 
             <div class="app-stat-grid">
-                <div class="app-stat-card">
+                <div class="app-stat-card is-primary">
                     <span class="app-stat-label">Listings</span>
                     <span class="app-stat-value">{{ listings_count }}</span>
                 </div>
-                <div class="app-stat-card">
+                <div class="app-stat-card is-secondary">
+                    <span class="app-stat-label">Conversations</span>
+                    <span class="app-stat-value">{{ conversations_count }}</span>
+                </div>
+                <div class="app-stat-card is-accent">
+                    <span class="app-stat-label">Unread threads</span>
+                    <span class="app-stat-value">{{ unread_conversations_count }}</span>
+                </div>
+                <div class="app-stat-card is-neutral">
                     <span class="app-stat-label">Files</span>
                     <span class="app-stat-value">{{ files_count }}</span>
-                </div>
-                <div class="app-stat-card">
-                    <span class="app-stat-label">Role</span>
-                    <span class="app-stat-value">{{ request.user.display_role }}</span>
                 </div>
             </div>
 
@@ -42,9 +56,9 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading">Recent listings</h2>
-                            <p class="app-panel-copy">Your latest posts.</p>
+                            <p class="app-panel-copy">Latest posts from your account.</p>
                         </div>
-                        <a class="listing-reset-link" href="{% url 'listings:create_listing' %}">New listing</a>
+                        <a class="listing-reset-link" href="{% url 'users:posts' %}">View all</a>
                     </div>
 
                     {% if recent_listings %}
@@ -64,8 +78,34 @@
                 <div class="listing-panel">
                     <div class="app-panel-head">
                         <div>
+                            <h2 class="app-section-heading">Recent messages</h2>
+                            <p class="app-panel-copy">Latest activity across your threads.</p>
+                        </div>
+                        <a class="listing-reset-link" href="{% url 'communications:messages' %}">Open inbox</a>
+                    </div>
+
+                    {% if recent_conversations %}
+                        <div class="app-compact-list">
+                            {% for conversation in recent_conversations %}
+                                <a class="app-compact-item" href="{% url 'communications:detail' conversation.id %}">
+                                    <span class="app-compact-title">{{ conversation.listing.title }}</span>
+                                    <span class="app-compact-meta">
+                                        {{ conversation.ui_counterparty.get_full_name|default:conversation.ui_counterparty.username }} • {{ conversation.last_message_at|date:"M d, Y" }}
+                                    </span>
+                                    <span class="app-compact-meta">{{ conversation.last_message_preview|default:"No messages yet." }}</span>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="app-panel-copy mb-0">No messages yet.</p>
+                    {% endif %}
+                </div>
+
+                <div class="listing-panel">
+                    <div class="app-panel-head">
+                        <div>
                             <h2 class="app-section-heading">Documents</h2>
-                            <p class="app-panel-copy">Keep lease files in one place.</p>
+                            <p class="app-panel-copy">Recent documents in your library.</p>
                         </div>
                         <a class="listing-reset-link" href="{% url 'users:files' %}">Open library</a>
                     </div>

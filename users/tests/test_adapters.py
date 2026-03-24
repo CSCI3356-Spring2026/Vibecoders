@@ -1,11 +1,15 @@
 from unittest.mock import MagicMock
 
 from allauth.core.exceptions import ImmediateHttpResponse
+from allauth.socialaccount.models import SocialAccount
+from django.conf import settings
 from django.contrib import messages
 from django.test import RequestFactory, TestCase
 
-from ..adapters import BCEmailAdapter, NoSignupAccountAdapter
-from .helpers import add_middleware, message_texts
+from ..adapters import MarketplaceSocialAccountAdapter, NoSignupAccountAdapter
+from ..legal import set_pending_legal_acceptance
+from ..models import Role
+from .helpers import User, add_middleware, message_texts
 
 
 class NoSignupAccountAdapterTests(TestCase):
@@ -25,47 +29,240 @@ class NoSignupAccountAdapterTests(TestCase):
                 self.assertEqual(message_texts(request), [])
 
 
-class BCEmailAdapterTests(TestCase):
-    def make_sociallogin(self, email):
+class AuthSettingsTests(TestCase):
+    def test_google_email_authentication_is_enabled(self):
+        self.assertTrue(settings.SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT)
+        self.assertTrue(settings.SOCIALACCOUNT_PROVIDERS["google"]["EMAIL_AUTHENTICATION"])
+        self.assertEqual(settings.LOGIN_URL, "/accounts/login/")
+
+
+class MarketplaceSocialAccountAdapterTests(TestCase):
+    def make_sociallogin(self, email, verified=True, user=None, picture="https://example.com/avatar.jpg"):
         sociallogin = MagicMock()
-        sociallogin.account.extra_data = {"email": email}
+        sociallogin.account.extra_data = {
+            "email": email,
+            "email_verified": verified,
+            "picture": picture,
+        }
+        sociallogin.user = user or User()
         return sociallogin
 
-    def test_bc_email_signup_allowed(self):
-        adapter = BCEmailAdapter()
-        request = RequestFactory().get("/")
+    def test_student_email_signup_allowed(self):
+        adapter = MarketplaceSocialAccountAdapter()
+        request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
         sociallogin = self.make_sociallogin("eagle@bc.edu")
 
         self.assertTrue(adapter.is_open_for_signup(request, sociallogin))
 
-    def test_invalid_signup_emails_are_rejected(self):
-        adapter = BCEmailAdapter()
+    def test_external_email_signup_allowed(self):
+        adapter = MarketplaceSocialAccountAdapter()
+        request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
+        sociallogin = self.make_sociallogin("agent@gmail.com")
 
-        for email in ("user@gmail.com", ""):
-            with self.subTest(email=email):
-                request = add_middleware(RequestFactory().get("/"))
-                sociallogin = self.make_sociallogin(email)
+        self.assertTrue(adapter.is_open_for_signup(request, sociallogin))
 
-                with self.assertRaises(ImmediateHttpResponse) as ctx:
-                    adapter.is_open_for_signup(request, sociallogin)
+    def test_signup_requires_legal_acceptance(self):
+        adapter = MarketplaceSocialAccountAdapter()
+        request = add_middleware(RequestFactory().get("/"))
+        sociallogin = self.make_sociallogin("eagle@bc.edu")
 
-                self.assertEqual(ctx.exception.response.url, "/users/login/")
-                self.assertIn(adapter.error_message, message_texts(request))
+        with self.assertRaises(ImmediateHttpResponse) as ctx:
+            adapter.is_open_for_signup(request, sociallogin)
 
-    def test_bc_email_login_allowed(self):
-        adapter = BCEmailAdapter()
-        request = RequestFactory().get("/")
+        self.assertEqual(ctx.exception.response.url, "/users/login/")
+        self.assertIn(adapter.legal_error_message, message_texts(request))
+
+    def test_missing_signup_email_is_rejected(self):
+        adapter = MarketplaceSocialAccountAdapter()
+
+        request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
+        sociallogin = self.make_sociallogin("", verified=False)
+
+        with self.assertRaises(ImmediateHttpResponse) as ctx:
+            adapter.is_open_for_signup(request, sociallogin)
+
+        self.assertEqual(ctx.exception.response.url, "/users/login/")
+        self.assertIn(adapter.error_message, message_texts(request))
+
+    def test_unverified_signup_email_is_rejected(self):
+        adapter = MarketplaceSocialAccountAdapter()
+        request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
+        sociallogin = self.make_sociallogin("eagle@bc.edu", verified=False)
+
+        with self.assertRaises(ImmediateHttpResponse) as ctx:
+            adapter.is_open_for_signup(request, sociallogin)
+
+        self.assertEqual(ctx.exception.response.url, "/users/login/")
+        self.assertIn(adapter.error_message, message_texts(request))
+
+    def test_student_email_login_allowed(self):
+        adapter = MarketplaceSocialAccountAdapter()
+        request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
         sociallogin = self.make_sociallogin("eagle@bc.edu")
 
         adapter.pre_social_login(request, sociallogin)
 
-    def test_non_bc_email_login_raises(self):
-        adapter = BCEmailAdapter()
+    def test_external_email_login_allowed(self):
+        adapter = MarketplaceSocialAccountAdapter()
         request = add_middleware(RequestFactory().get("/"))
-        sociallogin = self.make_sociallogin("user@gmail.com")
+        set_pending_legal_acceptance(request)
+        sociallogin = self.make_sociallogin("agent@gmail.com")
+
+        adapter.pre_social_login(request, sociallogin)
+
+    def test_login_requires_legal_acceptance(self):
+        adapter = MarketplaceSocialAccountAdapter()
+        request = add_middleware(RequestFactory().get("/"))
+        sociallogin = self.make_sociallogin("eagle@bc.edu")
+
+        with self.assertRaises(ImmediateHttpResponse) as ctx:
+            adapter.pre_social_login(request, sociallogin)
+
+        self.assertEqual(ctx.exception.response.url, "/users/login/")
+        self.assertIn(adapter.legal_error_message, message_texts(request))
+
+    def test_missing_email_login_raises(self):
+        adapter = MarketplaceSocialAccountAdapter()
+        request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
+        sociallogin = self.make_sociallogin("", verified=False)
 
         with self.assertRaises(ImmediateHttpResponse) as ctx:
             adapter.pre_social_login(request, sociallogin)
 
         self.assertEqual(ctx.exception.response.url, "/users/login/")
         self.assertIn(adapter.error_message, message_texts(request))
+
+    def test_unverified_email_login_raises(self):
+        adapter = MarketplaceSocialAccountAdapter()
+        request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
+        sociallogin = self.make_sociallogin("eagle@bc.edu", verified=False)
+
+        with self.assertRaises(ImmediateHttpResponse) as ctx:
+            adapter.pre_social_login(request, sociallogin)
+
+        self.assertEqual(ctx.exception.response.url, "/users/login/")
+        self.assertIn(adapter.error_message, message_texts(request))
+
+    def test_populate_user_assigns_student_role_for_bc_email(self):
+        adapter = MarketplaceSocialAccountAdapter()
+        sociallogin = self.make_sociallogin("student@bc.edu")
+
+        user = adapter.populate_user(RequestFactory().get("/"), sociallogin, {"email": "student@bc.edu"})
+
+        self.assertEqual(user.username, "student")
+        self.assertEqual(user.role, Role.STUDENT)
+        self.assertEqual(user.profile_image_url, "https://example.com/avatar.jpg")
+
+    def test_populate_user_ignores_non_http_profile_image_urls(self):
+        adapter = MarketplaceSocialAccountAdapter()
+        sociallogin = self.make_sociallogin("student@bc.edu", picture="javascript:alert(1)")
+
+        user = adapter.populate_user(RequestFactory().get("/"), sociallogin, {"email": "student@bc.edu"})
+
+        self.assertEqual(user.profile_image_url, "")
+
+    def test_populate_user_assigns_realtor_role_for_external_email(self):
+        adapter = MarketplaceSocialAccountAdapter()
+        sociallogin = self.make_sociallogin("agent@gmail.com")
+
+        user = adapter.populate_user(RequestFactory().get("/"), sociallogin, {"email": "agent@gmail.com"})
+
+        self.assertEqual(user.username, "agent")
+        self.assertEqual(user.role, Role.REALTOR)
+
+    def test_populate_user_generates_unique_username_for_matching_local_parts(self):
+        User.objects.create_user(username="alex", email="alex@bc.edu", password="test")
+        adapter = MarketplaceSocialAccountAdapter()
+        sociallogin = self.make_sociallogin("alex@gmail.com")
+
+        user = adapter.populate_user(RequestFactory().get("/"), sociallogin, {"email": "alex@gmail.com"})
+
+        self.assertEqual(user.username, "alex-2")
+
+    def test_populate_user_normalizes_email(self):
+        adapter = MarketplaceSocialAccountAdapter()
+        sociallogin = self.make_sociallogin("Student@BC.edu")
+
+        user = adapter.populate_user(RequestFactory().get("/"), sociallogin, {"email": "Student@BC.edu"})
+
+        self.assertEqual(user.email, "student@bc.edu")
+        self.assertEqual(user.username, "student")
+        self.assertEqual(user.role, Role.STUDENT)
+
+    def test_populate_user_does_not_override_existing_user_identity(self):
+        existing_user = User.objects.create_user(
+            username="admin-user",
+            email="admin@bc.edu",
+            password="test",
+            role=Role.ADMIN,
+        )
+        adapter = MarketplaceSocialAccountAdapter()
+        sociallogin = self.make_sociallogin("admin@bc.edu", user=existing_user)
+
+        user = adapter.populate_user(RequestFactory().get("/"), sociallogin, {"email": "admin@bc.edu"})
+
+        self.assertEqual(user.username, "admin-user")
+        self.assertEqual(user.role, Role.ADMIN)
+
+    def test_pre_social_login_updates_existing_user_profile_image(self):
+        user = User.objects.create_user(username="eagle", email="eagle@bc.edu", password="test")
+        adapter = MarketplaceSocialAccountAdapter()
+        request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
+        sociallogin = self.make_sociallogin(
+            "eagle@bc.edu",
+            user=user,
+            picture="https://example.com/updated-avatar.jpg",
+        )
+
+        adapter.pre_social_login(request, sociallogin)
+        user.refresh_from_db()
+
+        self.assertEqual(user.profile_image_url, "https://example.com/updated-avatar.jpg")
+
+    def test_pre_social_login_keeps_existing_profile_image_when_google_picture_missing(self):
+        user = User.objects.create_user(
+            username="eagle",
+            email="eagle@bc.edu",
+            password="test",
+            profile_image_url="https://example.com/original-avatar.jpg",
+        )
+        SocialAccount.objects.create(
+            user=user,
+            provider="google",
+            uid="google-user-1",
+            extra_data={"email": "eagle@bc.edu", "email_verified": True},
+        )
+        adapter = MarketplaceSocialAccountAdapter()
+        request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
+        sociallogin = self.make_sociallogin("eagle@bc.edu", user=user, picture="")
+
+        adapter.pre_social_login(request, sociallogin)
+        user.refresh_from_db()
+
+        self.assertEqual(user.profile_image_url, "https://example.com/original-avatar.jpg")
+
+    def test_pre_social_login_ignores_non_http_profile_image_urls(self):
+        user = User.objects.create_user(
+            username="eagle",
+            email="eagle@bc.edu",
+            password="test",
+            profile_image_url="https://example.com/original-avatar.jpg",
+        )
+        adapter = MarketplaceSocialAccountAdapter()
+        request = add_middleware(RequestFactory().get("/"))
+        set_pending_legal_acceptance(request)
+        sociallogin = self.make_sociallogin("eagle@bc.edu", user=user, picture="ftp://example.com/avatar.jpg")
+
+        adapter.pre_social_login(request, sociallogin)
+        user.refresh_from_db()
+
+        self.assertEqual(user.profile_image_url, "https://example.com/original-avatar.jpg")

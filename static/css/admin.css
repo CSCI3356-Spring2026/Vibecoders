@@ -1,0 +1,320 @@
+.admin-dashboard .app-layout {
+    grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+}
+
+.admin-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.5rem;
+}
+
+.admin-header-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.admin-meta-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.45rem 0.9rem;
+    border: 1px solid rgba(var(--gray-300-rgb), 0.8);
+    border-radius: 0.5rem;
+    background: var(--surface-gradient-soft);
+    color: var(--gray-700);
+    font-size: 0.82rem;
+    font-weight: 500;
+}
+
+.admin-nav-card {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.admin-nav-title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--gray-900);
+}
+
+.admin-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.admin-nav-item {
+    display: flex;
+    align-items: center;
+    min-height: 2.6rem;
+    padding: 0.5rem 0.9rem;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(var(--gray-300-rgb), 0.7);
+    background: var(--surface-gradient);
+    color: var(--gray-700);
+    font-weight: 500;
+    text-decoration: none;
+    transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
+}
+
+.admin-nav-item:hover {
+    border-color: rgba(var(--gray-300-rgb), 0.8);
+    color: var(--gray-900);
+    background: var(--surface-gradient-soft);
+}
+
+.admin-nav-item.is-active {
+    border-color: rgba(var(--gray-700-rgb), 0.45);
+    background: rgba(var(--primary-rgb), 0.08);
+    color: var(--gray-900);
+}
+
+.admin-nav-item.is-disabled {
+    opacity: 0.6;
+    cursor: default;
+    pointer-events: none;
+}
+
+.admin-signout {
+    margin-top: 0.5rem;
+}
+
+.admin-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.admin-stat-panel {
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
+}
+
+.admin-stat-panel .admin-stat-grid {
+    margin-bottom: 0;
+}
+
+.admin-stat-card {
+    padding: 1.25rem 1.35rem;
+    border: 1px solid rgba(var(--gray-300-rgb), 0.6);
+    border-top-width: 1px;
+    border-radius: var(--radius-md);
+    background: var(--surface-gradient);
+    color: var(--gray-900);
+    box-shadow: none;
+}
+
+.admin-stat-label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--gray-500);
+    opacity: 1;
+}
+
+.admin-stat-value {
+    display: block;
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    margin-top: 0.35rem;
+    color: var(--gray-900);
+}
+
+.admin-stat-card-primary {
+    border-top-color: var(--primary-600);
+}
+
+.admin-stat-card-accent {
+    border-top-color: var(--accent-500);
+}
+
+.admin-stat-card-secondary {
+    border-top-color: var(--secondary-600);
+}
+
+.admin-stat-card-warm {
+    border-top-color: var(--gray-700);
+}
+
+.admin-stat-card-primary .admin-stat-value {
+    color: var(--primary-600);
+}
+
+.admin-stat-card-accent .admin-stat-value {
+    color: var(--accent-500);
+}
+
+.admin-stat-card-secondary .admin-stat-value {
+    color: var(--secondary-600);
+}
+
+.admin-stat-card-warm .admin-stat-value {
+    color: var(--gray-700);
+}
+
+.admin-filter {
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+}
+
+.admin-filter-form {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.admin-filter-inputs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.85rem;
+    flex: 1;
+}
+
+.admin-table {
+    padding: 1.5rem;
+}
+
+.admin-table-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.admin-table-count {
+    font-size: 0.9rem;
+    color: var(--gray-500);
+    font-weight: 600;
+}
+
+.admin-table-grid th {
+    color: var(--gray-500);
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.admin-table-grid td {
+    vertical-align: middle;
+}
+
+.admin-user-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--gray-900);
+}
+
+.admin-user-email,
+.admin-user-meta {
+    font-size: 0.82rem;
+    color: var(--gray-500);
+}
+
+.admin-user-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.admin-user-actions form {
+    margin: 0;
+}
+
+.admin-list-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.admin-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.9rem 1.1rem;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(var(--gray-300-rgb), 0.5);
+    background: var(--surface-gradient);
+    text-decoration: none;
+    color: inherit;
+}
+
+.admin-list-item:hover {
+    border-color: rgba(var(--gray-300-rgb), 0.8);
+    background: var(--surface-gradient-soft);
+}
+
+.admin-list-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--gray-900);
+}
+
+.admin-list-meta {
+    font-size: 0.82rem;
+    color: var(--gray-500);
+}
+
+.admin-property-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--gray-900);
+}
+
+.admin-property-meta {
+    font-size: 0.85rem;
+    color: var(--gray-500);
+    font-weight: 600;
+}
+
+.admin-property-sub {
+    font-size: 0.82rem;
+    color: var(--gray-500);
+}
+
+.admin-poster-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--gray-900);
+}
+
+.admin-poster-email {
+    font-size: 0.82rem;
+    color: var(--gray-500);
+}
+
+.admin-status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.4rem 0.85rem;
+    border: 1px solid rgba(var(--gray-300-rgb), 0.8);
+    border-radius: 0.5rem;
+    font-size: 0.82rem;
+    font-weight: 500;
+    background: rgba(var(--gray-300-rgb), 0.18);
+}
+
+.admin-status-pill.is-pending {
+    border-color: rgba(var(--accent-rgb), 0.4);
+    color: var(--accent-500);
+}
+
+.admin-status-pill.is-approved {
+    border-color: rgba(var(--secondary-rgb), 0.4);
+    color: var(--secondary-600);
+}
+
+.admin-status-pill.is-muted {
+    border-color: rgba(var(--gray-300-rgb), 0.8);
+    color: var(--gray-700);
+}
