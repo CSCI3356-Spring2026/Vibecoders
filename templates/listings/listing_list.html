@@ -12,12 +12,22 @@
     {% if listing_maps_enabled %}
         <script src="https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.js"></script>
         {{ map_data|json_script:"listing-map-data" }}
-        <script src="{% static 'js/listings-map.js' %}"></script>
+        {{ listing_initial_payload|json_script:"listing-page-initial-payload" }}
+        {{ listing_page_initial_state|json_script:"listing-page-initial-state" }}
+        <script type="module" src="{% static 'js/listings-map.js' %}"></script>
     {% endif %}
 {% endblock %}
 
 {% block content %}
-<section class="app-page{% if listing_maps_enabled %} listing-page-shell{% endif %}"{% if listing_maps_enabled %} data-listings-page{% endif %}>
+<section
+    class="app-page{% if listing_maps_enabled %} listing-page-shell{% endif %}"
+    {% if listing_maps_enabled %}
+        data-listings-page
+        data-listings-search-url="{{ listing_search_url }}"
+        data-listings-map-style-url="{{ listing_map_style_url }}"
+        data-selected-listing-id=""
+    {% endif %}
+>
     <div class="container">
         <div class="app-shell">
             <div class="app-header app-header-shell{% if listing_maps_enabled %} listing-page-header{% endif %}">
@@ -136,6 +146,7 @@
                         data-listings-map-root
                         data-listings-map
                         data-listings-search-url="{{ listing_search_url }}"
+                        data-listings-map-style-url="{{ listing_map_style_url }}"
                         data-default-lat="{{ listing_map_default_lat }}"
                         data-default-lng="{{ listing_map_default_lng }}"
                     >
@@ -185,7 +196,9 @@
                         <p class="app-empty-copy">Adjust filters or reset the search to bring more homes back into the map.</p>
                     </div>
 
-                    {% include "includes/pagination.html" with page_obj=listings pagination_query=pagination_query %}
+                    <div data-listings-pagination>
+                        {% include "includes/pagination.html" with page_obj=listings pagination_query=pagination_query %}
+                    </div>
                 </section>
             {% else %}
                 <div class="app-layout">

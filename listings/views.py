@@ -94,6 +94,28 @@ def _listing_map_data(listings):
     return map_data
 
 
+def _listing_initial_payload(listings, *, total):
+    cards = [listing_card_payload(listing) for listing in listings]
+    markers = [listing_marker_payload(listing) for listing in listings if listing.has_map_coordinates]
+    return {
+        "total": total,
+        "markers": markers,
+        "cards": cards,
+    }
+
+
+def _listing_map_style_url():
+    configured_url = getattr(settings, "LISTING_GEOAPIFY_MAP_STYLE_URL", "").strip()
+    if configured_url:
+        return configured_url
+
+    api_key = getattr(settings, "LISTING_GEOAPIFY_API_KEY", "").strip()
+    if not api_key:
+        return ""
+
+    return f"https://maps.geoapify.com/v1/styles/osm-carto/style.json?apiKey={api_key}"
+
+
 def _autocomplete_results_response(results, *, status=200):
     return JsonResponse({"results": results}, status=status)
 
@@ -164,7 +186,8 @@ def listing_list(request):
     listings, active_filters = apply_listing_filters(base_queryset, request.GET)
     listings_page = get_page(listings, request.GET.get("page"), LISTINGS_PER_PAGE)
     map_enabled = settings.LISTING_MAPS_ENABLED
-    map_data = _listing_map_data(listings_page.object_list) if map_enabled else []
+    listings_page_items = list(listings_page.object_list)
+    map_data = _listing_map_data(listings_page_items) if map_enabled else []
 
     context = {
         "listings": listings_page,
@@ -179,7 +202,16 @@ def listing_list(request):
         "map_data": map_data,
     }
     if map_enabled:
+        context["listing_initial_payload"] = _listing_initial_payload(
+            listings_page_items,
+            total=listings_page.paginator.count,
+        )
+        context["listing_page_initial_state"] = {
+            "selected_listing_id": "",
+            "query": active_filters["q"],
+        }
         context["listing_search_url"] = reverse("listings:search")
+        context["listing_map_style_url"] = _listing_map_style_url()
         context["listing_map_default_lat"] = BOSTON_COLLEGE_LATITUDE
         context["listing_map_default_lng"] = BOSTON_COLLEGE_LONGITUDE
     return render(request, "listings/listing_list.html", context)

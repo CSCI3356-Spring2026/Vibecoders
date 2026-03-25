@@ -242,11 +242,35 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, "data-listings-map-shell")
         self.assertContains(response, "data-listings-map-root")
         self.assertContains(response, "data-listings-map")
-        self.assertContains(response, f'data-listings-search-url="{reverse("listings:search")}"')
         self.assertContains(response, "data-listings-results")
         self.assertContains(response, "data-listings-live-error")
         self.assertLess(filters_index, map_index)
         self.assertLess(map_index, results_index)
+
+    def test_listing_page_embeds_initial_json_payload_hooks_for_live_controller(self):
+        listing = self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"))
+
+        self.assertContains(response, 'id="listing-page-initial-payload"')
+        self.assertContains(response, '"total": 1')
+        self.assertContains(response, f'"id": {listing.id}')
+        self.assertContains(response, '"markers"')
+        self.assertContains(response, '"cards"')
+        self.assertContains(response, 'id="listing-page-initial-state"')
+        self.assertContains(response, '"selected_listing_id": ""')
+
+    def test_listing_page_exposes_search_endpoints_and_initial_state_to_js_controller(self):
+        self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"))
+
+        self.assertContains(response, "data-listings-page")
+        self.assertContains(response, f'data-listings-search-url="{reverse("listings:search")}"')
+        self.assertContains(response, 'data-listings-map-style-url="https://maps.geoapify.com/')
+        self.assertContains(response, 'data-selected-listing-id=""')
 
     def test_listing_page_loads_map_bootstrap_without_popup_link_navigation_contract(self):
         self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
@@ -273,6 +297,7 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, "data-listing-card")
         self.assertContains(response, f'data-listing-id="{listing.id}"')
         self.assertContains(response, f'data-listing-detail-url="{detail_url}"')
+        self.assertContains(response, 'data-listing-selected="false"')
         self.assertNotContains(response, "listing-map-popup-link")
 
     def test_listing_page_exposes_empty_state_container_for_zero_results(self):
@@ -292,6 +317,8 @@ class ListingPageTests(ListingTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "data-listings-live-error")
+        self.assertContains(response, "data-listings-results-summary")
+        self.assertContains(response, "data-listings-empty-state")
         self.assertContains(response, 'role="alert"')
 
     def test_listing_list_context_includes_map_data_for_geocoded_results(self):
