@@ -50,7 +50,16 @@ LEGAL_DOCUMENT_VERSION = os.getenv("LEGAL_DOCUMENT_VERSION", "2026-03-18").strip
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-LOCAL_DEBUG_COMMANDS = {"runserver", "test", "check", "migrate", "makemigrations", "shell", "createsuperuser"}
+LOCAL_DEBUG_COMMANDS = {
+    "runserver",
+    "test",
+    "check",
+    "migrate",
+    "makemigrations",
+    "showmigrations",
+    "shell",
+    "createsuperuser",
+}
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env_bool("DJANGO_DEBUG", any(command in sys.argv for command in LOCAL_DEBUG_COMMANDS))
@@ -200,6 +209,21 @@ LISTING_GEOCODER_URL = LISTING_GEOCODER_URL or "https://photon.komoot.io/api/"
 LISTING_GEOCODER_USER_AGENT = os.getenv("LISTING_GEOCODER_USER_AGENT", f"{SITE_PRODUCT_NAME}/1.0").strip()
 LISTING_GEOCODER_USER_AGENT = LISTING_GEOCODER_USER_AGENT or f"{SITE_PRODUCT_NAME}/1.0"
 LISTING_GEOCODER_TIMEOUT_SECONDS = max(1, env_int("LISTING_GEOCODER_TIMEOUT_SECONDS", 4))
+LISTING_GEOAPIFY_API_KEY = os.getenv("LISTING_GEOAPIFY_API_KEY", "").strip()
+LISTING_GEOAPIFY_AUTOCOMPLETE_URL = os.getenv(
+    "LISTING_GEOAPIFY_AUTOCOMPLETE_URL",
+    "https://api.geoapify.com/v1/geocode/autocomplete",
+).strip()
+LISTING_GEOAPIFY_AUTOCOMPLETE_URL = (
+    LISTING_GEOAPIFY_AUTOCOMPLETE_URL or "https://api.geoapify.com/v1/geocode/autocomplete"
+)
+LISTING_GEOAPIFY_MAP_STYLE_URL = os.getenv("LISTING_GEOAPIFY_MAP_STYLE_URL", "").strip()
+if not LISTING_GEOAPIFY_MAP_STYLE_URL and LISTING_GEOAPIFY_API_KEY:
+    LISTING_GEOAPIFY_MAP_STYLE_URL = (
+        f"https://maps.geoapify.com/v1/styles/osm-liberty/style.json?apiKey={LISTING_GEOAPIFY_API_KEY}"
+    )
+LISTING_ADDRESS_AUTOCOMPLETE_RATE_LIMIT = env_int("LISTING_ADDRESS_AUTOCOMPLETE_RATE_LIMIT", 30)
+LISTING_ADDRESS_AUTOCOMPLETE_RATE_WINDOW_SECONDS = env_int("LISTING_ADDRESS_AUTOCOMPLETE_RATE_WINDOW_SECONDS", 60)
 USER_FILE_MAX_BYTES = env_int("USER_FILE_MAX_BYTES", 10 * 1024 * 1024)
 MESSAGE_SEND_RATE_LIMIT = env_int("MESSAGE_SEND_RATE_LIMIT", 20)
 MESSAGE_SEND_RATE_WINDOW_SECONDS = env_int("MESSAGE_SEND_RATE_WINDOW_SECONDS", 60)

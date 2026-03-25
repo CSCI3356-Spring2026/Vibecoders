@@ -1,9 +1,14 @@
 from decimal import Decimal, InvalidOperation
 
 from django import forms
+from django.core import signing
 
+from .address_provider import get_geoapify_autocomplete_config
+from .address_signing import unsign_address_selection
 from .fields import ListingImageField
 from .models import Listing, ListingImage
+
+ADDRESS_SELECTION_MAX_AGE_SECONDS = 300
 
 
 class ListingForm(forms.ModelForm):
@@ -36,6 +41,7 @@ class ListingForm(forms.ModelForm):
         label="Other utilities",
     )
     images = ListingImageField(required=False)
+    verified_address_token = forms.CharField(required=False, widget=forms.HiddenInput())
     remove_images = forms.ModelMultipleChoiceField(
         queryset=ListingImage.objects.none(),
         required=False,
@@ -136,6 +142,10 @@ class ListingForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["images"].widget.attrs.update({"accept": ".jpg,.jpeg,.png,.webp,image/*", "class": "form-control"})
+        self.fields["address"].widget.attrs.update({"autocomplete": "off", "data-address-input": ""})
+        self.fields["verified_address_token"].widget.attrs.update({"data-address-token-input": ""})
+        if not get_geoapify_autocomplete_config()["enabled"]:
+            self.fields["address"].widget.attrs.update({"readonly": "readonly", "aria-disabled": "true"})
 
         for field in self.fields.values():
             field.help_text = ""
@@ -189,6 +199,7 @@ class ListingForm(forms.ModelForm):
         cleaned_data = super().clean()
         start_date = cleaned_data.get("start_date")
         end_date = cleaned_data.get("end_date")
+        self._clean_verified_address(cleaned_data)
 
         if start_date and end_date and end_date < start_date:
             self.add_error("end_date", "End date must be on or after the start date.")
@@ -206,6 +217,55 @@ class ListingForm(forms.ModelForm):
             self.add_error("description", "Add a short description so renters understand the space.")
 
         return cleaned_data
+
+    def _clean_verified_address(self, cleaned_data):
+        if self._is_unchanged_instance_address(cleaned_data):
+            cleaned_data["trusted_address_selection"] = {
+                "address": self.instance.address,
+                "latitude": self.instance.latitude,
+                "longitude": self.instance.longitude,
+            }
+            return
+
+        config = get_geoapify_autocomplete_config()
+        if not config["enabled"]:
+            self.add_error("address", "Verified address lookup is unavailable right now. Try again later.")
+            return
+
+        token = (cleaned_data.get("verified_address_token") or "").strip()
+        if not token:
+            self.add_error("address", "Select a verified address suggestion.")
+            return
+
+        try:
+            trusted_selection = unsign_address_selection(token, max_age=ADDRESS_SELECTION_MAX_AGE_SECONDS)
+        except signing.SignatureExpired:
+            self.add_error("address", "Select a verified address suggestion.")
+            return
+        except signing.BadSignature:
+            self.add_error("address", "Select a verified address suggestion.")
+            return
+
+        visible_address = (cleaned_data.get("address") or "").strip()
+        trusted_address = (trusted_selection.get("label") or "").strip()
+        if visible_address != trusted_address:
+            self.add_error("address", "Choose the updated address from the verified suggestions.")
+            return
+
+        cleaned_data["trusted_address_selection"] = {
+            "address": trusted_address,
+            "latitude": trusted_selection.get("latitude"),
+            "longitude": trusted_selection.get("longitude"),
+        }
+
+    def _is_unchanged_instance_address(self, cleaned_data):
+        if not self.instance.pk:
+            return False
+        if self.instance.latitude is None or self.instance.longitude is None:
+            return False
+
+        visible_address = (cleaned_data.get("address") or "").strip()
+        return bool(visible_address) and visible_address == (self.instance.address or "").strip()
 
     def save(self, commit=True):
         instance = super().save(commit=False)

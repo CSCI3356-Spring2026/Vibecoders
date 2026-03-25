@@ -1,3 +1,5 @@
+import { createAddressPicker } from "./listings-address-picker.js";
+
 const root = document.querySelector("[data-listing-form-wizard]");
 
 if (root instanceof HTMLFormElement) {
@@ -5,6 +7,8 @@ if (root instanceof HTMLFormElement) {
 }
 
 function createListingWizard(form) {
+    const addressPicker = createAddressPicker(form);
+
     const panels = Array.from(form.querySelectorAll("[data-step-panel]"))
         .map((panel) => ({
             index: Number(panel.dataset.stepPanel || 0),
@@ -295,6 +299,10 @@ function createListingWizard(form) {
     }
 
     function isFieldFilled(fieldName) {
+        if (fieldName === "address" && addressPicker) {
+            return addressPicker.isSelectionComplete();
+        }
+
         const fields = getFields(fieldName);
         if (!fields.length) {
             return true;

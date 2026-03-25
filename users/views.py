@@ -143,22 +143,25 @@ def _login_redirect_with_next(request):
 
 @login_required
 def profile(request):
-    return render(request, "users/profile.html", _workspace_summary(request.user))
+    return redirect("users:dashboard")
+
+
+def _dashboard_context(user):
+    recent_conversations = list(accessible_conversations_for_user(user)[:5])
+    for conversation in recent_conversations:
+        conversation.ui_counterparty = conversation.counterparty_for(user)
+        conversation.ui_has_unread = conversation.has_unread_for(user)
+    return {
+        **_workspace_summary(user),
+        "recent_listings": user.listings.with_related()[:3],
+        "recent_files": user.files.all()[:5],
+        "recent_conversations": recent_conversations,
+    }
 
 
 @login_required
 def dashboard(request):
-    recent_conversations = list(accessible_conversations_for_user(request.user)[:5])
-    for conversation in recent_conversations:
-        conversation.ui_counterparty = conversation.counterparty_for(request.user)
-        conversation.ui_has_unread = conversation.has_unread_for(request.user)
-    context = {
-        **_workspace_summary(request.user),
-        "recent_listings": request.user.listings.with_related()[:3],
-        "recent_files": request.user.files.all()[:5],
-        "recent_conversations": recent_conversations,
-    }
-    return render(request, "users/dashboard.html", context)
+    return render(request, "users/dashboard.html", _dashboard_context(request.user))
 
 
 @login_required
@@ -270,7 +273,7 @@ def delete_file(request, file_id):
 def delete_account(request):
     if not has_recent_auth(request):
         messages.error(request, "Sign in again before deleting your account.")
-        return redirect("users:profile")
+        return redirect("users:dashboard")
     user = request.user
     if (
         user.role == Role.ADMIN
@@ -282,7 +285,7 @@ def delete_account(request):
         .exists()
     ):
         messages.error(request, "You cannot delete the last active admin account.")
-        return redirect("users:profile")
+        return redirect("users:dashboard")
     logout(request)
     user.delete()
     messages.success(request, "Account deleted.")

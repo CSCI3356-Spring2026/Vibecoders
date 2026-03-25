@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 from allauth.socialaccount.models import SocialAccount
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.signing import BadSignature, SignatureExpired
 from django.db import IntegrityError, transaction
 from django.test.utils import override_settings
 from PIL import Image
@@ -19,6 +20,8 @@ from communications.services import (
     start_listing_conversation,
 )
 
+from ..address_provider import get_geoapify_autocomplete_config, normalize_geoapify_suggestions
+from ..address_signing import sign_address_selection, unsign_address_selection
 from ..forms import ListingForm
 from ..geocoding import geocode_listing_address
 from ..models import Listing, ListingImage
@@ -400,3 +403,225 @@ class ListingGeocodingTests(ListingTestCase):
                 ListingImage.objects.create(listing=listing, image=self._image_upload("two.png"))
 
         self.assertIn("Each listing can have up to 1 images total.", exc.exception.message_dict["image"][0])
+
+
+class ListingAddressPrimitiveTests(ListingTestCase):
+    @override_settings(
+        LISTING_MAPS_ENABLED=False,
+        LISTING_GEOAPIFY_API_KEY="geoapify-test-key",
+        LISTING_GEOAPIFY_AUTOCOMPLETE_URL="https://api.geoapify.com/v1/geocode/autocomplete",
+    )
+    def test_geoapify_config_is_enabled_without_map_browsing_ui(self):
+        config = get_geoapify_autocomplete_config()
+
+        self.assertEqual(
+            config,
+            {
+                "enabled": True,
+                "url": "https://api.geoapify.com/v1/geocode/autocomplete",
+                "api_key": "geoapify-test-key",
+            },
+        )
+
+    @override_settings(
+        LISTING_MAPS_ENABLED=True,
+        LISTING_GEOAPIFY_API_KEY="",
+        LISTING_GEOAPIFY_AUTOCOMPLETE_URL="https://api.geoapify.com/v1/geocode/autocomplete",
+    )
+    def test_geoapify_config_fails_closed_without_api_key(self):
+        config = get_geoapify_autocomplete_config()
+
+        self.assertEqual(
+            config,
+            {
+                "enabled": False,
+                "url": None,
+                "api_key": None,
+            },
+        )
+
+    def test_address_selection_token_round_trip_preserves_normalized_payload(self):
+        payload = {
+            "provider_id": "geoapify:place:123",
+            "label": "140 Commonwealth Ave, Chestnut Hill, MA 02467",
+            "address_line_1": "140 Commonwealth Ave",
+            "address_line_2": "",
+            "city": "Chestnut Hill",
+            "state": "MA",
+            "postal_code": "02467",
+            "country": "US",
+            "latitude": 42.3355,
+            "longitude": -71.1685,
+        }
+
+        token = sign_address_selection(payload)
+
+        self.assertEqual(unsign_address_selection(token, max_age=60), payload)
+
+    def test_address_selection_token_rejects_expired_or_tampered_values(self):
+        payload = {
+            "provider_id": "geoapify:place:123",
+            "label": "140 Commonwealth Ave, Chestnut Hill, MA 02467",
+            "address_line_1": "140 Commonwealth Ave",
+            "address_line_2": "",
+            "city": "Chestnut Hill",
+            "state": "MA",
+            "postal_code": "02467",
+            "country": "US",
+            "latitude": 42.3355,
+            "longitude": -71.1685,
+        }
+        token = sign_address_selection(payload)
+
+        with self.assertRaises(SignatureExpired):
+            unsign_address_selection(token, max_age=-1)
+
+        with self.assertRaises(BadSignature):
+            unsign_address_selection(f"{token}tampered", max_age=60)
+
+    def test_geoapify_normalization_returns_minimal_suggestion_shape(self):
+        payload = {
+            "results": [
+                {
+                    "place_id": "abc123",
+                    "formatted": "140 Commonwealth Ave, Chestnut Hill, MA 02467, United States of America",
+                    "address_line1": "140 Commonwealth Ave",
+                    "address_line2": "",
+                    "city": "Chestnut Hill",
+                    "state_code": "MA",
+                    "postcode": "02467",
+                    "country_code": "us",
+                    "lat": 42.3355,
+                    "lon": -71.1685,
+                    "timezone": {"name": "America/New_York"},
+                    "rank": {"confidence": 0.99},
+                }
+            ]
+        }
+
+        self.assertEqual(
+            normalize_geoapify_suggestions(payload),
+            [
+                {
+                    "provider_id": "geoapify:abc123",
+                    "label": "140 Commonwealth Ave, Chestnut Hill, MA 02467",
+                    "address_line_1": "140 Commonwealth Ave",
+                    "address_line_2": "",
+                    "city": "Chestnut Hill",
+                    "state": "MA",
+                    "postal_code": "02467",
+                    "country": "US",
+                    "primary_label": "140 Commonwealth Ave",
+                    "latitude": 42.3355,
+                    "longitude": -71.1685,
+                }
+            ],
+        )
+
+    def test_geoapify_normalization_returns_empty_list_for_malformed_payload_items(self):
+        payload = {
+            "results": [
+                "not-a-dict",
+                None,
+                {"formatted": "missing place id"},
+            ]
+        }
+
+        self.assertEqual(normalize_geoapify_suggestions(payload), [])
+
+    def test_geoapify_normalization_accepts_fallback_address_fields_without_postcode(self):
+        payload = {
+            "results": [
+                {
+                    "place_id": "fallback-1",
+                    "formatted": "",
+                    "housenumber": "15",
+                    "street": "Chiswick Rd",
+                    "suburb": "Brighton",
+                    "state": "Massachusetts",
+                    "state_code": "MA",
+                    "country": "United States",
+                    "country_code": "us",
+                    "lat": 42.3477,
+                    "lon": -71.1538,
+                }
+            ]
+        }
+
+        self.assertEqual(
+            normalize_geoapify_suggestions(payload),
+            [
+                {
+                    "provider_id": "geoapify:fallback-1",
+                    "label": "15 Chiswick Rd, Brighton, MA",
+                    "address_line_1": "15 Chiswick Rd",
+                    "address_line_2": "",
+                    "city": "Brighton",
+                    "state": "MA",
+                    "postal_code": "",
+                    "country": "US",
+                    "primary_label": "15 Chiswick Rd",
+                    "latitude": 42.3477,
+                    "longitude": -71.1538,
+                }
+            ],
+        )
+
+    def test_geoapify_normalization_accepts_geojson_feature_payload_and_dedupes_duplicate_address_matches(self):
+        payload = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "place_id": "building-1",
+                        "formatted": "140 Commonwealth Avenue, Newton, MA 02467, United States of America",
+                        "address_line1": "140 Commonwealth Avenue",
+                        "housenumber": "140",
+                        "street": "Commonwealth Avenue",
+                        "city": "Newton",
+                        "state_code": "MA",
+                        "postcode": "02467",
+                        "country_code": "us",
+                    },
+                    "geometry": {"type": "Point", "coordinates": [-71.168984, 42.33806]},
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "place_id": "amenity-1",
+                        "formatted": (
+                            "Boston College Chestnut Hill Campus, 140 Commonwealth Avenue, Newton, MA 02467, "
+                            "United States of America"
+                        ),
+                        "address_line1": "Boston College Chestnut Hill Campus",
+                        "housenumber": "140",
+                        "street": "Commonwealth Avenue",
+                        "city": "Newton",
+                        "state_code": "MA",
+                        "postcode": "02467",
+                        "country_code": "us",
+                    },
+                    "geometry": {"type": "Point", "coordinates": [-71.1682664, 42.3354481]},
+                },
+            ],
+        }
+
+        self.assertEqual(
+            normalize_geoapify_suggestions(payload),
+            [
+                {
+                    "provider_id": "geoapify:building-1",
+                    "label": "140 Commonwealth Avenue, Newton, MA 02467",
+                    "address_line_1": "140 Commonwealth Avenue",
+                    "address_line_2": "",
+                    "city": "Newton",
+                    "state": "MA",
+                    "postal_code": "02467",
+                    "country": "US",
+                    "primary_label": "140 Commonwealth Avenue",
+                    "latitude": 42.33806,
+                    "longitude": -71.168984,
+                }
+            ],
+        )

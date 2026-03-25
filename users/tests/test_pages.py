@@ -1,3 +1,5 @@
+import subprocess
+from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from allauth.socialaccount.models import SocialAccount
@@ -148,7 +150,7 @@ class UserPageTests(TestCase):
         self.assertContains(response, "user-avatar-image")
         self.assertContains(response, "https://example.com/eagle-avatar.png")
 
-    def test_profile_page_shows_google_avatar_when_available(self):
+    def test_account_dashboard_shows_google_avatar_when_available(self):
         SocialAccount.objects.create(
             user=self.user,
             provider="google",
@@ -157,11 +159,11 @@ class UserPageTests(TestCase):
         )
         self.client.force_login(self.user)
 
-        response = self.client.get("/users/profile/")
+        response = self.client.get("/users/dashboard/")
 
         self.assertContains(response, "https://example.com/profile-avatar.png")
 
-    def test_authenticated_profile_and_dashboard_render(self):
+    def test_authenticated_account_dashboard_renders_and_profile_redirects(self):
         self.user.profile_image_url = "https://example.com/avatar.jpg"
         self.user.save(update_fields=["profile_image_url"])
         self.client.force_login(self.user)
@@ -169,12 +171,13 @@ class UserPageTests(TestCase):
         profile_response = self.client.get("/users/profile/")
         dashboard_response = self.client.get("/users/dashboard/")
 
-        self.assertEqual(profile_response.status_code, 200)
-        self.assertContains(profile_response, "https://example.com/avatar.jpg")
-        self.assertContains(profile_response, self.user.display_role)
-        self.assertContains(profile_response, "Permissions")
+        self.assertEqual(profile_response.status_code, 302)
+        self.assertEqual(profile_response["Location"], "/users/dashboard/")
         self.assertEqual(dashboard_response.status_code, 200)
-        self.assertContains(dashboard_response, "Dashboard")
+        self.assertContains(dashboard_response, "https://example.com/avatar.jpg")
+        self.assertContains(dashboard_response, self.user.display_role)
+        self.assertContains(dashboard_response, "Permissions")
+        self.assertContains(dashboard_response, "Account")
         self.assertContains(dashboard_response, self.user.display_role)
 
     def test_stale_legal_acceptance_logs_user_out_until_reaccepted(self):
@@ -196,13 +199,131 @@ class UserPageTests(TestCase):
         )
         self.assertNotIn("_auth_user_id", self.client.session)
 
-    def test_profile_no_longer_allows_self_assigning_role(self):
+    def test_account_dashboard_no_longer_allows_self_assigning_role(self):
         self.client.force_login(self.user)
 
-        response = self.client.get("/users/profile/")
+        response = self.client.get("/users/dashboard/")
 
         self.assertNotContains(response, 'name="role"')
         self.assertNotContains(response, "<select")
+
+    def test_inline_confirm_positions_delete_panel_above_clipping_contexts(self):
+        module_url = (Path(__file__).resolve().parents[2] / "static/js/inline-confirm.js").as_uri()
+        script = f"""
+import assert from "node:assert/strict";
+
+const documentListeners = {{}};
+const windowListeners = {{}};
+
+class HTMLElement {{
+    constructor() {{
+        this.listeners = {{}};
+        this.style = {{}};
+        this.attributes = {{}};
+        this.hidden = false;
+        this.className = "";
+        this.elements = {{}};
+        this.rect = {{ top: 0, right: 0, bottom: 0, left: 0, width: 0, height: 0 }};
+        this.classList = {{
+            add: (...tokens) => tokens.forEach((token) => this._toggleClass(token, true)),
+            remove: (...tokens) => tokens.forEach((token) => this._toggleClass(token, false)),
+            contains: (token) => this.className.split(/\\s+/).filter(Boolean).includes(token),
+        }};
+    }}
+
+    _toggleClass(token, force) {{
+        const next = new Set(this.className.split(/\\s+/).filter(Boolean));
+        if (force) {{
+            next.add(token);
+        }} else {{
+            next.delete(token);
+        }}
+        this.className = Array.from(next).join(" ");
+    }}
+
+    setAttribute(name, value) {{
+        this.attributes[name] = value;
+    }}
+
+    addEventListener(type, handler) {{
+        this.listeners[type] = handler;
+    }}
+
+    dispatch(type, event = {{}}) {{
+        this.listeners[type]?.({{ target: this, ...event }});
+    }}
+
+    querySelector(selector) {{
+        return this.elements[selector] ?? null;
+    }}
+
+    contains(target) {{
+        return target === this || Object.values(this.elements).includes(target);
+    }}
+
+    getBoundingClientRect() {{
+        return this.rect;
+    }}
+}}
+
+const root = new HTMLElement();
+const trigger = new HTMLElement();
+const panel = new HTMLElement();
+const closeButton = new HTMLElement();
+root.elements = {{
+    "[data-inline-confirm-open]": trigger,
+    "[data-inline-confirm-panel]": panel,
+    "[data-inline-confirm-close]": closeButton,
+}};
+
+trigger.rect = {{ top: 740, right: 1180, bottom: 772, left: 1100, width: 80, height: 32 }};
+panel.rect = {{ top: 0, right: 280, bottom: 160, left: 0, width: 280, height: 160 }};
+
+globalThis.document = {{
+    querySelectorAll() {{
+        return [root];
+    }},
+    addEventListener(type, handler) {{
+        documentListeners[type] = handler;
+    }},
+}};
+
+globalThis.window = {{
+    innerWidth: 1280,
+    innerHeight: 800,
+    addEventListener(type, handler) {{
+        windowListeners[type] = handler;
+    }},
+}};
+
+await import({module_url!r});
+
+assert.equal(panel.hidden, true);
+trigger.dispatch("click");
+assert.equal(root.classList.contains("is-open"), true);
+assert.equal(panel.hidden, false);
+assert.equal(trigger.attributes["aria-expanded"], "true");
+assert.equal(panel.style.top, "572px");
+assert.equal(panel.style.left, "900px");
+
+trigger.rect = {{ top: 100, right: 200, bottom: 132, left: 120, width: 80, height: 32 }};
+windowListeners.resize();
+assert.equal(panel.style.top, "140px");
+assert.equal(panel.style.left, "12px");
+
+closeButton.dispatch("click");
+assert.equal(panel.hidden, true);
+assert.equal(root.classList.contains("is-open"), false);
+"""
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            cwd=Path(__file__).resolve().parents[2],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
 
     def test_posts_page_requires_login(self):
         response = self.client.get("/users/posts/")

@@ -20,7 +20,29 @@ MOVE_IN_FILTERS = [
 ]
 
 
-def apply_listing_filters(queryset, params):
+def parse_viewport_bounds(params):
+    raw_bounds = {
+        "west": (params.get("west") or "").strip(),
+        "south": (params.get("south") or "").strip(),
+        "east": (params.get("east") or "").strip(),
+        "north": (params.get("north") or "").strip(),
+    }
+    if not any(raw_bounds.values()):
+        return None
+    if not all(raw_bounds.values()):
+        return None
+
+    try:
+        bounds = {key: Decimal(value) for key, value in raw_bounds.items()}
+    except InvalidOperation:
+        return None
+
+    if bounds["west"] > bounds["east"] or bounds["south"] > bounds["north"]:
+        return None
+    return bounds
+
+
+def apply_listing_filters(queryset, params, *, viewport_required=False):
     query = params.get("q", "").strip()
     if query:
         queryset = queryset.filter(
@@ -47,6 +69,17 @@ def apply_listing_filters(queryset, params):
     if available_by.isdigit():
         move_in_deadline = timezone.localdate() + timedelta(days=int(available_by))
         queryset = queryset.filter(start_date__lte=move_in_deadline)
+
+    bounds = parse_viewport_bounds(params)
+    if viewport_required and bounds is None:
+        queryset = queryset.none()
+    elif bounds is not None:
+        queryset = queryset.filter(
+            longitude__gte=bounds["west"],
+            longitude__lte=bounds["east"],
+            latitude__gte=bounds["south"],
+            latitude__lte=bounds["north"],
+        )
 
     return queryset, {
         "q": query,
