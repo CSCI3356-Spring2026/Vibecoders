@@ -111,6 +111,24 @@ export function createListingsResults(root) {
     let selectedListingId = "";
     let cardElementsById = new Map();
 
+    const handleCardClick = (event) => {
+        const card = event.target.closest("[data-listing-card]");
+        if (!card || !list?.contains(card) || event.defaultPrevented) {
+            return;
+        }
+
+        const detailUrl = card.dataset.listingDetailUrl || card.getAttribute("href");
+        const isPlainLeftClick =
+            event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+
+        if (!detailUrl || !isPlainLeftClick) {
+            return;
+        }
+
+        event.preventDefault();
+        window.location.assign(detailUrl);
+    };
+
     const reindexCards = () => {
         cardElementsById = new Map();
         list?.querySelectorAll("[data-listing-card]").forEach((card) => {
@@ -156,6 +174,7 @@ export function createListingsResults(root) {
     };
 
     reindexCards();
+    list?.addEventListener("click", handleCardClick);
 
     return {
         clearError() {

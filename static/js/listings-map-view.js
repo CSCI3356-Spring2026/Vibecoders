@@ -1,24 +1,3 @@
-function buildFallbackStyle() {
-    return {
-        version: 8,
-        sources: {
-            openstreetmap: {
-                type: "raster",
-                tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-                tileSize: 256,
-                attribution: "&copy; OpenStreetMap contributors",
-            },
-        },
-        layers: [
-            {
-                id: "openstreetmap",
-                type: "raster",
-                source: "openstreetmap",
-            },
-        ],
-    };
-}
-
 function setMarkerStyles(element, isSelected) {
     element.dataset.markerSelected = isSelected ? "true" : "false";
     element.style.alignItems = "center";
@@ -58,7 +37,7 @@ export function createListingsMapView({
 }) {
     const canvas = root?.querySelector("[data-listings-map-canvas]");
 
-    if (!root || !canvas || typeof maplibregl === "undefined") {
+    if (!root || !canvas || !styleUrl || typeof maplibregl === "undefined") {
         return {
             getBounds() {
                 return null;
@@ -70,7 +49,7 @@ export function createListingsMapView({
 
     const map = new maplibregl.Map({
         container: canvas,
-        style: styleUrl || buildFallbackStyle(),
+        style: styleUrl,
         center: [defaultLng, defaultLat],
         zoom: 12,
     });
