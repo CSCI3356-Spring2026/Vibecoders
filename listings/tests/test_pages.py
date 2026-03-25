@@ -231,6 +231,10 @@ class ListingPageTests(ListingTestCase):
         self.client.force_login(self.user)
 
         response = self.client.get(reverse("listings:listing_list"))
+        content = response.content.decode()
+        filters_index = content.index("data-listings-filters")
+        map_index = content.index("data-listings-map-shell")
+        results_index = content.index("data-listings-results")
 
         self.assertContains(response, "data-listings-page")
         self.assertContains(response, "data-listings-filters")
@@ -241,6 +245,17 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, f'data-listings-search-url="{reverse("listings:search")}"')
         self.assertContains(response, "data-listings-results")
         self.assertContains(response, "data-listings-live-error")
+        self.assertLess(filters_index, map_index)
+        self.assertLess(map_index, results_index)
+
+    def test_listing_page_does_not_load_legacy_popup_map_script(self):
+        self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "js/listings-map.js")
 
     def test_listing_page_renders_result_cards_with_selection_and_detail_hooks(self):
         listing = self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
