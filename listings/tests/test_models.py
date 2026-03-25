@@ -527,3 +527,40 @@ class ListingAddressPrimitiveTests(ListingTestCase):
         }
 
         self.assertEqual(normalize_geoapify_suggestions(payload), [])
+
+    def test_geoapify_normalization_accepts_fallback_address_fields_without_postcode(self):
+        payload = {
+            "results": [
+                {
+                    "place_id": "fallback-1",
+                    "formatted": "",
+                    "housenumber": "15",
+                    "street": "Chiswick Rd",
+                    "suburb": "Brighton",
+                    "state": "Massachusetts",
+                    "state_code": "MA",
+                    "country": "United States",
+                    "country_code": "us",
+                    "lat": 42.3477,
+                    "lon": -71.1538,
+                }
+            ]
+        }
+
+        self.assertEqual(
+            normalize_geoapify_suggestions(payload),
+            [
+                {
+                    "provider_id": "geoapify:fallback-1",
+                    "label": "15 Chiswick Rd, Brighton, MA, United States",
+                    "address_line_1": "15 Chiswick Rd",
+                    "address_line_2": "",
+                    "city": "Brighton",
+                    "state": "MA",
+                    "postal_code": "",
+                    "country": "US",
+                    "latitude": 42.3477,
+                    "longitude": -71.1538,
+                }
+            ],
+        )

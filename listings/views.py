@@ -134,7 +134,7 @@ def _listing_map_style_url():
     if not api_key:
         return ""
 
-    return f"https://maps.geoapify.com/v1/styles/osm-carto/style.json?apiKey={api_key}"
+    return f"https://maps.geoapify.com/v1/styles/positron/style.json?apiKey={api_key}"
 
 
 def _autocomplete_results_response(results, *, status=200):
@@ -178,6 +178,8 @@ def address_suggestions(request):
                 "text": query,
                 "limit": ADDRESS_AUTOCOMPLETE_MAX_RESULTS,
                 "apiKey": config["api_key"],
+                "filter": "countrycode:us",
+                "bias": f"proximity:{BOSTON_COLLEGE_LONGITUDE},{BOSTON_COLLEGE_LATITUDE}",
             },
             timeout=settings.LISTING_GEOCODER_TIMEOUT_SECONDS,
         )

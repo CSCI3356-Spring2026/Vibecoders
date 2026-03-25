@@ -122,7 +122,7 @@ Common environment variables:
 - `LISTING_MAPS_ENABLED`: enables the map-first listings UI; if enabled without a working map style URL, the page falls back to the conventional list view with an unavailable notice
 - `LISTING_GEOAPIFY_API_KEY`: required for verified address authoring and used to derive the default Geoapify map style URL
 - `LISTING_GEOAPIFY_AUTOCOMPLETE_URL`: optional override for the Geoapify autocomplete endpoint
-- `LISTING_GEOAPIFY_MAP_STYLE_URL`: optional MapLibre style override; if blank and `LISTING_GEOAPIFY_API_KEY` is set, Padly uses Geoapify's `osm-carto` style automatically
+- `LISTING_GEOAPIFY_MAP_STYLE_URL`: optional MapLibre style override; if blank and `LISTING_GEOAPIFY_API_KEY` is set, Padly uses Geoapify's `positron` style automatically
 - `LISTING_GEOCODING_ENABLED`: legacy geocoding helper toggle; verified address selection is now the create/edit source of truth
 - `LISTING_GEOCODER_URL` / `LISTING_GEOCODER_USER_AGENT` / `LISTING_GEOCODER_TIMEOUT_SECONDS`: legacy geocoder controls
 

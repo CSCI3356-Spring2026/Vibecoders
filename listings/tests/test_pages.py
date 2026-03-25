@@ -115,6 +115,11 @@ class ListingPageTests(ListingTestCase):
         self.assertEqual(signed_payload["provider_id"], "geoapify:geoapify-place-1")
         self.assertEqual(signed_payload["address_line_1"], "140 Commonwealth Ave")
         requests_get.assert_called_once()
+        self.assertEqual(requests_get.call_args.kwargs["params"]["filter"], "countrycode:us")
+        self.assertEqual(
+            requests_get.call_args.kwargs["params"]["bias"],
+            "proximity:-71.1685,42.3355",
+        )
 
     @override_settings(
         LISTING_GEOAPIFY_API_KEY="geoapify-test-key",
@@ -235,19 +240,23 @@ class ListingPageTests(ListingTestCase):
         response = self.client.get(reverse("listings:listing_list"))
         content = response.content.decode()
         filters_index = content.index("data-listings-filters")
-        map_index = content.index("data-listings-map-shell")
-        results_index = content.index("data-listings-results")
+        browser_index = content.index("data-listings-browser-shell")
+        results_index = content.index("data-listings-results-pane")
+        map_index = content.index("data-listings-map-pane")
 
         self.assertContains(response, "data-listings-page")
+        self.assertContains(response, "listing-browser-page")
         self.assertContains(response, "data-listings-filters")
         self.assertContains(response, "data-listings-filter-form")
-        self.assertContains(response, "data-listings-map-shell")
+        self.assertContains(response, "data-listings-browser-shell")
+        self.assertContains(response, "data-listings-results-pane")
+        self.assertContains(response, "data-listings-map-pane")
         self.assertContains(response, "data-listings-map-root")
         self.assertContains(response, "data-listings-map")
         self.assertContains(response, "data-listings-results")
         self.assertContains(response, "data-listings-live-error")
-        self.assertLess(filters_index, map_index)
-        self.assertLess(map_index, results_index)
+        self.assertLess(filters_index, browser_index)
+        self.assertLess(results_index, map_index)
 
     def test_listing_page_embeds_initial_json_payload_hooks_for_live_controller(self):
         listing = self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
@@ -271,8 +280,156 @@ class ListingPageTests(ListingTestCase):
 
         self.assertContains(response, "data-listings-page")
         self.assertContains(response, f'data-listings-search-url="{reverse("listings:search")}"')
-        self.assertContains(response, 'data-listings-map-style-url="https://maps.geoapify.com/')
+        self.assertContains(response, 'data-listings-map-style-url="https://maps.geoapify.com/v1/styles/positron/')
         self.assertContains(response, 'data-selected-listing-id=""')
+
+    def test_map_marker_buttons_do_not_override_maplibre_positioning_transform(self):
+        module_url = (Path(__file__).resolve().parents[2] / "static/js/listings-map-view.js").as_uri()
+        script = f"""
+import assert from "node:assert/strict";
+import {{ createListingsMapView }} from {module_url!r};
+
+class HTMLElement {{
+    constructor() {{
+        this.dataset = {{}};
+        this.style = {{}};
+        this.attributes = {{}};
+        this.listeners = {{}};
+        this.hidden = false;
+        this.textContent = "";
+        this.innerHTML = "";
+        this.children = [];
+        this.className = "";
+        this.classList = {{
+            add: (...tokens) => tokens.forEach((token) => this._toggleClass(token, true)),
+            remove: (...tokens) => tokens.forEach((token) => this._toggleClass(token, false)),
+            toggle: (token, force) => {{
+                const shouldAdd = force ?? !this.className.split(/\\s+/).includes(token);
+                this._toggleClass(token, shouldAdd);
+            }},
+        }};
+    }}
+
+    _toggleClass(token, force) {{
+        const next = new Set(this.className.split(/\\s+/).filter(Boolean));
+        if (force) {{
+            next.add(token);
+        }} else {{
+            next.delete(token);
+        }}
+        this.className = Array.from(next).join(" ");
+    }}
+
+    setAttribute(name, value) {{
+        this.attributes[name] = value;
+    }}
+
+    addEventListener(type, handler) {{
+        this.listeners[type] = handler;
+    }}
+
+    append(child) {{
+        this.children.push(child);
+    }}
+
+    querySelector() {{
+        return null;
+    }}
+}}
+
+class HTMLButtonElement extends HTMLElement {{}}
+
+globalThis.HTMLElement = HTMLElement;
+globalThis.document = {{
+    createElement(tag) {{
+        if (tag === "button") {{
+            return new HTMLButtonElement();
+        }}
+        return new HTMLElement();
+    }},
+}};
+
+const capturedElements = [];
+class MockMap {{
+    constructor() {{
+        this.handlers = {{}};
+        globalThis.__map = this;
+    }}
+
+    addControl() {{}}
+
+    on(name, handler) {{
+        this.handlers[name] = handler;
+    }}
+
+    getBounds() {{
+        return {{
+            getWest() {{ return -71.3; }},
+            getSouth() {{ return 42.2; }},
+            getEast() {{ return -71.0; }},
+            getNorth() {{ return 42.5; }},
+        }};
+    }}
+
+    setCenter() {{}}
+    setZoom() {{}}
+    fitBounds() {{}}
+}}
+
+class MockMarker {{
+    constructor({{ element }}) {{
+        this.element = element;
+        capturedElements.push(element);
+    }}
+
+    setLngLat() {{
+        return this;
+    }}
+
+    addTo() {{
+        return this;
+    }}
+
+    remove() {{}}
+}}
+
+globalThis.maplibregl = {{
+    Map: MockMap,
+    Marker: MockMarker,
+    NavigationControl: class {{}},
+    LngLatBounds: class {{
+        extend() {{}}
+    }},
+}};
+
+const canvas = new HTMLElement();
+const root = new HTMLElement();
+root.querySelector = (selector) => (selector === "[data-listings-map-canvas]" ? canvas : null);
+
+const view = createListingsMapView({{
+    root,
+    styleUrl: "https://maps.example.com/style.json",
+    defaultLat: 42.3355,
+    defaultLng: -71.1685,
+    initialMarkers: [{{ id: 1, price: "$1800", title: "Beacon apartment", lat: 42.3355, lng: -71.1685 }}],
+}});
+
+globalThis.__map.handlers.load();
+view.setSelectedListing(1);
+
+assert.equal(capturedElements.length, 1);
+assert.equal(capturedElements[0].className.includes("listing-map-marker"), true);
+assert.equal(capturedElements[0].style.transform ?? "", "");
+"""
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            cwd=Path(__file__).resolve().parents[2],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
 
     def test_listing_page_loads_map_bootstrap_without_popup_link_navigation_contract(self):
         self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
@@ -814,6 +971,7 @@ class ListingPageTests(ListingTestCase):
         response = self.client.get(reverse("listings:create_listing"))
 
         self.assertContains(response, 'data-address-picker-enabled="false"')
+        self.assertContains(response, 'aria-disabled="true"')
         self.assertContains(
             response,
             (

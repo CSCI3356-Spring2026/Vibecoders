@@ -1,28 +1,25 @@
-function setMarkerStyles(element, isSelected) {
-    element.dataset.markerSelected = isSelected ? "true" : "false";
-    element.style.alignItems = "center";
-    element.style.appearance = "none";
-    element.style.background = isSelected ? "#1f4d67" : "rgba(255, 255, 255, 0.97)";
-    element.style.border = isSelected ? "1px solid #1f4d67" : "1px solid rgba(22, 33, 43, 0.18)";
-    element.style.borderRadius = "999px";
-    element.style.boxShadow = isSelected
-        ? "0 12px 24px rgba(31, 77, 103, 0.22)"
-        : "0 10px 22px rgba(22, 33, 43, 0.14)";
-    element.style.color = isSelected ? "#ffffff" : "#16212b";
-    element.style.cursor = "pointer";
-    element.style.display = "inline-flex";
-    element.style.fontFamily = '"Instrument Sans", sans-serif';
-    element.style.fontSize = "0.78rem";
-    element.style.fontWeight = "700";
-    element.style.justifyContent = "center";
-    element.style.letterSpacing = "0.01em";
-    element.style.minHeight = "2.15rem";
-    element.style.minWidth = "3.35rem";
-    element.style.padding = "0.35rem 0.65rem";
-    element.style.transform = isSelected ? "translateY(-1px) scale(1.03)" : "translateY(0) scale(1)";
-    element.style.transition = "transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease";
-    element.style.whiteSpace = "nowrap";
-    element.style.zIndex = isSelected ? "2" : "1";
+function escapeHtml(value) {
+    return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+}
+
+function buildMarkerElement(markerData) {
+    const element = document.createElement("button");
+    element.type = "button";
+    element.className = "listing-map-marker";
+    element.innerHTML = `<span class="listing-map-marker-label">${escapeHtml(markerData.price)}</span>`;
+    element.setAttribute("aria-label", `${markerData.title} ${markerData.price}`);
+    element.setAttribute("aria-pressed", "false");
+    return element;
+}
+
+function setMarkerSelectedState(element, isSelected) {
+    element.classList.toggle("is-selected", isSelected);
+    element.setAttribute("aria-pressed", isSelected ? "true" : "false");
 }
 
 export function createListingsMapView({
@@ -61,13 +58,63 @@ export function createListingsMapView({
 
     const applySelection = () => {
         markerEntries.forEach((entry, listingId) => {
-            setMarkerStyles(entry.element, listingId === activeListingId);
+            setMarkerSelectedState(entry.element, listingId === activeListingId);
         });
     };
 
-    const clearMarkers = () => {
-        markerEntries.forEach((entry) => entry.marker.remove());
-        markerEntries.clear();
+    const createMarkerEntry = (markerData) => {
+        const listingId = String(markerData.id);
+        const element = buildMarkerElement(markerData);
+        element.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            activeListingId = listingId;
+            applySelection();
+            onMarkerSelect?.(markerData.id);
+        });
+
+        const marker = new maplibregl.Marker({
+            anchor: "center",
+            element,
+        })
+            .setLngLat([markerData.lng, markerData.lat])
+            .addTo(map);
+
+        markerEntries.set(listingId, { element, marker });
+    };
+
+    const syncMarkerEntries = () => {
+        if (!mapLoaded) {
+            return;
+        }
+
+        const nextMarkerIds = new Set();
+
+        markers.forEach((markerData) => {
+            const listingId = String(markerData.id);
+            nextMarkerIds.add(listingId);
+
+            const existingEntry = markerEntries.get(listingId);
+            if (!existingEntry) {
+                createMarkerEntry(markerData);
+                return;
+            }
+
+            existingEntry.marker.setLngLat([markerData.lng, markerData.lat]);
+            existingEntry.element.innerHTML = `<span class="listing-map-marker-label">${escapeHtml(markerData.price)}</span>`;
+            existingEntry.element.setAttribute("aria-label", `${markerData.title} ${markerData.price}`);
+        });
+
+        markerEntries.forEach((entry, listingId) => {
+            if (nextMarkerIds.has(listingId)) {
+                return;
+            }
+            entry.marker.remove();
+            markerEntries.delete(listingId);
+        });
+
+        applySelection();
+        applyViewportToMarkers();
     };
 
     const applyViewportToMarkers = () => {
@@ -90,45 +137,10 @@ export function createListingsMapView({
         map.fitBounds(bounds, { padding: 56, maxZoom: 14 });
     };
 
-    const drawMarkers = () => {
-        if (!mapLoaded) {
-            return;
-        }
-
-        clearMarkers();
-
-        markers.forEach((markerData) => {
-            const element = document.createElement("button");
-            element.type = "button";
-            element.textContent = markerData.price;
-            element.setAttribute("aria-label", `${markerData.title} ${markerData.price}`);
-            setMarkerStyles(element, false);
-            element.addEventListener("click", (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                activeListingId = String(markerData.id);
-                applySelection();
-                onMarkerSelect?.(markerData.id);
-            });
-
-            const marker = new maplibregl.Marker({
-                anchor: "center",
-                element,
-            })
-                .setLngLat([markerData.lng, markerData.lat])
-                .addTo(map);
-
-            markerEntries.set(String(markerData.id), { element, marker });
-        });
-
-        applySelection();
-        applyViewportToMarkers();
-    };
-
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     map.on("load", () => {
         mapLoaded = true;
-        drawMarkers();
+        syncMarkerEntries();
     });
     map.on("moveend", () => {
         onViewportChange?.();
@@ -150,7 +162,7 @@ export function createListingsMapView({
         },
         renderMarkers(nextMarkers) {
             markers = Array.isArray(nextMarkers) ? nextMarkers : [];
-            drawMarkers();
+            syncMarkerEntries();
         },
         setSelectedListing(listingId) {
             activeListingId = listingId ? String(listingId) : "";

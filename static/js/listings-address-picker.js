@@ -51,7 +51,13 @@ export function createAddressPicker(form) {
     }
 
     addressInput.addEventListener("input", handleAddressInput);
+    addressInput.addEventListener("blur", handleAddressBlur);
     form.addEventListener("submit", handleSubmit);
+
+    if (!enabled || !suggestionsUrl) {
+        addressInput.readOnly = true;
+        addressInput.setAttribute("aria-disabled", "true");
+    }
 
     return {
         isSelectionComplete,
@@ -106,6 +112,16 @@ export function createAddressPicker(form) {
         debounceId = window.setTimeout(() => {
             fetchSuggestions(currentAddress);
         }, LOOKUP_DEBOUNCE_MS);
+    }
+
+    function handleAddressBlur() {
+        const currentAddress = addressInput.value.trim();
+        if (!currentAddress || isSelectionComplete()) {
+            addressInput.setCustomValidity("");
+            return;
+        }
+
+        addressInput.setCustomValidity(enabled ? SELECTION_REQUIRED_MESSAGE : BLOCKED_STATUS);
     }
 
     async function fetchSuggestions(query) {

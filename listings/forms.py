@@ -144,6 +144,8 @@ class ListingForm(forms.ModelForm):
         self.fields["images"].widget.attrs.update({"accept": ".jpg,.jpeg,.png,.webp,image/*", "class": "form-control"})
         self.fields["address"].widget.attrs.update({"autocomplete": "off", "data-address-input": ""})
         self.fields["verified_address_token"].widget.attrs.update({"data-address-token-input": ""})
+        if not get_geoapify_autocomplete_config()["enabled"]:
+            self.fields["address"].widget.attrs.update({"readonly": "readonly", "aria-disabled": "true"})
 
         for field in self.fields.values():
             field.help_text = ""
