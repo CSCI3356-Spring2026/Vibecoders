@@ -14,6 +14,10 @@ def marketplace_listings_for_user(user):
     return Listing.objects.with_related().filter(owner=user)
 
 
+def searchable_marketplace_listings_for_user(user):
+    return marketplace_listings_for_user(user).filter(latitude__isnull=False, longitude__isnull=False)
+
+
 def accessible_listing_detail_queryset(user):
     base_queryset = Listing.objects.with_related()
     if not getattr(user, "is_authenticated", False):

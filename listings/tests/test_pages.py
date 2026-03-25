@@ -249,6 +249,232 @@ class ListingPageTests(ListingTestCase):
         self.assertNotContains(response, "data-listing-map-root")
         self.assertEqual(response.context["map_data"], [])
 
+    @override_settings(LISTING_MAPS_ENABLED=False)
+    def test_listing_list_suppresses_map_first_contract_when_feature_flag_is_disabled(self):
+        self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["listing_maps_enabled"])
+        self.assertNotIn("listing_search_url", response.context)
+        self.assertNotIn("listing_map_default_lat", response.context)
+        self.assertNotIn("listing_map_default_lng", response.context)
+
+    def test_live_search_filters_results_to_current_bounds(self):
+        inside = self.create_listing(title="Inside bounds", latitude=42.3355, longitude=-71.1685)
+        self.create_listing(title="Outside bounds", latitude=42.0, longitude=-71.9)
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("listings:search"),
+            {
+                "west": "-71.3",
+                "south": "42.2",
+                "east": "-71.0",
+                "north": "42.5",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual([item["id"] for item in payload["cards"]], [inside.id])
+        self.assertEqual([item["id"] for item in payload["markers"]], [inside.id])
+
+    def test_live_search_combines_bounds_with_standard_filters(self):
+        matching = self.create_listing(
+            title="Beacon sublease",
+            address="1731 Beacon St",
+            price="950.00",
+            lease_type="SUBLEASE",
+            start_date=date.today() + timedelta(days=15),
+            latitude=42.3355,
+            longitude=-71.1685,
+        )
+        self.create_listing(
+            title="Beacon outside bounds",
+            address="1740 Beacon St",
+            price="950.00",
+            lease_type="SUBLEASE",
+            start_date=date.today() + timedelta(days=15),
+            latitude=42.0,
+            longitude=-71.9,
+        )
+        self.create_listing(
+            title="Commonwealth sublease",
+            address="140 Commonwealth Ave",
+            price="950.00",
+            lease_type="SUBLEASE",
+            start_date=date.today() + timedelta(days=15),
+            latitude=42.3354,
+            longitude=-71.1684,
+        )
+        self.create_listing(
+            title="Beacon premium",
+            address="1732 Beacon St",
+            price="2100.00",
+            lease_type="SUBLEASE",
+            start_date=date.today() + timedelta(days=15),
+            latitude=42.3353,
+            longitude=-71.1683,
+        )
+        self.create_listing(
+            title="Beacon full lease",
+            address="1733 Beacon St",
+            price="950.00",
+            lease_type="FULL",
+            start_date=date.today() + timedelta(days=15),
+            latitude=42.3352,
+            longitude=-71.1682,
+        )
+        self.create_listing(
+            title="Beacon later move-in",
+            address="1734 Beacon St",
+            price="950.00",
+            lease_type="SUBLEASE",
+            start_date=date.today() + timedelta(days=45),
+            latitude=42.3351,
+            longitude=-71.1681,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("listings:search"),
+            {
+                "q": "Beacon",
+                "max_price": "1000",
+                "lease_type": "SUBLEASE",
+                "available_by": "30",
+                "west": "-71.3",
+                "south": "42.2",
+                "east": "-71.0",
+                "north": "42.5",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual([item["id"] for item in payload["cards"]], [matching.id])
+        self.assertEqual([item["id"] for item in payload["markers"]], [matching.id])
+
+    def test_live_search_respects_current_user_access_rules(self):
+        realtor = get_user_model().objects.create_user(
+            username="agent",
+            email="agent@example.com",
+            password="testpass123",
+            role=Role.REALTOR,
+        )
+        self.user.listings.create(
+            title="Student listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date=date.today() + timedelta(days=10),
+            end_date=date.today() + timedelta(days=200),
+            property_type="apartment",
+            description="Visible to students.",
+            latitude=42.3355,
+            longitude=-71.1685,
+        )
+        own_listing = realtor.listings.create(
+            title="Realtor listing",
+            address="150 Commonwealth Ave",
+            price="1400.00",
+            lease_type="FULL",
+            start_date=date.today() + timedelta(days=10),
+            end_date=date.today() + timedelta(days=200),
+            property_type="apartment",
+            description="Owned by realtor.",
+            latitude=42.3356,
+            longitude=-71.1684,
+        )
+        self.client.force_login(realtor)
+
+        response = self.client.get(
+            reverse("listings:search"),
+            {
+                "west": "-71.3",
+                "south": "42.2",
+                "east": "-71.0",
+                "north": "42.5",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual([item["id"] for item in payload["cards"]], [own_listing.id])
+        self.assertEqual([item["id"] for item in payload["markers"]], [own_listing.id])
+
+    @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+    def test_live_search_returns_expected_marker_and_card_payloads(self):
+        self.user.first_name = "Casey"
+        self.user.last_name = "Owner"
+        self.user.profile_image_url = "https://example.com/owner-avatar.jpg"
+        self.user.save(update_fields=["first_name", "last_name", "profile_image_url"])
+        listing = self.create_listing(
+            title="Beacon apartment",
+            address="1731 Beacon St",
+            price="1800.00",
+            lease_type="FULL",
+            property_type="house",
+            rooms=3,
+            bathrooms="1.5",
+            sq_ft=980,
+            description="Sunny apartment with updated kitchen and a short walk to campus.",
+            latitude=42.3355,
+            longitude=-71.1685,
+        )
+        ListingImage.objects.create(listing=listing, image=self.make_image_upload())
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("listings:search"),
+            {
+                "west": "-71.3",
+                "south": "42.2",
+                "east": "-71.0",
+                "north": "42.5",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual(
+            payload["markers"],
+            [
+                {
+                    "id": listing.id,
+                    "price": "$1800",
+                    "title": "Beacon apartment",
+                    "lat": 42.3355,
+                    "lng": -71.1685,
+                    "url": reverse("listings:detail", args=[listing.pk]),
+                }
+            ],
+        )
+        self.assertEqual(len(payload["cards"]), 1)
+        card = payload["cards"][0]
+        self.assertEqual(card["id"], listing.id)
+        self.assertEqual(card["url"], reverse("listings:detail", args=[listing.pk]))
+        self.assertEqual(card["title"], "Beacon apartment")
+        self.assertEqual(card["address"], "1731 Beacon St")
+        self.assertEqual(card["price"], "$1800/mo")
+        self.assertEqual(card["status"], {"value": "AVAILABLE", "label": "Available", "state": "available"})
+        self.assertEqual(card["lease_type"], "Full Lease")
+        self.assertEqual(card["property_type"], "House")
+        self.assertEqual(card["rooms"], 3)
+        self.assertEqual(card["bathrooms"], "1.5")
+        self.assertEqual(card["sq_ft"], 980)
+        self.assertEqual(card["description"], "Sunny apartment with updated kitchen and a short walk to campus.")
+        self.assertEqual(card["owner_name"], "Casey Owner")
+        self.assertEqual(card["owner_avatar_url"], "https://example.com/owner-avatar.jpg")
+        self.assertTrue(card["image_url"].endswith("/photo.png"))
+
     def test_listing_list_shows_owner_avatar(self):
         self.user.profile_image_url = "https://example.com/owner-avatar.jpg"
         self.user.save(update_fields=["profile_image_url"])

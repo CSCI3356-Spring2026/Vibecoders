@@ -25,10 +25,12 @@ from .form_services import handle_listing_form_submission, validation_message
 from .forms import ListingForm
 from .geocoding import BOSTON_COLLEGE_LATITUDE, BOSTON_COLLEGE_LONGITUDE
 from .models import Listing
+from .search_payloads import listing_card_payload, listing_marker_payload
 from .selectors import (
     accessible_listing_detail_queryset,
     marketplace_listings_for_user,
     messageable_listings_for_user,
+    searchable_marketplace_listings_for_user,
 )
 
 LISTINGS_PER_PAGE = 12
@@ -175,10 +177,27 @@ def listing_list(request):
         "has_listing_only_access": request.user.has_listing_only_access,
         "listing_maps_enabled": map_enabled,
         "map_data": map_data,
-        "listing_map_default_lat": BOSTON_COLLEGE_LATITUDE,
-        "listing_map_default_lng": BOSTON_COLLEGE_LONGITUDE,
     }
+    if map_enabled:
+        context["listing_search_url"] = reverse("listings:search")
+        context["listing_map_default_lat"] = BOSTON_COLLEGE_LATITUDE
+        context["listing_map_default_lng"] = BOSTON_COLLEGE_LONGITUDE
     return render(request, "listings/listing_list.html", context)
+
+
+@login_required
+@require_GET
+def listing_search(request):
+    base_queryset = searchable_marketplace_listings_for_user(request.user)
+    listings, _ = apply_listing_filters(base_queryset, request.GET)
+    listings = list(listings)
+    return JsonResponse(
+        {
+            "total": len(listings),
+            "markers": [listing_marker_payload(listing) for listing in listings],
+            "cards": [listing_card_payload(listing) for listing in listings],
+        }
+    )
 
 
 @login_required
