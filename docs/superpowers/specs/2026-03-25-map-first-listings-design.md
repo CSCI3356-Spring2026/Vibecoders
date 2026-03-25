@@ -17,6 +17,8 @@ This feature includes two tightly related parts:
 1. A map-first listings browse experience with live viewport filtering and synchronized cards.
 2. Verified address selection for listing creation and editing.
 
+They ship together as one feature and one implementation plan because the browse experience depends on reliably mappable listing data.
+
 This design does not include broader search ranking changes, saved searches, clustering analytics, commute overlays, or a SPA rewrite of the listings area.
 
 ## Existing Codebase Context
@@ -46,18 +48,23 @@ The design assumes an environment-managed Geoapify API key and explicit attribut
 - Verified address selection is a required part of the new listing create/edit flow once the Geoapify settings are configured.
 - The older `LISTING_GEOCODING_ENABLED` path should not remain the authority for create/edit address capture. It may be retained temporarily only for legacy operational tasks such as backfill or compatibility code during rollout, but the new form flow should depend on verified address selection instead of best-effort geocoding.
 
+### Behavior When Geoapify Is Not Configured
+
+This feature should fail closed.
+
+If the required Geoapify configuration is missing:
+
+- listing create/edit pages should render a clear blocking configuration error
+- the verified address picker should not attempt live requests
+- form submission should fail server-side with a configuration error instead of falling back to freeform addresses or best-effort geocoding
+
+There is no fallback authoring path once this feature lands.
+
 ### Legacy Listings Without Coordinates
 
-The map-first browse experience requires coordinates. To keep map and cards in sync, listings without usable coordinates are excluded from the public marketplace browse dataset used by the map-first page and live search endpoint.
+For this rollout, existing listings can be treated as disposable mock data because the database will be wiped after the feature is shipped.
 
-Those legacy listings are not deleted or made inaccessible everywhere. They should remain visible in owner/admin management surfaces and direct detail access where appropriate, but they do not participate in the public map-first search experience until one of the following happens:
-
-- they are updated through the new verified-address edit flow
-- they are populated through a rollout backfill task
-
-This keeps the browsing contract coherent: every listing shown in cards below the map is also mappable.
-
-Rollout can include a lightweight best-effort backfill for existing active listings with missing coordinates, but the browse implementation should not depend on perfect historical remediation.
+That means the implementation does not need a compatibility path for legacy unmappable listings, historical backfill logic, or mixed browse behavior where some visible marketplace listings lack verified coordinates. The post-rollout dataset can assume the new address-selection flow as the source of truth for mappable listings.
 
 ## Architecture
 
@@ -267,10 +274,29 @@ Changes:
 - validate address selection before save
 - preserve the existing transactional image-save behavior and owner immutability rules
 
-For legacy listings edited after rollout:
+Because the existing database will be wiped after rollout, the implementation does not need a legacy edit compatibility path for previously saved unverified addresses.
 
-- if the existing address already has trusted verified-selection state, it can round-trip without reselection unless the user changes the address text
-- if the listing lacks trusted verified-selection state, the edit form should require a new verified address selection before save
+### Autocomplete Proxy Endpoint Contract
+
+The Django-backed autocomplete endpoint should accept:
+
+- `q`: the current user-typed address fragment
+
+The endpoint should return:
+
+- a `results` array
+- for each result:
+  - a human-readable display label
+  - a secondary context label when useful
+  - latitude
+  - longitude
+  - a signed selection token
+
+Behavior rules:
+
+- short or blank queries return an empty `results` array
+- provider failures return an error response suitable for inline retry UX
+- the endpoint should be rate-limited if needed during implementation, but the browse endpoint and autocomplete endpoint must remain distinct
 
 This keeps address persistence, geospatial readiness, and image handling inside one coherent transactional workflow.
 
