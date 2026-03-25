@@ -37,8 +37,11 @@ export function createAddressPicker(form) {
     const enabled = pickerRoot.dataset.addressPickerEnabled === "true";
     const suggestionsUrl = pickerRoot.dataset.addressSuggestionsUrl || "";
     const initialAddress = (pickerRoot.dataset.initialAddress || "").trim();
+    const savedSelectionLabel =
+        pickerRoot.dataset.addressInitiallyVerified === "true"
+            ? (pickerRoot.dataset.selectedLabel || initialAddress).trim()
+            : "";
     let selectedLabel = (pickerRoot.dataset.selectedLabel || "").trim();
-    let savedSelectionAvailable = pickerRoot.dataset.addressInitiallyVerified === "true";
     let debounceId = 0;
     let activeController = null;
     let latestRequestId = 0;
@@ -62,7 +65,7 @@ export function createAddressPicker(form) {
         if (tokenInput.value.trim()) {
             return true;
         }
-        return savedSelectionAvailable && currentAddress === selectedLabel && Boolean(selectedLabel);
+        return isSavedSelectionActive(currentAddress);
     }
 
     function handleAddressInput() {
@@ -70,9 +73,6 @@ export function createAddressPicker(form) {
 
         if (currentAddress !== selectedLabel) {
             tokenInput.value = "";
-            if (savedSelectionAvailable) {
-                savedSelectionAvailable = false;
-            }
         }
 
         addressInput.setCustomValidity("");
@@ -89,7 +89,7 @@ export function createAddressPicker(form) {
             return;
         }
 
-        if (savedSelectionAvailable && currentAddress === selectedLabel) {
+        if (isSavedSelectionActive(currentAddress)) {
             resetSuggestionsState();
             setStatus(SAVED_STATUS);
             return;
@@ -164,7 +164,6 @@ export function createAddressPicker(form) {
                 addressInput.value = result.label || "";
                 tokenInput.value = result.token || "";
                 selectedLabel = addressInput.value.trim();
-                savedSelectionAvailable = false;
                 addressInput.setCustomValidity("");
                 clearSuggestions();
                 setStatus(VERIFIED_STATUS);
@@ -205,6 +204,10 @@ export function createAddressPicker(form) {
 
     function setStatus(message) {
         statusNode.textContent = message;
+    }
+
+    function isSavedSelectionActive(currentAddress) {
+        return Boolean(savedSelectionLabel) && currentAddress === savedSelectionLabel;
     }
 }
 

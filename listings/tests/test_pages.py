@@ -1,6 +1,8 @@
 import io
+import subprocess
 import tempfile
 from datetime import date, timedelta
+from pathlib import Path
 from unittest.mock import patch
 
 from allauth.socialaccount.models import SocialAccount
@@ -833,6 +835,111 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, 'data-address-initially-verified="true"')
         self.assertContains(response, f'data-selected-label="{listing.address}"')
         self.assertContains(response, "Keeping the saved verified address.")
+
+    def test_address_picker_keeps_saved_edit_selection_when_address_reverts_to_original_value(self):
+        module_url = (Path(__file__).resolve().parents[2] / "static/js/listings-address-picker.js").as_uri()
+        script = f"""
+import assert from "node:assert/strict";
+import {{ createAddressPicker }} from {module_url!r};
+
+class HTMLElement {{
+    constructor() {{
+        this.dataset = {{}};
+        this.listeners = {{}};
+        this.hidden = false;
+        this.textContent = "";
+        this.innerHTML = "";
+    }}
+
+    addEventListener(type, handler) {{
+        this.listeners[type] = handler;
+    }}
+
+    dispatch(type) {{
+        this.listeners[type]?.({{ target: this }});
+    }}
+
+    append() {{}}
+}}
+
+class HTMLInputElement extends HTMLElement {{
+    constructor(value = "") {{
+        super();
+        this.value = value;
+        this.validationMessage = "";
+    }}
+
+    setCustomValidity(message) {{
+        this.validationMessage = message;
+    }}
+
+    reportValidity() {{
+        return true;
+    }}
+
+    focus() {{}}
+}}
+
+globalThis.HTMLElement = HTMLElement;
+globalThis.HTMLInputElement = HTMLInputElement;
+globalThis.window = {{
+    clearTimeout() {{}},
+    setTimeout() {{
+        return 1;
+    }},
+    location: {{ origin: "https://example.com" }},
+}};
+
+const label = "140 Commonwealth Ave, Chestnut Hill, MA 02467, US";
+const pickerRoot = new HTMLElement();
+pickerRoot.dataset = {{
+    addressPickerEnabled: "true",
+    addressSuggestionsUrl: "/listings/address-suggestions/",
+    initialAddress: label,
+    selectedLabel: label,
+    addressInitiallyVerified: "true",
+}};
+const addressInput = new HTMLInputElement(label);
+const tokenInput = new HTMLInputElement("");
+const suggestionsNode = new HTMLElement();
+const statusNode = new HTMLElement();
+const formListeners = {{}};
+const elements = {{
+    "[data-address-picker]": pickerRoot,
+    "[data-address-input]": addressInput,
+    "[data-address-token-input]": tokenInput,
+    "[data-address-suggestions]": suggestionsNode,
+    "[data-address-status]": statusNode,
+}};
+const form = {{
+    querySelector(selector) {{
+        return elements[selector] ?? null;
+    }},
+    addEventListener(type, handler) {{
+        formListeners[type] = handler;
+    }},
+}};
+
+const picker = createAddressPicker(form);
+assert.equal(picker.isSelectionComplete(), true);
+
+addressInput.value = "15 Chiswick Rd, Brighton, MA 02135, US";
+addressInput.dispatch("input");
+assert.equal(picker.isSelectionComplete(), false);
+
+addressInput.value = label;
+addressInput.dispatch("input");
+assert.equal(picker.isSelectionComplete(), true);
+"""
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            cwd=Path(__file__).resolve().parents[2],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
 
     def test_authenticated_user_can_create_listing(self):
         self.client.force_login(self.user)
