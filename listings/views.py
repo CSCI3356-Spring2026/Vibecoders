@@ -1,11 +1,12 @@
+import requests
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.http import HttpResponseForbidden
+from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_GET, require_POST
 
 from communications.forms import ConversationMessageForm
 from communications.models import ListingConversation
@@ -16,6 +17,8 @@ from communications.services import (
 )
 from core.utils import get_page, preserved_query_suffix
 
+from .address_provider import get_geoapify_autocomplete_config, normalize_geoapify_suggestions
+from .address_signing import sign_address_selection
 from .filtering import MAX_PRICE_FILTERS, MOVE_IN_FILTERS, apply_listing_filters
 from .form_services import handle_listing_form_submission, validation_message
 from .forms import ListingForm
@@ -28,6 +31,12 @@ from .selectors import (
 )
 
 LISTINGS_PER_PAGE = 12
+ADDRESS_AUTOCOMPLETE_MIN_QUERY_LENGTH = 3
+ADDRESS_AUTOCOMPLETE_MAX_RESULTS = 5
+ADDRESS_AUTOCOMPLETE_ERROR = {
+    "message": "Address suggestions are temporarily unavailable. Try again.",
+    "retryable": True,
+}
 
 
 def _workspace_destination(user):
@@ -76,6 +85,55 @@ def _listing_map_data(listings):
             }
         )
     return map_data
+
+
+def _autocomplete_results_response(results, *, status=200):
+    return JsonResponse({"results": results}, status=status)
+
+
+def _autocomplete_error_response():
+    return JsonResponse({"results": [], "error": ADDRESS_AUTOCOMPLETE_ERROR}, status=503)
+
+
+@login_required
+@require_GET
+def address_suggestions(request):
+    query = (request.GET.get("q") or "").strip()
+    if len(query) < ADDRESS_AUTOCOMPLETE_MIN_QUERY_LENGTH:
+        return _autocomplete_results_response([])
+
+    config = get_geoapify_autocomplete_config()
+    if not config["enabled"]:
+        return _autocomplete_error_response()
+
+    try:
+        response = requests.get(
+            config["url"],
+            params={
+                "text": query,
+                "limit": ADDRESS_AUTOCOMPLETE_MAX_RESULTS,
+                "apiKey": config["api_key"],
+            },
+            timeout=settings.LISTING_GEOCODER_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        suggestions = normalize_geoapify_suggestions(response.json())
+    except Exception:
+        return _autocomplete_error_response()
+
+    results = []
+    for suggestion in suggestions:
+        results.append(
+            {
+                **suggestion,
+                "context_label": ", ".join(
+                    part for part in [suggestion["city"], suggestion["state"], suggestion["postal_code"]] if part
+                ),
+                "token": sign_address_selection(suggestion),
+            }
+        )
+
+    return _autocomplete_results_response(results)
 
 
 @login_required

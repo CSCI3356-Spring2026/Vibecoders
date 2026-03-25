@@ -14,6 +14,7 @@
     <div class="container">
         <form method="post" enctype="multipart/form-data" class="listing-wizard" data-listing-form-wizard>
             {% csrf_token %}
+            {{ form.verified_address_token }}
 
             <div class="listing-wizard-header listing-panel">
                 <div>

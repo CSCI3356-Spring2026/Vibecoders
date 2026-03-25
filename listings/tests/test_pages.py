@@ -14,15 +14,143 @@ from PIL import Image
 from communications.models import ListingConversation, ListingMessage
 from users.models import Role
 
+from ..address_signing import sign_address_selection, unsign_address_selection
 from ..models import Listing, ListingImage
 from .base import ListingTestCase
 
 
+@override_settings(
+    LISTING_GEOAPIFY_API_KEY="geoapify-test-key",
+    LISTING_GEOAPIFY_AUTOCOMPLETE_URL="https://api.geoapify.com/v1/geocode/autocomplete",
+)
 class ListingPageTests(ListingTestCase):
+    def make_verified_address_token(
+        self,
+        *,
+        label="140 Commonwealth Ave, Chestnut Hill, MA 02467, US",
+        address_line_1="140 Commonwealth Ave",
+        city="Chestnut Hill",
+        state="MA",
+        postal_code="02467",
+        country="US",
+        latitude=42.3355,
+        longitude=-71.1685,
+        provider_id="geoapify:place-140-commonwealth",
+    ):
+        return sign_address_selection(
+            {
+                "provider_id": provider_id,
+                "label": label,
+                "address_line_1": address_line_1,
+                "address_line_2": "",
+                "city": city,
+                "state": state,
+                "postal_code": postal_code,
+                "country": country,
+                "latitude": latitude,
+                "longitude": longitude,
+            }
+        )
+
+    def listing_payload(self, **overrides):
+        payload = {
+            "title": "Quiet dorm near campus",
+            "address": "140 Commonwealth Ave, Chestnut Hill, MA 02467, US",
+            "verified_address_token": self.make_verified_address_token(),
+            "price": "1200.00",
+            "lease_type": "FULL",
+            "start_date": date(2026, 9, 1),
+            "end_date": date(2027, 5, 31),
+            "description": "Close to dining hall.",
+        }
+        payload.update(overrides)
+        return payload
+
     def make_image_upload(self, name="photo.png"):
         buffer = io.BytesIO()
         Image.new("RGB", (4, 4), color="white").save(buffer, format="PNG")
         return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/png")
+
+    @override_settings(
+        LISTING_GEOAPIFY_API_KEY="geoapify-test-key",
+        LISTING_GEOAPIFY_AUTOCOMPLETE_URL="https://api.geoapify.com/v1/geocode/autocomplete",
+    )
+    @patch("requests.get")
+    def test_address_autocomplete_endpoint_returns_signed_suggestions_for_valid_query(self, requests_get):
+        requests_get.return_value.json.return_value = {
+            "results": [
+                {
+                    "place_id": "geoapify-place-1",
+                    "formatted": "140 Commonwealth Ave, Chestnut Hill, MA 02467, United States",
+                    "address_line1": "140 Commonwealth Ave",
+                    "address_line2": "",
+                    "city": "Chestnut Hill",
+                    "state_code": "MA",
+                    "postcode": "02467",
+                    "country_code": "us",
+                    "lat": 42.3355,
+                    "lon": -71.1685,
+                }
+            ]
+        }
+        requests_get.return_value.raise_for_status.return_value = None
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:address_suggestions"), {"q": "140 Commonwealth"})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(len(payload["results"]), 1)
+        result = payload["results"][0]
+        self.assertEqual(result["label"], "140 Commonwealth Ave, Chestnut Hill, MA 02467, United States")
+        self.assertEqual(result["address_line_1"], "140 Commonwealth Ave")
+        self.assertEqual(result["latitude"], 42.3355)
+        self.assertEqual(result["longitude"], -71.1685)
+        self.assertIn("token", result)
+        signed_payload = unsign_address_selection(result["token"], max_age=300)
+        self.assertEqual(signed_payload["provider_id"], "geoapify:geoapify-place-1")
+        self.assertEqual(signed_payload["address_line_1"], "140 Commonwealth Ave")
+        requests_get.assert_called_once()
+
+    @override_settings(
+        LISTING_GEOAPIFY_API_KEY="geoapify-test-key",
+        LISTING_GEOAPIFY_AUTOCOMPLETE_URL="https://api.geoapify.com/v1/geocode/autocomplete",
+    )
+    @patch("requests.get")
+    def test_address_autocomplete_endpoint_returns_empty_results_for_blank_or_short_query(self, requests_get):
+        self.client.force_login(self.user)
+
+        blank_response = self.client.get(reverse("listings:address_suggestions"), {"q": ""})
+        short_response = self.client.get(reverse("listings:address_suggestions"), {"q": "12"})
+
+        self.assertEqual(blank_response.status_code, 200)
+        self.assertEqual(blank_response.json(), {"results": []})
+        self.assertEqual(short_response.status_code, 200)
+        self.assertEqual(short_response.json(), {"results": []})
+        requests_get.assert_not_called()
+
+    @override_settings(
+        LISTING_GEOAPIFY_API_KEY="geoapify-test-key",
+        LISTING_GEOAPIFY_AUTOCOMPLETE_URL="https://api.geoapify.com/v1/geocode/autocomplete",
+    )
+    @patch("requests.get", side_effect=Exception("provider unavailable"))
+    def test_address_autocomplete_endpoint_returns_retry_friendly_inline_error_contract(self, requests_get):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:address_suggestions"), {"q": "140 Commonwealth"})
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.json(),
+            {
+                "results": [],
+                "error": {
+                    "message": "Address suggestions are temporarily unavailable. Try again.",
+                    "retryable": True,
+                },
+            },
+        )
+        requests_get.assert_called_once()
 
     def test_listing_pages_require_login(self):
         listing = self.create_listing()
@@ -228,17 +356,10 @@ class ListingPageTests(ListingTestCase):
 
     def test_authenticated_user_can_create_listing(self):
         self.client.force_login(self.user)
-        payload = {
-            "title": "Quiet dorm near campus",
-            "address": "140 Commonwealth Ave",
-            "price": "1200.00",
-            "lease_type": "FULL",
-            "start_date": date(2026, 9, 1),
-            "end_date": date(2027, 5, 31),
-            "description": "Close to dining hall.",
-            "utilities_estimate": "90.00",
-            "security_deposit": "1200.00",
-        }
+        payload = self.listing_payload(
+            utilities_estimate="90.00",
+            security_deposit="1200.00",
+        )
 
         response = self.client.post(reverse("listings:create_listing"), payload)
 
@@ -249,19 +370,9 @@ class ListingPageTests(ListingTestCase):
         self.assertEqual(created_listing.utilities_estimate, 90)
         self.assertEqual(created_listing.security_deposit, 1200)
 
-    @override_settings(LISTING_GEOCODING_ENABLED=True)
-    @patch("listings.form_services.geocode_listing_address", return_value=(42.3355, -71.1685))
-    def test_authenticated_user_can_create_listing_and_geocode_address(self, geocode_mock):
+    def test_authenticated_user_can_create_listing_and_persist_verified_coordinates(self):
         self.client.force_login(self.user)
-        payload = {
-            "title": "Quiet dorm near campus",
-            "address": "140 Commonwealth Ave",
-            "price": "1200.00",
-            "lease_type": "FULL",
-            "start_date": date(2026, 9, 1),
-            "end_date": date(2027, 5, 31),
-            "description": "Close to dining hall.",
-        }
+        payload = self.listing_payload()
 
         response = self.client.post(reverse("listings:create_listing"), payload)
 
@@ -269,19 +380,25 @@ class ListingPageTests(ListingTestCase):
         created_listing = self.user.listings.get()
         self.assertAlmostEqual(created_listing.latitude, 42.3355)
         self.assertAlmostEqual(created_listing.longitude, -71.1685)
-        geocode_mock.assert_called_once_with("140 Commonwealth Ave")
+
+    def test_create_listing_rejects_submission_without_selected_signed_token(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("listings:create_listing"),
+            self.listing_payload(verified_address_token=""),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFormError(response.context["form"], "address", "Select a verified address suggestion.")
+        self.assertFalse(self.user.listings.exists())
 
     def test_create_listing_rejects_end_date_before_start_date(self):
         self.client.force_login(self.user)
-        payload = {
-            "title": "Quiet dorm near campus",
-            "address": "140 Commonwealth Ave",
-            "price": "1200.00",
-            "lease_type": "FULL",
-            "start_date": date(2027, 5, 31),
-            "end_date": date(2026, 9, 1),
-            "description": "Close to dining hall.",
-        }
+        payload = self.listing_payload(
+            start_date=date(2027, 5, 31),
+            end_date=date(2026, 9, 1),
+        )
 
         response = self.client.post(reverse("listings:create_listing"), payload)
 
@@ -291,15 +408,7 @@ class ListingPageTests(ListingTestCase):
 
     def test_create_listing_rejects_invalid_uploaded_image(self):
         self.client.force_login(self.user)
-        payload = {
-            "title": "Quiet dorm near campus",
-            "address": "140 Commonwealth Ave",
-            "price": "1200.00",
-            "lease_type": "FULL",
-            "start_date": date(2026, 9, 1),
-            "end_date": date(2027, 5, 31),
-            "description": "Close to dining hall.",
-        }
+        payload = self.listing_payload()
         invalid_upload = SimpleUploadedFile("bad.txt", b"not an image", content_type="text/plain")
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -312,16 +421,7 @@ class ListingPageTests(ListingTestCase):
 
     def test_create_listing_can_save_multiple_images(self):
         self.client.force_login(self.user)
-        payload = {
-            "title": "Quiet dorm near campus",
-            "address": "140 Commonwealth Ave",
-            "price": "1200.00",
-            "lease_type": "FULL",
-            "start_date": date(2026, 9, 1),
-            "end_date": date(2027, 5, 31),
-            "description": "Close to dining hall.",
-            "images": [self.make_image_upload("one.png"), self.make_image_upload("two.png")],
-        }
+        payload = self.listing_payload(images=[self.make_image_upload("one.png"), self.make_image_upload("two.png")])
 
         with tempfile.TemporaryDirectory() as temp_dir:
             with override_settings(MEDIA_ROOT=temp_dir):
@@ -340,6 +440,7 @@ class ListingPageTests(ListingTestCase):
             {
                 "title": "Updated listing",
                 "address": listing.address,
+                "verified_address_token": self.make_verified_address_token(label=listing.address),
                 "price": listing.price,
                 "lease_type": listing.lease_type,
                 "start_date": listing.start_date,
@@ -356,9 +457,7 @@ class ListingPageTests(ListingTestCase):
         self.assertEqual(listing.title, "Updated listing")
         self.assertEqual(listing.status, "PENDING")
 
-    @override_settings(LISTING_GEOCODING_ENABLED=True)
-    @patch("listings.form_services.geocode_listing_address", return_value=(42.3402, -71.1587))
-    def test_listing_owner_edit_regeocodes_when_address_changes(self, geocode_mock):
+    def test_listing_owner_edit_rejects_changed_freeform_address_without_reselection(self):
         listing = self.create_listing(latitude=42.3355, longitude=-71.1685)
         self.client.force_login(self.user)
 
@@ -367,6 +466,7 @@ class ListingPageTests(ListingTestCase):
             {
                 "title": listing.title,
                 "address": "215 Commonwealth Ave",
+                "verified_address_token": self.make_verified_address_token(label=listing.address),
                 "price": listing.price,
                 "lease_type": listing.lease_type,
                 "start_date": listing.start_date,
@@ -377,67 +477,27 @@ class ListingPageTests(ListingTestCase):
             },
         )
 
-        listing.refresh_from_db()
-        self.assertEqual(response.status_code, 302)
-        self.assertAlmostEqual(listing.latitude, 42.3402)
-        self.assertAlmostEqual(listing.longitude, -71.1587)
-        geocode_mock.assert_called_once_with("215 Commonwealth Ave")
+        self.assertEqual(response.status_code, 200)
+        self.assertFormError(
+            response.context["form"],
+            "address",
+            "Choose the updated address from the verified suggestions.",
+        )
 
-    @override_settings(LISTING_GEOCODING_ENABLED=True)
-    @patch("listings.form_services.geocode_listing_address")
-    def test_listing_owner_edit_does_not_regeocode_when_address_is_unchanged_and_coordinates_exist(self, geocode_mock):
-        listing = self.create_listing(latitude=42.3355, longitude=-71.1685)
+    @override_settings(
+        LISTING_GEOAPIFY_API_KEY="",
+        LISTING_GEOAPIFY_AUTOCOMPLETE_URL="https://api.geoapify.com/v1/geocode/autocomplete",
+    )
+    def test_missing_geoapify_config_blocks_authoring_instead_of_silently_falling_back(self):
         self.client.force_login(self.user)
 
-        response = self.client.post(
-            reverse("listings:edit_listing", args=[listing.pk]),
-            {
-                "title": "Updated listing",
-                "address": listing.address,
-                "price": listing.price,
-                "lease_type": listing.lease_type,
-                "start_date": listing.start_date,
-                "end_date": listing.end_date,
-                "property_type": listing.property_type,
-                "description": listing.description,
-                "status": listing.status,
-            },
+        response = self.client.post(reverse("listings:create_listing"), self.listing_payload())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFormError(
+            response.context["form"], "address", "Verified address lookup is unavailable right now. Try again later."
         )
-
-        listing.refresh_from_db()
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(listing.latitude, 42.3355)
-        self.assertEqual(listing.longitude, -71.1685)
-        geocode_mock.assert_not_called()
-
-    @override_settings(LISTING_GEOCODING_ENABLED=True)
-    @patch("listings.form_services.geocode_listing_address", return_value=(None, None))
-    def test_listing_owner_edit_clears_stale_coordinates_when_regeocoding_fails_after_address_change(
-        self, geocode_mock
-    ):
-        listing = self.create_listing(latitude=42.3355, longitude=-71.1685)
-        self.client.force_login(self.user)
-
-        response = self.client.post(
-            reverse("listings:edit_listing", args=[listing.pk]),
-            {
-                "title": listing.title,
-                "address": "999 Missing Address Ave",
-                "price": listing.price,
-                "lease_type": listing.lease_type,
-                "start_date": listing.start_date,
-                "end_date": listing.end_date,
-                "property_type": listing.property_type,
-                "description": listing.description,
-                "status": listing.status,
-            },
-        )
-
-        listing.refresh_from_db()
-        self.assertEqual(response.status_code, 302)
-        self.assertIsNone(listing.latitude)
-        self.assertIsNone(listing.longitude)
-        geocode_mock.assert_called_once_with("999 Missing Address Ave")
+        self.assertFalse(self.user.listings.exists())
 
     def test_listing_detail_shows_owner_avatar_when_available(self):
         listing = self.create_listing()
@@ -468,6 +528,7 @@ class ListingPageTests(ListingTestCase):
                     {
                         "title": listing.title,
                         "address": listing.address,
+                        "verified_address_token": self.make_verified_address_token(label=listing.address),
                         "price": listing.price,
                         "lease_type": listing.lease_type,
                         "start_date": listing.start_date,
@@ -496,6 +557,7 @@ class ListingPageTests(ListingTestCase):
                     {
                         "title": listing.title,
                         "address": listing.address,
+                        "verified_address_token": self.make_verified_address_token(label=listing.address),
                         "price": listing.price,
                         "lease_type": listing.lease_type,
                         "start_date": listing.start_date,
