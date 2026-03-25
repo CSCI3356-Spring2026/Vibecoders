@@ -2,6 +2,14 @@ from django.urls import reverse
 from django.utils.text import Truncator
 
 
+def _primary_image_from_prefetch(listing):
+    prefetched = getattr(listing, "_prefetched_objects_cache", {})
+    images = prefetched.get("images")
+    if images is not None:
+        return images[0] if images else None
+    return listing.images.order_by("id").first()
+
+
 def listing_marker_payload(listing):
     return {
         "id": listing.id,
@@ -14,7 +22,7 @@ def listing_marker_payload(listing):
 
 
 def listing_card_payload(listing):
-    image = listing.primary_image
+    image = _primary_image_from_prefetch(listing)
     return {
         "id": listing.id,
         "url": reverse("listings:detail", args=[listing.pk]),
@@ -32,7 +40,7 @@ def listing_card_payload(listing):
         "bathrooms": f"{listing.bathrooms:g}",
         "sq_ft": listing.sq_ft,
         "description": Truncator(listing.description).words(14, truncate="..."),
-        "image_url": image.image.url if image else "",
+        "image_url": image.versioned_url if image else "",
         "owner_name": listing.owner.display_name,
         "owner_avatar_url": listing.owner.avatar_url,
     }

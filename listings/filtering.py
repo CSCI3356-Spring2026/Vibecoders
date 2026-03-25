@@ -20,7 +20,7 @@ MOVE_IN_FILTERS = [
 ]
 
 
-def _parse_viewport_bounds(params):
+def parse_viewport_bounds(params):
     raw_bounds = {
         "west": (params.get("west") or "").strip(),
         "south": (params.get("south") or "").strip(),
@@ -42,7 +42,7 @@ def _parse_viewport_bounds(params):
     return bounds
 
 
-def apply_listing_filters(queryset, params):
+def apply_listing_filters(queryset, params, *, viewport_required=False):
     query = params.get("q", "").strip()
     if query:
         queryset = queryset.filter(
@@ -70,8 +70,10 @@ def apply_listing_filters(queryset, params):
         move_in_deadline = timezone.localdate() + timedelta(days=int(available_by))
         queryset = queryset.filter(start_date__lte=move_in_deadline)
 
-    bounds = _parse_viewport_bounds(params)
-    if bounds is not None:
+    bounds = parse_viewport_bounds(params)
+    if viewport_required and bounds is None:
+        queryset = queryset.none()
+    elif bounds is not None:
         queryset = queryset.filter(
             longitude__gte=bounds["west"],
             longitude__lte=bounds["east"],

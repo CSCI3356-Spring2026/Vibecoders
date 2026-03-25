@@ -7,7 +7,9 @@ from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
 from django.test import override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from PIL import Image
 
@@ -283,6 +285,30 @@ class ListingPageTests(ListingTestCase):
         self.assertEqual([item["id"] for item in payload["cards"]], [inside.id])
         self.assertEqual([item["id"] for item in payload["markers"]], [inside.id])
 
+    def test_live_search_returns_no_results_without_complete_valid_bounds(self):
+        inside = self.create_listing(title="Inside bounds", latitude=42.3355, longitude=-71.1685)
+        self.client.force_login(self.user)
+
+        invalid_responses = [
+            self.client.get(reverse("listings:search")),
+            self.client.get(reverse("listings:search"), {"west": "-71.3", "south": "42.2", "east": "-71.0"}),
+            self.client.get(
+                reverse("listings:search"),
+                {"west": "-71.3", "south": "42.2", "east": "-71.0", "north": "north"},
+            ),
+            self.client.get(
+                reverse("listings:search"),
+                {"west": "-71.0", "south": "42.5", "east": "-71.3", "north": "42.2"},
+            ),
+        ]
+
+        for response in invalid_responses:
+            with self.subTest(query=response.wsgi_request.GET.urlencode()):
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json(), {"total": 0, "markers": [], "cards": []})
+
+        self.assertTrue(inside.has_map_coordinates)
+
     def test_live_search_combines_bounds_with_standard_filters(self):
         matching = self.create_listing(
             title="Beacon sublease",
@@ -473,7 +499,34 @@ class ListingPageTests(ListingTestCase):
         self.assertEqual(card["description"], "Sunny apartment with updated kitchen and a short walk to campus.")
         self.assertEqual(card["owner_name"], "Casey Owner")
         self.assertEqual(card["owner_avatar_url"], "https://example.com/owner-avatar.jpg")
-        self.assertTrue(card["image_url"].endswith("/photo.png"))
+        self.assertEqual(card["image_url"], listing.primary_image.versioned_url)
+
+    def test_live_search_does_not_add_per_listing_image_queries_for_imageless_results(self):
+        for index in range(3):
+            self.create_listing(
+                title=f"Imageless listing {index}",
+                address=f"{140 + index} Commonwealth Ave",
+                latitude=42.3355 + (index * 0.0001),
+                longitude=-71.1685 + (index * 0.0001),
+            )
+        self.client.force_login(self.user)
+
+        with CaptureQueriesContext(connection) as captured_queries:
+            response = self.client.get(
+                reverse("listings:search"),
+                {
+                    "west": "-71.3",
+                    "south": "42.2",
+                    "east": "-71.0",
+                    "north": "42.5",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["total"], 3)
+        listing_image_queries = [query for query in captured_queries if '"listings_listingimage"' in query["sql"]]
+        self.assertEqual(len(listing_image_queries), 1)
+        self.assertIn(" IN (", listing_image_queries[0]["sql"])
 
     def test_listing_list_shows_owner_avatar(self):
         self.user.profile_image_url = "https://example.com/owner-avatar.jpg"

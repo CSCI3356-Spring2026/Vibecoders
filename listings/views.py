@@ -189,7 +189,7 @@ def listing_list(request):
 @require_GET
 def listing_search(request):
     base_queryset = searchable_marketplace_listings_for_user(request.user)
-    listings, _ = apply_listing_filters(base_queryset, request.GET)
+    listings, _ = apply_listing_filters(base_queryset, request.GET, viewport_required=True)
     listings = list(listings)
     return JsonResponse(
         {
