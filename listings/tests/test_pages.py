@@ -226,6 +226,54 @@ class ListingPageTests(ListingTestCase):
 
         self.assertContains(response, reverse("listings:detail", args=[listing.pk]))
 
+    def test_listing_page_renders_map_first_layout_hooks(self):
+        self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"))
+
+        self.assertContains(response, "data-listings-page")
+        self.assertContains(response, "data-listings-filters")
+        self.assertContains(response, "data-listings-filter-form")
+        self.assertContains(response, "data-listings-map-shell")
+        self.assertContains(response, "data-listings-map-root")
+        self.assertContains(response, "data-listings-map")
+        self.assertContains(response, f'data-listings-search-url="{reverse("listings:search")}"')
+        self.assertContains(response, "data-listings-results")
+        self.assertContains(response, "data-listings-live-error")
+
+    def test_listing_page_renders_result_cards_with_selection_and_detail_hooks(self):
+        listing = self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"))
+        detail_url = reverse("listings:detail", args=[listing.pk])
+
+        self.assertContains(response, "data-listings-results-list")
+        self.assertContains(response, "data-listing-card")
+        self.assertContains(response, f'data-listing-id="{listing.id}"')
+        self.assertContains(response, f'data-listing-detail-url="{detail_url}"')
+        self.assertNotContains(response, "listing-map-popup-link")
+
+    def test_listing_page_exposes_empty_state_container_for_zero_results(self):
+        self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"), {"q": "nowhere"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "data-listings-empty-state")
+
+    def test_listing_page_exposes_inline_live_search_error_container(self):
+        self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "data-listings-live-error")
+        self.assertContains(response, 'role="alert"')
+
     def test_listing_list_context_includes_map_data_for_geocoded_results(self):
         mapped_listing = self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
         self.create_listing(title="Unmapped listing", address="200 Beacon St")
@@ -263,6 +311,9 @@ class ListingPageTests(ListingTestCase):
         self.assertNotIn("listing_search_url", response.context)
         self.assertNotIn("listing_map_default_lat", response.context)
         self.assertNotIn("listing_map_default_lng", response.context)
+        self.assertNotContains(response, "data-listings-page")
+        self.assertNotContains(response, "data-listings-map-shell")
+        self.assertNotContains(response, "data-listings-live-error")
 
     def test_live_search_filters_results_to_current_bounds(self):
         inside = self.create_listing(title="Inside bounds", latitude=42.3355, longitude=-71.1685)
