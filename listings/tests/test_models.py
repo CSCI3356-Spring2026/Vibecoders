@@ -504,13 +504,14 @@ class ListingAddressPrimitiveTests(ListingTestCase):
             [
                 {
                     "provider_id": "geoapify:abc123",
-                    "label": "140 Commonwealth Ave, Chestnut Hill, MA 02467, United States of America",
+                    "label": "140 Commonwealth Ave, Chestnut Hill, MA 02467",
                     "address_line_1": "140 Commonwealth Ave",
                     "address_line_2": "",
                     "city": "Chestnut Hill",
                     "state": "MA",
                     "postal_code": "02467",
                     "country": "US",
+                    "primary_label": "140 Commonwealth Ave",
                     "latitude": 42.3355,
                     "longitude": -71.1685,
                 }
@@ -552,15 +553,75 @@ class ListingAddressPrimitiveTests(ListingTestCase):
             [
                 {
                     "provider_id": "geoapify:fallback-1",
-                    "label": "15 Chiswick Rd, Brighton, MA, United States",
+                    "label": "15 Chiswick Rd, Brighton, MA",
                     "address_line_1": "15 Chiswick Rd",
                     "address_line_2": "",
                     "city": "Brighton",
                     "state": "MA",
                     "postal_code": "",
                     "country": "US",
+                    "primary_label": "15 Chiswick Rd",
                     "latitude": 42.3477,
                     "longitude": -71.1538,
+                }
+            ],
+        )
+
+    def test_geoapify_normalization_accepts_geojson_feature_payload_and_dedupes_duplicate_address_matches(self):
+        payload = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "place_id": "building-1",
+                        "formatted": "140 Commonwealth Avenue, Newton, MA 02467, United States of America",
+                        "address_line1": "140 Commonwealth Avenue",
+                        "housenumber": "140",
+                        "street": "Commonwealth Avenue",
+                        "city": "Newton",
+                        "state_code": "MA",
+                        "postcode": "02467",
+                        "country_code": "us",
+                    },
+                    "geometry": {"type": "Point", "coordinates": [-71.168984, 42.33806]},
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "place_id": "amenity-1",
+                        "formatted": (
+                            "Boston College Chestnut Hill Campus, 140 Commonwealth Avenue, Newton, MA 02467, "
+                            "United States of America"
+                        ),
+                        "address_line1": "Boston College Chestnut Hill Campus",
+                        "housenumber": "140",
+                        "street": "Commonwealth Avenue",
+                        "city": "Newton",
+                        "state_code": "MA",
+                        "postcode": "02467",
+                        "country_code": "us",
+                    },
+                    "geometry": {"type": "Point", "coordinates": [-71.1682664, 42.3354481]},
+                },
+            ],
+        }
+
+        self.assertEqual(
+            normalize_geoapify_suggestions(payload),
+            [
+                {
+                    "provider_id": "geoapify:building-1",
+                    "label": "140 Commonwealth Avenue, Newton, MA 02467",
+                    "address_line_1": "140 Commonwealth Avenue",
+                    "address_line_2": "",
+                    "city": "Newton",
+                    "state": "MA",
+                    "postal_code": "02467",
+                    "country": "US",
+                    "primary_label": "140 Commonwealth Avenue",
+                    "latitude": 42.33806,
+                    "longitude": -71.168984,
                 }
             ],
         )

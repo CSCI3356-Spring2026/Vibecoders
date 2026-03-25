@@ -1,5 +1,5 @@
 # AGENTS.md
-Last Revised By: Hunter Scheppat -- March 22, 2026
+Last Revised By: Hunter Scheppat -- March 25, 2026
 
 Repository-specific instructions for AI coding agents working in this codebase.
 
@@ -55,12 +55,6 @@ source .venv/bin/activate
 pip install -r requirements.txt
 pre-commit install
 python manage.py migrate
-```
-
-Optional local demo data:
-
-```bash
-python manage.py seed_demo_listings
 ```
 
 Start the app locally:
@@ -123,7 +117,6 @@ ruff format --check .
 Useful project commands:
 
 ```bash
-python manage.py seed_demo_listings
 python manage.py set_user_role user@bc.edu admin
 python manage.py makemigrations --check --dry-run
 python manage.py check --deploy
@@ -173,9 +166,6 @@ Command guidance:
 - `listings/form_services.py`: transactional listing save workflow and image handling
 - `listings/selectors.py`: listing visibility and access querysets
 - `listings/views.py`: marketplace, detail, create/edit/delete, message-from-listing flow
-- `listings/sample_data.py`: demo listing data used by seed command
-- `listings/management/commands/seed_demo_listings.py`: idempotent local demo bootstrap
-
 ### Communications
 
 - `communications/models.py`: conversation and message models

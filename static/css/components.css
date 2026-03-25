@@ -332,15 +332,19 @@
     margin: 0;
 }
 
+.app-inline-confirm.is-open {
+    z-index: 80;
+}
+
 .app-inline-confirm-trigger {
     cursor: pointer;
 }
 
 .app-inline-confirm-panel {
-    position: absolute;
-    top: calc(100% + 0.45rem);
-    right: 0;
-    z-index: 30;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1400;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -377,13 +381,6 @@
 .app-inline-confirm-actions .btn,
 .app-inline-confirm-form .btn {
     width: 100%;
-}
-
-@media (max-width: 767.98px) {
-    .app-inline-confirm-panel {
-        right: auto;
-        left: 0;
-    }
 }
 
 .app-compact-title {

@@ -12,7 +12,6 @@
 {% block extra_js %}
     {% if listing_maps_enabled %}
         <script src="https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.js"></script>
-        {{ map_data|json_script:"listing-map-data" }}
         {{ listing_initial_payload|json_script:"listing-page-initial-payload" }}
         {{ listing_page_initial_state|json_script:"listing-page-initial-state" }}
         <script type="module" src="{% static 'js/listings-map.js' %}"></script>
@@ -185,7 +184,7 @@
                         <div class="listing-map" data-listing-map-canvas data-listings-map-canvas></div>
                     </div>
 
-                    {% if not map_data %}
+                    {% if not listing_initial_payload.markers %}
                         <div class="listing-map-note">
                             <h3 class="listing-map-note-title">No map-ready listings in this view yet.</h3>
                             <p class="listing-map-note-copy">

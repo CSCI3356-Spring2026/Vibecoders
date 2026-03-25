@@ -63,28 +63,28 @@
 }
 
 .btn-outline-danger {
-    border-color: rgba(var(--gray-700-rgb), 0.18);
-    background: var(--surface-gradient);
-    color: var(--gray-900);
+    border-color: rgba(var(--danger-rgb), 0.22);
+    background: rgba(var(--danger-rgb), 0.05);
+    color: var(--danger-500);
 }
 
 .btn-outline-danger:hover,
 .btn-outline-danger:focus {
-    border-color: rgba(var(--accent-rgb), 0.3);
-    background: rgba(var(--accent-rgb), 0.12);
-    color: var(--gray-900);
+    border-color: rgba(var(--danger-rgb), 0.34);
+    background: rgba(var(--danger-rgb), 0.1);
+    color: var(--danger-500);
 }
 
 .btn-danger {
-    border-color: var(--gray-900);
-    background: var(--gray-900);
+    border-color: var(--danger-500);
+    background: var(--danger-500);
     color: var(--white);
 }
 
 .btn-danger:hover,
 .btn-danger:focus {
-    border-color: var(--gray-700);
-    background: var(--gray-700);
+    border-color: #9f1f16;
+    background: #9f1f16;
     color: var(--white);
 }
 

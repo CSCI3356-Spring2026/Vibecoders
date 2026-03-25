@@ -82,20 +82,25 @@ class ListingPageTests(ListingTestCase):
     @patch("requests.get")
     def test_address_autocomplete_endpoint_returns_signed_suggestions_for_valid_query(self, requests_get):
         requests_get.return_value.json.return_value = {
-            "results": [
+            "type": "FeatureCollection",
+            "features": [
                 {
-                    "place_id": "geoapify-place-1",
-                    "formatted": "140 Commonwealth Ave, Chestnut Hill, MA 02467, United States",
-                    "address_line1": "140 Commonwealth Ave",
-                    "address_line2": "",
-                    "city": "Chestnut Hill",
-                    "state_code": "MA",
-                    "postcode": "02467",
-                    "country_code": "us",
-                    "lat": 42.3355,
-                    "lon": -71.1685,
+                    "type": "Feature",
+                    "properties": {
+                        "place_id": "geoapify-place-1",
+                        "formatted": "140 Commonwealth Avenue, Chestnut Hill, MA 02467, United States of America",
+                        "address_line1": "140 Commonwealth Avenue",
+                        "address_line2": "",
+                        "housenumber": "140",
+                        "street": "Commonwealth Avenue",
+                        "city": "Chestnut Hill",
+                        "state_code": "MA",
+                        "postcode": "02467",
+                        "country_code": "us",
+                    },
+                    "geometry": {"type": "Point", "coordinates": [-71.1685, 42.3355]},
                 }
-            ]
+            ],
         }
         requests_get.return_value.raise_for_status.return_value = None
         self.client.force_login(self.user)
@@ -106,14 +111,16 @@ class ListingPageTests(ListingTestCase):
         payload = response.json()
         self.assertEqual(len(payload["results"]), 1)
         result = payload["results"][0]
-        self.assertEqual(result["label"], "140 Commonwealth Ave, Chestnut Hill, MA 02467, United States")
-        self.assertEqual(result["address_line_1"], "140 Commonwealth Ave")
+        self.assertEqual(result["label"], "140 Commonwealth Avenue, Chestnut Hill, MA 02467")
+        self.assertEqual(result["primary_label"], "140 Commonwealth Avenue")
+        self.assertEqual(result["context_label"], "Chestnut Hill, MA 02467")
+        self.assertEqual(result["address_line_1"], "140 Commonwealth Avenue")
         self.assertEqual(result["latitude"], 42.3355)
         self.assertEqual(result["longitude"], -71.1685)
         self.assertIn("token", result)
         signed_payload = unsign_address_selection(result["token"], max_age=300)
         self.assertEqual(signed_payload["provider_id"], "geoapify:geoapify-place-1")
-        self.assertEqual(signed_payload["address_line_1"], "140 Commonwealth Ave")
+        self.assertEqual(signed_payload["address_line_1"], "140 Commonwealth Avenue")
         requests_get.assert_called_once()
         self.assertEqual(requests_get.call_args.kwargs["params"]["filter"], "countrycode:us")
         self.assertEqual(
@@ -165,20 +172,25 @@ class ListingPageTests(ListingTestCase):
     @patch("requests.get")
     def test_address_autocomplete_endpoint_throttles_repeat_requests(self, requests_get):
         requests_get.return_value.json.return_value = {
-            "results": [
+            "type": "FeatureCollection",
+            "features": [
                 {
-                    "place_id": "geoapify-place-1",
-                    "formatted": "140 Commonwealth Ave, Chestnut Hill, MA 02467, United States",
-                    "address_line1": "140 Commonwealth Ave",
-                    "address_line2": "",
-                    "city": "Chestnut Hill",
-                    "state_code": "MA",
-                    "postcode": "02467",
-                    "country_code": "us",
-                    "lat": 42.3355,
-                    "lon": -71.1685,
+                    "type": "Feature",
+                    "properties": {
+                        "place_id": "geoapify-place-1",
+                        "formatted": "140 Commonwealth Avenue, Chestnut Hill, MA 02467, United States of America",
+                        "address_line1": "140 Commonwealth Avenue",
+                        "address_line2": "",
+                        "housenumber": "140",
+                        "street": "Commonwealth Avenue",
+                        "city": "Chestnut Hill",
+                        "state_code": "MA",
+                        "postcode": "02467",
+                        "country_code": "us",
+                    },
+                    "geometry": {"type": "Point", "coordinates": [-71.1685, 42.3355]},
                 }
-            ]
+            ],
         }
         requests_get.return_value.raise_for_status.return_value = None
         cache.clear()
@@ -280,7 +292,7 @@ class ListingPageTests(ListingTestCase):
 
         self.assertContains(response, "data-listings-page")
         self.assertContains(response, f'data-listings-search-url="{reverse("listings:search")}"')
-        self.assertContains(response, 'data-listings-map-style-url="https://maps.geoapify.com/v1/styles/positron/')
+        self.assertContains(response, 'data-listings-map-style-url="https://maps.geoapify.com/v1/styles/osm-liberty/')
         self.assertContains(response, 'data-selected-listing-id=""')
 
     def test_map_marker_buttons_do_not_override_maplibre_positioning_transform(self):
@@ -440,7 +452,6 @@ assert.equal(capturedElements[0].style.transform ?? "", "");
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "maplibre-gl@5.18.0/dist/maplibre-gl.css")
         self.assertContains(response, "maplibre-gl@5.18.0/dist/maplibre-gl.js")
-        self.assertContains(response, 'id="listing-map-data"')
         self.assertContains(response, "js/listings-map.js")
         self.assertNotContains(response, "listing-map-popup-link")
         self.assertNotContains(response, "Open listing")
@@ -480,7 +491,7 @@ assert.equal(capturedElements[0].style.transform ?? "", "");
         self.assertContains(response, "data-listings-empty-state")
         self.assertContains(response, 'role="alert"')
 
-    def test_listing_list_context_includes_map_data_for_geocoded_results(self):
+    def test_listing_list_context_includes_marker_payload_for_geocoded_results(self):
         mapped_listing = self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
         self.create_listing(title="Unmapped listing", address="200 Beacon St")
         self.client.force_login(self.user)
@@ -488,12 +499,12 @@ assert.equal(capturedElements[0].style.transform ?? "", "");
         response = self.client.get(reverse("listings:listing_list"))
 
         self.assertContains(response, "data-listing-map-root")
-        map_data = response.context["map_data"]
-        self.assertEqual(len(map_data), 1)
-        self.assertEqual(map_data[0]["title"], mapped_listing.title)
-        self.assertEqual(map_data[0]["url"], reverse("listings:detail", args=[mapped_listing.pk]))
-        self.assertAlmostEqual(map_data[0]["lat"], 42.3355)
-        self.assertAlmostEqual(map_data[0]["lng"], -71.1685)
+        markers = response.context["listing_initial_payload"]["markers"]
+        self.assertEqual(len(markers), 1)
+        self.assertEqual(markers[0]["title"], mapped_listing.title)
+        self.assertEqual(markers[0]["url"], reverse("listings:detail", args=[mapped_listing.pk]))
+        self.assertAlmostEqual(markers[0]["lat"], 42.3355)
+        self.assertAlmostEqual(markers[0]["lng"], -71.1685)
 
     @override_settings(LISTING_MAPS_ENABLED=False)
     def test_listing_list_hides_map_when_feature_flag_is_disabled(self):
@@ -503,7 +514,7 @@ assert.equal(capturedElements[0].style.transform ?? "", "");
         response = self.client.get(reverse("listings:listing_list"))
 
         self.assertNotContains(response, "data-listing-map-root")
-        self.assertEqual(response.context["map_data"], [])
+        self.assertNotIn("listing_initial_payload", response.context)
 
     @override_settings(LISTING_MAPS_ENABLED=False)
     def test_listing_list_suppresses_map_first_contract_when_feature_flag_is_disabled(self):
@@ -521,7 +532,6 @@ assert.equal(capturedElements[0].style.transform ?? "", "");
         self.assertNotContains(response, "data-listings-map-shell")
         self.assertNotContains(response, "data-listings-live-error")
         self.assertNotContains(response, "maplibre-gl@5.18.0/dist/maplibre-gl.js")
-        self.assertNotContains(response, 'id="listing-map-data"')
         self.assertNotContains(response, "js/listings-map.js")
 
     @override_settings(LISTING_GEOAPIFY_API_KEY="", LISTING_GEOAPIFY_MAP_STYLE_URL="")

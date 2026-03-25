@@ -97,24 +97,6 @@ def _get_listing_for_user(user, pk):
     return get_object_or_404(accessible_listing_detail_queryset(user), pk=pk)
 
 
-def _listing_map_data(listings):
-    map_data = []
-    for listing in listings:
-        if not listing.has_map_coordinates:
-            continue
-        map_data.append(
-            {
-                "title": listing.title,
-                "address": listing.address,
-                "price": str(listing.price),
-                "lat": round(float(listing.latitude), 6),
-                "lng": round(float(listing.longitude), 6),
-                "url": reverse("listings:detail", args=[listing.pk]),
-            }
-        )
-    return map_data
-
-
 def _listing_initial_payload(listings, *, total):
     cards = [listing_card_payload(listing) for listing in listings]
     markers = [listing_marker_payload(listing) for listing in listings if listing.has_map_coordinates]
@@ -134,7 +116,7 @@ def _listing_map_style_url():
     if not api_key:
         return ""
 
-    return f"https://maps.geoapify.com/v1/styles/positron/style.json?apiKey={api_key}"
+    return f"https://maps.geoapify.com/v1/styles/osm-liberty/style.json?apiKey={api_key}"
 
 
 def _autocomplete_results_response(results, *, status=200):
@@ -156,6 +138,23 @@ def _consume_address_autocomplete_rate_limit(request):
         limit=getattr(settings, "LISTING_ADDRESS_AUTOCOMPLETE_RATE_LIMIT", 30),
         window_seconds=getattr(settings, "LISTING_ADDRESS_AUTOCOMPLETE_RATE_WINDOW_SECONDS", 60),
     )
+
+
+def _suggestion_context_label(suggestion):
+    locality = ""
+    if suggestion["city"] and suggestion["state"]:
+        locality = f"{suggestion['city']}, {suggestion['state']}"
+    else:
+        locality = suggestion["city"] or suggestion["state"]
+
+    if suggestion["postal_code"]:
+        locality = f"{locality} {suggestion['postal_code']}".strip()
+
+    if suggestion["country"] and suggestion["country"] != "US":
+        if locality:
+            return f"{locality}, {suggestion['country']}"
+        return suggestion["country"]
+    return locality
 
 
 @login_required
@@ -193,9 +192,7 @@ def address_suggestions(request):
         results.append(
             {
                 **suggestion,
-                "context_label": ", ".join(
-                    part for part in [suggestion["city"], suggestion["state"], suggestion["postal_code"]] if part
-                ),
+                "context_label": _suggestion_context_label(suggestion),
                 "token": sign_address_selection(suggestion),
             }
         )
@@ -212,7 +209,6 @@ def listing_list(request):
     listing_map_style_url = _listing_map_style_url() if map_requested else ""
     map_enabled = map_requested and bool(listing_map_style_url)
     listings_page_items = list(listings_page.object_list)
-    map_data = _listing_map_data(listings_page_items) if map_enabled else []
 
     context = {
         "listings": listings_page,
@@ -225,7 +221,6 @@ def listing_list(request):
         "has_listing_only_access": request.user.has_listing_only_access,
         "listing_maps_enabled": map_enabled,
         "listing_maps_unavailable": map_requested and not map_enabled,
-        "map_data": map_data,
     }
     if map_enabled:
         context["listing_initial_payload"] = _listing_initial_payload(

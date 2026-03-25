@@ -82,15 +82,7 @@ LISTING_GEOAPIFY_API_KEY=your-geoapify-api-key
 python manage.py migrate
 ```
 
-### 5. Seed demo data (optional)
-
-```bash
-python manage.py seed_demo_listings
-```
-
-This command is idempotent and creates demo users, listings, listing images, and sample conversations for local development.
-
-### 6. Run the app
+### 5. Run the app
 
 ```bash
 python manage.py runserver
@@ -104,7 +96,6 @@ Open `http://127.0.0.1:8000/`.
 python manage.py test
 ruff check .
 ruff format --check .
-python manage.py seed_demo_listings
 python manage.py set_user_role user@bc.edu admin
 ```
 

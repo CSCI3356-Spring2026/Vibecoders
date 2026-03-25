@@ -50,7 +50,16 @@ LEGAL_DOCUMENT_VERSION = os.getenv("LEGAL_DOCUMENT_VERSION", "2026-03-18").strip
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-LOCAL_DEBUG_COMMANDS = {"runserver", "test", "check", "migrate", "makemigrations", "shell", "createsuperuser"}
+LOCAL_DEBUG_COMMANDS = {
+    "runserver",
+    "test",
+    "check",
+    "migrate",
+    "makemigrations",
+    "showmigrations",
+    "shell",
+    "createsuperuser",
+}
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env_bool("DJANGO_DEBUG", any(command in sys.argv for command in LOCAL_DEBUG_COMMANDS))
@@ -211,7 +220,7 @@ LISTING_GEOAPIFY_AUTOCOMPLETE_URL = (
 LISTING_GEOAPIFY_MAP_STYLE_URL = os.getenv("LISTING_GEOAPIFY_MAP_STYLE_URL", "").strip()
 if not LISTING_GEOAPIFY_MAP_STYLE_URL and LISTING_GEOAPIFY_API_KEY:
     LISTING_GEOAPIFY_MAP_STYLE_URL = (
-        f"https://maps.geoapify.com/v1/styles/positron/style.json?apiKey={LISTING_GEOAPIFY_API_KEY}"
+        f"https://maps.geoapify.com/v1/styles/osm-liberty/style.json?apiKey={LISTING_GEOAPIFY_API_KEY}"
     )
 LISTING_ADDRESS_AUTOCOMPLETE_RATE_LIMIT = env_int("LISTING_ADDRESS_AUTOCOMPLETE_RATE_LIMIT", 30)
 LISTING_ADDRESS_AUTOCOMPLETE_RATE_WINDOW_SECONDS = env_int("LISTING_ADDRESS_AUTOCOMPLETE_RATE_WINDOW_SECONDS", 60)

@@ -173,7 +173,7 @@ export function createAddressPicker(form) {
             button.type = "button";
             button.className = "list-group-item list-group-item-action";
             button.innerHTML = `
-                <span class="d-block fw-semibold">${escapeHtml(result.label || "")}</span>
+                <span class="d-block fw-semibold">${escapeHtml(result.primary_label || result.label || "")}</span>
                 <span class="d-block small text-muted">${escapeHtml(result.context_label || "")}</span>
             `;
             button.addEventListener("click", () => {
