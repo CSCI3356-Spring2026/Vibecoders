@@ -4,7 +4,7 @@ from django.conf import settings
 def get_geoapify_autocomplete_config():
     api_key = (settings.LISTING_GEOAPIFY_API_KEY or "").strip()
     url = (settings.LISTING_GEOAPIFY_AUTOCOMPLETE_URL or "").strip()
-    if not settings.LISTING_MAPS_ENABLED or not api_key or not url:
+    if not api_key or not url:
         return {
             "enabled": False,
             "url": None,
@@ -19,6 +19,9 @@ def get_geoapify_autocomplete_config():
 
 
 def normalize_geoapify_suggestions(payload):
+    if not isinstance(payload, dict):
+        return []
+
     suggestions = []
     for result in payload.get("results") or []:
         normalized = _normalize_geoapify_result(result)
@@ -28,6 +31,9 @@ def normalize_geoapify_suggestions(payload):
 
 
 def _normalize_geoapify_result(result):
+    if not isinstance(result, dict):
+        return None
+
     place_id = _clean_text(result.get("place_id"))
     label = _clean_text(result.get("formatted"))
     address_line_1 = _clean_text(result.get("address_line1"))

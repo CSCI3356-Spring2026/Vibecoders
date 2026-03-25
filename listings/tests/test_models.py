@@ -407,6 +407,23 @@ class ListingGeocodingTests(ListingTestCase):
 
 class ListingAddressPrimitiveTests(ListingTestCase):
     @override_settings(
+        LISTING_MAPS_ENABLED=False,
+        LISTING_GEOAPIFY_API_KEY="geoapify-test-key",
+        LISTING_GEOAPIFY_AUTOCOMPLETE_URL="https://api.geoapify.com/v1/geocode/autocomplete",
+    )
+    def test_geoapify_config_is_enabled_without_map_browsing_ui(self):
+        config = get_geoapify_autocomplete_config()
+
+        self.assertEqual(
+            config,
+            {
+                "enabled": True,
+                "url": "https://api.geoapify.com/v1/geocode/autocomplete",
+                "api_key": "geoapify-test-key",
+            },
+        )
+
+    @override_settings(
         LISTING_MAPS_ENABLED=True,
         LISTING_GEOAPIFY_API_KEY="",
         LISTING_GEOAPIFY_AUTOCOMPLETE_URL="https://api.geoapify.com/v1/geocode/autocomplete",
@@ -499,3 +516,14 @@ class ListingAddressPrimitiveTests(ListingTestCase):
                 }
             ],
         )
+
+    def test_geoapify_normalization_returns_empty_list_for_malformed_payload_items(self):
+        payload = {
+            "results": [
+                "not-a-dict",
+                None,
+                {"formatted": "missing place id"},
+            ]
+        }
+
+        self.assertEqual(normalize_geoapify_suggestions(payload), [])
