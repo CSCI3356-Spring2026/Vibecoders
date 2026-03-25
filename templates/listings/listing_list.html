@@ -1,5 +1,20 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Listings | {{ site_product_name }}{% endblock %}
+
+{% block extra_css %}
+    {% if listing_maps_enabled %}
+        <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.css">
+    {% endif %}
+{% endblock %}
+
+{% block extra_js %}
+    {% if listing_maps_enabled %}
+        <script src="https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.js"></script>
+        {{ map_data|json_script:"listing-map-data" }}
+        <script src="{% static 'js/listings-map.js' %}"></script>
+    {% endif %}
+{% endblock %}
 
 {% block content %}
 <section class="app-page{% if listing_maps_enabled %} listing-page-shell{% endif %}"{% if listing_maps_enabled %} data-listings-page{% endif %}>
@@ -106,7 +121,7 @@
                         <div>
                             <h2 class="app-section-heading">Map</h2>
                             <p class="app-panel-copy">
-                                Price markers and card syncing land in the next task. This shell already exposes the full map surface.
+                                Explore available homes around campus and compare location, address, and price at a glance.
                             </p>
                         </div>
                         <div class="listing-map-meta">

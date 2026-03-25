@@ -20,12 +20,6 @@ function buildPopupNode(item) {
     price.textContent = `$${item.price}/mo`;
     wrapper.appendChild(price);
 
-    const link = document.createElement("a");
-    link.className = "listing-map-popup-link";
-    link.href = item.url;
-    link.textContent = "Open listing";
-    wrapper.appendChild(link);
-
     return wrapper;
 }
 
