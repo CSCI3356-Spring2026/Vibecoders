@@ -484,7 +484,7 @@ class ListingPageTests(ListingTestCase):
         self.assertEqual(listing.images.count(), 2)
 
     def test_listing_owner_can_edit_listing(self):
-        listing = self.create_listing()
+        listing = self.create_listing(latitude=42.3355, longitude=-71.1685)
         self.client.force_login(self.user)
 
         response = self.client.post(
@@ -536,6 +536,38 @@ class ListingPageTests(ListingTestCase):
         self.assertEqual(listing.title, "Updated listing")
         self.assertEqual(listing.latitude, 42.3355)
         self.assertEqual(listing.longitude, -71.1685)
+
+    @override_settings(
+        LISTING_GEOAPIFY_API_KEY="",
+        LISTING_GEOAPIFY_AUTOCOMPLETE_URL="https://api.geoapify.com/v1/geocode/autocomplete",
+    )
+    def test_listing_owner_cannot_bypass_verified_address_on_unchanged_edit_without_coordinates(self):
+        listing = self.create_listing(latitude=None, longitude=None)
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("listings:edit_listing", args=[listing.pk]),
+            {
+                "title": "Updated listing",
+                "address": listing.address,
+                "price": listing.price,
+                "lease_type": listing.lease_type,
+                "start_date": listing.start_date,
+                "end_date": listing.end_date,
+                "property_type": listing.property_type,
+                "description": listing.description,
+                "status": listing.status,
+            },
+        )
+
+        listing.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertFormError(
+            response.context["form"], "address", "Verified address lookup is unavailable right now. Try again later."
+        )
+        self.assertEqual(listing.title, "Test listing")
+        self.assertIsNone(listing.latitude)
+        self.assertIsNone(listing.longitude)
 
     def test_listing_owner_edit_rejects_changed_freeform_address_without_reselection(self):
         listing = self.create_listing(latitude=42.3355, longitude=-71.1685)

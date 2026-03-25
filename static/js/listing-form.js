@@ -470,19 +470,19 @@ function createAddressPicker(form) {
 
         if (!currentAddress) {
             selectedLabel = "";
-            clearSuggestions();
+            resetSuggestionsState();
             setStatus(defaultStatus);
             return;
         }
 
         if (currentAddress === initialAddress && !tokenInput.value.trim()) {
-            clearSuggestions();
+            resetSuggestionsState();
             setStatus(unchangedStatus);
             return;
         }
 
         if (currentAddress.length < 3) {
-            clearSuggestions();
+            resetSuggestionsState();
             setStatus(defaultStatus);
             return;
         }
@@ -496,6 +496,7 @@ function createAddressPicker(form) {
 
     async function fetchSuggestions(query) {
         if (!suggestionsUrl) {
+            resetSuggestionsState({ cancelDebounce: false });
             setStatus("Address suggestions are unavailable right now.");
             return;
         }
@@ -590,6 +591,16 @@ function createAddressPicker(form) {
     function clearSuggestions() {
         suggestionsNode.innerHTML = "";
         suggestionsNode.hidden = true;
+    }
+
+    function resetSuggestionsState({ cancelDebounce = true } = {}) {
+        if (cancelDebounce) {
+            window.clearTimeout(debounceId);
+        }
+        latestRequestId += 1;
+        activeController?.abort();
+        activeController = null;
+        clearSuggestions();
     }
 
     function setStatus(message) {

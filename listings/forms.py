@@ -259,6 +259,8 @@ class ListingForm(forms.ModelForm):
     def _is_unchanged_instance_address(self, cleaned_data):
         if not self.instance.pk:
             return False
+        if self.instance.latitude is None or self.instance.longitude is None:
+            return False
 
         visible_address = (cleaned_data.get("address") or "").strip()
         return bool(visible_address) and visible_address == (self.instance.address or "").strip()
