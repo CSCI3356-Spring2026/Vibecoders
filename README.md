@@ -73,6 +73,7 @@ Optional local configuration:
 SITE_PRODUCT_NAME=Padly
 SITE_COMPANY_NAME=Vibecoders
 STUDENT_EMAIL_DOMAINS=bc.edu
+LISTING_GEOAPIFY_API_KEY=your-geoapify-api-key
 ```
 
 ### 4. Apply migrations
@@ -118,9 +119,14 @@ Common environment variables:
 - `STUDENT_EMAIL_DOMAINS`: comma-separated student domains, defaults to `bc.edu`
 - `SITE_PRODUCT_NAME` / `SITE_COMPANY_NAME`: branding
 - `LEGAL_DOCUMENT_VERSION`: forces re-acceptance when legal text changes
-- `LISTING_MAPS_ENABLED`: enables the listings map UI, defaults to `true`
-- `LISTING_GEOCODING_ENABLED`: enables address geocoding on create/edit, defaults to `true` outside tests
-- `LISTING_GEOCODER_URL` / `LISTING_GEOCODER_USER_AGENT` / `LISTING_GEOCODER_TIMEOUT_SECONDS`: geocoder controls
+- `LISTING_MAPS_ENABLED`: enables the map-first listings UI; if enabled without a working map style URL, the page falls back to the conventional list view with an unavailable notice
+- `LISTING_GEOAPIFY_API_KEY`: required for verified address authoring and used to derive the default Geoapify map style URL
+- `LISTING_GEOAPIFY_AUTOCOMPLETE_URL`: optional override for the Geoapify autocomplete endpoint
+- `LISTING_GEOAPIFY_MAP_STYLE_URL`: optional MapLibre style override; if blank and `LISTING_GEOAPIFY_API_KEY` is set, Padly uses Geoapify's `osm-carto` style automatically
+- `LISTING_GEOCODING_ENABLED`: legacy geocoding helper toggle; verified address selection is now the create/edit source of truth
+- `LISTING_GEOCODER_URL` / `LISTING_GEOCODER_USER_AGENT` / `LISTING_GEOCODER_TIMEOUT_SECONDS`: legacy geocoder controls
+
+Listings authoring now fails closed when Geoapify autocomplete is not configured. Users must choose a verified suggestion on create, and freeform addresses are not accepted as a fallback.
 
 Production-only requirements:
 

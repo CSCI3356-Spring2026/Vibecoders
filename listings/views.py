@@ -44,6 +44,12 @@ ADDRESS_AUTOCOMPLETE_RATE_LIMIT_ERROR = {
     "message": "Too many address lookups. Wait a moment and try again.",
     "retryable": True,
 }
+ADDRESS_PICKER_DEFAULT_STATUS = "Search and choose a verified address suggestion before publishing."
+ADDRESS_PICKER_SAVED_STATUS = "Keeping the saved verified address."
+ADDRESS_PICKER_BLOCKED_STATUS = (
+    "Verified address search is unavailable right now. Listing authoring is blocked until Geoapify "
+    "autocomplete is configured."
+)
 
 
 def _workspace_destination(user):
@@ -59,6 +65,15 @@ def _selected_remove_image_ids(form):
 
 
 def _listing_form_context(form, *, is_edit, back_url_name, back_label, listing=None):
+    address_config = get_geoapify_autocomplete_config()
+    has_saved_verified_address = bool(listing and listing.has_map_coordinates and listing.address)
+    initial_address = (listing.address or "") if listing is not None else ""
+    address_picker_status_message = ADDRESS_PICKER_DEFAULT_STATUS
+    if not address_config["enabled"]:
+        address_picker_status_message = ADDRESS_PICKER_BLOCKED_STATUS
+    elif has_saved_verified_address:
+        address_picker_status_message = ADDRESS_PICKER_SAVED_STATUS
+
     context = {
         "form": form,
         "form_summary": form.build_summary(),
@@ -66,6 +81,12 @@ def _listing_form_context(form, *, is_edit, back_url_name, back_label, listing=N
         "is_edit": is_edit,
         "back_url_name": back_url_name,
         "back_label": back_label,
+        "address_picker_enabled": address_config["enabled"],
+        "address_picker_suggestions_url": reverse("listings:address_suggestions") if address_config["enabled"] else "",
+        "address_picker_initial_address": initial_address,
+        "address_picker_selected_label": initial_address if has_saved_verified_address else "",
+        "address_picker_initially_verified": has_saved_verified_address,
+        "address_picker_status_message": address_picker_status_message,
     }
     if listing is not None:
         context["listing"] = listing

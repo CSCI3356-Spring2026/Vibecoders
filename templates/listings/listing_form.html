@@ -107,12 +107,16 @@
                         </div>
                         <div class="row g-4">
                             {% include "listings/includes/form_field.html" with field=form.title wrapper_class="col-12" %}
-                            <div class="col-12 listing-form-field" data-address-picker data-address-suggestions-url="{% url 'listings:address_suggestions' %}" data-initial-address="{% if is_edit %}{{ listing.address }}{% endif %}">
+                            <div class="col-12 listing-form-field"
+                                 data-address-picker
+                                 data-address-picker-enabled="{{ address_picker_enabled|yesno:'true,false' }}"
+                                 data-address-suggestions-url="{{ address_picker_suggestions_url }}"
+                                 data-initial-address="{{ address_picker_initial_address }}"
+                                 data-selected-label="{{ address_picker_selected_label }}"
+                                 data-address-initially-verified="{{ address_picker_initially_verified|yesno:'true,false' }}">
                                 <label class="form-label fw-semibold listing-form-label" for="{{ form.address.id_for_label }}">{{ form.address.label }}</label>
                                 {{ form.address }}
-                                <p class="app-field-note listing-form-field-note" data-address-status>
-                                    Search and choose a verified address suggestion before publishing.
-                                </p>
+                                <p class="app-field-note listing-form-field-note" data-address-status aria-live="polite">{{ address_picker_status_message }}</p>
                                 <div class="list-group" data-address-suggestions hidden></div>
                                 {% for error in form.address.errors %}
                                     <div class="app-field-error">{{ error }}</div>

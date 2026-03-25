@@ -795,11 +795,44 @@ class ListingPageTests(ListingTestCase):
         response = self.client.get(reverse("listings:create_listing"))
 
         self.assertContains(response, "data-address-picker")
+        self.assertContains(response, 'data-address-picker-enabled="true"')
         self.assertContains(response, "data-address-input")
         self.assertContains(response, "data-address-token-input")
         self.assertContains(response, "data-address-suggestions")
         self.assertContains(response, "data-address-status")
         self.assertContains(response, reverse("listings:address_suggestions"))
+
+    @override_settings(
+        LISTING_GEOAPIFY_API_KEY="",
+        LISTING_GEOAPIFY_AUTOCOMPLETE_URL="https://api.geoapify.com/v1/geocode/autocomplete",
+    )
+    def test_create_listing_renders_blocking_address_picker_state_when_geoapify_is_unavailable(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:create_listing"))
+
+        self.assertContains(response, 'data-address-picker-enabled="false"')
+        self.assertContains(
+            response,
+            (
+                "Verified address search is unavailable right now. Listing authoring is blocked until Geoapify "
+                "autocomplete is configured."
+            ),
+        )
+        self.assertNotContains(response, reverse("listings:address_suggestions"))
+
+    def test_edit_listing_preserves_verified_address_picker_initial_selection_contract(self):
+        listing = self.create_listing(latitude=42.3355, longitude=-71.1685)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:edit_listing", args=[listing.pk]))
+
+        self.assertContains(response, "data-address-picker")
+        self.assertContains(response, 'data-address-picker-enabled="true"')
+        self.assertContains(response, f'data-initial-address="{listing.address}"')
+        self.assertContains(response, 'data-address-initially-verified="true"')
+        self.assertContains(response, f'data-selected-label="{listing.address}"')
+        self.assertContains(response, "Keeping the saved verified address.")
 
     def test_authenticated_user_can_create_listing(self):
         self.client.force_login(self.user)

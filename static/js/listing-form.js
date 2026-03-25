@@ -1,3 +1,5 @@
+import { createAddressPicker } from "./listings-address-picker.js";
+
 const root = document.querySelector("[data-listing-form-wizard]");
 
 if (root instanceof HTMLFormElement) {
@@ -5,7 +7,7 @@ if (root instanceof HTMLFormElement) {
 }
 
 function createListingWizard(form) {
-    createAddressPicker(form);
+    const addressPicker = createAddressPicker(form);
 
     const panels = Array.from(form.querySelectorAll("[data-step-panel]"))
         .map((panel) => ({
@@ -297,6 +299,10 @@ function createListingWizard(form) {
     }
 
     function isFieldFilled(fieldName) {
+        if (fieldName === "address" && addressPicker) {
+            return addressPicker.isSelectionComplete();
+        }
+
         const fields = getFields(fieldName);
         if (!fields.length) {
             return true;
@@ -424,195 +430,4 @@ function createListingWizard(form) {
             node.textContent = value;
         }
     }
-}
-
-function createAddressPicker(form) {
-    const pickerRoot = form.querySelector("[data-address-picker]");
-    const addressInput = form.querySelector("[data-address-input]");
-    const tokenInput = form.querySelector("[data-address-token-input]");
-    const suggestionsNode = form.querySelector("[data-address-suggestions]");
-    const statusNode = form.querySelector("[data-address-status]");
-
-    if (
-        !(pickerRoot instanceof HTMLElement) ||
-        !(addressInput instanceof HTMLInputElement) ||
-        !(tokenInput instanceof HTMLInputElement) ||
-        !(suggestionsNode instanceof HTMLElement) ||
-        !(statusNode instanceof HTMLElement)
-    ) {
-        return;
-    }
-
-    const suggestionsUrl = pickerRoot.dataset.addressSuggestionsUrl || "";
-    const initialAddress = (pickerRoot.dataset.initialAddress || "").trim();
-    const defaultStatus = "Search and choose a verified address suggestion before publishing.";
-    const unchangedStatus = "Keeping the saved verified address.";
-    const selectionRequiredMessage = "Select a verified address suggestion.";
-    let selectedLabel = tokenInput.value.trim() ? addressInput.value.trim() : "";
-    let debounceId = 0;
-    let activeController = null;
-    let latestRequestId = 0;
-
-    addressInput.addEventListener("input", handleAddressInput);
-    form.addEventListener("submit", handleSubmit);
-
-    if (initialAddress && addressInput.value.trim() === initialAddress && !tokenInput.value.trim()) {
-        setStatus(unchangedStatus);
-    }
-
-    function handleAddressInput() {
-        const currentAddress = addressInput.value.trim();
-
-        if (currentAddress !== selectedLabel) {
-            tokenInput.value = "";
-        }
-        addressInput.setCustomValidity("");
-
-        if (!currentAddress) {
-            selectedLabel = "";
-            resetSuggestionsState();
-            setStatus(defaultStatus);
-            return;
-        }
-
-        if (currentAddress === initialAddress && !tokenInput.value.trim()) {
-            resetSuggestionsState();
-            setStatus(unchangedStatus);
-            return;
-        }
-
-        if (currentAddress.length < 3) {
-            resetSuggestionsState();
-            setStatus(defaultStatus);
-            return;
-        }
-
-        setStatus("Looking up verified addresses...");
-        window.clearTimeout(debounceId);
-        debounceId = window.setTimeout(() => {
-            fetchSuggestions(currentAddress);
-        }, 250);
-    }
-
-    async function fetchSuggestions(query) {
-        if (!suggestionsUrl) {
-            resetSuggestionsState({ cancelDebounce: false });
-            setStatus("Address suggestions are unavailable right now.");
-            return;
-        }
-
-        latestRequestId += 1;
-        const requestId = latestRequestId;
-        activeController?.abort();
-        activeController = new AbortController();
-
-        try {
-            const url = new URL(suggestionsUrl, window.location.origin);
-            url.searchParams.set("q", query);
-            const response = await fetch(url, {
-                headers: { Accept: "application/json" },
-                signal: activeController.signal,
-            });
-            const payload = await response.json();
-
-            if (requestId !== latestRequestId) {
-                return;
-            }
-
-            if (!response.ok) {
-                clearSuggestions();
-                setStatus(payload.error?.message || "Address suggestions are unavailable right now.");
-                return;
-            }
-
-            renderSuggestions(payload.results || []);
-        } catch (error) {
-            if (error.name === "AbortError") {
-                return;
-            }
-            clearSuggestions();
-            setStatus("Address suggestions are unavailable right now.");
-        }
-    }
-
-    function renderSuggestions(results) {
-        suggestionsNode.innerHTML = "";
-
-        if (!results.length) {
-            suggestionsNode.hidden = true;
-            setStatus("No verified matches yet. Refine the address.");
-            return;
-        }
-
-        results.forEach((result) => {
-            const button = document.createElement("button");
-            button.type = "button";
-            button.className = "list-group-item list-group-item-action";
-            button.innerHTML = `
-                <span class="d-block fw-semibold">${escapeHtml(result.label || "")}</span>
-                <span class="d-block small text-muted">${escapeHtml(result.context_label || "")}</span>
-            `;
-            button.addEventListener("click", () => {
-                addressInput.value = result.label || "";
-                tokenInput.value = result.token || "";
-                selectedLabel = addressInput.value.trim();
-                addressInput.setCustomValidity("");
-                clearSuggestions();
-                setStatus("Verified address selected.");
-            });
-            suggestionsNode.append(button);
-        });
-
-        suggestionsNode.hidden = false;
-        setStatus("Choose a verified address suggestion.");
-    }
-
-    function handleSubmit(event) {
-        const currentAddress = addressInput.value.trim();
-        if (!currentAddress) {
-            return;
-        }
-
-        if (currentAddress === initialAddress && !tokenInput.value.trim()) {
-            return;
-        }
-
-        if (tokenInput.value.trim()) {
-            return;
-        }
-
-        event.preventDefault();
-        addressInput.setCustomValidity(selectionRequiredMessage);
-        addressInput.reportValidity();
-        addressInput.focus();
-        setStatus(selectionRequiredMessage);
-    }
-
-    function clearSuggestions() {
-        suggestionsNode.innerHTML = "";
-        suggestionsNode.hidden = true;
-    }
-
-    function resetSuggestionsState({ cancelDebounce = true } = {}) {
-        if (cancelDebounce) {
-            window.clearTimeout(debounceId);
-        }
-        latestRequestId += 1;
-        activeController?.abort();
-        activeController = null;
-        clearSuggestions();
-    }
-
-    function setStatus(message) {
-        statusNode.textContent = message;
-    }
-}
-
-function escapeHtml(value) {
-    return String(value)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#39;");
 }

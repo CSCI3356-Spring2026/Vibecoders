@@ -91,6 +91,9 @@ Important environment variables:
 - `SITE_COMPANY_NAME`
 - `LEGAL_DOCUMENT_VERSION`
 - `LISTING_MAPS_ENABLED`
+- `LISTING_GEOAPIFY_API_KEY`
+- `LISTING_GEOAPIFY_AUTOCOMPLETE_URL`
+- `LISTING_GEOAPIFY_MAP_STYLE_URL`
 - `LISTING_GEOCODING_ENABLED`
 - `LISTING_GEOCODER_URL`
 - `LISTING_GEOCODER_USER_AGENT`
@@ -101,6 +104,8 @@ Production notes:
 - When `DJANGO_DEBUG=false`, `DJANGO_SECRET_KEY` is required.
 - Production realtime messaging requires `CHANNEL_REDIS_URL`.
 - Production messaging must be served through `vibecoders.asgi`, not WSGI.
+- Verified listing authoring fails closed when Geoapify autocomplete is not configured.
+- Map-first listings require either `LISTING_GEOAPIFY_MAP_STYLE_URL` or `LISTING_GEOAPIFY_API_KEY` when `LISTING_MAPS_ENABLED=true`.
 - The repo defaults to SQLite and local media; true production scale needs a real database and shared/object-backed media storage.
 
 ## 4. Commands
@@ -290,6 +295,8 @@ Important invariants in `listings/models.py`:
 - Room/bath counts must stay valid.
 - Optional monetary fields and `distance_to_campus` must be non-negative.
 - Lease/status/property type values are DB-constrained.
+- Listing create/edit flows require a provider-verified address selection when Geoapify autocomplete is configured.
+- Listing authoring should fail closed if Geoapify autocomplete is unavailable; do not add a freeform-address fallback.
 
 Access rules:
 
