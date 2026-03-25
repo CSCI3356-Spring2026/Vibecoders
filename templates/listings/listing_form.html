@@ -107,7 +107,17 @@
                         </div>
                         <div class="row g-4">
                             {% include "listings/includes/form_field.html" with field=form.title wrapper_class="col-12" %}
-                            {% include "listings/includes/form_field.html" with field=form.address wrapper_class="col-12" %}
+                            <div class="col-12 listing-form-field" data-address-picker data-address-suggestions-url="{% url 'listings:address_suggestions' %}" data-initial-address="{% if is_edit %}{{ listing.address }}{% endif %}">
+                                <label class="form-label fw-semibold listing-form-label" for="{{ form.address.id_for_label }}">{{ form.address.label }}</label>
+                                {{ form.address }}
+                                <p class="app-field-note listing-form-field-note" data-address-status>
+                                    Search and choose a verified address suggestion before publishing.
+                                </p>
+                                <div class="list-group" data-address-suggestions hidden></div>
+                                {% for error in form.address.errors %}
+                                    <div class="app-field-error">{{ error }}</div>
+                                {% endfor %}
+                            </div>
                             {% include "listings/includes/form_field.html" with field=form.description wrapper_class="col-12" %}
                         </div>
                     </section>

@@ -152,6 +152,46 @@ class ListingPageTests(ListingTestCase):
         )
         requests_get.assert_called_once()
 
+    @override_settings(LISTING_ADDRESS_AUTOCOMPLETE_RATE_LIMIT=1, LISTING_ADDRESS_AUTOCOMPLETE_RATE_WINDOW_SECONDS=60)
+    @patch("requests.get")
+    def test_address_autocomplete_endpoint_throttles_repeat_requests(self, requests_get):
+        requests_get.return_value.json.return_value = {
+            "results": [
+                {
+                    "place_id": "geoapify-place-1",
+                    "formatted": "140 Commonwealth Ave, Chestnut Hill, MA 02467, United States",
+                    "address_line1": "140 Commonwealth Ave",
+                    "address_line2": "",
+                    "city": "Chestnut Hill",
+                    "state_code": "MA",
+                    "postcode": "02467",
+                    "country_code": "us",
+                    "lat": 42.3355,
+                    "lon": -71.1685,
+                }
+            ]
+        }
+        requests_get.return_value.raise_for_status.return_value = None
+        cache.clear()
+        self.client.force_login(self.user)
+
+        first_response = self.client.get(reverse("listings:address_suggestions"), {"q": "140 Commonwealth"})
+        second_response = self.client.get(reverse("listings:address_suggestions"), {"q": "140 Commonwealth"})
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 429)
+        self.assertEqual(
+            second_response.json(),
+            {
+                "results": [],
+                "error": {
+                    "message": "Too many address lookups. Wait a moment and try again.",
+                    "retryable": True,
+                },
+            },
+        )
+        requests_get.assert_called_once()
+
     def test_listing_pages_require_login(self):
         listing = self.create_listing()
 
@@ -354,6 +394,18 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, "data-step-next")
         self.assertContains(response, "Publishing flow")
 
+    def test_create_listing_renders_verified_address_picker_contract(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:create_listing"))
+
+        self.assertContains(response, "data-address-picker")
+        self.assertContains(response, "data-address-input")
+        self.assertContains(response, "data-address-token-input")
+        self.assertContains(response, "data-address-suggestions")
+        self.assertContains(response, "data-address-status")
+        self.assertContains(response, reverse("listings:address_suggestions"))
+
     def test_authenticated_user_can_create_listing(self):
         self.client.force_login(self.user)
         payload = self.listing_payload(
@@ -440,7 +492,6 @@ class ListingPageTests(ListingTestCase):
             {
                 "title": "Updated listing",
                 "address": listing.address,
-                "verified_address_token": self.make_verified_address_token(label=listing.address),
                 "price": listing.price,
                 "lease_type": listing.lease_type,
                 "start_date": listing.start_date,
@@ -456,6 +507,35 @@ class ListingPageTests(ListingTestCase):
         self.assertEqual(response["Location"], reverse("listings:detail", args=[listing.pk]))
         self.assertEqual(listing.title, "Updated listing")
         self.assertEqual(listing.status, "PENDING")
+
+    @override_settings(
+        LISTING_GEOAPIFY_API_KEY="",
+        LISTING_GEOAPIFY_AUTOCOMPLETE_URL="https://api.geoapify.com/v1/geocode/autocomplete",
+    )
+    def test_listing_owner_can_edit_listing_with_unchanged_address_without_token_when_lookup_is_unavailable(self):
+        listing = self.create_listing(latitude=42.3355, longitude=-71.1685)
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("listings:edit_listing", args=[listing.pk]),
+            {
+                "title": "Updated listing",
+                "address": listing.address,
+                "price": listing.price,
+                "lease_type": listing.lease_type,
+                "start_date": listing.start_date,
+                "end_date": listing.end_date,
+                "property_type": listing.property_type,
+                "description": listing.description,
+                "status": listing.status,
+            },
+        )
+
+        listing.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(listing.title, "Updated listing")
+        self.assertEqual(listing.latitude, 42.3355)
+        self.assertEqual(listing.longitude, -71.1685)
 
     def test_listing_owner_edit_rejects_changed_freeform_address_without_reselection(self):
         listing = self.create_listing(latitude=42.3355, longitude=-71.1685)

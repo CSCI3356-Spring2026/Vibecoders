@@ -15,6 +15,7 @@ from communications.services import (
     consume_message_send_rate_limit,
     start_listing_conversation,
 )
+from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix
 
 from .address_provider import get_geoapify_autocomplete_config, normalize_geoapify_suggestions
@@ -35,6 +36,10 @@ ADDRESS_AUTOCOMPLETE_MIN_QUERY_LENGTH = 3
 ADDRESS_AUTOCOMPLETE_MAX_RESULTS = 5
 ADDRESS_AUTOCOMPLETE_ERROR = {
     "message": "Address suggestions are temporarily unavailable. Try again.",
+    "retryable": True,
+}
+ADDRESS_AUTOCOMPLETE_RATE_LIMIT_ERROR = {
+    "message": "Too many address lookups. Wait a moment and try again.",
     "retryable": True,
 }
 
@@ -95,12 +100,27 @@ def _autocomplete_error_response():
     return JsonResponse({"results": [], "error": ADDRESS_AUTOCOMPLETE_ERROR}, status=503)
 
 
+def _autocomplete_rate_limit_response():
+    return JsonResponse({"results": [], "error": ADDRESS_AUTOCOMPLETE_RATE_LIMIT_ERROR}, status=429)
+
+
+def _consume_address_autocomplete_rate_limit(request):
+    return consume_rate_limit(
+        scope="listing-address-autocomplete",
+        identifier=request_rate_limit_identifier(request),
+        limit=getattr(settings, "LISTING_ADDRESS_AUTOCOMPLETE_RATE_LIMIT", 30),
+        window_seconds=getattr(settings, "LISTING_ADDRESS_AUTOCOMPLETE_RATE_WINDOW_SECONDS", 60),
+    )
+
+
 @login_required
 @require_GET
 def address_suggestions(request):
     query = (request.GET.get("q") or "").strip()
     if len(query) < ADDRESS_AUTOCOMPLETE_MIN_QUERY_LENGTH:
         return _autocomplete_results_response([])
+    if not _consume_address_autocomplete_rate_limit(request):
+        return _autocomplete_rate_limit_response()
 
     config = get_geoapify_autocomplete_config()
     if not config["enabled"]:

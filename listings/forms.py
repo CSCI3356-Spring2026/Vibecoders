@@ -4,7 +4,7 @@ from django import forms
 from django.core import signing
 
 from .address_provider import get_geoapify_autocomplete_config
-from .address_signing import sign_address_selection, unsign_address_selection
+from .address_signing import unsign_address_selection
 from .fields import ListingImageField
 from .models import Listing, ListingImage
 
@@ -142,6 +142,8 @@ class ListingForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["images"].widget.attrs.update({"accept": ".jpg,.jpeg,.png,.webp,image/*", "class": "form-control"})
+        self.fields["address"].widget.attrs.update({"autocomplete": "off", "data-address-input": ""})
+        self.fields["verified_address_token"].widget.attrs.update({"data-address-token-input": ""})
 
         for field in self.fields.values():
             field.help_text = ""
@@ -160,9 +162,6 @@ class ListingForm(forms.ModelForm):
             self.fields["common_utilities"].initial = common_utilities
             self.fields["other_utilities"].initial = other_utilities
             self.fields["remove_images"].queryset = self.instance.images.all()
-            verified_token = self._build_instance_verified_address_token()
-            if verified_token:
-                self.fields["verified_address_token"].initial = verified_token
         else:
             self.fields["remove_images"].widget = forms.MultipleHiddenInput()
 
@@ -194,25 +193,6 @@ class ListingForm(forms.ModelForm):
 
         return common, ", ".join(other)
 
-    def _build_instance_verified_address_token(self):
-        if not self.instance.pk or self.instance.latitude is None or self.instance.longitude is None:
-            return ""
-
-        return sign_address_selection(
-            {
-                "provider_id": f"listing:{self.instance.pk}",
-                "label": self.instance.address,
-                "address_line_1": self.instance.address,
-                "address_line_2": "",
-                "city": "",
-                "state": "",
-                "postal_code": "",
-                "country": "US",
-                "latitude": float(self.instance.latitude),
-                "longitude": float(self.instance.longitude),
-            }
-        )
-
     def clean(self):
         cleaned_data = super().clean()
         start_date = cleaned_data.get("start_date")
@@ -237,6 +217,14 @@ class ListingForm(forms.ModelForm):
         return cleaned_data
 
     def _clean_verified_address(self, cleaned_data):
+        if self._is_unchanged_instance_address(cleaned_data):
+            cleaned_data["trusted_address_selection"] = {
+                "address": self.instance.address,
+                "latitude": self.instance.latitude,
+                "longitude": self.instance.longitude,
+            }
+            return
+
         config = get_geoapify_autocomplete_config()
         if not config["enabled"]:
             self.add_error("address", "Verified address lookup is unavailable right now. Try again later.")
@@ -267,6 +255,13 @@ class ListingForm(forms.ModelForm):
             "latitude": trusted_selection.get("latitude"),
             "longitude": trusted_selection.get("longitude"),
         }
+
+    def _is_unchanged_instance_address(self, cleaned_data):
+        if not self.instance.pk:
+            return False
+
+        visible_address = (cleaned_data.get("address") or "").strip()
+        return bool(visible_address) and visible_address == (self.instance.address or "").strip()
 
     def save(self, commit=True):
         instance = super().save(commit=False)
