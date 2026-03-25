@@ -185,7 +185,9 @@ def listing_list(request):
     base_queryset = marketplace_listings_for_user(request.user)
     listings, active_filters = apply_listing_filters(base_queryset, request.GET)
     listings_page = get_page(listings, request.GET.get("page"), LISTINGS_PER_PAGE)
-    map_enabled = settings.LISTING_MAPS_ENABLED
+    map_requested = settings.LISTING_MAPS_ENABLED
+    listing_map_style_url = _listing_map_style_url() if map_requested else ""
+    map_enabled = map_requested and bool(listing_map_style_url)
     listings_page_items = list(listings_page.object_list)
     map_data = _listing_map_data(listings_page_items) if map_enabled else []
 
@@ -199,6 +201,7 @@ def listing_list(request):
         "move_in_filters": MOVE_IN_FILTERS,
         "has_listing_only_access": request.user.has_listing_only_access,
         "listing_maps_enabled": map_enabled,
+        "listing_maps_unavailable": map_requested and not map_enabled,
         "map_data": map_data,
     }
     if map_enabled:
@@ -211,7 +214,7 @@ def listing_list(request):
             "query": active_filters["q"],
         }
         context["listing_search_url"] = reverse("listings:search")
-        context["listing_map_style_url"] = _listing_map_style_url()
+        context["listing_map_style_url"] = listing_map_style_url
         context["listing_map_default_lat"] = BOSTON_COLLEGE_LATITUDE
         context["listing_map_default_lng"] = BOSTON_COLLEGE_LONGITUDE
     return render(request, "listings/listing_list.html", context)

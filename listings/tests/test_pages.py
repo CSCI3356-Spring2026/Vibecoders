@@ -365,6 +365,21 @@ class ListingPageTests(ListingTestCase):
         self.assertNotContains(response, 'id="listing-map-data"')
         self.assertNotContains(response, "js/listings-map.js")
 
+    @override_settings(LISTING_GEOAPIFY_API_KEY="", LISTING_GEOAPIFY_MAP_STYLE_URL="")
+    def test_listing_list_falls_back_when_map_style_configuration_is_missing(self):
+        self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["listing_maps_enabled"])
+        self.assertTrue(response.context["listing_maps_unavailable"])
+        self.assertNotContains(response, "data-listings-page")
+        self.assertNotContains(response, "maplibre-gl@5.18.0/dist/maplibre-gl.js")
+        self.assertNotContains(response, "js/listings-map.js")
+        self.assertContains(response, "Map view is unavailable until Geoapify map configuration is set.")
+
     def test_live_search_filters_results_to_current_bounds(self):
         inside = self.create_listing(title="Inside bounds", latitude=42.3355, longitude=-71.1685)
         self.create_listing(title="Outside bounds", latitude=42.0, longitude=-71.9)
