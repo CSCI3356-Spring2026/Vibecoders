@@ -1,6 +1,6 @@
-from django.db.models import Q
+from django.db.models import BooleanField, Exists, OuterRef, Q, Value
 
-from .models import Listing
+from .models import Listing, ListingFavorite
 
 
 def marketplace_listings_for_user(user):
@@ -33,3 +33,11 @@ def messageable_listings_for_user(user):
     if not getattr(user, "is_authenticated", False):
         return Listing.objects.none()
     return accessible_listing_detail_queryset(user)
+
+
+def with_favorite_state(queryset, user):
+    if not getattr(user, "is_authenticated", False):
+        return queryset.annotate(is_favorited=Value(False, output_field=BooleanField()))
+
+    favorites = ListingFavorite.objects.filter(user=user, listing_id=OuterRef("pk"))
+    return queryset.annotate(is_favorited=Exists(favorites))

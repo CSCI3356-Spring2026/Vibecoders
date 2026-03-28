@@ -337,6 +337,15 @@
     transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
 }
 
+.listing-card-shell {
+    position: relative;
+    display: flex;
+}
+
+.listing-card-shell .listing-card {
+    width: 100%;
+}
+
 .listing-card::before {
     content: "";
     position: absolute;
@@ -410,6 +419,47 @@
     letter-spacing: 0.1em;
     text-transform: uppercase;
     z-index: 2;
+}
+
+.listing-favorite-form {
+    position: absolute;
+    top: 0.75rem;
+    left: 0.75rem;
+    z-index: 3;
+}
+
+.listing-favorite-form-detail {
+    position: static;
+    margin-top: 0.85rem;
+}
+
+.listing-favorite-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.32rem 0.65rem;
+    border: 1px solid rgba(var(--gray-700-rgb), 0.16);
+    border-radius: 999px;
+    background: rgba(var(--white-rgb), 0.92);
+    color: var(--gray-900);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease, background-color 140ms ease;
+}
+
+.listing-favorite-button:hover,
+.listing-favorite-button:focus-visible {
+    border-color: rgba(var(--accent-rgb), 0.32);
+    box-shadow: 0 6px 14px rgba(var(--accent-rgb), 0.18);
+    transform: translateY(-1px);
+}
+
+.listing-favorite-button.is-favorited {
+    border-color: var(--border-accent);
+    background: rgba(var(--accent-rgb), 0.16);
+    color: var(--accent-ink);
 }
 
 .listing-card-body {

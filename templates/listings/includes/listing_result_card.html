@@ -1,41 +1,59 @@
 {% url 'listings:detail' listing.pk as detail_url %}
-<a
-    class="listing-card"
-    href="{{ detail_url }}"
-    data-listing-card
-    data-listing-id="{{ listing.id }}"
-    data-listing-detail-url="{{ detail_url }}"
-    data-listing-selected="false"
->
-    <div class="listing-card-media">
-        {% if listing.primary_image %}
-            <img src="{{ listing.primary_image.versioned_url }}" alt="{{ listing.title }}">
-        {% else %}
-            <div class="listing-card-placeholder">
-                <span>{{ listing.get_property_type_display }}</span>
-            </div>
-        {% endif %}
-        <div class="listing-card-badge">{{ listing.get_lease_type_display }}</div>
-    </div>
-    <div class="listing-card-body">
-        <div class="listing-card-price-row">
-            <span class="listing-card-price">${{ listing.price|floatformat:0 }}/mo</span>
-            <span class="listing-card-status {% if listing.status == 'AVAILABLE' %}is-available{% elif listing.status == 'PENDING' %}is-pending{% else %}is-taken{% endif %}">{{ listing.get_status_display }}</span>
-        </div>
-        <h3 class="listing-card-title">{{ listing.title }}</h3>
-        <p class="listing-card-address">{{ listing.address }}</p>
-        <div class="listing-card-specs">
-            <span>{{ listing.rooms }} bd</span>
-            <span>{{ listing.bathrooms }} ba</span>
-            {% if listing.sq_ft %}
-                <span>{{ listing.sq_ft }} sqft</span>
+<div class="listing-card-shell">
+    <a
+        class="listing-card"
+        href="{{ detail_url }}"
+        data-listing-card
+        data-listing-id="{{ listing.id }}"
+        data-listing-detail-url="{{ detail_url }}"
+        data-listing-selected="false"
+    >
+        <div class="listing-card-media">
+            {% if listing.primary_image %}
+                <img src="{{ listing.primary_image.versioned_url }}" alt="{{ listing.title }}">
+            {% else %}
+                <div class="listing-card-placeholder">
+                    <span>{{ listing.get_property_type_display }}</span>
+                </div>
             {% endif %}
+            <div class="listing-card-badge">{{ listing.get_lease_type_display }}</div>
         </div>
-        {% if listing.description %}
-            <p class="listing-card-summary">{{ listing.description|truncatewords:14 }}</p>
-        {% endif %}
-        <div class="listing-card-owner">
-            {% include "listings/includes/owner_meta.html" with listing=listing size_class="user-avatar-sm" %}
+        <div class="listing-card-body">
+            <div class="listing-card-price-row">
+                <span class="listing-card-price">${{ listing.price|floatformat:0 }}/mo</span>
+                <span class="listing-card-status {% if listing.status == 'AVAILABLE' %}is-available{% elif listing.status == 'PENDING' %}is-pending{% else %}is-taken{% endif %}">{{ listing.get_status_display }}</span>
+            </div>
+            <h3 class="listing-card-title">{{ listing.title }}</h3>
+            <p class="listing-card-address">{{ listing.address }}</p>
+            <div class="listing-card-specs">
+                <span>{{ listing.rooms }} bd</span>
+                <span>{{ listing.bathrooms }} ba</span>
+                {% if listing.sq_ft %}
+                    <span>{{ listing.sq_ft }} sqft</span>
+                {% endif %}
+            </div>
+            {% if listing.description %}
+                <p class="listing-card-summary">{{ listing.description|truncatewords:14 }}</p>
+            {% endif %}
+            <div class="listing-card-owner">
+                {% include "listings/includes/owner_meta.html" with listing=listing size_class="user-avatar-sm" %}
+            </div>
         </div>
-    </div>
-</a>
+    </a>
+    <form
+        class="listing-favorite-form"
+        method="post"
+        action="{% url 'listings:toggle_favorite' listing.pk %}"
+    >
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button
+            class="listing-favorite-button{% if listing.is_favorited %} is-favorited{% endif %}"
+            type="submit"
+            data-favorite-button
+            aria-pressed="{% if listing.is_favorited %}true{% else %}false{% endif %}"
+        >
+            {% if listing.is_favorited %}Saved{% else %}Save{% endif %}
+        </button>
+    </form>
+</div>

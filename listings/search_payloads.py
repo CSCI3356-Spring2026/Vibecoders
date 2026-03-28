@@ -26,6 +26,8 @@ def listing_card_payload(listing):
     return {
         "id": listing.id,
         "url": reverse("listings:detail", args=[listing.pk]),
+        "favorite_url": reverse("listings:toggle_favorite", args=[listing.pk]),
+        "is_favorited": bool(getattr(listing, "is_favorited", False)),
         "title": listing.title,
         "address": listing.address,
         "price": f"${listing.price:.0f}/mo",
