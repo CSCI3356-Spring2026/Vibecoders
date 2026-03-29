@@ -55,6 +55,9 @@
                     </p>
                 </div>
                 <div class="listing-browser-actions">
+                    {% if not has_listing_only_access %}
+                        <a class="btn btn-outline-secondary" href="{% url 'listings:group_match' %}">Group match</a>
+                    {% endif %}
                     <a class="btn btn-brand" href="{% url 'listings:create_listing' %}">New listing</a>
                     {% if has_listing_only_access %}
                         <a class="btn btn-outline-secondary" href="{% url 'users:posts' %}">Open posts</a>
@@ -344,6 +347,11 @@
                                             {% endif %}
                                         </p>
                                     </div>
+                                    {% if not has_listing_only_access %}
+                                        <div class="listing-panel-actions">
+                                            <a class="btn btn-outline-secondary btn-sm" href="{% url 'listings:group_match' %}">Group match</a>
+                                        </div>
+                                    {% endif %}
                                 </div>
 
                                 {% if has_listing_only_access %}
