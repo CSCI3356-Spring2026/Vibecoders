@@ -239,6 +239,7 @@
                         <div class="listing-wizard-grid listing-wizard-grid-1">
                             <div class="listing-form-field">
                                 <label class="form-label fw-semibold listing-form-label" for="{{ form.images.id_for_label }}">{{ form.images.label|default:"Upload photos" }}</label>
+                                <div class="app-field-note">At least one photo is required to publish or keep a listing active.</div>
                                 {{ form.images }}
                                 {% for error in form.images.errors %}
                                     <div class="app-field-error">{{ error }}</div>
