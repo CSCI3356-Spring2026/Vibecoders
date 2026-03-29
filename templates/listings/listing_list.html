@@ -18,6 +18,12 @@
     {% endif %}
 {% endblock %}
 
+{% block global_messages %}
+    {% if not listing_maps_enabled %}
+        {{ block.super }}
+    {% endif %}
+{% endblock %}
+
 {% block content %}
     {% if listing_maps_enabled %}
         <section
@@ -30,121 +36,146 @@
             <form class="listing-favorite-probe" method="post" action="#" hidden aria-hidden="true">
                 {% csrf_token %}
             </form>
-            <div class="listing-browser-topbar">
-                <div class="listing-browser-title-group">
-                    <p class="listing-browser-kicker">Listings</p>
-                    <div class="listing-browser-title-row">
-                        <h1 class="listing-browser-title">{% if has_listing_only_access %}Your listings{% else %}Boston College housing map{% endif %}</h1>
+            <section class="listing-browser-shell" data-listings-browser-shell>
+                <aside class="listing-browser-rail">
+                    <div class="listing-browser-market">
+                        <p class="listing-browser-kicker">Listings</p>
+                        <h1 class="listing-browser-title">
+                            {% if has_listing_only_access %}
+                                Your listings
+                            {% else %}
+                                Boston College rentals
+                            {% endif %}
+                        </h1>
+                        <p class="listing-browser-count">{{ listings_total }} result{{ listings_total|pluralize }}</p>
+                        <p class="listing-browser-subtitle">
+                            {% if has_listing_only_access %}
+                                Manage your inventory with a fixed browse shell and live map context.
+                            {% else %}
+                                Redfin-style browsing: keep the map in view, refine from the left rail, and scan homes fast.
+                            {% endif %}
+                        </p>
                         <div class="listing-browser-meta">
-                            <span class="app-meta-chip app-meta-chip-primary">{{ listings_total }} result{{ listings_total|pluralize }}</span>
+                            <span class="app-meta-chip app-meta-chip-primary">
+                                {% if active_filters.q %}Query: {{ active_filters.q }}{% else %}Live map search{% endif %}
+                            </span>
                             <span class="app-meta-chip app-meta-chip-secondary">
-                                {% if active_filters.q or active_filters.max_price or active_filters.lease_type or active_filters.available_by or active_filters.saved %}
-                                    Live filters on
+                                {% if active_filters.max_price or active_filters.lease_type or active_filters.available_by or active_filters.saved %}
+                                    Filters applied
                                 {% else %}
-                                    {% if has_listing_only_access %}Your inventory{% else %}Map-first browse{% endif %}
+                                    {% if has_listing_only_access %}Inventory view{% else %}Map + list synced{% endif %}
                                 {% endif %}
                             </span>
                         </div>
                     </div>
-                    <p class="listing-browser-subtitle">
-                        {% if has_listing_only_access %}
-                            Manage your inventory in a live map workspace.
-                        {% else %}
-                            Pan, zoom, and refine filters to keep the map and results list in sync.
+
+                    <div class="listing-browser-actions">
+                        {% if not has_listing_only_access %}
+                            <a class="btn btn-outline-secondary" href="{% url 'listings:group_match' %}">Group match</a>
                         {% endif %}
-                    </p>
-                </div>
-                <div class="listing-browser-actions">
-                    {% if not has_listing_only_access %}
-                        <a class="btn btn-outline-secondary" href="{% url 'listings:group_match' %}">Group match</a>
-                    {% endif %}
-                    <a class="btn btn-brand" href="{% url 'listings:create_listing' %}">New listing</a>
-                    {% if has_listing_only_access %}
-                        <a class="btn btn-outline-secondary" href="{% url 'users:posts' %}">Open posts</a>
-                    {% endif %}
-                </div>
-            </div>
+                        <a class="btn btn-brand" href="{% url 'listings:create_listing' %}">New listing</a>
+                        {% if has_listing_only_access %}
+                            <a class="btn btn-outline-secondary" href="{% url 'users:posts' %}">Open posts</a>
+                        {% endif %}
+                    </div>
 
-            <form
-                class="listing-filter-shell"
-                method="get"
-                action="{% url 'listings:listing_list' %}"
-                data-listings-filters
-                data-listings-filter-form
-            >
-                <div class="listing-filter-shell-copy">
-                    <div>
-                        <p class="listing-filter-kicker">Filters</p>
-                        <h2 class="listing-filter-title">Results refresh automatically as you type and move the map.</h2>
-                    </div>
-                    <a class="listing-reset-link" href="{% url 'listings:listing_list' %}">Reset</a>
-                </div>
+                    <form
+                        class="listing-filter-shell"
+                        method="get"
+                        action="{% url 'listings:listing_list' %}"
+                        data-listings-filters
+                        data-listings-filter-form
+                    >
+                        <div class="listing-filter-shell-copy">
+                            <div>
+                                <p class="listing-filter-kicker">Filters</p>
+                                <h2 class="listing-filter-title">Refine the homes in view.</h2>
+                            </div>
+                            <a class="listing-reset-link" href="{% url 'listings:listing_list' %}">Reset</a>
+                        </div>
 
-                <div class="listing-filter-grid">
-                    <div class="listing-filter-field listing-filter-field-search">
-                        <label class="form-label" for="filter-query">Search</label>
-                        <input
-                            class="form-control"
-                            id="filter-query"
-                            type="search"
-                            name="q"
-                            value="{{ active_filters.q }}"
-                            placeholder="Address, neighborhood, or title"
-                        >
-                    </div>
-                    <div class="listing-filter-field">
-                        <label class="form-label" for="filter-price">Max price</label>
-                        <select class="form-select" id="filter-price" name="max_price">
-                            {% for value, label in max_price_filters %}
-                                <option value="{{ value }}"{% if active_filters.max_price == value %} selected{% endif %}>
-                                    {{ label }}
-                                </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="listing-filter-field">
-                        <label class="form-label" for="filter-lease">Lease type</label>
-                        <select class="form-select" id="filter-lease" name="lease_type">
-                            <option value="">Any lease type</option>
-                            {% for value, label in lease_type_filters %}
-                                <option value="{{ value }}"{% if active_filters.lease_type == value %} selected{% endif %}>
-                                    {{ label }}
-                                </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="listing-filter-field">
-                        <label class="form-label" for="filter-date">Available by</label>
-                        <select class="form-select" id="filter-date" name="available_by">
-                            {% for value, label in move_in_filters %}
-                                <option value="{{ value }}"{% if active_filters.available_by == value %} selected{% endif %}>
-                                    {{ label }}
-                                </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="listing-filter-field listing-filter-field-checkbox">
-                        <div class="form-check">
-                            <input
-                                class="form-check-input"
-                                type="checkbox"
-                                id="filter-saved"
-                                name="saved"
-                                value="1"
-                                {% if active_filters.saved %}checked{% endif %}
-                            >
-                            <label class="form-check-label" for="filter-saved">Saved listings</label>
+                        <div class="listing-filter-grid">
+                            <div class="listing-filter-field listing-filter-field-search">
+                                <label class="form-label" for="filter-query">Search</label>
+                                <input
+                                    class="form-control"
+                                    id="filter-query"
+                                    type="search"
+                                    name="q"
+                                    value="{{ active_filters.q }}"
+                                    placeholder="Address, neighborhood, or title"
+                                >
+                            </div>
+                            <div class="listing-filter-field">
+                                <label class="form-label" for="filter-price">Max price</label>
+                                <select class="form-select" id="filter-price" name="max_price">
+                                    {% for value, label in max_price_filters %}
+                                        <option value="{{ value }}"{% if active_filters.max_price == value %} selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="listing-filter-field">
+                                <label class="form-label" for="filter-lease">Lease type</label>
+                                <select class="form-select" id="filter-lease" name="lease_type">
+                                    <option value="">Any lease type</option>
+                                    {% for value, label in lease_type_filters %}
+                                        <option value="{{ value }}"{% if active_filters.lease_type == value %} selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="listing-filter-field">
+                                <label class="form-label" for="filter-date">Available by</label>
+                                <select class="form-select" id="filter-date" name="available_by">
+                                    {% for value, label in move_in_filters %}
+                                        <option value="{{ value }}"{% if active_filters.available_by == value %} selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="listing-filter-field listing-filter-field-checkbox">
+                                <div class="form-check">
+                                    <input
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        id="filter-saved"
+                                        name="saved"
+                                        value="1"
+                                        {% if active_filters.saved %}checked{% endif %}
+                                    >
+                                    <label class="form-check-label" for="filter-saved">Saved listings</label>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+
+                    <div class="listing-browser-footer">
+                        <a class="listing-browser-footer-brand" href="{% url 'core:landing' %}">
+                            {% include "includes/site_mark.html" with mark_class="site-brand-mark" %}
+                            <span class="listing-browser-footer-brand-copy">
+                                <span class="site-brand-name">{{ site_product_name }}</span>
+                                <span class="site-brand-meta">by {{ site_company_name }}</span>
+                            </span>
+                        </a>
+                        <p class="listing-browser-footer-copy">Campus housing search with a fixed map workspace.</p>
+                        <div class="listing-browser-footer-links">
+                            <a href="{% url 'core:landing' %}">Home</a>
+                            <a href="{% url 'communications:messages' %}">Messages</a>
+                            <a href="{% url 'core:terms' %}">Terms</a>
+                            <a href="{% url 'core:privacy' %}">Privacy</a>
                         </div>
                     </div>
-                </div>
-            </form>
+                </aside>
 
-            <section class="listing-browser-shell" data-listings-browser-shell>
                 <aside class="listing-results-pane" data-listings-results data-listings-results-pane>
                     <div class="listing-results-pane-head">
                         <div>
                             <p class="listing-results-kicker">Results</p>
-                            <h2 class="listing-results-title">Visible listings</h2>
+                            <h2 class="listing-results-title">Homes in this map view</h2>
                             <p class="listing-results-summary" data-listings-results-summary>
                                 {% if active_filters.q %}
                                     {{ listings_total }} result{{ listings_total|pluralize }} for "{{ active_filters.q }}".
@@ -153,12 +184,21 @@
                                 {% endif %}
                             </p>
                         </div>
+                        <div class="listing-results-head-note">Scroll the list, pan the map, and the workspace stays locked.</div>
                     </div>
 
                     {% if has_listing_only_access %}
                         <div class="alert alert-warning listing-results-alert" role="alert">
                             This account can manage its own listings only.
                         </div>
+                    {% endif %}
+
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags|default:'info' }}{% endif %} listing-results-alert" role="alert">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
                     {% endif %}
 
                     <div class="alert alert-danger listing-live-error" role="alert" hidden data-listings-live-error></div>
@@ -191,7 +231,7 @@
                     <div class="listing-map-pane-head">
                         <div>
                             <p class="listing-map-kicker">Map</p>
-                            <h2 class="listing-map-title">Explore the market spatially.</h2>
+                            <h2 class="listing-map-title">Map stays in focus while you browse.</h2>
                         </div>
                         <span class="app-meta-chip app-meta-chip-neutral">Boston College area</span>
                     </div>

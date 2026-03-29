@@ -280,9 +280,12 @@ class UserPageTests(TestCase):
         self.assertEqual(dashboard_response.status_code, 200)
         self.assertContains(dashboard_response, "https://example.com/avatar.jpg")
         self.assertContains(dashboard_response, self.user.display_role)
-        self.assertContains(dashboard_response, "Permissions")
-        self.assertContains(dashboard_response, "Account")
-        self.assertContains(dashboard_response, self.user.display_role)
+        self.assertContains(dashboard_response, "Open document library")
+        self.assertContains(dashboard_response, "Workspace")
+        self.assertNotContains(dashboard_response, "Permissions")
+        self.assertNotContains(dashboard_response, "Email verification")
+        self.assertNotContains(dashboard_response, "Student domains")
+        self.assertNotContains(dashboard_response, "Admin access")
 
     def test_stale_legal_acceptance_logs_user_out_until_reaccepted(self):
         self.user.terms_accepted_at = timezone.now()
@@ -489,6 +492,7 @@ assert.equal(root.classList.contains("is-open"), false);
 
         self.assertContains(response, realtor.display_role)
         self.assertContains(response, "Listing access only")
+        self.assertContains(response, "Open document library")
 
     def test_messages_page_renders_accessible_conversation(self):
         listing = self.user.listings.create(

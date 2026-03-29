@@ -1,0 +1,213 @@
+.account-dashboard .container {
+    max-width: 1240px;
+}
+
+.account-hero-shell {
+    padding: 1.25rem;
+    background:
+        radial-gradient(circle at top right, rgba(var(--secondary-rgb), 0.08), transparent 28%),
+        linear-gradient(180deg, rgba(var(--white-rgb), 1), rgba(var(--gray-100-rgb), 0.94));
+}
+
+.account-hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.9fr);
+    gap: 1rem;
+    align-items: stretch;
+}
+
+.account-hero-main {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: 0;
+}
+
+.account-hero-copy {
+    max-width: 44rem;
+    margin: 0;
+    color: var(--text-default);
+    font-size: 0.96rem;
+    line-height: 1.7;
+}
+
+.account-hero-actions {
+    align-items: center;
+}
+
+.account-library-spotlight {
+    display: flex;
+    flex-direction: column;
+    gap: 0.95rem;
+    min-width: 0;
+    padding: 1.15rem;
+    border: 1px solid rgba(var(--gray-700-rgb), 0.14);
+    border-radius: 1rem;
+    background:
+        linear-gradient(145deg, rgba(var(--primary-rgb), 0.09), rgba(var(--white-rgb), 0.98) 48%),
+        var(--white);
+    box-shadow: 0 16px 32px rgba(var(--gray-900-rgb), 0.06);
+}
+
+.account-library-kicker {
+    margin: 0;
+    color: var(--primary-600);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.account-library-title {
+    margin: 0;
+    color: var(--text-strong);
+    font-size: 1.45rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    line-height: 1.05;
+}
+
+.account-library-copy {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    line-height: 1.65;
+}
+
+.account-library-metric {
+    display: flex;
+    align-items: baseline;
+    gap: 0.55rem;
+    padding: 0.85rem 0.95rem;
+    border: 1px solid rgba(var(--gray-700-rgb), 0.1);
+    border-radius: 0.9rem;
+    background: rgba(var(--white-rgb), 0.9);
+}
+
+.account-library-metric strong {
+    color: var(--primary-600);
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.05em;
+    line-height: 1;
+}
+
+.account-library-metric span {
+    color: var(--gray-700);
+    font-size: 0.86rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.account-library-latest {
+    display: flex;
+    flex-direction: column;
+    gap: 0.22rem;
+    padding: 0.95rem 1rem;
+    border: 1px solid rgba(var(--gray-700-rgb), 0.1);
+    border-radius: 0.9rem;
+    background: rgba(var(--white-rgb), 0.86);
+}
+
+.account-library-latest.is-empty {
+    background: rgba(var(--gray-100-rgb), 0.78);
+}
+
+.account-library-latest-label {
+    color: var(--gray-500);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.account-library-latest-title {
+    color: var(--gray-900);
+    font-size: 0.98rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.account-library-latest-meta {
+    color: var(--gray-700);
+    font-size: 0.82rem;
+    line-height: 1.55;
+}
+
+.account-library-actions {
+    display: grid;
+    gap: 0.6rem;
+    margin-top: auto;
+}
+
+.account-stat-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.account-dashboard-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 0.8fr);
+    gap: 1.5rem;
+    align-items: start;
+}
+
+.account-safety-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.account-safety-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.account-safety-actions {
+    margin-top: auto;
+}
+
+.account-dashboard .app-compact-item:hover {
+    border-color: rgba(var(--primary-rgb), 0.2);
+    box-shadow: 0 10px 20px rgba(var(--gray-900-rgb), 0.04);
+}
+
+@media (max-width: 1199px) {
+    .account-hero-grid,
+    .account-dashboard-grid,
+    .account-stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .account-hero-grid > *:first-child {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 991px) {
+    .account-hero-grid,
+    .account-dashboard-grid,
+    .account-stat-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .account-hero-shell {
+        padding: 1.1rem;
+    }
+}
+
+@media (max-width: 767px) {
+    .account-library-spotlight,
+    .account-hero-shell {
+        border-radius: 0.9rem;
+    }
+
+    .account-library-title {
+        font-size: 1.25rem;
+    }
+
+    .account-library-metric strong {
+        font-size: 1.75rem;
+    }
+}

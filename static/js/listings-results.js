@@ -114,12 +114,17 @@ function buildCardMarkup(card, { csrfToken, nextUrl }) {
             >
                 <div class="listing-card-media">
                     ${media}
-                    <div class="listing-card-badge">${escapeHtml(card.lease_type)}</div>
                 </div>
                 <div class="listing-card-body">
+                    <div class="listing-card-topline">
+                        <div class="listing-card-badges">
+                            <span class="listing-card-badge">${escapeHtml(card.lease_type)}</span>
+                            <span class="listing-card-chip">${escapeHtml(card.property_type)}</span>
+                        </div>
+                        <span class="listing-card-status is-${escapeHtml(card.status.state)}">${escapeHtml(card.status.label)}</span>
+                    </div>
                     <div class="listing-card-price-row">
                         <span class="listing-card-price">${escapeHtml(card.price)}</span>
-                        <span class="listing-card-status is-${escapeHtml(card.status.state)}">${escapeHtml(card.status.label)}</span>
                     </div>
                     <h3 class="listing-card-title">${escapeHtml(card.title)}</h3>
                     <p class="listing-card-address">${escapeHtml(card.address)}</p>

@@ -61,7 +61,6 @@ def _workspace_summary(user):
         "can_browse_marketplace": user.can_browse_marketplace,
         "can_start_listing_conversations": user.can_start_listing_conversations,
         "has_listing_only_access": user.has_listing_only_access,
-        "student_email_domains": ", ".join(sorted(user.student_email_domains())),
         **conversation_summary_for_user(user),
     }
 

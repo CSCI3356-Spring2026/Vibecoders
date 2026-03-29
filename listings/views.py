@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 
 import requests
@@ -279,6 +280,31 @@ def _apply_listing_ui_flags(listings, user):
     return listings
 
 
+def _split_listing_detail_items(raw_value):
+    if not raw_value:
+        return []
+
+    parts = []
+    for item in re.split(r"[\n,;]+", raw_value):
+        cleaned = item.strip()
+        if cleaned and cleaned not in parts:
+            parts.append(cleaned)
+    return parts
+
+
+def _listing_highlight_items(listing):
+    items = [listing.get_lease_type_display(), listing.get_property_type_display()]
+    if listing.has_yard:
+        items.append("Yard")
+    if listing.has_parking:
+        items.append("Parking")
+    if listing.is_furnished:
+        items.append("Furnished")
+    if listing.distance_to_campus:
+        items.append(f"{listing.distance_to_campus} mi to campus")
+    return items
+
+
 def _compatible_listings_for_group(user, *, group_size, budget_range, location_keywords):
     queryset = with_favorite_state(marketplace_listings_for_user(user), user).filter(rooms=group_size)
     price_per_person = ExpressionWrapper(
@@ -436,6 +462,10 @@ def listing_detail(request, pk):
         "back_url_name": back_url_name,
         "back_label": back_label,
         "can_favorite_listing": listing.can_favorite,
+        "listing_highlight_items": _listing_highlight_items(listing),
+        "amenity_items": _split_listing_detail_items(listing.amenities),
+        "utility_items": _split_listing_detail_items(listing.utilities_included),
+        "security_feature_items": _split_listing_detail_items(listing.security_features),
     }
     return render(request, "listings/listing_detail.html", context)
 

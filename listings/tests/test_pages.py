@@ -314,13 +314,14 @@ class ListingPageTests(ListingTestCase):
 
         response = self.client.get(reverse("listings:listing_list"))
         content = response.content.decode()
-        filters_index = content.index("data-listings-filters")
         browser_index = content.index("data-listings-browser-shell")
+        filters_index = content.index("data-listings-filters")
         results_index = content.index("data-listings-results-pane")
         map_index = content.index("data-listings-map-pane")
 
         self.assertContains(response, "data-listings-page")
         self.assertContains(response, "listing-browser-page")
+        self.assertContains(response, "listing-browser-rail")
         self.assertContains(response, "data-listings-filters")
         self.assertContains(response, "data-listings-filter-form")
         self.assertContains(response, "data-listings-browser-shell")
@@ -330,7 +331,7 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, "data-listings-map")
         self.assertContains(response, "data-listings-results")
         self.assertContains(response, "data-listings-live-error")
-        self.assertLess(filters_index, browser_index)
+        self.assertLess(browser_index, filters_index)
         self.assertLess(results_index, map_index)
 
     def test_listing_page_embeds_initial_json_payload_hooks_for_live_controller(self):
@@ -1402,6 +1403,22 @@ assert.equal(picker.isSelectionComplete(), true);
 
         self.assertContains(response, listing.owner.display_name)
         self.assertContains(response, "https://example.com/listing-owner-detail.png")
+
+    def test_listing_detail_renders_gallery_hooks_when_multiple_images_exist(self):
+        listing = self.create_listing()
+        self.client.force_login(self.user)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                ListingImage.objects.create(listing=listing, image=self.make_image_upload("detail-one.png"))
+                ListingImage.objects.create(listing=listing, image=self.make_image_upload("detail-two.png"))
+
+                response = self.client.get(reverse("listings:detail", args=[listing.pk]))
+
+        self.assertContains(response, "data-listing-gallery")
+        self.assertContains(response, "data-listing-gallery-active-image")
+        self.assertContains(response, "data-listing-gallery-thumb")
+        self.assertContains(response, "js/listing-detail-gallery.js")
 
     def test_edit_listing_rejects_total_image_limit(self):
         listing = self.create_listing()
