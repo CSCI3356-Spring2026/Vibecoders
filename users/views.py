@@ -20,7 +20,10 @@ from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
 
 from .forms import AdminProfileForm, GoogleLoginAcceptanceForm, StudentProfileForm, UserFileUploadForm
-from .legal import has_current_legal_acceptance, set_pending_legal_acceptance
+from .legal import (
+    is_legal_review_required,
+    set_pending_legal_acceptance,
+)
 from .models import AdminProfile, Role, StudentProfile, UserFile
 from .selectors import accessible_user_files_queryset
 from .session_security import has_recent_auth
@@ -97,30 +100,41 @@ def _preview_content_type_or_404(user_file):
 def login_page(request):
     if request.user.is_authenticated:
         return redirect("users:dashboard")
+    legal_review_required = is_legal_review_required(request)
     next_url = safe_next_url(request, request.POST.get("next") or request.GET.get("next"), "")
     if request.method == "POST":
         if not _consume_login_rate_limit(request):
             messages.error(request, LOGIN_RATE_LIMIT_ERROR)
-            form = GoogleLoginAcceptanceForm(request.POST)
-            return render(request, "users/login.html", {"login_form": form, "next_url": next_url})
+            form = GoogleLoginAcceptanceForm(request.POST, require_review=legal_review_required)
+            return render(
+                request,
+                "users/login.html",
+                {"login_form": form, "next_url": next_url, "legal_review_required": legal_review_required},
+            )
         is_legacy_login_post = request.path == reverse("account_login")
         has_legal_fields = "accept_terms" in request.POST or "accept_privacy" in request.POST
         if is_legacy_login_post and not has_legal_fields:
             return redirect("users:login")
-        form = GoogleLoginAcceptanceForm(request.POST)
+        if not legal_review_required:
+            return redirect(_google_login_url(request))
+        form = GoogleLoginAcceptanceForm(request.POST, require_review=True)
         if form.is_valid():
             set_pending_legal_acceptance(request)
             return redirect(_google_login_url(request))
     else:
-        form = GoogleLoginAcceptanceForm()
-    return render(request, "users/login.html", {"login_form": form, "next_url": next_url})
+        form = GoogleLoginAcceptanceForm(require_review=legal_review_required)
+    return render(
+        request,
+        "users/login.html",
+        {"login_form": form, "next_url": next_url, "legal_review_required": legal_review_required},
+    )
 
 
 def google_login_gate(request):
     if not _consume_login_rate_limit(request):
         messages.error(request, LOGIN_RATE_LIMIT_ERROR)
         return redirect(_login_redirect_with_next(request))
-    if not has_current_legal_acceptance(request):
+    if is_legal_review_required(request):
         messages.error(request, "Review and accept the Terms of Service and Privacy Policy before continuing.")
         return redirect(_login_redirect_with_next(request))
     return google_views.oauth2_login(request)

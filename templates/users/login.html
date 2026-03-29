@@ -1,12 +1,24 @@
 {% extends "auth/base.html" %}
+{% load static %}
+
 {% block title %}Sign In | {{ site_product_name }} by {{ site_company_name }}{% endblock %}
+
+{% block extra_js %}
+    {% if legal_review_required %}
+        <script src="{% static 'js/legal-review.js' %}"></script>
+    {% endif %}
+{% endblock %}
 
 {% block auth_panel %}
     <div class="auth-minimal">
         <p class="auth-eyebrow">Account access</p>
         <h1 class="auth-title">Sign in with Google</h1>
-        <p class="auth-copy">Use the Google account tied to your BC or listing profile.</p>
-        <form method="post" class="auth-acceptance-form">
+        {% if legal_review_required %}
+            <p class="auth-copy">Review both legal documents to the end, then acknowledge them to continue.</p>
+        {% else %}
+            <p class="auth-copy">Use the Google account tied to your BC or listing profile.</p>
+        {% endif %}
+        <form method="post" class="auth-acceptance-form{% if legal_review_required %} is-review-required{% endif %}" {% if legal_review_required %}data-legal-review-form{% endif %}>
             {% csrf_token %}
             {% if next_url %}
                 <input type="hidden" name="next" value="{{ next_url }}">
@@ -18,25 +30,68 @@
                 </div>
             {% endif %}
 
-            <div class="auth-check-group">
-                <label class="auth-check-option" for="{{ login_form.accept_terms.id_for_label }}">
-                    {{ login_form.accept_terms }}
-                    <span>I agree to the <a href="{% url 'core:terms' %}" target="_blank" rel="noopener noreferrer">Terms of Service</a>.</span>
-                </label>
-                {{ login_form.accept_terms.errors }}
+            {% if legal_review_required %}
+                <div class="auth-legal-grid">
+                    <section
+                        class="auth-legal-card"
+                        data-legal-review-card
+                        data-review-key="terms"
+                        data-review-complete-label="Terms reviewed."
+                    >
+                        <div class="auth-legal-card-head">
+                            <div>
+                                <h2 class="auth-legal-title">Terms of Service</h2>
+                                <p class="auth-legal-copy">Scroll to the end to unlock acknowledgement.</p>
+                            </div>
+                            <a class="auth-legal-link" href="{% url 'core:terms' %}" target="_blank" rel="noopener noreferrer">Open full page</a>
+                        </div>
+                        <div class="auth-legal-pane" data-legal-review-pane tabindex="0">
+                            {% include "core/includes/terms_sections.html" %}
+                        </div>
+                        {{ login_form.reviewed_terms }}
+                        <p class="auth-legal-status" data-legal-review-status>Scroll to the end to unlock acknowledgement.</p>
+                        <label class="auth-check-option" for="{{ login_form.accept_terms.id_for_label }}">
+                            {{ login_form.accept_terms }}
+                            <span>I agree to the Terms of Service.</span>
+                        </label>
+                        {{ login_form.accept_terms.errors }}
+                    </section>
 
-                <label class="auth-check-option" for="{{ login_form.accept_privacy.id_for_label }}">
-                    {{ login_form.accept_privacy }}
-                    <span>I acknowledge the <a href="{% url 'core:privacy' %}" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.</span>
-                </label>
-                {{ login_form.accept_privacy.errors }}
-            </div>
+                    <section
+                        class="auth-legal-card"
+                        data-legal-review-card
+                        data-review-key="privacy"
+                        data-review-complete-label="Privacy policy reviewed."
+                    >
+                        <div class="auth-legal-card-head">
+                            <div>
+                                <h2 class="auth-legal-title">Privacy Policy</h2>
+                                <p class="auth-legal-copy">Scroll to the end to unlock acknowledgement.</p>
+                            </div>
+                            <a class="auth-legal-link" href="{% url 'core:privacy' %}" target="_blank" rel="noopener noreferrer">Open full page</a>
+                        </div>
+                        <div class="auth-legal-pane" data-legal-review-pane tabindex="0">
+                            {% include "core/includes/privacy_sections.html" %}
+                        </div>
+                        {{ login_form.reviewed_privacy }}
+                        <p class="auth-legal-status" data-legal-review-status>Scroll to the end to unlock acknowledgement.</p>
+                        <label class="auth-check-option" for="{{ login_form.accept_privacy.id_for_label }}">
+                            {{ login_form.accept_privacy }}
+                            <span>I acknowledge the Privacy Policy.</span>
+                        </label>
+                        {{ login_form.accept_privacy.errors }}
+                    </section>
+                </div>
+            {% endif %}
 
-            <button class="auth-google-btn" type="submit">
+            <button class="auth-google-btn" type="submit"{% if legal_review_required %} data-legal-review-submit disabled{% endif %}>
                 <span class="auth-google-mark">{% include "auth/google_mark.html" %}</span>
-                <span>Continue with Google</span>
+                <span>{% if legal_review_required %}Accept and continue with Google{% else %}Continue with Google{% endif %}</span>
             </button>
         </form>
-        <p class="auth-footnote">Verified `@bc.edu` accounts get marketplace access. External accounts can manage listings.</p>
+        <p class="auth-footnote">
+            Verified `@bc.edu` accounts get marketplace access. External accounts can manage listings.
+            {% if not legal_review_required %}You only need to review the current legal version when your account has not accepted it yet.{% endif %}
+        </p>
     </div>
 {% endblock %}

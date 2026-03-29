@@ -142,6 +142,10 @@
     gap: 1rem;
 }
 
+.auth-acceptance-form.is-review-required {
+    gap: 1.25rem;
+}
+
 .auth-check-group {
     display: flex;
     flex-direction: column;
@@ -160,6 +164,11 @@
 .auth-check-option input {
     margin-top: 0.15rem;
     flex-shrink: 0;
+}
+
+.auth-check-option input:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
 }
 
 .auth-check-option a {
@@ -244,6 +253,13 @@
     color: var(--white);
 }
 
+.auth-google-btn:disabled {
+    border-color: rgba(var(--gray-500-rgb), 0.35);
+    background: rgba(var(--gray-500-rgb), 0.3);
+    color: rgba(var(--white-rgb), 0.85);
+    cursor: not-allowed;
+}
+
 .auth-ghost-btn {
     border: 1px solid var(--gray-300);
     background: var(--surface-gradient-soft);
@@ -269,4 +285,87 @@
 .auth-google-mark svg {
     width: 1rem;
     height: 1rem;
+}
+
+.auth-legal-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.auth-legal-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    padding: 1rem;
+    border: 1px solid rgba(var(--gray-300-rgb), 0.55);
+    border-radius: var(--radius-md);
+    background: rgba(var(--white-rgb), 0.82);
+}
+
+.auth-legal-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.auth-legal-title {
+    margin: 0;
+    color: var(--text-strong);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.auth-legal-copy,
+.auth-legal-status {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.84rem;
+    line-height: 1.5;
+}
+
+.auth-legal-link {
+    color: var(--primary-600);
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.auth-legal-link:hover {
+    color: var(--primary-500);
+}
+
+.auth-legal-pane {
+    min-height: 15rem;
+    max-height: 18rem;
+    overflow-y: auto;
+    padding-right: 0.35rem;
+}
+
+.auth-legal-pane .listing-panel {
+    padding: 0.95rem 1rem;
+    box-shadow: none;
+}
+
+.auth-legal-pane .listing-panel + .listing-panel {
+    margin-top: 0.75rem;
+}
+
+@media (max-width: 991px) {
+    .auth-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .auth-stage {
+        padding-right: 0;
+    }
+
+    .auth-stage::after {
+        display: none;
+    }
+
+    .auth-legal-card-head {
+        flex-direction: column;
+    }
 }

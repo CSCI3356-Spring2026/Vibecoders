@@ -5,9 +5,10 @@ from allauth.socialaccount.models import SocialAccount
 from django.conf import settings
 from django.contrib import messages
 from django.test import RequestFactory, TestCase
+from django.utils import timezone
 
 from ..adapters import MarketplaceSocialAccountAdapter, NoSignupAccountAdapter
-from ..legal import set_pending_legal_acceptance
+from ..legal import is_legal_review_required, set_pending_legal_acceptance
 from ..models import Role
 from .helpers import User, add_middleware, message_texts
 
@@ -125,6 +126,21 @@ class MarketplaceSocialAccountAdapterTests(TestCase):
 
         self.assertEqual(ctx.exception.response.url, "/users/login/")
         self.assertIn(adapter.legal_error_message, message_texts(request))
+        self.assertTrue(is_legal_review_required(request))
+
+    def test_existing_user_with_current_legal_acceptance_can_login_without_pending_session_acceptance(self):
+        user = User.objects.create_user(username="eagle", email="eagle@bc.edu", password="test")
+        accepted_at = timezone.now()
+        user.terms_accepted_at = accepted_at
+        user.privacy_accepted_at = accepted_at
+        user.legal_policy_version = settings.LEGAL_DOCUMENT_VERSION
+        user.save(update_fields=["terms_accepted_at", "privacy_accepted_at", "legal_policy_version"])
+
+        adapter = MarketplaceSocialAccountAdapter()
+        request = add_middleware(RequestFactory().get("/"))
+        sociallogin = self.make_sociallogin("eagle@bc.edu", user=user)
+
+        adapter.pre_social_login(request, sociallogin)
 
     def test_missing_email_login_raises(self):
         adapter = MarketplaceSocialAccountAdapter()

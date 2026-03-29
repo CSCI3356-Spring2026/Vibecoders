@@ -3,7 +3,7 @@ from django.contrib.auth.signals import user_logged_in
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from .legal import get_pending_legal_acceptance, persist_legal_acceptance_for_user
+from .legal import clear_pending_legal_acceptance, get_pending_legal_acceptance, persist_legal_acceptance_for_user
 from .models import AdminProfile, Role, StudentProfile
 from .profile_images import sync_profile_image_for_user
 from .session_security import mark_recent_auth
@@ -21,6 +21,7 @@ def persist_login_legal_acceptance(sender, request, user, **kwargs):
         sync_profile_image_for_user(user)
         return
     persist_legal_acceptance_for_user(user, payload)
+    clear_pending_legal_acceptance(request)
     sync_profile_image_for_user(user)
 
 

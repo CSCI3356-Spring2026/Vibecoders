@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.shortcuts import redirect
 
-from .legal import has_current_legal_acceptance
+from .legal import has_current_legal_acceptance, mark_legal_review_required
 from .profile_images import profile_image_url_from_data, sync_profile_image_for_user
 
 
@@ -52,6 +52,7 @@ class MarketplaceSocialAccountAdapter(DefaultSocialAccountAdapter):
         raise ImmediateHttpResponse(redirect("users:login"))
 
     def _reject_missing_legal_acceptance(self, request):
+        mark_legal_review_required(request)
         messages.error(request, self.legal_error_message)
         raise ImmediateHttpResponse(redirect("users:login"))
 
@@ -71,6 +72,19 @@ class MarketplaceSocialAccountAdapter(DefaultSocialAccountAdapter):
         return user_model.normalize_email_address(email)
 
     @classmethod
+    def _existing_user_from_sociallogin(cls, sociallogin, data=None):
+        existing_user = getattr(sociallogin, "user", None)
+        if getattr(existing_user, "pk", None):
+            return existing_user
+
+        email = cls._email_from_sociallogin(sociallogin, data=data)
+        if not email:
+            return None
+
+        user_model = get_user_model()
+        return user_model._default_manager.filter(email=email).first()
+
+    @classmethod
     def _has_verified_email(cls, sociallogin, data=None):
         extra_data = getattr(sociallogin.account, "extra_data", {}) or {}
         for key in ("email_verified", "verified_email"):
@@ -85,12 +99,15 @@ class MarketplaceSocialAccountAdapter(DefaultSocialAccountAdapter):
         return False
 
     def _validate_sociallogin_or_reject(self, request, sociallogin, data=None):
-        if not has_current_legal_acceptance(request):
-            self._reject_missing_legal_acceptance(request)
         has_email = self._email_from_sociallogin(sociallogin, data=data)
         has_verified_email = self._has_verified_email(sociallogin, data=data)
         if not has_email or not has_verified_email:
             self._reject_invalid_login(request)
+        existing_user = self._existing_user_from_sociallogin(sociallogin, data=data)
+        if existing_user and existing_user.has_current_legal_acceptance:
+            return
+        if not has_current_legal_acceptance(request):
+            self._reject_missing_legal_acceptance(request)
 
     @staticmethod
     def _apply_signup_identity(user, email):

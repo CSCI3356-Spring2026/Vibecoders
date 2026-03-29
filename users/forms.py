@@ -4,6 +4,8 @@ from .models import AdminProfile, StudentProfile, UserFile
 
 
 class GoogleLoginAcceptanceForm(forms.Form):
+    reviewed_terms = forms.BooleanField(required=False, widget=forms.HiddenInput())
+    reviewed_privacy = forms.BooleanField(required=False, widget=forms.HiddenInput())
     accept_terms = forms.BooleanField(
         required=True,
         label="I agree to the Terms of Service",
@@ -14,6 +16,29 @@ class GoogleLoginAcceptanceForm(forms.Form):
         label="I acknowledge the Privacy Policy",
         error_messages={"required": "You must acknowledge the Privacy Policy."},
     )
+
+    def __init__(self, *args, require_review=False, **kwargs):
+        self.require_review = require_review
+        super().__init__(*args, **kwargs)
+        if self.require_review:
+            self.fields["accept_terms"].widget.attrs.update(
+                {"disabled": "disabled", "data-legal-review-checkbox": "terms"}
+            )
+            self.fields["accept_privacy"].widget.attrs.update(
+                {"disabled": "disabled", "data-legal-review-checkbox": "privacy"}
+            )
+            self.fields["reviewed_terms"].widget.attrs.update({"data-legal-review-hidden": "terms"})
+            self.fields["reviewed_privacy"].widget.attrs.update({"data-legal-review-hidden": "privacy"})
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if not self.require_review:
+            return cleaned_data
+        if not cleaned_data.get("reviewed_terms"):
+            self.add_error("accept_terms", "Scroll through the Terms of Service before accepting.")
+        if not cleaned_data.get("reviewed_privacy"):
+            self.add_error("accept_privacy", "Scroll through the Privacy Policy before accepting.")
+        return cleaned_data
 
 
 class UserFileUploadForm(forms.ModelForm):

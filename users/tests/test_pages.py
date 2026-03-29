@@ -3,6 +3,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from allauth.socialaccount.models import SocialAccount
+from django.conf import settings
 from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -103,13 +104,10 @@ class UserPageTests(TestCase):
         response = self.client.get("/users/login/")
 
         self.assertContains(response, 'class="auth-acceptance-form"')
-        self.assertContains(response, 'name="accept_terms"')
-        self.assertContains(response, 'name="accept_privacy"')
         self.assertContains(response, "Continue with Google")
         self.assertContains(response, "marketplace access")
         self.assertContains(response, "Boston College Housing")
-        self.assertContains(response, "Terms of Service")
-        self.assertContains(response, "Privacy Policy")
+        self.assertContains(response, "Use the Google account tied to your BC or listing profile.")
         self.assertNotContains(response, '<header class="site-header">')
         self.assertNotContains(response, "Guest User")
 
@@ -117,24 +115,58 @@ class UserPageTests(TestCase):
         response = self.client.get("/accounts/login/")
 
         self.assertContains(response, 'class="auth-acceptance-form"')
-        self.assertContains(response, 'name="accept_terms"')
-        self.assertContains(response, 'name="accept_privacy"')
         self.assertContains(response, "Continue with Google")
         self.assertContains(response, "Secure access for housing, listings, and messages.")
         self.assertNotContains(response, '<header class="site-header">')
         self.assertNotContains(response, "If you have not created an account yet")
 
-    def test_login_page_requires_legal_acceptance_before_google_redirect(self):
-        response = self.client.post("/users/login/", {}, follow=False)
+    def test_login_page_shows_embedded_legal_review_when_required(self):
+        session = self.client.session
+        session["legal_review_required"] = settings.LEGAL_DOCUMENT_VERSION
+        session.save()
+
+        response = self.client.get("/users/login/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "You must agree to the Terms of Service.")
-        self.assertContains(response, "You must acknowledge the Privacy Policy.")
+        self.assertContains(response, "data-legal-review-form")
+        self.assertContains(response, 'name="accept_terms"')
+        self.assertContains(response, 'name="accept_privacy"')
+        self.assertContains(response, "Scroll to the end to unlock acknowledgement.")
 
-    def test_login_page_redirects_to_google_after_legal_acceptance(self):
+    def test_login_page_redirects_to_google_without_legal_review_for_returning_flow(self):
+        response = self.client.post("/users/login/", {}, follow=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/accounts/google/login/")
+
+    def test_login_page_requires_scroll_review_before_legal_acceptance(self):
+        session = self.client.session
+        session["legal_review_required"] = settings.LEGAL_DOCUMENT_VERSION
+        session.save()
+
         response = self.client.post(
             "/users/login/",
             {"accept_terms": "on", "accept_privacy": "on"},
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Scroll through the Terms of Service before accepting.")
+        self.assertContains(response, "Scroll through the Privacy Policy before accepting.")
+
+    def test_login_page_redirects_to_google_after_scrolled_legal_acceptance(self):
+        session = self.client.session
+        session["legal_review_required"] = settings.LEGAL_DOCUMENT_VERSION
+        session.save()
+
+        response = self.client.post(
+            "/users/login/",
+            {
+                "reviewed_terms": "on",
+                "reviewed_privacy": "on",
+                "accept_terms": "on",
+                "accept_privacy": "on",
+            },
             follow=False,
         )
 
@@ -147,12 +179,12 @@ class UserPageTests(TestCase):
 
         first_response = self.client.post(
             "/users/login/",
-            {"accept_terms": "on", "accept_privacy": "on"},
+            {},
             follow=False,
         )
         second_response = self.client.post(
             "/users/login/",
-            {"accept_terms": "on", "accept_privacy": "on"},
+            {},
             follow=True,
         )
 
@@ -160,7 +192,11 @@ class UserPageTests(TestCase):
         self.assertEqual(second_response.status_code, 200)
         self.assertContains(second_response, "Too many sign-in attempts. Wait a few minutes and try again.")
 
-    def test_google_login_route_redirects_back_to_login_without_legal_acceptance(self):
+    def test_google_login_route_redirects_back_to_login_when_legal_review_is_required(self):
+        session = self.client.session
+        session["legal_review_required"] = settings.LEGAL_DOCUMENT_VERSION
+        session.save()
+
         response = self.client.get("/accounts/google/login/", follow=False)
 
         self.assertEqual(response.status_code, 302)
@@ -265,6 +301,24 @@ class UserPageTests(TestCase):
         self.assertContains(
             response, "Review and accept the latest Terms of Service and Privacy Policy before continuing."
         )
+        self.assertContains(response, "data-legal-review-form")
+        self.assertContains(response, "Accept and continue with Google")
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_missing_legal_acceptance_logs_user_out_until_reaccepted(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get("/users/dashboard/", follow=True)
+
+        final_redirect = response.redirect_chain[-1][0]
+        parsed_redirect = urlsplit(final_redirect)
+
+        self.assertEqual(parsed_redirect.path, "/users/login/")
+        self.assertEqual(parse_qs(parsed_redirect.query).get("next"), ["/users/dashboard/"])
+        self.assertContains(
+            response, "Review and accept the latest Terms of Service and Privacy Policy before continuing."
+        )
+        self.assertContains(response, "data-legal-review-form")
         self.assertNotIn("_auth_user_id", self.client.session)
 
     def test_account_dashboard_no_longer_allows_self_assigning_role(self):
