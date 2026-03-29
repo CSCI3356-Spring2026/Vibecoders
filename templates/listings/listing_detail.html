@@ -163,27 +163,27 @@
                     <section class="listing-detail-panel listing-detail-review-state-panel">
                         <div class="listing-detail-panel-head">
                             <div>
-                                <p class="listing-results-kicker">Listing review</p>
-                                <h2 class="listing-results-title">
-                                    {% if listing.approval_status == 'approved' %}
-                                        This listing is approved and carrying the verified badge.
+                            <p class="listing-results-kicker">Listing review</p>
+                            <h2 class="listing-results-title">
+                                {% if listing.approval_status == 'approved' %}
+                                        Listing approved.
                                     {% elif listing.approval_status == 'pending' %}
-                                        This listing is in the admin review queue.
+                                        Pending review.
                                     {% else %}
-                                        This listing needs changes before it can go live again.
+                                        Changes required.
                                     {% endif %}
-                                </h2>
-                            </div>
+                            </h2>
                         </div>
-                        <p class="listing-detail-panel-copy">
-                            {% if listing.approval_status == 'approved' %}
-                                Approved listings are eligible to appear in search and group match as long as availability and visibility stay valid.
-                            {% elif listing.approval_status == 'pending' %}
-                                Admins can review the address, photos, pricing, policies, and owner details before this listing is shown publicly.
-                            {% else %}
-                                Review notes from the admin team are shown below. Update the listing and submit it again to return to the queue.
-                            {% endif %}
-                        </p>
+                    </div>
+                    <p class="listing-detail-panel-copy">
+                        {% if listing.approval_status == 'approved' %}
+                                Eligible for search while status and dates remain valid.
+                        {% elif listing.approval_status == 'pending' %}
+                                Waiting on admin review.
+                        {% else %}
+                                Update the listing and resubmit.
+                        {% endif %}
+                    </p>
                         <div class="listing-detail-feature-grid">
                             <div class="listing-detail-feature-card">
                                 <span class="listing-detail-feature-label">Review state</span>
@@ -219,7 +219,7 @@
                     <div class="listing-detail-panel-head">
                         <div>
                             <p class="listing-results-kicker">Overview</p>
-                            <h2 class="listing-results-title">Why this home stands out</h2>
+                            <h2 class="listing-results-title">Overview</h2>
                         </div>
                     </div>
                     <p class="listing-detail-description">
@@ -251,7 +251,7 @@
                     <div class="listing-detail-panel-head">
                         <div>
                             <p class="listing-results-kicker">Costs & policies</p>
-                            <h2 class="listing-results-title">Pricing, utilities, and fees</h2>
+                            <h2 class="listing-results-title">Costs and policies</h2>
                         </div>
                     </div>
                     <div class="listing-detail-data-grid">
@@ -317,7 +317,7 @@
                     <div class="listing-detail-panel-head">
                         <div>
                             <p class="listing-results-kicker">Amenities</p>
-                            <h2 class="listing-results-title">Apartment and building details</h2>
+                            <h2 class="listing-results-title">Amenities</h2>
                         </div>
                     </div>
                     <div class="listing-detail-amenities-grid">
@@ -330,7 +330,7 @@
                                     {% endfor %}
                                 </div>
                             {% else %}
-                                <p class="listing-detail-panel-copy">No amenities were listed yet.</p>
+                                <p class="listing-detail-panel-copy">No amenities listed.</p>
                             {% endif %}
                         </div>
                         <div class="listing-detail-amenities-column">
@@ -342,7 +342,7 @@
                                     {% endfor %}
                                 </div>
                             {% else %}
-                                <p class="listing-detail-panel-copy">No security features were listed yet.</p>
+                                <p class="listing-detail-panel-copy">No security features listed.</p>
                             {% endif %}
                         </div>
                     </div>
@@ -352,7 +352,7 @@
                     <div class="listing-detail-panel-head">
                         <div>
                             <p class="listing-results-kicker">Community</p>
-                            <h2 class="listing-results-title">Resident feedback and trust signals</h2>
+                            <h2 class="listing-results-title">Reviews and verification</h2>
                         </div>
                     </div>
 
@@ -385,7 +385,7 @@
 
                     {% if review_requires_contact %}
                         <p class="listing-detail-panel-copy">
-                            Resident reviews unlock after you have an active conversation with the listing owner, which keeps feedback tied to real renter interest.
+                            Reviews open after you message the owner.
                         </p>
                     {% endif %}
 
@@ -434,13 +434,13 @@
                                     {% if review.comment %}
                                         <p class="listing-review-comment">{{ review.comment }}</p>
                                     {% else %}
-                                        <p class="listing-detail-panel-copy mb-0">No written notes were added with this rating.</p>
+                                        <p class="listing-detail-panel-copy mb-0">No comment.</p>
                                     {% endif %}
                                 </article>
                             {% endfor %}
                         </div>
                     {% else %}
-                        <p class="listing-detail-panel-copy mb-0">No resident reviews have been shared yet.</p>
+                        <p class="listing-detail-panel-copy mb-0">No reviews yet.</p>
                     {% endif %}
                 </section>
 
@@ -474,7 +474,7 @@
                                 {% endfor %}
                             </div>
                         {% else %}
-                            <p class="listing-detail-panel-copy">No messages yet for this listing.</p>
+                            <p class="listing-detail-panel-copy">No messages yet.</p>
                         {% endif %}
                     </section>
                 {% endif %}
@@ -513,7 +513,7 @@
                     </div>
 
                     {% if listing.owner_id == request.user.id %}
-                        <p class="listing-detail-panel-copy">You posted this listing. Use the threads below to manage renter conversations.</p>
+                        <p class="listing-detail-panel-copy">You posted this listing.</p>
                     {% elif request.user.can_start_listing_conversations %}
                         {% if existing_conversation %}
                             <a class="btn btn-outline-secondary w-100" href="{% url 'communications:detail' existing_conversation.id %}">
@@ -531,10 +531,10 @@
                                 </button>
                             </form>
                         {% else %}
-                            <p class="listing-detail-panel-copy">This listing is no longer accepting new conversations.</p>
+                            <p class="listing-detail-panel-copy">New conversations are closed.</p>
                         {% endif %}
                     {% else %}
-                        <p class="listing-detail-panel-copy">This account can publish listings but cannot start new renter threads.</p>
+                        <p class="listing-detail-panel-copy">This account cannot start conversations.</p>
                     {% endif %}
                 </section>
 
@@ -543,7 +543,7 @@
                         <div class="listing-detail-panel-head">
                             <div>
                                 <p class="listing-results-kicker">Report listing</p>
-                                <h2 class="listing-results-title">Flag issues for admin review</h2>
+                                <h2 class="listing-results-title">Report this listing</h2>
                             </div>
                         </div>
                         {% if active_listing_report %}

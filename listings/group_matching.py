@@ -219,14 +219,14 @@ def _scenario_tone(preferences: Preferences) -> str:
 def _scenario_label(*, group_size: int, preferences: Preferences) -> str:
     tone = _scenario_tone(preferences)
     if tone == "high-alignment":
-        return f"{group_size}-person curated plan"
+        return f"{group_size}-person fit"
     if tone == "social":
-        return f"{group_size}-person social plan"
+        return f"{group_size}-person social"
     if tone == "quiet":
-        return f"{group_size}-person quiet plan"
+        return f"{group_size}-person quiet"
     if tone == "late-night":
-        return f"{group_size}-person night-owl plan"
-    return f"{group_size}-person balanced plan"
+        return f"{group_size}-person late-night"
+    return f"{group_size}-person balanced"
 
 
 def _scenario_headline(
@@ -261,15 +261,12 @@ def _scenario_summary(
 ) -> str:
     if listings_count == 0:
         if preferences.location_keywords:
-            return "Widen the area focus or adjust budget to surface inventory for this group size."
-        return "Adjust the budget band or target household size to surface more inventory."
+            return "Adjust the area or budget."
+        return "Adjust the budget or group size."
 
     property_clause = dominant_property_type or "shared homes"
     locality_clause = ", ".join(top_localities) if top_localities else "the current search area"
-    return (
-        f"This {group_size}-person setup is strongest around {locality_clause} "
-        f"with {property_clause.lower()} leading the current inventory mix."
-    )
+    return f"Best current mix: {property_clause.lower()} around {locality_clause}."
 
 
 def listing_fit_score(listing, *, group_size: int, preferences: Preferences) -> int:

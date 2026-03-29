@@ -9,16 +9,36 @@
     {% endif %}
 {% endblock %}
 
+{% block auth_layout_class %}{% if legal_review_required %} auth-layout-review{% endif %}{% endblock %}
+
+{% block auth_stage_class %}{% if legal_review_required %} auth-stage-review{% endif %}{% endblock %}
+
+{% block auth_panel_class %}{% if legal_review_required %} auth-panel-review{% endif %}{% endblock %}
+
+{% block auth_stage %}
+    {% if legal_review_required %}
+        <p class="auth-kicker">Current Legal Review</p>
+        <h1 class="auth-stage-title">Review before continuing.</h1>
+        <p class="auth-stage-copy">
+            Scroll each document to the end, unlock both acknowledgements, then continue with Google.
+        </p>
+    {% else %}
+        {{ block.super }}
+    {% endif %}
+{% endblock %}
+
 {% block auth_panel %}
-    <div class="auth-minimal">
-        <p class="auth-eyebrow">Account access</p>
-        <h1 class="auth-title">Sign in with Google</h1>
-        {% if legal_review_required %}
-            <p class="auth-copy">Review both legal documents to the end, then acknowledge them to continue.</p>
-        {% else %}
-            <p class="auth-copy">Use the Google account tied to your BC or listing profile.</p>
-        {% endif %}
-        <form method="post" class="auth-acceptance-form{% if legal_review_required %} is-review-required{% endif %}" {% if legal_review_required %}data-legal-review-form{% endif %}>
+    <div class="auth-minimal{% if legal_review_required %} is-review-required{% endif %}">
+        <div class="auth-minimal-head">
+            <p class="auth-eyebrow">{% if legal_review_required %}Current documents{% else %}Account access{% endif %}</p>
+            <h1 class="auth-title">{% if legal_review_required %}Terms and Privacy{% else %}Sign in with Google{% endif %}</h1>
+            {% if legal_review_required %}
+                <p class="auth-copy">Review both documents below, then acknowledge them to continue.</p>
+            {% else %}
+                <p class="auth-copy">Use the Google account tied to your BC or listing profile.</p>
+            {% endif %}
+        </div>
+        <form method="post" action="{% url 'users:login' %}" class="auth-acceptance-form{% if legal_review_required %} is-review-required{% endif %}" {% if legal_review_required %}data-legal-review-form{% endif %}>
             {% csrf_token %}
             {% if next_url %}
                 <input type="hidden" name="next" value="{{ next_url }}">
@@ -90,8 +110,11 @@
             </button>
         </form>
         <p class="auth-footnote">
-            Verified `@bc.edu` accounts get marketplace access. External accounts can manage listings.
-            {% if not legal_review_required %}You only need to review the current legal version when your account has not accepted it yet.{% endif %}
+            {% if legal_review_required %}
+                You only need to do this when your account has not accepted the current legal version.
+            {% else %}
+                Verified `@bc.edu` accounts get marketplace access. External accounts can manage listings.
+            {% endif %}
         </p>
     </div>
 {% endblock %}

@@ -9,7 +9,9 @@
     top: 0;
     z-index: 1000;
     padding: 0.75rem 0 0.35rem;
-    background: transparent;
+    background: rgba(var(--white-rgb), 0.62);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
 }
 
 .nav-row {

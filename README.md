@@ -131,6 +131,7 @@ Optional proxy-aware production settings:
 
 - `DJANGO_TRUST_X_FORWARDED_PROTO=true`
 - `DJANGO_USE_X_FORWARDED_HOST=true`
+- `DJANGO_TRUST_X_FORWARDED_FOR=true` only when a trusted reverse proxy sets the header
 
 ## Production Notes
 

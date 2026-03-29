@@ -53,7 +53,16 @@ export function bootstrapListingsPage() {
     const form = root.querySelector("[data-listings-filter-form]");
     const mapRoot = root.querySelector("[data-listings-map-root]");
     const resultsRoot = root.querySelector("[data-listings-results]");
+    const mapStyleToggles = Array.from(root.querySelectorAll("[data-listings-map-style-toggle]"));
     const searchUrl = root.dataset.listingsSearchUrl || mapRoot?.dataset.listingsSearchUrl || "";
+    const defaultMapStyleUrl =
+        root.dataset.listingsMapDefaultStyleUrl ||
+        root.dataset.listingsMapStyleUrl ||
+        mapRoot?.dataset.listingsMapDefaultStyleUrl ||
+        mapRoot?.dataset.listingsMapStyleUrl ||
+        "";
+    const satelliteMapStyleUrl =
+        root.dataset.listingsMapSatelliteStyleUrl || mapRoot?.dataset.listingsMapSatelliteStyleUrl || "";
     const initialPayload = readJsonScript("listing-page-initial-payload", {
         total: 0,
         markers: [],
@@ -77,7 +86,8 @@ export function bootstrapListingsPage() {
     };
     const mapView = createListingsMapView({
         root: mapRoot,
-        styleUrl: root.dataset.listingsMapStyleUrl || mapRoot.dataset.listingsMapStyleUrl || "",
+        defaultStyleUrl: defaultMapStyleUrl,
+        satelliteStyleUrl: satelliteMapStyleUrl,
         defaultLat: Number(mapRoot.dataset.defaultLat || 42.3355),
         defaultLng: Number(mapRoot.dataset.defaultLng || -71.1685),
         initialMarkers: initialPayload.markers,
@@ -92,6 +102,14 @@ export function bootstrapListingsPage() {
             scheduleSearch();
         },
     });
+
+    const syncStyleToggleState = (mode) => {
+        mapStyleToggles.forEach((button) => {
+            const isActive = button.dataset.styleMode === mode;
+            button.classList.toggle("is-active", isActive);
+            button.setAttribute("aria-pressed", isActive ? "true" : "false");
+        });
+    };
 
     const syncSelection = (payload) => {
         const hasSelectedCard = payload.cards.some((card) => String(card.id) === state.selectedListingId);
@@ -157,6 +175,7 @@ export function bootstrapListingsPage() {
 
     root.dataset.selectedListingId = state.selectedListingId;
     resultsView?.setSelectedListing(state.selectedListingId);
+    syncStyleToggleState(mapView.getStyleMode());
 
     form.addEventListener("submit", (event) => {
         event.preventDefault();
@@ -167,5 +186,13 @@ export function bootstrapListingsPage() {
     });
     form.addEventListener("change", () => {
         scheduleSearch();
+    });
+
+    mapStyleToggles.forEach((button) => {
+        button.addEventListener("click", () => {
+            const nextMode = button.dataset.styleMode || "map";
+            mapView.setStyleMode(nextMode);
+            syncStyleToggleState(mapView.getStyleMode());
+        });
     });
 }

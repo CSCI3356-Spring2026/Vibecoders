@@ -25,9 +25,9 @@
 
                         <p class="account-hero-copy">
                             {% if has_listing_only_access %}
-                                Manage your listings, private files, and renter conversations from one clean workspace.
+                                Listings, documents, and conversations.
                             {% else %}
-                                Keep your profile, listings, private documents, and messages in sync from one place.
+                                Profile, listings, documents, and messages.
                             {% endif %}
                         </p>
 
@@ -51,7 +51,7 @@
                             <a class="btn btn-brand" href="{% url 'users:files' %}">Open document library</a>
                             {% if can_browse_marketplace %}
                                 <a class="btn btn-outline-secondary" href="{% url 'listings:listing_list' %}">Browse listings</a>
-                                <a class="btn btn-outline-secondary" href="{% url 'listings:group_match' %}">Open group match studio</a>
+                                <a class="btn btn-outline-secondary" href="{% url 'listings:group_match' %}">Group match</a>
                             {% else %}
                                 <a class="btn btn-outline-secondary" href="{% url 'users:posts' %}">Open my listings</a>
                             {% endif %}
@@ -62,10 +62,8 @@
 
                     <aside class="account-library-spotlight">
                         <p class="account-library-kicker">Documents</p>
-                        <h2 class="account-library-title">Private file library</h2>
-                        <p class="account-library-copy">
-                            Keep leases, screenshots, PDFs, and supporting documents together behind your account.
-                        </p>
+                        <h2 class="account-library-title">Document library</h2>
+                        <p class="account-library-copy">Private account files.</p>
 
                         <div class="account-library-metric">
                             <strong>{{ files_count }}</strong>
@@ -82,7 +80,7 @@
                             <div class="account-library-latest is-empty">
                                 <span class="account-library-latest-label">Library status</span>
                                 <span class="account-library-latest-title">No files uploaded yet</span>
-                                <span class="account-library-latest-meta">Your document library is ready when you are.</span>
+                                <span class="account-library-latest-meta">Ready when needed.</span>
                             </div>
                         {% endif %}
 
@@ -120,39 +118,39 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading">Workspace</h2>
-                            <p class="app-panel-copy">The main places you will actually use.</p>
+                            <p class="app-panel-copy">Shortcuts</p>
                         </div>
                     </div>
 
                     <div class="app-compact-list">
                         <a class="app-compact-item" href="{% url 'users:profile_setup' %}">
-                            <span class="app-compact-title">Profile details</span>
-                            <span class="app-compact-meta">Update the profile fields tied to your role.</span>
+                            <span class="app-compact-title">Profile</span>
+                            <span class="app-compact-meta">Edit your details.</span>
                         </a>
                         <a class="app-compact-item" href="{% url 'users:posts' %}">
-                            <span class="app-compact-title">Listings workspace</span>
-                            <span class="app-compact-meta">Review and manage the listings tied to this account.</span>
+                            <span class="app-compact-title">My listings</span>
+                            <span class="app-compact-meta">View and edit listings.</span>
                         </a>
                         <a class="app-compact-item" href="{% url 'communications:messages' %}">
                             <span class="app-compact-title">Inbox</span>
                             <span class="app-compact-meta">
                                 {% if unread_conversations_count %}
-                                    {{ unread_conversations_count }} unread thread{{ unread_conversations_count|pluralize }} need attention.
+                                    {{ unread_conversations_count }} unread thread{{ unread_conversations_count|pluralize }}.
                                 {% else %}
-                                    Review and continue your active conversations.
+                                    View conversations.
                                 {% endif %}
                             </span>
                         </a>
                         {% if can_browse_marketplace %}
                             <a class="app-compact-item" href="{% url 'listings:group_match' %}">
-                                <span class="app-compact-title">Group match studio</span>
-                                <span class="app-compact-meta">Build household-size plans around live inventory and your profile defaults.</span>
+                                <span class="app-compact-title">Group match</span>
+                                <span class="app-compact-meta">Compare group sizes against current listings.</span>
                             </a>
                         {% endif %}
                         {% if request.user.can_access_admin_panel %}
                             <a class="app-compact-item" href="{% url 'users:admin_dashboard' %}">
-                                <span class="app-compact-title">Admin workspace</span>
-                                <span class="app-compact-meta">Open moderation and operations tools.</span>
+                                <span class="app-compact-title">Admin</span>
+                                <span class="app-compact-meta">Moderation and admin tools.</span>
                             </a>
                         {% endif %}
                     </div>
@@ -162,15 +160,15 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading">Account Safety</h2>
-                            <p class="app-panel-copy">Sensitive changes are kept deliberate.</p>
+                            <p class="app-panel-copy">Deletion</p>
                         </div>
                     </div>
 
                     <div class="account-safety-copy">
                         <p class="app-panel-copy">
-                            Deleting your account removes your profile, listings, private files, and conversations.
+                            Deleting your account removes your profile, listings, files, and conversations.
                         </p>
-                        <p class="app-panel-copy">A recent sign-in is required before deletion is allowed.</p>
+                        <p class="app-panel-copy">Recent sign-in required.</p>
                     </div>
 
                     <div class="app-actions account-safety-actions">
@@ -185,7 +183,7 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading">Recent listings</h2>
-                            <p class="app-panel-copy">Latest posts from your account.</p>
+                            <p class="app-panel-copy">Latest listings</p>
                         </div>
                         <a class="listing-reset-link" href="{% url 'users:posts' %}">View all</a>
                     </div>
@@ -202,7 +200,7 @@
                             {% endfor %}
                         </div>
                     {% else %}
-                        <p class="app-panel-copy mb-0">No listings yet.</p>
+                        <p class="app-panel-copy mb-0">No listings.</p>
                     {% endif %}
                 </div>
 
@@ -210,7 +208,7 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading">Recent messages</h2>
-                            <p class="app-panel-copy">Latest activity across your threads.</p>
+                            <p class="app-panel-copy">Latest threads</p>
                         </div>
                         <a class="listing-reset-link" href="{% url 'communications:messages' %}">Open inbox</a>
                     </div>
@@ -231,7 +229,7 @@
                             {% endfor %}
                         </div>
                     {% else %}
-                        <p class="app-panel-copy mb-0">No messages yet.</p>
+                        <p class="app-panel-copy mb-0">No messages.</p>
                     {% endif %}
                 </div>
 
@@ -239,7 +237,7 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading">Recent documents</h2>
-                            <p class="app-panel-copy">Latest files in your private library.</p>
+                            <p class="app-panel-copy">Latest files</p>
                         </div>
                         <a class="listing-reset-link" href="{% url 'users:files' %}">Open library</a>
                     </div>
@@ -254,7 +252,7 @@
                             {% endfor %}
                         </div>
                     {% else %}
-                        <p class="app-panel-copy mb-0">No files uploaded yet.</p>
+                        <p class="app-panel-copy mb-0">No files.</p>
                     {% endif %}
                 </div>
             </div>

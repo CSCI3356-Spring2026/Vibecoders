@@ -15,7 +15,6 @@ import sys
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
-from django.core.management.utils import get_random_secret_key
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -61,6 +60,7 @@ LOCAL_DEBUG_COMMANDS = {
     "createsuperuser",
 }
 RUNNING_TESTS = "test" in sys.argv
+DEVELOPMENT_SECRET_KEY = "django-insecure-padly-dev-key-local-only"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env_bool("DJANGO_DEBUG", any(command in sys.argv for command in LOCAL_DEBUG_COMMANDS))
@@ -69,8 +69,8 @@ configured_secret_key = os.getenv("DJANGO_SECRET_KEY", "").strip()
 if configured_secret_key:
     SECRET_KEY = configured_secret_key
 elif DEBUG:
-    # Keep development bootstrapping simple without checking in a reusable secret.
-    SECRET_KEY = get_random_secret_key()
+    # Keep local sessions stable across autoreload when no explicit secret is configured.
+    SECRET_KEY = DEVELOPMENT_SECRET_KEY
 else:
     raise ImproperlyConfigured("Set DJANGO_SECRET_KEY when running with DJANGO_DEBUG=false.")
 
@@ -132,6 +132,7 @@ CSRF_COOKIE_SECURE = not DEBUG
 if env_bool("DJANGO_TRUST_X_FORWARDED_PROTO", False):
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = env_bool("DJANGO_USE_X_FORWARDED_HOST", False)
+TRUST_X_FORWARDED_FOR = env_bool("DJANGO_TRUST_X_FORWARDED_FOR", False)
 SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
 SECURE_HSTS_PRELOAD = not DEBUG
@@ -231,6 +232,7 @@ if not LISTING_GEOAPIFY_MAP_STYLE_URL and LISTING_GEOAPIFY_API_KEY:
     LISTING_GEOAPIFY_MAP_STYLE_URL = (
         f"https://maps.geoapify.com/v1/styles/osm-liberty/style.json?apiKey={LISTING_GEOAPIFY_API_KEY}"
     )
+LISTING_MAP_SATELLITE_STYLE_URL = os.getenv("LISTING_MAP_SATELLITE_STYLE_URL", "").strip()
 LISTING_ADDRESS_AUTOCOMPLETE_RATE_LIMIT = env_int("LISTING_ADDRESS_AUTOCOMPLETE_RATE_LIMIT", 30)
 LISTING_ADDRESS_AUTOCOMPLETE_RATE_WINDOW_SECONDS = env_int("LISTING_ADDRESS_AUTOCOMPLETE_RATE_WINDOW_SECONDS", 60)
 USER_FILE_MAX_BYTES = env_int("USER_FILE_MAX_BYTES", 10 * 1024 * 1024)

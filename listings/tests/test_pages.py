@@ -134,6 +134,25 @@ class ListingPageTests(ListingTestCase):
         LISTING_GEOAPIFY_AUTOCOMPLETE_URL="https://api.geoapify.com/v1/geocode/autocomplete",
     )
     @patch("requests.get")
+    def test_address_autocomplete_endpoint_returns_json_auth_error_for_unauthenticated_requests(self, requests_get):
+        response = self.client.get(
+            reverse("listings:address_suggestions"),
+            {"q": "140 Commonwealth"},
+            HTTP_ACCEPT="application/json",
+        )
+
+        self.assertEqual(response.status_code, 401)
+        payload = response.json()
+        self.assertEqual(payload["results"], [])
+        self.assertEqual(payload["error"]["message"], "Sign in again to verify addresses.")
+        self.assertTrue(payload["error"]["requires_login"])
+        requests_get.assert_not_called()
+
+    @override_settings(
+        LISTING_GEOAPIFY_API_KEY="geoapify-test-key",
+        LISTING_GEOAPIFY_AUTOCOMPLETE_URL="https://api.geoapify.com/v1/geocode/autocomplete",
+    )
+    @patch("requests.get")
     def test_address_autocomplete_endpoint_returns_empty_results_for_blank_or_short_query(self, requests_get):
         self.client.force_login(self.user)
 
@@ -344,6 +363,7 @@ class ListingPageTests(ListingTestCase):
         response = self.client.get(reverse("listings:listing_list"))
         content = response.content.decode()
         browser_index = content.index("data-listings-browser-shell")
+        workspace_index = content.index("data-listings-workspace")
         filters_index = content.index("data-listings-filters")
         results_index = content.index("data-listings-results-pane")
         map_index = content.index("data-listings-map-pane")
@@ -351,6 +371,7 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, "data-listings-page")
         self.assertContains(response, "listing-browser-page")
         self.assertContains(response, "listing-browser-rail")
+        self.assertContains(response, "data-listings-workspace")
         self.assertContains(response, "data-listings-filters")
         self.assertContains(response, "data-listings-filter-form")
         self.assertContains(response, "data-listings-browser-shell")
@@ -361,6 +382,9 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, "data-listings-results")
         self.assertContains(response, "data-listings-live-error")
         self.assertLess(browser_index, filters_index)
+        self.assertLess(workspace_index, filters_index)
+        self.assertLess(filters_index, results_index)
+        self.assertLess(filters_index, map_index)
         self.assertLess(results_index, map_index)
 
     def test_listing_page_embeds_initial_json_payload_hooks_for_live_controller(self):
@@ -386,7 +410,25 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, "data-listings-page")
         self.assertContains(response, f'data-listings-search-url="{reverse("listings:search")}"')
         self.assertContains(response, 'data-listings-map-style-url="https://maps.geoapify.com/v1/styles/osm-liberty/')
+        self.assertContains(
+            response, 'data-listings-map-default-style-url="https://maps.geoapify.com/v1/styles/osm-liberty/'
+        )
+        self.assertContains(response, 'data-listings-map-satellite-style-url=""')
         self.assertContains(response, 'data-selected-listing-id=""')
+
+    @override_settings(LISTING_MAP_SATELLITE_STYLE_URL="https://tiles.example.com/satellite/style.json")
+    def test_listing_page_exposes_satellite_toggle_only_when_satellite_style_is_configured(self):
+        self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"))
+
+        self.assertContains(
+            response, 'data-listings-map-satellite-style-url="https://tiles.example.com/satellite/style.json"'
+        )
+        self.assertContains(response, "data-listings-map-style-toggle")
+        self.assertContains(response, 'data-style-mode="map"')
+        self.assertContains(response, 'data-style-mode="satellite"')
 
     def test_map_marker_buttons_do_not_override_maplibre_positioning_transform(self):
         module_url = (Path(__file__).resolve().parents[2] / "static/js/listings-map-view.js").as_uri()
@@ -479,6 +521,11 @@ class MockMap {{
     setCenter() {{}}
     setZoom() {{}}
     fitBounds() {{}}
+    setStyle(style) {{
+        this.style = style;
+        this.styleCalls = this.styleCalls || [];
+        this.styleCalls.push(style);
+    }}
 }}
 
 class MockMarker {{
@@ -513,7 +560,8 @@ root.querySelector = (selector) => (selector === "[data-listings-map-canvas]" ? 
 
 const view = createListingsMapView({{
     root,
-    styleUrl: "https://maps.example.com/style.json",
+    defaultStyleUrl: "https://maps.example.com/style.json",
+    satelliteStyleUrl: "https://maps.example.com/satellite.json",
     defaultLat: 42.3355,
     defaultLng: -71.1685,
     initialMarkers: [{{ id: 1, price: "$1800", title: "Beacon apartment", lat: 42.3355, lng: -71.1685 }}],
@@ -521,10 +569,14 @@ const view = createListingsMapView({{
 
 globalThis.__map.handlers.load();
 view.setSelectedListing(1);
+view.setStyleMode("satellite");
+globalThis.__map.handlers["style.load"]();
 
 assert.equal(capturedElements.length, 1);
 assert.equal(capturedElements[0].className.includes("listing-map-marker"), true);
 assert.equal(capturedElements[0].style.transform ?? "", "");
+assert.deepEqual(globalThis.__map.styleCalls, ["https://maps.example.com/satellite.json"]);
+assert.equal(view.getStyleMode(), "satellite");
 """
         result = subprocess.run(
             ["node", "--input-type=module", "-e", script],
@@ -1857,7 +1909,7 @@ assert.equal(picker.isSelectionComplete(), true);
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "This listing is no longer accepting new messages.")
-        self.assertContains(response, "This listing is no longer accepting new conversations.")
+        self.assertContains(response, "New conversations are closed.")
         self.assertFalse(ListingConversation.objects.exists())
 
     def test_listing_owner_sees_conversations_on_detail_page(self):

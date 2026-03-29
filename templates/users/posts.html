@@ -11,7 +11,7 @@
                     <div>
                         <p class="app-kicker">My Listings</p>
                         <h1 class="app-title">Your listings</h1>
-                        <p class="app-subtitle">Listings managed by this account.</p>
+                        <p class="app-subtitle">Listings on this account.</p>
                     </div>
                     <div class="app-actions">
                         <a class="btn btn-brand" href="{% url 'listings:create_listing' %}">Create listing</a>
@@ -40,9 +40,9 @@
                         <h2 class="app-section-heading">Listing inventory</h2>
                         <p class="app-panel-copy">
                             {% if has_listing_only_access %}
-                                Only listings owned by this account appear here.
+                                This account only sees its own listings.
                             {% else %}
-                                Review and manage your active inventory.
+                                Your current listings.
                             {% endif %}
                         </p>
                     </div>
@@ -98,7 +98,7 @@
                 {% else %}
                     <div class="app-empty">
                         <h3 class="app-empty-title">No listings yet.</h3>
-                        <p class="app-empty-copy">Create a listing to get started.</p>
+                        <p class="app-empty-copy">Create a listing.</p>
                         <a class="btn btn-brand" href="{% url 'listings:create_listing' %}">Create listing</a>
                     </div>
                 {% endif %}

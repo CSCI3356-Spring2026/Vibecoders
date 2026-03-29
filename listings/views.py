@@ -54,6 +54,11 @@ ADDRESS_AUTOCOMPLETE_ERROR = {
     "message": "Address suggestions are temporarily unavailable. Try again.",
     "retryable": True,
 }
+ADDRESS_AUTOCOMPLETE_AUTH_ERROR = {
+    "message": "Sign in again to verify addresses.",
+    "retryable": False,
+    "requires_login": True,
+}
 ADDRESS_AUTOCOMPLETE_RATE_LIMIT_ERROR = {
     "message": "Too many address lookups. Wait a moment and try again.",
     "retryable": True,
@@ -142,12 +147,20 @@ def _listing_map_style_url():
     return f"https://maps.geoapify.com/v1/styles/osm-liberty/style.json?apiKey={api_key}"
 
 
+def _listing_satellite_map_style_url():
+    return getattr(settings, "LISTING_MAP_SATELLITE_STYLE_URL", "").strip()
+
+
 def _autocomplete_results_response(results, *, status=200):
     return JsonResponse({"results": results}, status=status)
 
 
 def _autocomplete_error_response():
     return JsonResponse({"results": [], "error": ADDRESS_AUTOCOMPLETE_ERROR}, status=503)
+
+
+def _autocomplete_auth_required_response():
+    return JsonResponse({"results": [], "error": ADDRESS_AUTOCOMPLETE_AUTH_ERROR}, status=401)
 
 
 def _autocomplete_rate_limit_response():
@@ -180,9 +193,11 @@ def _suggestion_context_label(suggestion):
     return locality
 
 
-@login_required
 @require_GET
 def address_suggestions(request):
+    if not request.user.is_authenticated:
+        return _autocomplete_auth_required_response()
+
     query = (request.GET.get("q") or "").strip()
     if len(query) < ADDRESS_AUTOCOMPLETE_MIN_QUERY_LENGTH:
         return _autocomplete_results_response([])
@@ -207,8 +222,8 @@ def address_suggestions(request):
         )
         response.raise_for_status()
         suggestions = normalize_geoapify_suggestions(response.json())
-    except (requests.RequestException, TypeError, ValueError):
-        logger.warning("Address autocomplete lookup failed for query=%r", query, exc_info=True)
+    except (requests.RequestException, TypeError, ValueError) as exc:
+        logger.warning("Address autocomplete lookup failed (%s).", type(exc).__name__)
         return _autocomplete_error_response()
 
     results = []
@@ -231,7 +246,11 @@ def listing_list(request):
     listings_page = get_page(listings, request.GET.get("page"), LISTINGS_PER_PAGE)
     map_requested = settings.LISTING_MAPS_ENABLED
     listing_map_style_url = _listing_map_style_url() if map_requested else ""
+    listing_map_satellite_style_url = _listing_satellite_map_style_url() if map_requested else ""
     map_enabled = map_requested and bool(listing_map_style_url)
+    satellite_map_enabled = bool(
+        map_enabled and listing_map_satellite_style_url and listing_map_satellite_style_url != listing_map_style_url
+    )
     listings_page_items = _apply_listing_ui_flags(list(listings_page.object_list), request.user)
     listings_page.object_list = listings_page_items
 
@@ -258,6 +277,8 @@ def listing_list(request):
         }
         context["listing_search_url"] = reverse("listings:search")
         context["listing_map_style_url"] = listing_map_style_url
+        context["listing_map_satellite_style_url"] = listing_map_satellite_style_url if satellite_map_enabled else ""
+        context["listing_map_satellite_enabled"] = satellite_map_enabled
         context["listing_map_default_lat"] = BOSTON_COLLEGE_LATITUDE
         context["listing_map_default_lng"] = BOSTON_COLLEGE_LONGITUDE
     return render(request, "listings/listing_list.html", context)

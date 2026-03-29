@@ -1,12 +1,16 @@
 import hashlib
 import time
 
+from django.conf import settings
 from django.core.cache import cache
 
 
 def request_rate_limit_identifier(request):
-    forwarded_for = (request.META.get("HTTP_X_FORWARDED_FOR") or "").split(",")[0].strip()
-    client_ip = forwarded_for or (request.META.get("REMOTE_ADDR") or "").strip() or "unknown"
+    client_ip = ""
+    if getattr(settings, "TRUST_X_FORWARDED_FOR", False):
+        client_ip = (request.META.get("HTTP_X_FORWARDED_FOR") or "").split(",")[0].strip()
+    if not client_ip:
+        client_ip = (request.META.get("REMOTE_ADDR") or "").strip() or "unknown"
     user_agent = request.META.get("HTTP_USER_AGENT", "")
     user_agent_digest = hashlib.sha256(user_agent.encode("utf-8")).hexdigest()[:16]
     return f"{client_ip}:{user_agent_digest}"

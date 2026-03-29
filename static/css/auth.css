@@ -40,6 +40,11 @@
     align-items: stretch;
 }
 
+.auth-layout-review {
+    grid-template-columns: minmax(15rem, 0.72fr) minmax(0, 1.48fr);
+    gap: 1.35rem;
+}
+
 .auth-stage {
     position: relative;
     display: flex;
@@ -57,6 +62,26 @@
     bottom: 0.8rem;
     width: 1px;
     background: rgba(var(--gray-300-rgb), 0.76);
+}
+
+.auth-stage-review {
+    justify-content: flex-start;
+    gap: 0.8rem;
+    padding: 1.15rem 0.25rem 1rem 0;
+}
+
+.auth-stage-review::after {
+    top: 0;
+    bottom: 0;
+}
+
+.auth-stage-review .auth-stage-title {
+    max-width: 9ch;
+    font-size: clamp(2.35rem, 3.7vw, 3.35rem);
+}
+
+.auth-stage-review .auth-stage-copy {
+    max-width: 22rem;
 }
 
 .auth-kicker,
@@ -123,6 +148,10 @@
     background: var(--surface-gradient-strong);
 }
 
+.auth-panel-review {
+    min-width: 0;
+}
+
 .auth-panel-body {
     display: flex;
     flex-direction: column;
@@ -130,10 +159,25 @@
     padding: 1.95rem 1.9rem 2rem;
 }
 
+.auth-panel-review .auth-panel-body {
+    gap: 1.15rem;
+    padding: 1.6rem 1.55rem 1.7rem;
+}
+
 .auth-minimal {
     display: flex;
     flex-direction: column;
     gap: 1rem;
+}
+
+.auth-minimal-head {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.auth-minimal.is-review-required {
+    gap: 0.9rem;
 }
 
 .auth-acceptance-form {
@@ -292,6 +336,11 @@
     gap: 1rem;
 }
 
+.auth-panel-review .auth-legal-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+}
+
 .auth-legal-card {
     display: flex;
     flex-direction: column;
@@ -300,6 +349,10 @@
     border: 1px solid rgba(var(--gray-300-rgb), 0.55);
     border-radius: var(--radius-md);
     background: rgba(var(--white-rgb), 0.82);
+}
+
+.auth-panel-review .auth-legal-card {
+    min-height: 100%;
 }
 
 .auth-legal-card-head {
@@ -343,6 +396,11 @@
     padding-right: 0.35rem;
 }
 
+.auth-panel-review .auth-legal-pane {
+    min-height: 22rem;
+    max-height: 26rem;
+}
+
 .auth-legal-pane .listing-panel {
     padding: 0.95rem 1rem;
     box-shadow: none;
@@ -363,6 +421,15 @@
 
     .auth-stage::after {
         display: none;
+    }
+
+    .auth-layout-review .auth-legal-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .auth-panel-review .auth-legal-pane {
+        min-height: 16rem;
+        max-height: 20rem;
     }
 
     .auth-legal-card-head {

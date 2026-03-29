@@ -31,7 +31,7 @@
                     <div>
                         <p class="app-kicker">Messages</p>
                         <h1 class="app-title">Listing conversations</h1>
-                        <p class="app-subtitle">Threads tied to active listings.</p>
+                        <p class="app-subtitle">Listing threads.</p>
                     </div>
                     <div class="app-meta">
                         <span class="app-meta-chip" data-total-conversations="header">{{ conversations_total }} conversation{{ conversations_total|pluralize }}</span>
@@ -48,7 +48,7 @@
                     <div class="app-panel-head messages-panel-head">
                         <div>
                             <h2 class="app-section-heading">Inbox</h2>
-                            <p class="app-panel-copy">Recent listing threads</p>
+                            <p class="app-panel-copy">Recent threads</p>
                         </div>
                         {% if conversations %}
                             <span class="app-meta-chip" data-total-conversations="sidebar">{{ conversations_total }} total</span>
@@ -88,7 +88,7 @@
                     {% else %}
                         <div class="app-empty">
                             <h3 class="app-empty-title">No conversations yet.</h3>
-                            <p class="app-empty-copy">Threads will appear here.</p>
+                            <p class="app-empty-copy">Threads appear here.</p>
                         </div>
                     {% endif %}
                 </div>
@@ -177,14 +177,14 @@
                             </div>
                             {{ reply_form.body }}
                             <div class="messages-compose-actions">
-                                <p class="app-panel-copy mb-0" data-message-delivery-state>Live updates on.</p>
+                                <p class="app-panel-copy mb-0" data-message-delivery-state>Realtime on.</p>
                                 <button class="btn btn-brand" type="submit" data-message-submit>Send message</button>
                             </div>
                         </form>
                     {% else %}
                         <div class="app-empty messages-empty-panel">
                             <h3 class="app-empty-title">Select a conversation.</h3>
-                            <p class="app-empty-copy">Choose a thread from the inbox to read and reply.</p>
+                            <p class="app-empty-copy">Choose a thread.</p>
                         </div>
                     {% endif %}
                 </div>

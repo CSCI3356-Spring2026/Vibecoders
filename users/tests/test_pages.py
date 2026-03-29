@@ -117,7 +117,7 @@ class UserPageTests(TestCase):
 
         self.assertContains(response, 'class="auth-acceptance-form"')
         self.assertContains(response, "Continue with Google")
-        self.assertContains(response, "Secure access for housing, listings, and messages.")
+        self.assertContains(response, "Sign in with Google.")
         self.assertNotContains(response, '<header class="site-header">')
         self.assertNotContains(response, "If you have not created an account yet")
 
@@ -133,6 +133,8 @@ class UserPageTests(TestCase):
         self.assertContains(response, 'name="accept_terms"')
         self.assertContains(response, 'name="accept_privacy"')
         self.assertContains(response, "Scroll to the end to unlock acknowledgement.")
+        self.assertContains(response, "auth-layout-review")
+        self.assertContains(response, "auth-panel-review")
 
     def test_login_page_redirects_to_google_without_legal_review_for_returning_flow(self):
         response = self.client.post("/users/login/", {}, follow=False)
@@ -207,7 +209,13 @@ class UserPageTests(TestCase):
         response = self.client.post("/accounts/login/", {"login": "user@bc.edu"}, follow=False)
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response["Location"], "/users/login/")
+        self.assertEqual(response["Location"], "/accounts/google/login/")
+
+    def test_allauth_login_post_preserves_next_without_extra_bounce(self):
+        response = self.client.post("/accounts/login/?next=/listings/", {}, follow=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/accounts/google/login/?next=%2Flistings%2F")
 
     def test_non_google_account_routes_are_disabled(self):
         for path in (
@@ -283,8 +291,7 @@ class UserPageTests(TestCase):
         self.assertContains(dashboard_response, "https://example.com/avatar.jpg")
         self.assertContains(dashboard_response, self.user.display_role)
         self.assertContains(dashboard_response, "Open document library")
-        self.assertContains(dashboard_response, "Open group match studio")
-        self.assertContains(dashboard_response, "Group match studio")
+        self.assertContains(dashboard_response, ">Group match<", html=False)
         self.assertContains(dashboard_response, "Workspace")
         self.assertNotContains(dashboard_response, "Permissions")
         self.assertNotContains(dashboard_response, "Email verification")

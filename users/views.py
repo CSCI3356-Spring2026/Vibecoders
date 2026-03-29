@@ -13,6 +13,7 @@ from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import content_disposition_header
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_GET, require_POST
 
@@ -124,6 +125,15 @@ def _preview_content_type_or_404(user_file):
     raise Http404("Preview not available.")
 
 
+def _apply_private_file_response_headers(response):
+    response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
+    response["Cross-Origin-Resource-Policy"] = "same-origin"
+    response["Referrer-Policy"] = "no-referrer"
+    response["X-Robots-Tag"] = "noindex, nofollow"
+    return response
+
+
 def login_page(request):
     if request.user.is_authenticated:
         return redirect("users:dashboard")
@@ -138,10 +148,6 @@ def login_page(request):
                 "users/login.html",
                 {"login_form": form, "next_url": next_url, "legal_review_required": legal_review_required},
             )
-        is_legacy_login_post = request.path == reverse("account_login")
-        has_legal_fields = "accept_terms" in request.POST or "accept_privacy" in request.POST
-        if is_legacy_login_post and not has_legal_fields:
-            return redirect("users:login")
         if not legal_review_required:
             return redirect(_google_login_url(request))
         form = GoogleLoginAcceptanceForm(request.POST, require_review=True)
@@ -329,11 +335,10 @@ def file_preview(request, file_id):
     user_file = _accessible_user_file_or_404(request.user, file_id)
     file_handle = _open_user_file_or_404(user_file)
     content_type = _preview_content_type_or_404(user_file)
+    filename = Path(user_file.file.name).name
     response = FileResponse(file_handle, content_type=content_type)
-    response["Content-Disposition"] = f'inline; filename="{Path(user_file.file.name).name}"'
-    response["Cache-Control"] = "private, no-store"
-    response["X-Content-Type-Options"] = "nosniff"
-    return response
+    response["Content-Disposition"] = content_disposition_header(False, filename)
+    return _apply_private_file_response_headers(response)
 
 
 @login_required
@@ -341,14 +346,14 @@ def file_preview(request, file_id):
 def file_download(request, file_id):
     user_file = _accessible_user_file_or_404(request.user, file_id)
     file_handle = _open_user_file_or_404(user_file)
+    filename = Path(user_file.file.name).name
     response = FileResponse(
         file_handle,
         as_attachment=True,
-        filename=Path(user_file.file.name).name,
+        filename=filename,
     )
-    response["Cache-Control"] = "private, no-store"
-    response["X-Content-Type-Options"] = "nosniff"
-    return response
+    response["Content-Disposition"] = content_disposition_header(True, filename)
+    return _apply_private_file_response_headers(response)
 
 
 @login_required

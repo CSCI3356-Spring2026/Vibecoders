@@ -7,6 +7,7 @@ const EMPTY_RESULTS_STATUS = "No verified matches yet. Refine the address.";
 const CHOOSE_STATUS = "Choose a verified address suggestion.";
 const VERIFIED_STATUS = "Verified address selected.";
 const UNAVAILABLE_STATUS = "Address suggestions are unavailable right now.";
+const AUTH_REQUIRED_STATUS = "Sign in again to verify addresses.";
 const SELECTION_REQUIRED_MESSAGE = "Select a verified address suggestion.";
 const MIN_QUERY_LENGTH = 3;
 const LOOKUP_DEBOUNCE_MS = 250;
@@ -137,9 +138,22 @@ export function createAddressPicker(form) {
                 headers: { Accept: "application/json" },
                 signal: activeController.signal,
             });
-            const payload = await response.json().catch(() => ({}));
+            const contentType = response.headers.get("content-type") || "";
+            const payload = contentType.includes("application/json") ? await response.json().catch(() => ({})) : {};
 
             if (requestId !== latestRequestId) {
+                return;
+            }
+
+            if (response.status === 401 || payload.error?.requires_login) {
+                clearSuggestions();
+                setStatus(payload.error?.message || AUTH_REQUIRED_STATUS);
+                return;
+            }
+
+            if (!contentType.includes("application/json")) {
+                clearSuggestions();
+                setStatus(UNAVAILABLE_STATUS);
                 return;
             }
 

@@ -40,6 +40,39 @@ class AuthSettingsTests(TestCase):
         self.assertTrue(settings.SOCIALACCOUNT_PROVIDERS["google"]["EMAIL_AUTHENTICATION"])
         self.assertEqual(settings.LOGIN_URL, "/accounts/login/")
 
+    def test_debug_settings_use_a_stable_secret_key_when_env_is_missing(self):
+        env = os.environ.copy()
+        env.update(
+            {
+                "DJANGO_DEBUG": "true",
+                "DJANGO_SECRET_KEY": "",
+                "DJANGO_ALLOWED_HOSTS": "127.0.0.1,localhost",
+            }
+        )
+        command = [sys.executable, "-c", "import vibecoders.settings as s; print(s.SECRET_KEY)"]
+
+        first_result = subprocess.run(
+            command,
+            cwd=Path(__file__).resolve().parents[2],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        second_result = subprocess.run(
+            command,
+            cwd=Path(__file__).resolve().parents[2],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(first_result.returncode, 0, msg=first_result.stderr)
+        self.assertEqual(second_result.returncode, 0, msg=second_result.stderr)
+        self.assertEqual(first_result.stdout.strip(), second_result.stdout.strip())
+        self.assertEqual(first_result.stdout.strip(), "django-insecure-padly-dev-key-local-only")
+
     def test_production_settings_require_explicit_allowed_hosts(self):
         env = os.environ.copy()
         env.update(

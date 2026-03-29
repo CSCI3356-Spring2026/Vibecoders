@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils.http import content_disposition_header
 
 from ..models import UserFile
 from .helpers import User
@@ -287,6 +288,10 @@ class UserFilesViewTests(TestCase):
         self.assertEqual(response["X-Frame-Options"], "SAMEORIGIN")
         self.assertEqual(response["Cache-Control"], "private, no-store")
         self.assertEqual(response["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(response["Cross-Origin-Resource-Policy"], "same-origin")
+        self.assertEqual(response["Referrer-Policy"], "no-referrer")
+        self.assertEqual(response["X-Robots-Tag"], "noindex, nofollow")
+        self.assertEqual(response["Content-Disposition"], content_disposition_header(False, "lease.pdf"))
 
     def test_other_user_cannot_preview_private_file(self):
         other_user = User.objects.create_user(username="other", email="other@bc.edu", password="test")
@@ -351,3 +356,7 @@ class UserFilesViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Cache-Control"], "private, no-store")
         self.assertEqual(response["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(response["Cross-Origin-Resource-Policy"], "same-origin")
+        self.assertEqual(response["Referrer-Policy"], "no-referrer")
+        self.assertEqual(response["X-Robots-Tag"], "noindex, nofollow")
+        self.assertEqual(response["Content-Disposition"], content_disposition_header(True, "lease.txt"))

@@ -15,9 +15,9 @@
                     <p class="app-kicker">Profile</p>
                     <h1 class="app-title">{{ role_label }} details</h1>
                     {% if profile_needs_completion %}
-                        <p class="app-subtitle">Complete the required profile fields below before continuing.</p>
+                        <p class="app-subtitle">Complete the required fields.</p>
                     {% else %}
-                        <p class="app-subtitle">Keep your account details current for better matching and account context.</p>
+                        <p class="app-subtitle">Update your account details.</p>
                     {% endif %}
                 </div>
                 {% if not profile_needs_completion %}
@@ -35,7 +35,7 @@
 
                 {% if profile_needs_completion %}
                     <p class="profile-form-note">
-                        Required fields must be completed before you can access the rest of the app.
+                        Finish these fields to continue.
                     </p>
                 {% endif %}
 
