@@ -8,6 +8,8 @@ from django.urls import reverse
 
 from core.utils import safe_next_url
 
+from .legal import mark_legal_review_required
+
 
 class CurrentLegalAcceptanceMiddleware:
     allowed_view_names = {
@@ -41,6 +43,7 @@ class CurrentLegalAcceptanceMiddleware:
             return None
 
         logout(request)
+        mark_legal_review_required(request)
         messages.error(request, self.stale_acceptance_message)
         next_url = safe_next_url(request, request.get_full_path(), "")
         login_url = reverse("users:login")

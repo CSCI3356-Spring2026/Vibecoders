@@ -24,7 +24,7 @@ from ..address_provider import get_geoapify_autocomplete_config, normalize_geoap
 from ..address_signing import sign_address_selection, unsign_address_selection
 from ..forms import ListingForm
 from ..geocoding import geocode_listing_address
-from ..models import Listing, ListingImage
+from ..models import Listing, ListingFavorite, ListingImage, ListingReport, ListingReview
 from .base import ListingTestCase
 
 
@@ -86,6 +86,15 @@ class ListingModelTests(ListingTestCase):
         listings = list(Listing.objects.public())
 
         self.assertEqual([listing.pk for listing in listings], [active_listing.pk])
+
+    def test_public_queryset_excludes_unapproved_listings(self):
+        approved_listing = self.create_listing(title="Approved listing")
+        self.create_listing(title="Pending review", approval_status=Listing.APPROVAL_PENDING)
+        self.create_listing(title="Rejected listing", approval_status=Listing.APPROVAL_REJECTED)
+
+        listings = list(Listing.objects.public())
+
+        self.assertEqual([listing.pk for listing in listings], [approved_listing.pk])
 
     def test_listing_owner_cannot_be_reassigned_after_creation(self):
         listing = self.create_listing()
@@ -216,6 +225,131 @@ class ListingModelTests(ListingTestCase):
 
         self.assertEqual(form.fields["common_utilities"].initial, ["Water", "WiFi"])
         self.assertEqual(form.fields["other_utilities"].initial, "Heat")
+
+    def test_listing_owner_cannot_favorite_their_own_listing(self):
+        listing = self.create_listing()
+
+        with self.assertRaises(ValidationError) as exc:
+            ListingFavorite.objects.create(user=self.user, listing=listing)
+
+        self.assertIn("You cannot save your own listing.", exc.exception.message_dict["listing"][0])
+
+    def test_listing_review_requires_approved_listing(self):
+        reviewer = self.user.__class__.objects.create_user(
+            username="reviewer",
+            email="reviewer@bc.edu",
+            password="test",
+        )
+        listing = self.create_listing(approval_status=Listing.APPROVAL_PENDING)
+
+        with self.assertRaises(ValidationError) as exc:
+            ListingReview.objects.create(listing=listing, author=reviewer, rating=4, comment="Looks good.")
+
+        self.assertIn("Only approved listings can receive public reviews.", exc.exception.message_dict["comment"][0])
+
+    def test_listing_review_requires_prior_listing_conversation(self):
+        reviewer = self.user.__class__.objects.create_user(
+            username="prior-contact",
+            email="prior-contact@bc.edu",
+            password="test",
+        )
+        listing = self.create_listing()
+
+        with self.assertRaises(ValidationError) as exc:
+            ListingReview.objects.create(listing=listing, author=reviewer, rating=4, comment="Solid place.")
+
+        self.assertIn("Contact the lister before leaving a resident review.", exc.exception.message_dict["comment"][0])
+
+    def test_listing_review_accepts_student_with_prior_listing_conversation(self):
+        reviewer = self.user.__class__.objects.create_user(
+            username="connected-reviewer",
+            email="connected-reviewer@bc.edu",
+            password="test",
+        )
+        listing = self.create_listing()
+        ListingConversation.objects.create(listing=listing, owner=listing.owner, participant=reviewer)
+
+        review = ListingReview.objects.create(listing=listing, author=reviewer, rating=5, comment="Stayed here.")
+
+        self.assertEqual(review.rating, 5)
+
+    def test_listing_report_blocks_duplicate_active_reports(self):
+        reporter = self.user.__class__.objects.create_user(
+            username="reporter",
+            email="reporter@bc.edu",
+            password="test",
+        )
+        listing = self.create_listing()
+        ListingReport.objects.create(
+            listing=listing,
+            reporter=reporter,
+            reason=ListingReport.REASON_SPAM,
+            details="Duplicate listing.",
+        )
+
+        with self.assertRaises(ValidationError):
+            ListingReport.objects.create(
+                listing=listing,
+                reporter=reporter,
+                reason=ListingReport.REASON_INACCURATE,
+                details="Still active.",
+            )
+
+    def test_listing_report_requires_student_reporter(self):
+        reporter = self.user.__class__.objects.create_user(
+            username="agent-reporter",
+            email="agent-reporter@gmail.com",
+            password="test",
+        )
+        listing = self.create_listing()
+
+        with self.assertRaises(ValidationError) as exc:
+            ListingReport.objects.create(
+                listing=listing,
+                reporter=reporter,
+                reason=ListingReport.REASON_SPAM,
+                details="Not a student report.",
+            )
+
+        self.assertIn("Only student accounts can report listings.", exc.exception.message_dict["details"][0])
+
+    def test_reopening_report_clears_resolution_metadata(self):
+        reviewer = self.user.__class__.objects.create_user(
+            username="report-reviewer",
+            email="report-reviewer@bc.edu",
+            password="test",
+            role="admin",
+        )
+        reporter = self.user.__class__.objects.create_user(
+            username="report-owner-student",
+            email="report-owner-student@bc.edu",
+            password="test",
+        )
+        listing = self.create_listing()
+        report = ListingReport.objects.create(
+            listing=listing,
+            reporter=reporter,
+            reason=ListingReport.REASON_SPAM,
+            details="Duplicate listing.",
+        )
+
+        report.mark_status(
+            status=ListingReport.STATUS_RESOLVED,
+            reviewer=reviewer,
+            resolution_notes="Closed out.",
+        )
+        report.save()
+        report.mark_status(
+            status=ListingReport.STATUS_OPEN,
+            reviewer=reviewer,
+            resolution_notes="",
+        )
+        report.save()
+
+        self.assertEqual(report.status, ListingReport.STATUS_OPEN)
+        self.assertIsNone(report.reviewed_by)
+        self.assertIsNone(report.reviewed_at)
+        self.assertEqual(report.resolution_notes, "")
 
     def test_start_listing_conversation_rejects_listing_only_user(self):
         listing = self.create_listing()

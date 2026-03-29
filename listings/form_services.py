@@ -60,6 +60,7 @@ def save_listing_form(form, owner, uploaded_images):
     listing.address = trusted_selection["address"]
     listing.latitude = trusted_selection["latitude"]
     listing.longitude = trusted_selection["longitude"]
+    listing.submit_for_approval()
 
     with transaction.atomic():
         listing.save()

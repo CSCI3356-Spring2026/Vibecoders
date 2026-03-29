@@ -1,5 +1,5 @@
 .user-avatar {
-    --avatar-size: 2.75rem;
+    --avatar-size: 2.5rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -10,7 +10,7 @@
     min-inline-size: var(--avatar-size);
     min-block-size: var(--avatar-size);
     border: 1px solid rgba(var(--gray-300-rgb), 0.58);
-    border-radius: 0.55rem;
+    border-radius: var(--radius-md);
     background: rgba(var(--white-rgb), 0.78);
     box-shadow: none;
     flex-shrink: 0;
@@ -21,19 +21,19 @@
 }
 
 .user-avatar-sm {
-    --avatar-size: 2.35rem;
+    --avatar-size: 2.15rem;
 }
 
 .user-avatar-md {
-    --avatar-size: 2.9rem;
+    --avatar-size: 2.55rem;
 }
 
 .user-avatar-lg {
-    --avatar-size: 4.2rem;
+    --avatar-size: 3.8rem;
 }
 
 .user-avatar-xl {
-    --avatar-size: 5.25rem;
+    --avatar-size: 4.6rem;
 }
 
 .user-avatar-image {
@@ -60,7 +60,7 @@
 .identity-row {
     display: flex;
     align-items: center;
-    gap: 0.9rem;
+    gap: 0.75rem;
     min-width: 0;
 }
 
@@ -91,7 +91,7 @@
 
 .profile-hero-avatar {
     border: 1px solid rgba(var(--gray-300-rgb), 0.72);
-    box-shadow: var(--shadow-md);
+    box-shadow: none;
 }
 
 .app-toggle-group {
@@ -131,7 +131,7 @@
 }
 
 .app-empty {
-    padding: 2rem 1rem 1rem;
+    padding: 1.35rem 0.8rem 0.8rem;
     text-align: center;
 }
 
@@ -151,7 +151,7 @@
 .listing-detail-stats {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 1rem;
+    gap: 0.75rem;
 }
 
 .app-stat-grid-tight {
@@ -165,7 +165,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
-    padding: 1.15rem 1.18rem 1.2rem;
+    padding: 0.95rem 1rem;
     border: 1px solid rgba(var(--gray-700-rgb), 0.16);
     border-top-width: 1px;
     border-radius: var(--radius-md);
@@ -176,16 +176,16 @@
 .app-stat-label,
 .listing-detail-stat-label {
     color: var(--gray-700);
-    font-size: 0.74rem;
+    font-size: 0.68rem;
     font-weight: 700;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
 }
 
 .app-stat-value,
 .listing-detail-stat-value {
     color: var(--gray-950);
-    font-size: 1.3rem;
+    font-size: 1.15rem;
     font-weight: 700;
     letter-spacing: -0.04em;
 }
@@ -225,7 +225,7 @@
 .app-compact-list {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.55rem;
 }
 
 .app-compact-item {
@@ -233,7 +233,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.22rem;
-    padding: 1rem 1.05rem 1rem 1.12rem;
+    padding: 0.82rem 0.9rem;
     border: 1px solid rgba(var(--gray-700-rgb), 0.16);
     border-radius: var(--radius-md);
     background: var(--surface-gradient);
@@ -241,18 +241,6 @@
     text-decoration: none;
     box-shadow: none;
     transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
-}
-
-.app-compact-item::before {
-    content: "";
-    position: absolute;
-    top: 0.95rem;
-    bottom: 0.95rem;
-    left: 0.7rem;
-    width: 1px;
-    border-radius: 0;
-    background: rgba(var(--primary-rgb), 0.26);
-    opacity: 1;
 }
 
 .app-compact-item:hover {
@@ -292,8 +280,8 @@
 
 .workspace-thumb,
 .workspace-thumb-placeholder {
-    width: 92px;
-    height: 68px;
+    width: 88px;
+    height: 64px;
     border-radius: var(--radius-md);
     border: 1px solid rgba(var(--gray-300-rgb), 0.5);
     flex-shrink: 0;

@@ -16,12 +16,23 @@
                     <span>{{ listing.get_property_type_display }}</span>
                 </div>
             {% endif %}
-            <div class="listing-card-badge">{{ listing.get_lease_type_display }}</div>
         </div>
         <div class="listing-card-body">
+            <div class="listing-card-topline">
+                <div class="listing-card-badges">
+                    {% if listing.is_verified %}
+                        <span class="listing-card-verified">Verified</span>
+                    {% endif %}
+                    <span class="listing-card-badge">{{ listing.get_lease_type_display }}</span>
+                    <span class="listing-card-chip">{{ listing.get_property_type_display }}</span>
+                </div>
+                <span class="listing-card-status {% if listing.status == 'AVAILABLE' %}is-available{% elif listing.status == 'PENDING' %}is-pending{% else %}is-taken{% endif %}">{{ listing.get_status_display }}</span>
+            </div>
             <div class="listing-card-price-row">
                 <span class="listing-card-price">${{ listing.price|floatformat:0 }}/mo</span>
-                <span class="listing-card-status {% if listing.status == 'AVAILABLE' %}is-available{% elif listing.status == 'PENDING' %}is-pending{% else %}is-taken{% endif %}">{{ listing.get_status_display }}</span>
+                {% if listing.review_count %}
+                    <span class="listing-card-rating">{{ listing.average_rating|floatformat:1 }} ★ · {{ listing.review_count }} review{{ listing.review_count|pluralize }}</span>
+                {% endif %}
             </div>
             <h3 class="listing-card-title">{{ listing.title }}</h3>
             <p class="listing-card-address">{{ listing.address }}</p>
@@ -40,20 +51,24 @@
             </div>
         </div>
     </a>
-    <form
-        class="listing-favorite-form"
-        method="post"
-        action="{% url 'listings:toggle_favorite' listing.pk %}"
-    >
-        {% csrf_token %}
-        <input type="hidden" name="next" value="{{ request.get_full_path }}">
-        <button
-            class="listing-favorite-button{% if listing.is_favorited %} is-favorited{% endif %}"
-            type="submit"
-            data-favorite-button
-            aria-pressed="{% if listing.is_favorited %}true{% else %}false{% endif %}"
+    {% if listing.can_favorite %}
+        <form
+            class="listing-favorite-form"
+            method="post"
+            action="{% url 'listings:toggle_favorite' listing.pk %}"
         >
-            {% if listing.is_favorited %}Saved{% else %}Save{% endif %}
-        </button>
-    </form>
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button
+                class="listing-favorite-button{% if listing.is_favorited %} is-favorited{% endif %}"
+                type="submit"
+                data-favorite-button
+                aria-pressed="{% if listing.is_favorited %}true{% else %}false{% endif %}"
+                aria-label="{% if listing.is_favorited %}Remove saved listing{% else %}Save listing{% endif %}"
+            >
+                <span class="listing-favorite-button-icon" aria-hidden="true"></span>
+                <span class="listing-favorite-button-label">{% if listing.is_favorited %}Saved{% else %}Save{% endif %}</span>
+            </button>
+        </form>
+    {% endif %}
 </div>

@@ -17,6 +17,29 @@ function buildMarkerElement(markerData) {
     return element;
 }
 
+function builtInSatelliteStyle() {
+    return {
+        version: 8,
+        sources: {
+            satellite: {
+                type: "raster",
+                tiles: ["https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+                tileSize: 256,
+                attribution: "Imagery © Esri",
+            },
+        },
+        layers: [
+            {
+                id: "satellite",
+                type: "raster",
+                source: "satellite",
+                minzoom: 0,
+                maxzoom: 22,
+            },
+        ],
+    };
+}
+
 function setMarkerSelectedState(element, isSelected) {
     element.classList.toggle("is-selected", isSelected);
     element.setAttribute("aria-pressed", isSelected ? "true" : "false");
@@ -24,7 +47,8 @@ function setMarkerSelectedState(element, isSelected) {
 
 export function createListingsMapView({
     root,
-    styleUrl,
+    defaultStyleUrl,
+    satelliteStyleUrl = "",
     defaultLat,
     defaultLng,
     initialMarkers = [],
@@ -33,20 +57,38 @@ export function createListingsMapView({
     onViewportChange,
 }) {
     const canvas = root?.querySelector("[data-listings-map-canvas]");
+    const resolvedDefaultStyleUrl = defaultStyleUrl || root?.dataset.listingsMapDefaultStyleUrl || "";
+    const resolvedSatelliteStyleUrl = satelliteStyleUrl || root?.dataset.listingsMapSatelliteStyleUrl || "";
 
-    if (!root || !canvas || !styleUrl || typeof maplibregl === "undefined") {
+    if (!root || !canvas || !resolvedDefaultStyleUrl || typeof maplibregl === "undefined") {
         return {
             getBounds() {
                 return null;
             },
+            getStyleMode() {
+                return "map";
+            },
+            setStyleMode() {},
             setSelectedListing() {},
             renderMarkers() {},
         };
     }
 
+    const resolveStyle = (mode) => {
+        if (mode === "satellite" && resolvedSatelliteStyleUrl) {
+            if (resolvedSatelliteStyleUrl === "builtin://satellite") {
+                return builtInSatelliteStyle();
+            }
+            return resolvedSatelliteStyleUrl;
+        }
+        return resolvedDefaultStyleUrl;
+    };
+
+    let activeStyleMode = "map";
+
     const map = new maplibregl.Map({
         container: canvas,
-        style: styleUrl,
+        style: resolveStyle(activeStyleMode),
         center: [defaultLng, defaultLat],
         zoom: 12,
     });
@@ -138,10 +180,12 @@ export function createListingsMapView({
     };
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
-    map.on("load", () => {
+    const handleMapStyleReady = () => {
         mapLoaded = true;
         syncMarkerEntries();
-    });
+    };
+    map.on("load", handleMapStyleReady);
+    map.on("style.load", handleMapStyleReady);
     map.on("moveend", () => {
         onViewportChange?.();
     });
@@ -160,9 +204,22 @@ export function createListingsMapView({
                 north: bounds.getNorth(),
             };
         },
+        getStyleMode() {
+            return activeStyleMode;
+        },
         renderMarkers(nextMarkers) {
             markers = Array.isArray(nextMarkers) ? nextMarkers : [];
             syncMarkerEntries();
+        },
+        setStyleMode(mode) {
+            const nextMode = mode === "satellite" && resolvedSatelliteStyleUrl ? "satellite" : "map";
+            if (nextMode === activeStyleMode) {
+                return;
+            }
+
+            activeStyleMode = nextMode;
+            mapLoaded = false;
+            map.setStyle(resolveStyle(activeStyleMode));
         },
         setSelectedListing(listingId) {
             activeListingId = listingId ? String(listingId) : "";

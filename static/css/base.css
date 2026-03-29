@@ -29,8 +29,8 @@
     --font-heading: "Instrument Sans", sans-serif;
     --font-display: "Instrument Sans", sans-serif;
     --font-accent: "Instrument Sans", sans-serif;
-    --page-background-top: #f6f7f9;
-    --page-background: #f6f7f9;
+    --page-background-top: #f7f7f8;
+    --page-background: #f7f7f8;
     --page-background-wash: var(--page-background);
     --text-strong: var(--gray-900);
     --text-default: var(--gray-700);
@@ -53,12 +53,12 @@
     --surface-gradient-strong: rgba(var(--white-rgb), 1);
     --surface-gradient-secondary: rgba(var(--secondary-rgb), 0.08);
     --surface-gradient-accent: rgba(var(--accent-rgb), 0.1);
-    --shadow-sm: 0 1px 2px rgba(var(--gray-900-rgb), 0.05);
-    --shadow-md: 0 8px 18px rgba(var(--gray-900-rgb), 0.08);
-    --shadow-lg: 0 14px 32px rgba(var(--gray-900-rgb), 0.1);
-    --radius-sm: 0.35rem;
-    --radius-md: 0.5rem;
-    --radius-lg: 0.7rem;
+    --shadow-sm: 0 1px 3px rgba(var(--gray-900-rgb), 0.05);
+    --shadow-md: 0 8px 18px rgba(var(--gray-900-rgb), 0.06);
+    --shadow-lg: 0 14px 30px rgba(var(--gray-900-rgb), 0.08);
+    --radius-sm: 0.28rem;
+    --radius-md: 0.42rem;
+    --radius-lg: 0.58rem;
     --link-color: var(--secondary-600);
     --link-hover-color: #0f4f9f;
     --focus-ring-color: rgba(var(--secondary-rgb), 0.16);
@@ -161,7 +161,7 @@ img {
 .alert {
     margin: 0;
     border: 1px solid rgba(var(--gray-700-rgb), 0.18);
-    border-radius: calc(var(--radius-md) + 0.05rem);
+    border-radius: var(--radius-md);
     background: var(--surface-gradient);
     color: var(--text-strong);
     box-shadow: none;

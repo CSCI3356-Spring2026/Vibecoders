@@ -1,177 +1,168 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Account | {{ site_product_name }}{% endblock %}
 
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+{% endblock %}
+
 {% block content %}
-<section class="app-page">
+<section class="app-page account-dashboard">
     <div class="container">
         <div class="app-shell">
-            <div class="app-header app-header-shell">
-                <div class="app-header-main">
-                    <div class="identity-row profile-hero-row">
-                        {% include "includes/user_avatar.html" with user_obj=request.user avatar_class="profile-hero-avatar user-avatar user-avatar-xl" %}
-                        <div class="identity-copy">
-                            <p class="app-kicker">Account</p>
-                            <h1 class="app-title">{{ request.user.display_name }}</h1>
-                            <p class="app-subtitle">{{ request.user.email|default:"No email on file" }}</p>
+            <section class="app-header-shell account-hero-shell">
+                <div class="account-hero-grid">
+                    <div class="account-hero-main">
+                        <div class="identity-row profile-hero-row">
+                            {% include "includes/user_avatar.html" with user_obj=request.user avatar_class="profile-hero-avatar user-avatar user-avatar-xl" %}
+                            <div class="identity-copy">
+                                <p class="app-kicker">Account</p>
+                                <h1 class="app-title">{{ request.user.display_name }}</h1>
+                                <p class="app-subtitle">{{ request.user.email|default:"No email on file" }}</p>
+                            </div>
+                        </div>
+
+                        <div class="app-meta">
+                            <span class="app-meta-chip">{{ request.user.display_role }}</span>
+                            {% if has_listing_only_access %}
+                                <span class="app-meta-chip app-meta-chip-secondary">Listing access only</span>
+                            {% else %}
+                                <span class="app-meta-chip app-meta-chip-secondary">Marketplace access</span>
+                            {% endif %}
+                            <span class="app-meta-chip app-meta-chip-neutral">
+                                {% if unread_conversations_count %}
+                                    {{ unread_conversations_count }} unread thread{{ unread_conversations_count|pluralize }}
+                                {% else %}
+                                    Inbox up to date
+                                {% endif %}
+                            </span>
+                        </div>
+
+                        <div class="app-actions account-hero-actions">
+                            <a class="btn btn-brand" href="{% url 'users:files' %}">Open document library</a>
+                            {% if can_browse_marketplace %}
+                                <a class="btn btn-outline-secondary" href="{% url 'listings:listing_list' %}">Browse listings</a>
+                            {% else %}
+                                <a class="btn btn-outline-secondary" href="{% url 'users:posts' %}">Open my listings</a>
+                            {% endif %}
+                            <a class="btn btn-outline-secondary" href="{% url 'communications:messages' %}">Open inbox</a>
+                            <a class="btn btn-outline-secondary" href="{% url 'listings:create_listing' %}">Create listing</a>
                         </div>
                     </div>
-                    <div class="app-actions">
-                        {% if can_browse_marketplace %}
-                            <a class="btn btn-brand" href="{% url 'listings:listing_list' %}">Browse listings</a>
-                        {% else %}
-                            <a class="btn btn-brand" href="{% url 'users:posts' %}">Open my listings</a>
-                        {% endif %}
-                        <a class="btn btn-outline-secondary" href="{% url 'communications:messages' %}">Open inbox</a>
-                        <a class="btn btn-outline-secondary" href="{% url 'listings:create_listing' %}">Create listing</a>
-                    </div>
-                </div>
-                <div class="app-meta">
-                    <span class="app-meta-chip">{{ request.user.display_role }}</span>
-                    {% if has_listing_only_access %}
-                        <span class="app-meta-chip app-meta-chip-secondary">Listing access only</span>
-                    {% elif request.user.can_access_admin_panel %}
-                        <span class="app-meta-chip app-meta-chip-secondary">Admin controls enabled</span>
-                    {% else %}
-                        <span class="app-meta-chip app-meta-chip-secondary">Marketplace access</span>
-                    {% endif %}
-                    <span class="app-meta-chip app-meta-chip-accent">
-                        {% if request.user.has_verified_student_email %}
-                            Verified student domain
-                        {% elif request.user.has_edu_email %}
-                            Institutional email
-                        {% else %}
-                            External listing account
-                        {% endif %}
-                    </span>
-                    <span class="app-meta-chip app-meta-chip-neutral">
-                        {% if unread_conversations_count %}
-                            {{ unread_conversations_count }} unread thread{{ unread_conversations_count|pluralize }}
-                        {% else %}
-                            Inbox up to date
-                        {% endif %}
-                    </span>
-                </div>
-            </div>
 
-            <div class="app-stat-grid">
-                <div class="app-stat-card is-primary">
-                    <span class="app-stat-label">Role</span>
-                    <span class="app-stat-value">{{ request.user.display_role }}</span>
+                    <aside class="account-library-spotlight">
+                        <p class="account-library-kicker">Documents</p>
+                        <h2 class="account-library-title">Document library</h2>
+                        <p class="account-library-copy">Private account files.</p>
+
+                        <div class="account-library-metric">
+                            <strong>{{ files_count }}</strong>
+                            <span>file{{ files_count|pluralize }} stored</span>
+                        </div>
+
+                        {% if recent_files %}
+                            <div class="account-library-latest">
+                                <span class="account-library-latest-label">Latest upload</span>
+                                <span class="account-library-latest-title">{{ recent_files.0.display_title }}</span>
+                                <span class="account-library-latest-meta">Uploaded {{ recent_files.0.uploaded_at|date:"M d, Y" }}</span>
+                            </div>
+                        {% else %}
+                            <div class="account-library-latest is-empty">
+                                <span class="account-library-latest-label">Library status</span>
+                                <span class="account-library-latest-title">No files uploaded yet</span>
+                                <span class="account-library-latest-meta">Ready when needed.</span>
+                            </div>
+                        {% endif %}
+
+                        <div class="account-library-actions">
+                            <a class="btn btn-brand w-100" href="{% url 'users:files' %}">Open library</a>
+                            {% if recent_files %}
+                                <a class="btn btn-outline-secondary w-100" href="{% url 'users:files' %}?file={{ recent_files.0.id }}">Open latest file</a>
+                            {% endif %}
+                        </div>
+                    </aside>
                 </div>
-                <div class="app-stat-card is-secondary">
+            </section>
+
+            <div class="app-stat-grid account-stat-grid">
+                <div class="app-stat-card is-primary">
                     <span class="app-stat-label">Listings</span>
                     <span class="app-stat-value">{{ listings_count }}</span>
                 </div>
-                <div class="app-stat-card is-accent">
+                <div class="app-stat-card is-secondary">
                     <span class="app-stat-label">Conversations</span>
                     <span class="app-stat-value">{{ conversations_count }}</span>
                 </div>
+                <div class="app-stat-card is-accent">
+                    <span class="app-stat-label">Unread</span>
+                    <span class="app-stat-value">{{ unread_conversations_count }}</span>
+                </div>
                 <div class="app-stat-card is-neutral">
-                    <span class="app-stat-label">Files</span>
+                    <span class="app-stat-label">Documents</span>
                     <span class="app-stat-value">{{ files_count }}</span>
                 </div>
             </div>
 
-            <div class="app-card-grid app-card-grid-three">
+            <div class="account-dashboard-grid">
                 <div class="listing-panel">
                     <div class="app-panel-head">
                         <div>
-                            <h2 class="app-section-heading">Access</h2>
-                            <p class="app-panel-copy">{{ request.user.access_summary }}</p>
-                        </div>
-                    </div>
-
-                    <div class="app-compact-list">
-                        <div class="app-compact-item app-compact-item-static">
-                            <span class="app-compact-title">Email verification</span>
-                            <span class="app-compact-meta">
-                                {% if request.user.has_verified_student_email %}
-                                    Verified student domain
-                                {% elif request.user.has_edu_email %}
-                                    Institutional email outside the current BC access scope
-                                {% else %}
-                                    External listing account
-                                {% endif %}
-                            </span>
-                        </div>
-                        <div class="app-compact-item app-compact-item-static">
-                            <span class="app-compact-title">Student domains</span>
-                            <span class="app-compact-meta">{{ student_email_domains }}</span>
-                        </div>
-                        <div class="app-compact-item app-compact-item-static">
-                            <span class="app-compact-title">Admin access</span>
-                            <span class="app-compact-meta">
-                                {% if request.user.can_access_admin_panel %}Enabled{% else %}Not enabled{% endif %}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="listing-panel">
-                    <div class="app-panel-head">
-                        <div>
-                            <h2 class="app-section-heading">Permissions</h2>
-                            <p class="app-panel-copy">What this account can do right now.</p>
-                        </div>
-                    </div>
-
-                    <div class="app-compact-list">
-                        <div class="app-compact-item app-compact-item-static">
-                            <span class="app-compact-title">Browse marketplace</span>
-                            <span class="app-compact-meta">
-                                {% if can_browse_marketplace %}Allowed{% else %}Restricted to your own listings{% endif %}
-                            </span>
-                        </div>
-                        <div class="app-compact-item app-compact-item-static">
-                            <span class="app-compact-title">Start conversations</span>
-                            <span class="app-compact-meta">
-                                {% if can_start_listing_conversations %}Allowed{% else %}Student access required{% endif %}
-                            </span>
-                        </div>
-                        <div class="app-compact-item app-compact-item-static">
-                            <span class="app-compact-title">Create listings</span>
-                            <span class="app-compact-meta">Allowed</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="listing-panel">
-                    <div class="app-panel-head">
-                        <div>
-                            <h2 class="app-section-heading">Account</h2>
-                            <p class="app-panel-copy">Manage the main surfaces tied to this account.</p>
+                            <h2 class="app-section-heading">Workspace</h2>
+                            <p class="app-panel-copy">Main actions</p>
                         </div>
                     </div>
 
                     <div class="app-compact-list">
                         <a class="app-compact-item" href="{% url 'users:profile_setup' %}">
-                            <span class="app-compact-title">Profile details</span>
-                            <span class="app-compact-meta">Update the profile fields tied to your role.</span>
+                            <span class="app-compact-title">Profile</span>
+                            <span class="app-compact-meta">Edit details.</span>
                         </a>
                         <a class="app-compact-item" href="{% url 'users:posts' %}">
-                            <span class="app-compact-title">Listings workspace</span>
-                            <span class="app-compact-meta">Review and manage the listings tied to this account.</span>
+                            <span class="app-compact-title">My listings</span>
+                            <span class="app-compact-meta">Manage listings.</span>
                         </a>
-                        <a class="app-compact-item" href="{% url 'users:files' %}">
-                            <span class="app-compact-title">Document library</span>
-                            <span class="app-compact-meta">Open private uploads, previews, and downloads.</span>
+                        <a class="app-compact-item" href="{% url 'communications:messages' %}">
+                            <span class="app-compact-title">Inbox</span>
+                            <span class="app-compact-meta">
+                                {% if unread_conversations_count %}
+                                    {{ unread_conversations_count }} unread thread{{ unread_conversations_count|pluralize }}.
+                                {% else %}
+                                    Open conversations.
+                                {% endif %}
+                            </span>
                         </a>
-                        {% if request.user.can_access_admin_panel %}
-                            <a class="app-compact-item" href="{% url 'users:admin_dashboard' %}">
-                                <span class="app-compact-title">Admin workspace</span>
-                                <span class="app-compact-meta">Moderation and operations controls are enabled.</span>
+                        {% if can_browse_marketplace %}
+                            <a class="app-compact-item" href="{% url 'listings:group_match' %}">
+                                <span class="app-compact-title">Group match</span>
+                                <span class="app-compact-meta">Compare group options.</span>
                             </a>
                         {% endif %}
-                        <div class="app-compact-item app-compact-item-static">
-                            <span class="app-compact-title">Delete account</span>
-                            <span class="app-compact-meta">
-                                This removes your profile, listings, files, and conversations. A recent sign-in is required.
-                            </span>
+                        {% if request.user.can_access_admin_panel %}
+                            <a class="app-compact-item" href="{% url 'users:admin_dashboard' %}">
+                                <span class="app-compact-title">Admin</span>
+                                <span class="app-compact-meta">Moderation tools.</span>
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="listing-panel account-safety-panel">
+                    <div class="app-panel-head">
+                        <div>
+                            <h2 class="app-section-heading">Account Safety</h2>
+                            <p class="app-panel-copy">Deletion</p>
                         </div>
                     </div>
 
-                    <div class="app-actions mt-3">
+                    <div class="account-safety-copy">
+                        <p class="app-panel-copy">
+                            Deleting your account removes your profile, listings, files, and conversations.
+                        </p>
+                        <p class="app-panel-copy">Recent sign-in required.</p>
+                    </div>
+
+                    <div class="app-actions account-safety-actions">
                         {% url 'users:delete_account' as delete_account_url %}
                         {% include "includes/inline_confirm.html" with trigger_label="Delete account" prompt_text="Delete your account?" action_url=delete_account_url confirm_label="Confirm delete" %}
                     </div>
@@ -183,7 +174,7 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading">Recent listings</h2>
-                            <p class="app-panel-copy">Latest posts from your account.</p>
+                            <p class="app-panel-copy">Latest listings</p>
                         </div>
                         <a class="listing-reset-link" href="{% url 'users:posts' %}">View all</a>
                     </div>
@@ -200,7 +191,7 @@
                             {% endfor %}
                         </div>
                     {% else %}
-                        <p class="app-panel-copy mb-0">No listings yet.</p>
+                        <p class="app-panel-copy mb-0">No listings.</p>
                     {% endif %}
                 </div>
 
@@ -208,7 +199,7 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading">Recent messages</h2>
-                            <p class="app-panel-copy">Latest activity across your threads.</p>
+                            <p class="app-panel-copy">Latest threads</p>
                         </div>
                         <a class="listing-reset-link" href="{% url 'communications:messages' %}">Open inbox</a>
                     </div>
@@ -229,15 +220,15 @@
                             {% endfor %}
                         </div>
                     {% else %}
-                        <p class="app-panel-copy mb-0">No messages yet.</p>
+                        <p class="app-panel-copy mb-0">No messages.</p>
                     {% endif %}
                 </div>
 
                 <div class="listing-panel">
                     <div class="app-panel-head">
                         <div>
-                            <h2 class="app-section-heading">Documents</h2>
-                            <p class="app-panel-copy">Recent documents in your library.</p>
+                            <h2 class="app-section-heading">Recent documents</h2>
+                            <p class="app-panel-copy">Latest files</p>
                         </div>
                         <a class="listing-reset-link" href="{% url 'users:files' %}">Open library</a>
                     </div>
@@ -245,14 +236,14 @@
                     {% if recent_files %}
                         <div class="app-compact-list">
                             {% for item in recent_files %}
-                                <div class="app-compact-item app-compact-item-static">
+                                <a class="app-compact-item" href="{% url 'users:files' %}?file={{ item.id }}">
                                     <span class="app-compact-title">{{ item.display_title }}</span>
                                     <span class="app-compact-meta">Uploaded {{ item.uploaded_at|date:"M d, Y" }}</span>
-                                </div>
+                                </a>
                             {% endfor %}
                         </div>
                     {% else %}
-                        <p class="app-panel-copy mb-0">No files uploaded yet.</p>
+                        <p class="app-panel-copy mb-0">No files.</p>
                     {% endif %}
                 </div>
             </div>

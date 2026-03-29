@@ -9,12 +9,12 @@
         <div class="home-hero-shell">
             <div class="home-hero-copy">
                 <p class="home-eyebrow">{% if has_listing_only_access %}Listing Workspace{% else %}Boston College Housing{% endif %}</p>
-                <h1 class="home-title">{% if has_listing_only_access %}Run your listing workflow.{% else %}Find housing near campus.{% endif %}</h1>
+                <h1 class="home-title">{% if has_listing_only_access %}Manage listings.{% else %}Find a place near campus.{% endif %}</h1>
                 <p class="home-subtitle">
                     {% if has_listing_only_access %}
-                        Track active posts and keep inquiries moving.
+                        Your active inventory.
                     {% else %}
-                        Search active rentals and subleases in one place.
+                        Rentals and subleases near Boston College.
                     {% endif %}
                 </p>
 
@@ -33,11 +33,9 @@
                     {% if has_listing_only_access %}
                         <a class="home-pill home-pill-primary" href="{% url 'users:posts' %}">My listings</a>
                         <a class="home-pill home-pill-secondary" href="{% url 'listings:create_listing' %}">Create listing</a>
-                        <a class="home-pill home-pill-accent" href="{% url 'listings:listing_list' %}?lease_type=SUBLEASE">My subleases</a>
                     {% else %}
                         <a class="home-pill home-pill-primary" href="{% url 'listings:listing_list' %}">All listings</a>
                         <a class="home-pill home-pill-secondary" href="{% url 'listings:listing_list' %}?lease_type=SUBLEASE">Subleases</a>
-                        <a class="home-pill home-pill-accent" href="{% url 'listings:listing_list' %}?max_price=1500">Under $1,500</a>
                     {% endif %}
                 </div>
             </div>
@@ -79,12 +77,12 @@
                     </a>
                 {% else %}
                     <div class="home-stage-empty">
-                        <h2 class="home-stage-empty-title">{% if has_listing_only_access %}Your listing workspace is ready.{% else %}Listings will appear here.{% endif %}</h2>
+                        <h2 class="home-stage-empty-title">{% if has_listing_only_access %}No featured listing.{% else %}No featured listing.{% endif %}</h2>
                         <p class="home-stage-empty-copy">
                             {% if has_listing_only_access %}
-                                Create a listing to start posting.
+                                Create a listing.
                             {% else %}
-                                Open the feed or post a listing.
+                                Browse listings or create one.
                             {% endif %}
                         </p>
                         <div class="app-actions">
@@ -146,7 +144,7 @@
         {% else %}
             <div class="home-empty-panel">
                 <h3 class="app-empty-title">{% if has_listing_only_access %}No listings posted yet.{% else %}No live listings yet.{% endif %}</h3>
-                <p class="app-empty-copy">Create a listing to get started.</p>
+                <p class="app-empty-copy">Create a listing.</p>
             </div>
         {% endif %}
     </div>

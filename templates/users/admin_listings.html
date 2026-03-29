@@ -10,7 +10,7 @@
                 <div>
                     <p class="app-kicker">Admin Dashboard</p>
                     <h1 class="app-title">Listings</h1>
-                    <p class="app-subtitle">Review inventory and moderation actions.</p>
+                    <p class="app-subtitle">Review and moderate listings.</p>
                 </div>
                 <div class="admin-header-meta">
                     <a class="btn btn-outline-secondary" href="{% url 'users:admin_dashboard' %}">Back to dashboard</a>
@@ -36,7 +36,8 @@
                                         <tr>
                                             <th scope="col">Property</th>
                                             <th scope="col">Posted By</th>
-                                            <th scope="col">Status</th>
+                                            <th scope="col">Review</th>
+                                            <th scope="col">Signals</th>
                                             <th scope="col">Actions</th>
                                         </tr>
                                     </thead>
@@ -63,13 +64,27 @@
                                                     </div>
                                                 </td>
                                                 <td>
-                                                    <span class="admin-status-pill {% if listing.status == 'PENDING' %}is-pending{% elif listing.status == 'AVAILABLE' %}is-approved{% else %}is-muted{% endif %}">
-                                                        {{ listing.get_status_display }}
+                                                    <span class="admin-status-pill {% if listing.approval_status == 'pending' %}is-pending{% elif listing.approval_status == 'approved' %}is-approved{% else %}is-muted{% endif %}">
+                                                        {{ listing.get_approval_status_display }}
                                                     </span>
+                                                    <div class="admin-user-meta mt-1">Availability: {{ listing.get_status_display }}</div>
+                                                </td>
+                                                <td>
+                                                    <div class="admin-poster">
+                                                        <div class="admin-poster-name">
+                                                            {% if listing.review_count %}
+                                                                {{ listing.average_rating|floatformat:1 }} ★ from {{ listing.review_count }} review{{ listing.review_count|pluralize }}
+                                                            {% else %}
+                                                                No resident reviews
+                                                            {% endif %}
+                                                        </div>
+                                                        <div class="admin-poster-email">{{ listing.open_report_count }} open report{{ listing.open_report_count|pluralize }}</div>
+                                                    </div>
                                                 </td>
                                                 <td>
                                                     <div class="admin-user-actions">
-                                                        <a class="btn btn-outline-secondary btn-sm" href="{% url 'listings:detail' listing.pk %}">View</a>
+                                                        <a class="btn btn-brand btn-sm" href="{% url 'users:admin_listing_detail' listing.id %}">Review</a>
+                                                        <a class="btn btn-outline-secondary btn-sm" href="{% url 'listings:detail' listing.pk %}">Public view</a>
                                                         {% url 'users:admin_delete_listing' listing.id as admin_delete_listing_url %}
                                                         {% include "includes/inline_confirm.html" with trigger_label="Remove" prompt_text="Remove this listing?" action_url=admin_delete_listing_url trigger_button_class="btn btn-outline-secondary btn-sm" confirm_label="Confirm remove" extra_hidden_name="next" extra_hidden_value=request.get_full_path %}
                                                     </div>

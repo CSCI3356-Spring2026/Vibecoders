@@ -20,7 +20,7 @@
                 <div>
                     <p class="listing-wizard-eyebrow">{% if is_edit %}Edit listing{% else %}New listing{% endif %}</p>
                     <h1 class="listing-wizard-title">{% if is_edit %}Update your listing{% else %}List your place{% endif %}</h1>
-                    <p class="listing-wizard-subtitle">Complete each step to unlock the next.</p>
+                    <p class="listing-wizard-subtitle">Complete the form and submit for review.</p>
                 </div>
                 <div class="listing-wizard-header-side">
                     <div class="listing-wizard-progress">
@@ -99,11 +99,11 @@
                 </aside>
 
                 <div class="listing-wizard-stage">
-                    <section class="listing-panel listing-wizard-panel" data-step-panel="0" data-step-title="Basics" data-step-subtitle="Start with the essentials." data-step-complete-fields="title,address,description">
+                    <section class="listing-panel listing-wizard-panel" data-step-panel="0" data-step-title="Basics" data-step-subtitle="Title, address, description." data-step-complete-fields="title,address,description">
                         <div class="listing-wizard-panel-head">
                             <p class="listing-wizard-panel-kicker">Step 1</p>
                             <h2 class="listing-wizard-panel-title">Basics</h2>
-                            <p class="listing-wizard-panel-copy">Create the headline renters will see first.</p>
+                            <p class="listing-wizard-panel-copy">Title, address, and description.</p>
                         </div>
                         <div class="row g-4">
                             {% include "listings/includes/form_field.html" with field=form.title wrapper_class="col-12" %}
@@ -126,11 +126,11 @@
                         </div>
                     </section>
 
-                    <section class="listing-panel listing-wizard-panel" data-step-panel="1" data-step-title="Availability" data-step-subtitle="Set the dates and rent." data-step-complete-fields="start_date,end_date,price">
+                    <section class="listing-panel listing-wizard-panel" data-step-panel="1" data-step-title="Availability" data-step-subtitle="Dates and pricing." data-step-complete-fields="start_date,end_date,price">
                         <div class="listing-wizard-panel-head">
                             <p class="listing-wizard-panel-kicker">Step 2</p>
                             <h2 class="listing-wizard-panel-title">Availability</h2>
-                            <p class="listing-wizard-panel-copy">Set the commercial terms.</p>
+                            <p class="listing-wizard-panel-copy">Dates, price, and visibility.</p>
                         </div>
                         <div class="listing-wizard-grid listing-wizard-grid-3">
                             {% include "listings/includes/form_field.html" with field=form.lease_type %}
@@ -141,7 +141,7 @@
                                     {{ form.is_hidden }}
                                     <span class="listing-wizard-toggle-copy">
                                         <span class="listing-wizard-toggle-title">{{ form.is_hidden.label }}</span>
-                                        <span class="listing-wizard-toggle-meta">Keep this off search until it is ready.</span>
+                                        <span class="listing-wizard-toggle-meta">Hide from search.</span>
                                     </span>
                                 </label>
                                 {% for error in form.is_hidden.errors %}
@@ -162,11 +162,11 @@
                         </div>
                     </section>
 
-                    <section class="listing-panel listing-wizard-panel" data-step-panel="2" data-step-title="Home details" data-step-subtitle="Add the facts renters compare." data-step-complete-fields="property_type,rooms,bathrooms">
+                    <section class="listing-panel listing-wizard-panel" data-step-panel="2" data-step-title="Home details" data-step-subtitle="Type, beds, baths." data-step-complete-fields="property_type,rooms,bathrooms">
                         <div class="listing-wizard-panel-head">
                             <p class="listing-wizard-panel-kicker">Step 3</p>
                             <h2 class="listing-wizard-panel-title">Home details</h2>
-                            <p class="listing-wizard-panel-copy">Add the core unit facts.</p>
+                            <p class="listing-wizard-panel-copy">Unit details.</p>
                         </div>
                         <div class="listing-wizard-grid listing-wizard-grid-4">
                             {% include "listings/includes/form_field.html" with field=form.property_type %}
@@ -199,11 +199,11 @@
                         </div>
                     </section>
 
-                    <section class="listing-panel listing-wizard-panel" data-step-panel="3" data-step-title="Policies" data-step-subtitle="Add optional details before review." data-step-complete-fields="">
+                    <section class="listing-panel listing-wizard-panel" data-step-panel="3" data-step-title="Policies" data-step-subtitle="Utilities, rules, amenities." data-step-complete-fields="">
                         <div class="listing-wizard-panel-head">
                             <p class="listing-wizard-panel-kicker">Step 4</p>
                             <h2 class="listing-wizard-panel-title">Policies</h2>
-                            <p class="listing-wizard-panel-copy">Answer the common follow-up questions.</p>
+                            <p class="listing-wizard-panel-copy">Utilities, amenities, and rules.</p>
                         </div>
                         <div class="listing-wizard-grid listing-wizard-grid-2">
                             <div class="listing-wizard-control-card">
@@ -230,11 +230,11 @@
                         </div>
                     </section>
 
-                    <section class="listing-panel listing-wizard-panel" data-step-panel="4" data-step-title="Review" data-step-subtitle="Add photos and confirm the summary." data-step-complete-fields="">
+                    <section class="listing-panel listing-wizard-panel" data-step-panel="4" data-step-title="Review" data-step-subtitle="Photos and final review." data-step-complete-fields="">
                         <div class="listing-wizard-panel-head">
                             <p class="listing-wizard-panel-kicker">Step 5</p>
                             <h2 class="listing-wizard-panel-title">Review</h2>
-                            <p class="listing-wizard-panel-copy">Upload photos and do a final pass.</p>
+                            <p class="listing-wizard-panel-copy">Photos and final check.</p>
                         </div>
                         <div class="listing-wizard-grid listing-wizard-grid-1">
                             <div class="listing-form-field">
@@ -317,11 +317,11 @@
                         <button type="button" class="btn btn-outline-secondary" data-step-prev>Back</button>
                         <div class="listing-wizard-footer-copy">
                             <p class="listing-wizard-footer-title" data-wizard-footer-title>Basics</p>
-                            <p class="listing-wizard-footer-subtitle" data-wizard-footer-subtitle>Start with the essentials.</p>
+                            <p class="listing-wizard-footer-subtitle" data-wizard-footer-subtitle>Title, address, description.</p>
                         </div>
                         <div class="listing-wizard-footer-actions">
                             <button type="button" class="btn btn-brand" data-step-next>Continue</button>
-                            <button type="submit" class="btn btn-brand" data-step-submit>{% if is_edit %}Save changes{% else %}Create listing{% endif %}</button>
+                            <button type="submit" class="btn btn-brand" data-step-submit>{% if is_edit %}Save and resubmit{% else %}Submit for review{% endif %}</button>
                         </div>
                     </div>
                 </div>

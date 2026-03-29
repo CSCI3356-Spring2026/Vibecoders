@@ -7,20 +7,26 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.db.models import Count, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import content_disposition_header
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_GET, require_POST
 
 from communications.selectors import accessible_conversations_for_user, conversation_summary_for_user
 from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
+from listings.selectors import with_feedback_summary
 
 from .forms import AdminProfileForm, GoogleLoginAcceptanceForm, StudentProfileForm, UserFileUploadForm
-from .legal import has_current_legal_acceptance, set_pending_legal_acceptance
+from .legal import (
+    is_legal_review_required,
+    set_pending_legal_acceptance,
+)
 from .models import AdminProfile, Role, StudentProfile, UserFile
 from .selectors import accessible_user_files_queryset
 from .session_security import has_recent_auth
@@ -28,6 +34,7 @@ from .session_security import has_recent_auth
 FILES_PER_PAGE = 12
 POSTS_PER_PAGE = 12
 LOGIN_RATE_LIMIT_ERROR = "Too many sign-in attempts. Wait a few minutes and try again."
+FILE_UPLOAD_RATE_LIMIT_ERROR = "Too many file uploads in a short time. Wait a few minutes and try again."
 
 
 def _consume_login_rate_limit(request):
@@ -36,6 +43,19 @@ def _consume_login_rate_limit(request):
         identifier=request_rate_limit_identifier(request),
         limit=getattr(settings, "LOGIN_INIT_RATE_LIMIT", 10),
         window_seconds=getattr(settings, "LOGIN_INIT_RATE_WINDOW_SECONDS", 300),
+    )
+
+
+def _consume_user_file_upload_rate_limit(user):
+    user_id = getattr(user, "id", None)
+    if not user_id:
+        return False
+
+    return consume_rate_limit(
+        scope="user-file-upload",
+        identifier=str(user_id),
+        limit=getattr(settings, "USER_FILE_UPLOAD_RATE_LIMIT", 25),
+        window_seconds=getattr(settings, "USER_FILE_UPLOAD_RATE_WINDOW_SECONDS", 300),
     )
 
 
@@ -58,9 +78,20 @@ def _workspace_summary(user):
         "can_browse_marketplace": user.can_browse_marketplace,
         "can_start_listing_conversations": user.can_start_listing_conversations,
         "has_listing_only_access": user.has_listing_only_access,
-        "student_email_domains": ", ".join(sorted(user.student_email_domains())),
         **conversation_summary_for_user(user),
     }
+
+
+def _add_form_validation_errors(form, exc, *, default_field):
+    if hasattr(exc, "message_dict"):
+        for field_name, messages_list in exc.message_dict.items():
+            target_field = field_name if field_name in form.fields else default_field
+            for message in messages_list:
+                form.add_error(target_field, message)
+        return
+
+    for message in exc.messages:
+        form.add_error(default_field, message)
 
 
 def _selected_file_flags(user_file):
@@ -94,33 +125,49 @@ def _preview_content_type_or_404(user_file):
     raise Http404("Preview not available.")
 
 
+def _apply_private_file_response_headers(response):
+    response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
+    response["Cross-Origin-Resource-Policy"] = "same-origin"
+    response["Referrer-Policy"] = "no-referrer"
+    response["X-Robots-Tag"] = "noindex, nofollow"
+    return response
+
+
 def login_page(request):
     if request.user.is_authenticated:
         return redirect("users:dashboard")
+    legal_review_required = is_legal_review_required(request)
     next_url = safe_next_url(request, request.POST.get("next") or request.GET.get("next"), "")
     if request.method == "POST":
         if not _consume_login_rate_limit(request):
             messages.error(request, LOGIN_RATE_LIMIT_ERROR)
-            form = GoogleLoginAcceptanceForm(request.POST)
-            return render(request, "users/login.html", {"login_form": form, "next_url": next_url})
-        is_legacy_login_post = request.path == reverse("account_login")
-        has_legal_fields = "accept_terms" in request.POST or "accept_privacy" in request.POST
-        if is_legacy_login_post and not has_legal_fields:
-            return redirect("users:login")
-        form = GoogleLoginAcceptanceForm(request.POST)
+            form = GoogleLoginAcceptanceForm(request.POST, require_review=legal_review_required)
+            return render(
+                request,
+                "users/login.html",
+                {"login_form": form, "next_url": next_url, "legal_review_required": legal_review_required},
+            )
+        if not legal_review_required:
+            return redirect(_google_login_url(request))
+        form = GoogleLoginAcceptanceForm(request.POST, require_review=True)
         if form.is_valid():
             set_pending_legal_acceptance(request)
             return redirect(_google_login_url(request))
     else:
-        form = GoogleLoginAcceptanceForm()
-    return render(request, "users/login.html", {"login_form": form, "next_url": next_url})
+        form = GoogleLoginAcceptanceForm(require_review=legal_review_required)
+    return render(
+        request,
+        "users/login.html",
+        {"login_form": form, "next_url": next_url, "legal_review_required": legal_review_required},
+    )
 
 
 def google_login_gate(request):
     if not _consume_login_rate_limit(request):
         messages.error(request, LOGIN_RATE_LIMIT_ERROR)
         return redirect(_login_redirect_with_next(request))
-    if not has_current_legal_acceptance(request):
+    if is_legal_review_required(request):
         messages.error(request, "Review and accept the Terms of Service and Privacy Policy before continuing.")
         return redirect(_login_redirect_with_next(request))
     return google_views.oauth2_login(request)
@@ -169,6 +216,7 @@ def dashboard(request):
 def profile_setup(request):
     user = request.user
     next_url = safe_next_url(request, request.POST.get("next") or request.GET.get("next"), "")
+    profile_needs_completion = settings.PROFILE_COMPLETION_REQUIRED and not user.profile_completed_at
     if user.role == Role.STUDENT:
         profile, _ = StudentProfile.objects.get_or_create(user=user)
         form_class = StudentProfileForm
@@ -188,9 +236,11 @@ def profile_setup(request):
             if not user.profile_completed_at:
                 user.profile_completed_at = timezone.now()
                 user.save(update_fields={"profile_completed_at"})
-            messages.success(request, "Profile updated.")
+            messages.success(request, "Profile completed." if profile_needs_completion else "Profile updated.")
             if next_url:
                 return redirect(next_url)
+            if profile_needs_completion:
+                return redirect("users:dashboard")
             return redirect("users:profile_setup")
     else:
         form = form_class(instance=profile)
@@ -199,6 +249,7 @@ def profile_setup(request):
         "form": form,
         "role_label": role_label,
         "next_url": next_url,
+        "profile_needs_completion": profile_needs_completion,
     }
     return render(request, "users/profile_form.html", context)
 
@@ -206,11 +257,12 @@ def profile_setup(request):
 @login_required
 def posts(request):
     listings_qs = (
-        request.user.listings.with_related()
+        with_feedback_summary(request.user.listings.with_related())
         .annotate(
             conversation_count=Count(
                 "conversations",
                 filter=Q(conversations__owner_deleted_at__isnull=True),
+                distinct=True,
             )
         )
         .order_by("-created_at")
@@ -232,14 +284,20 @@ def files(request):
 
     if request.method == "POST":
         form = UserFileUploadForm(request.POST, request.FILES)
-        if form.is_valid():
+        if not _consume_user_file_upload_rate_limit(request.user):
+            form.add_error("file", FILE_UPLOAD_RATE_LIMIT_ERROR)
+        elif form.is_valid():
             user_file = form.save(commit=False)
             user_file.owner = request.user
             if not user_file.title:
                 uploaded_name = Path(user_file.file.name).name
                 user_file.title = uploaded_name
-            user_file.save()
-            return redirect("users:files")
+            try:
+                user_file.save()
+            except ValidationError as exc:
+                _add_form_validation_errors(form, exc, default_field="file")
+            else:
+                return redirect("users:files")
     else:
         form = UserFileUploadForm()
 
@@ -277,11 +335,10 @@ def file_preview(request, file_id):
     user_file = _accessible_user_file_or_404(request.user, file_id)
     file_handle = _open_user_file_or_404(user_file)
     content_type = _preview_content_type_or_404(user_file)
+    filename = Path(user_file.file.name).name
     response = FileResponse(file_handle, content_type=content_type)
-    response["Content-Disposition"] = f'inline; filename="{Path(user_file.file.name).name}"'
-    response["Cache-Control"] = "private, no-store"
-    response["X-Content-Type-Options"] = "nosniff"
-    return response
+    response["Content-Disposition"] = content_disposition_header(False, filename)
+    return _apply_private_file_response_headers(response)
 
 
 @login_required
@@ -289,14 +346,14 @@ def file_preview(request, file_id):
 def file_download(request, file_id):
     user_file = _accessible_user_file_or_404(request.user, file_id)
     file_handle = _open_user_file_or_404(user_file)
+    filename = Path(user_file.file.name).name
     response = FileResponse(
         file_handle,
         as_attachment=True,
-        filename=Path(user_file.file.name).name,
+        filename=filename,
     )
-    response["Cache-Control"] = "private, no-store"
-    response["X-Content-Type-Options"] = "nosniff"
-    return response
+    response["Content-Disposition"] = content_disposition_header(True, filename)
+    return _apply_private_file_response_headers(response)
 
 
 @login_required

@@ -3,6 +3,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from allauth.socialaccount.models import SocialAccount
+from django.conf import settings
 from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -10,6 +11,7 @@ from django.utils import timezone
 
 from communications.models import ListingConversation
 from communications.selectors import accessible_conversations_for_user
+from listings.models import Listing, ListingReport, ListingReview
 
 from ..session_security import RECENT_AUTH_SESSION_KEY
 from .helpers import User
@@ -31,17 +33,82 @@ class UserPageTests(TestCase):
                 self.assertEqual(response.status_code, 302)
                 self.assertIn("/accounts/login/", response.url)
 
+    @override_settings(PROFILE_COMPLETION_REQUIRED=True)
+    def test_profile_completion_redirects_incomplete_user_to_setup(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get("/users/dashboard/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response["Location"].startswith(reverse("users:profile_setup")))
+
+    @override_settings(PROFILE_COMPLETION_REQUIRED=True)
+    def test_profile_setup_requires_questionnaire_fields_before_completion(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("users:profile_setup"),
+            {
+                "preferred_name": "",
+                "age": "",
+                "gender": "",
+                "gender_other": "",
+                "major": "",
+                "bio": "",
+                "messy_level": "",
+                "guest_level": "",
+                "bedtime": "",
+                "noise_level": "",
+                "smoke": "",
+                "drink": "",
+                "party": "",
+                "pets": "",
+            },
+        )
+
+        self.user.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(self.user.profile_completed_at)
+        self.assertContains(response, "This field is required.")
+
+    @override_settings(PROFILE_COMPLETION_REQUIRED=True)
+    def test_profile_setup_completion_redirects_to_dashboard(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("users:profile_setup"),
+            {
+                "preferred_name": "Eagle",
+                "age": "20",
+                "gender": "male",
+                "gender_other": "",
+                "major": "CS",
+                "bio": "Looking for a clean and social apartment.",
+                "messy_level": "4",
+                "guest_level": "3",
+                "bedtime": "23",
+                "noise_level": "2",
+                "smoke": "",
+                "drink": "2",
+                "party": "2",
+                "pets": "",
+            },
+            follow=False,
+        )
+
+        self.user.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("users:dashboard"))
+        self.assertIsNotNone(self.user.profile_completed_at)
+
     def test_login_page_has_google_call_to_action(self):
         response = self.client.get("/users/login/")
 
         self.assertContains(response, 'class="auth-acceptance-form"')
-        self.assertContains(response, 'name="accept_terms"')
-        self.assertContains(response, 'name="accept_privacy"')
         self.assertContains(response, "Continue with Google")
         self.assertContains(response, "marketplace access")
         self.assertContains(response, "Boston College Housing")
-        self.assertContains(response, "Terms of Service")
-        self.assertContains(response, "Privacy Policy")
+        self.assertContains(response, "Use the Google account tied to your BC or listing profile.")
         self.assertNotContains(response, '<header class="site-header">')
         self.assertNotContains(response, "Guest User")
 
@@ -49,24 +116,60 @@ class UserPageTests(TestCase):
         response = self.client.get("/accounts/login/")
 
         self.assertContains(response, 'class="auth-acceptance-form"')
-        self.assertContains(response, 'name="accept_terms"')
-        self.assertContains(response, 'name="accept_privacy"')
         self.assertContains(response, "Continue with Google")
-        self.assertContains(response, "Secure access for housing, listings, and messages.")
+        self.assertContains(response, "Sign in with Google.")
         self.assertNotContains(response, '<header class="site-header">')
         self.assertNotContains(response, "If you have not created an account yet")
 
-    def test_login_page_requires_legal_acceptance_before_google_redirect(self):
-        response = self.client.post("/users/login/", {}, follow=False)
+    def test_login_page_shows_embedded_legal_review_when_required(self):
+        session = self.client.session
+        session["legal_review_required"] = settings.LEGAL_DOCUMENT_VERSION
+        session.save()
+
+        response = self.client.get("/users/login/")
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "You must agree to the Terms of Service.")
-        self.assertContains(response, "You must acknowledge the Privacy Policy.")
+        self.assertContains(response, "data-legal-review-form")
+        self.assertContains(response, 'name="accept_terms"')
+        self.assertContains(response, 'name="accept_privacy"')
+        self.assertContains(response, "Scroll to the end to unlock acknowledgement.")
+        self.assertContains(response, "auth-layout-review")
+        self.assertContains(response, "auth-panel-review")
 
-    def test_login_page_redirects_to_google_after_legal_acceptance(self):
+    def test_login_page_redirects_to_google_without_legal_review_for_returning_flow(self):
+        response = self.client.post("/users/login/", {}, follow=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/accounts/google/login/")
+
+    def test_login_page_requires_scroll_review_before_legal_acceptance(self):
+        session = self.client.session
+        session["legal_review_required"] = settings.LEGAL_DOCUMENT_VERSION
+        session.save()
+
         response = self.client.post(
             "/users/login/",
             {"accept_terms": "on", "accept_privacy": "on"},
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Scroll through the Terms of Service before accepting.")
+        self.assertContains(response, "Scroll through the Privacy Policy before accepting.")
+
+    def test_login_page_redirects_to_google_after_scrolled_legal_acceptance(self):
+        session = self.client.session
+        session["legal_review_required"] = settings.LEGAL_DOCUMENT_VERSION
+        session.save()
+
+        response = self.client.post(
+            "/users/login/",
+            {
+                "reviewed_terms": "on",
+                "reviewed_privacy": "on",
+                "accept_terms": "on",
+                "accept_privacy": "on",
+            },
             follow=False,
         )
 
@@ -79,12 +182,12 @@ class UserPageTests(TestCase):
 
         first_response = self.client.post(
             "/users/login/",
-            {"accept_terms": "on", "accept_privacy": "on"},
+            {},
             follow=False,
         )
         second_response = self.client.post(
             "/users/login/",
-            {"accept_terms": "on", "accept_privacy": "on"},
+            {},
             follow=True,
         )
 
@@ -92,7 +195,11 @@ class UserPageTests(TestCase):
         self.assertEqual(second_response.status_code, 200)
         self.assertContains(second_response, "Too many sign-in attempts. Wait a few minutes and try again.")
 
-    def test_google_login_route_redirects_back_to_login_without_legal_acceptance(self):
+    def test_google_login_route_redirects_back_to_login_when_legal_review_is_required(self):
+        session = self.client.session
+        session["legal_review_required"] = settings.LEGAL_DOCUMENT_VERSION
+        session.save()
+
         response = self.client.get("/accounts/google/login/", follow=False)
 
         self.assertEqual(response.status_code, 302)
@@ -102,7 +209,13 @@ class UserPageTests(TestCase):
         response = self.client.post("/accounts/login/", {"login": "user@bc.edu"}, follow=False)
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response["Location"], "/users/login/")
+        self.assertEqual(response["Location"], "/accounts/google/login/")
+
+    def test_allauth_login_post_preserves_next_without_extra_bounce(self):
+        response = self.client.post("/accounts/login/?next=/listings/", {}, follow=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], "/accounts/google/login/?next=%2Flistings%2F")
 
     def test_non_google_account_routes_are_disabled(self):
         for path in (
@@ -149,6 +262,7 @@ class UserPageTests(TestCase):
 
         self.assertContains(response, "user-avatar-image")
         self.assertContains(response, "https://example.com/eagle-avatar.png")
+        self.assertNotContains(response, ">Group match<", html=False)
 
     def test_account_dashboard_shows_google_avatar_when_available(self):
         SocialAccount.objects.create(
@@ -176,9 +290,13 @@ class UserPageTests(TestCase):
         self.assertEqual(dashboard_response.status_code, 200)
         self.assertContains(dashboard_response, "https://example.com/avatar.jpg")
         self.assertContains(dashboard_response, self.user.display_role)
-        self.assertContains(dashboard_response, "Permissions")
-        self.assertContains(dashboard_response, "Account")
-        self.assertContains(dashboard_response, self.user.display_role)
+        self.assertContains(dashboard_response, "Open document library")
+        self.assertContains(dashboard_response, ">Group match<", html=False)
+        self.assertContains(dashboard_response, "Workspace")
+        self.assertNotContains(dashboard_response, "Permissions")
+        self.assertNotContains(dashboard_response, "Email verification")
+        self.assertNotContains(dashboard_response, "Student domains")
+        self.assertNotContains(dashboard_response, "Admin access")
 
     def test_stale_legal_acceptance_logs_user_out_until_reaccepted(self):
         self.user.terms_accepted_at = timezone.now()
@@ -197,6 +315,8 @@ class UserPageTests(TestCase):
         self.assertContains(
             response, "Review and accept the latest Terms of Service and Privacy Policy before continuing."
         )
+        self.assertContains(response, "data-legal-review-form")
+        self.assertContains(response, "Accept and continue with Google")
         self.assertNotIn("_auth_user_id", self.client.session)
 
     def test_account_dashboard_no_longer_allows_self_assigning_role(self):
@@ -345,6 +465,7 @@ assert.equal(root.classList.contains("is-open"), false);
             lease_type="FULL",
             start_date="2026-09-01",
             end_date="2027-05-31",
+            approval_status="approved",
         )
         self.client.force_login(self.user)
 
@@ -364,6 +485,7 @@ assert.equal(root.classList.contains("is-open"), false);
                 lease_type="FULL",
                 start_date="2026-09-01",
                 end_date="2027-05-31",
+                approval_status="approved",
             )
         self.client.force_login(self.user)
 
@@ -375,6 +497,44 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertNotContains(first_page, "My listing 0")
         self.assertContains(second_page, "My listing 0")
 
+    def test_posts_page_conversation_count_is_not_inflated_by_feedback_annotations(self):
+        listing = self.user.listings.create(
+            title="Feedback heavy listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status="approved",
+        )
+        participant = User.objects.create_user(username="connected", email="connected@bc.edu", password="test")
+        first_reporter = User.objects.create_user(username="reporter-one", email="reporter-one@bc.edu", password="test")
+        second_reporter = User.objects.create_user(
+            username="reporter-two",
+            email="reporter-two@bc.edu",
+            password="test",
+        )
+        ListingConversation.objects.create(listing=listing, owner=self.user, participant=participant)
+        ListingReview.objects.create(listing=listing, author=participant, rating=4, comment="Real feedback.")
+        ListingReport.objects.create(
+            listing=listing,
+            reporter=first_reporter,
+            reason=ListingReport.REASON_SPAM,
+            details="Needs review.",
+        )
+        ListingReport.objects.create(
+            listing=listing,
+            reporter=second_reporter,
+            reason=ListingReport.REASON_INACCURATE,
+            details="Price looks stale.",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get("/users/posts/")
+
+        page_listing = list(response.context["listings"].object_list)[0]
+        self.assertEqual(page_listing.conversation_count, 1)
+
     def test_realtor_dashboard_shows_listing_only_copy(self):
         realtor = User.objects.create_user(username="agent", email="agent@gmail.com", password="test")
         self.client.force_login(realtor)
@@ -383,6 +543,7 @@ assert.equal(root.classList.contains("is-open"), false);
 
         self.assertContains(response, realtor.display_role)
         self.assertContains(response, "Listing access only")
+        self.assertContains(response, "Open document library")
 
     def test_messages_page_renders_accessible_conversation(self):
         listing = self.user.listings.create(
@@ -392,6 +553,7 @@ assert.equal(root.classList.contains("is-open"), false);
             lease_type="FULL",
             start_date="2026-09-01",
             end_date="2027-05-31",
+            approval_status="approved",
         )
         SocialAccount.objects.create(
             user=self.user,
@@ -414,7 +576,7 @@ assert.equal(root.classList.contains("is-open"), false);
         response = self.client.get(reverse("communications:messages"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Listing conversations")
+        self.assertContains(response, "Messages")
         self.assertContains(response, listing.title)
         self.assertContains(response, "Is this still available?")
         self.assertContains(response, "Yes, it is.")
@@ -433,6 +595,7 @@ assert.equal(root.classList.contains("is-open"), false);
             lease_type="FULL",
             start_date="2026-09-01",
             end_date="2027-05-31",
+            approval_status="approved",
         )
         participant = User.objects.create_user(username="student", email="student@bc.edu", password="test")
         conversation = ListingConversation.objects.create(
@@ -458,6 +621,7 @@ assert.equal(root.classList.contains("is-open"), false);
             lease_type="FULL",
             start_date="2026-09-01",
             end_date="2027-05-31",
+            approval_status="approved",
         )
         participant = User.objects.create_user(username="student", email="student@bc.edu", password="test")
         SocialAccount.objects.create(
@@ -486,6 +650,7 @@ assert.equal(root.classList.contains("is-open"), false);
             lease_type="FULL",
             start_date="2026-09-01",
             end_date="2027-05-31",
+            approval_status="approved",
         )
         participant = User.objects.create_user(username="student", email="student@bc.edu", password="test")
         conversation = ListingConversation.objects.create(
@@ -511,6 +676,7 @@ assert.equal(root.classList.contains("is-open"), false);
             lease_type="FULL",
             start_date="2026-09-01",
             end_date="2027-05-31",
+            approval_status="approved",
         )
         participant = User.objects.create_user(username="student", email="student@bc.edu", password="test")
         conversation = ListingConversation.objects.create(
@@ -548,6 +714,7 @@ assert.equal(root.classList.contains("is-open"), false);
                 lease_type="FULL",
                 start_date="2026-09-01",
                 end_date="2027-05-31",
+                approval_status="approved",
             )
             conversation = ListingConversation.objects.create(
                 listing=listing,
@@ -575,6 +742,7 @@ assert.equal(root.classList.contains("is-open"), false);
             lease_type="FULL",
             start_date="2026-09-01",
             end_date="2027-05-31",
+            approval_status="approved",
         )
         participant = User.objects.create_user(username="student", email="student@bc.edu", password="test")
         conversation = ListingConversation.objects.create(
@@ -601,6 +769,7 @@ assert.equal(root.classList.contains("is-open"), false);
             lease_type="FULL",
             start_date="2026-09-01",
             end_date="2027-05-31",
+            approval_status="approved",
         )
         conversation = ListingConversation.objects.create(
             listing=listing,
@@ -646,6 +815,7 @@ assert.equal(root.classList.contains("is-open"), false);
                 lease_type="FULL",
                 start_date="2026-09-01",
                 end_date="2027-05-31",
+                approval_status="approved",
             )
         self.client.force_login(admin)
 
@@ -657,6 +827,159 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertNotContains(first_page, "Admin listing 0")
         self.assertContains(second_page, "Admin listing 0")
         self.assertNotContains(first_page, "confirm(")
+
+    def test_admin_listings_queue_prioritizes_pending_review(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        owner = User.objects.create_user(username="queue-owner", email="queue-owner@bc.edu", password="test")
+        approved = owner.listings.create(
+            title="Approved listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status="approved",
+        )
+        pending = owner.listings.create(
+            title="Pending listing",
+            address="141 Commonwealth Ave",
+            price="1300.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status="pending",
+        )
+        self.client.force_login(admin)
+
+        response = self.client.get("/users/admin-listings/")
+
+        listings = list(response.context["listings"].object_list[:2])
+        self.assertEqual([listing.id for listing in listings], [pending.id, approved.id])
+
+    def test_admin_can_approve_listing_from_review_page(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        owner = User.objects.create_user(username="owner", email="owner@bc.edu", password="test")
+        listing = owner.listings.create(
+            title="Queued listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+        )
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            reverse("users:admin_review_listing", args=[listing.id]),
+            {"action": "approve", "review_notes": "Address and photos look consistent."},
+            follow=False,
+        )
+
+        listing.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("users:admin_listing_detail", args=[listing.id]))
+        self.assertEqual(listing.approval_status, Listing.APPROVAL_APPROVED)
+        self.assertEqual(listing.reviewed_by, admin)
+        self.assertEqual(listing.approval_notes, "Address and photos look consistent.")
+
+    def test_admin_reject_requires_review_notes(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        owner = User.objects.create_user(username="queue-owner", email="queue-owner@bc.edu", password="test")
+        listing = owner.listings.create(
+            title="Needs review notes",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+        )
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            reverse("users:admin_review_listing", args=[listing.id]),
+            {"action": "reject", "review_notes": ""},
+            follow=False,
+        )
+
+        listing.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Add review notes when rejecting a listing.")
+        self.assertEqual(listing.approval_status, Listing.APPROVAL_PENDING)
+
+    def test_admin_reports_page_can_update_report_status(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        owner = User.objects.create_user(username="owner", email="owner@bc.edu", password="test")
+        reporter = User.objects.create_user(username="reporter", email="reporter@bc.edu", password="test")
+        listing = owner.listings.create(
+            title="Reported listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status="approved",
+        )
+        report = ListingReport.objects.create(
+            listing=listing,
+            reporter=reporter,
+            reason=ListingReport.REASON_SPAM,
+            details="Duplicate inventory.",
+        )
+        self.client.force_login(admin)
+
+        page_response = self.client.get(reverse("users:admin_reports"))
+        update_response = self.client.post(
+            reverse("users:admin_update_report", args=[report.id]),
+            {
+                f"report-{report.id}-status": ListingReport.STATUS_RESOLVED,
+                f"report-{report.id}-resolution_notes": "Removed the duplicate and kept the canonical listing.",
+                "next": reverse("users:admin_reports"),
+            },
+            follow=False,
+        )
+
+        report.refresh_from_db()
+        self.assertEqual(page_response.status_code, 200)
+        self.assertContains(page_response, "Reported listing")
+        self.assertEqual(update_response.status_code, 302)
+        self.assertEqual(update_response["Location"], reverse("users:admin_reports"))
+        self.assertEqual(report.status, ListingReport.STATUS_RESOLVED)
+        self.assertEqual(report.reviewed_by, admin)
+
+    def test_admin_reports_page_requires_resolution_notes_to_close_report(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        owner = User.objects.create_user(username="owner-two", email="owner-two@bc.edu", password="test")
+        reporter = User.objects.create_user(username="reporter-two", email="reporter-two@bc.edu", password="test")
+        listing = owner.listings.create(
+            title="Reported listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status="approved",
+        )
+        report = ListingReport.objects.create(
+            listing=listing,
+            reporter=reporter,
+            reason=ListingReport.REASON_SPAM,
+            details="Duplicate inventory.",
+        )
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            reverse("users:admin_update_report", args=[report.id]),
+            {
+                f"report-{report.id}-status": ListingReport.STATUS_RESOLVED,
+                f"report-{report.id}-resolution_notes": "",
+                "next": reverse("users:admin_reports"),
+            },
+            follow=True,
+        )
+
+        report.refresh_from_db()
+        self.assertContains(response, "Add valid resolution notes before updating the report.")
+        self.assertEqual(report.status, ListingReport.STATUS_OPEN)
 
     def test_user_can_delete_their_account(self):
         self.client.force_login(self.user)
@@ -717,6 +1040,7 @@ assert.equal(root.classList.contains("is-open"), false);
             lease_type="FULL",
             start_date="2026-09-01",
             end_date="2027-05-31",
+            approval_status="approved",
         )
         self.client.force_login(admin)
 

@@ -1,8 +1,12 @@
+from types import SimpleNamespace
+
 from django.contrib.admin.sites import AdminSite
 from django.test import RequestFactory, SimpleTestCase
 
-from users.admin import CustomUserAdmin
-from users.models import CustomUser
+from listings.admin import ListingAdmin
+from listings.models import Listing
+from users.admin import CustomUserAdmin, UserFileAdmin
+from users.models import CustomUser, UserFile
 
 
 class CustomUserAdminTests(SimpleTestCase):
@@ -24,3 +28,22 @@ class CustomUserAdminTests(SimpleTestCase):
                 flattened_fields.append(fields)
 
         self.assertNotIn("role", flattened_fields)
+
+
+class ReadOnlyOperationsAdminTests(SimpleTestCase):
+    def setUp(self):
+        self.request = RequestFactory().get("/admin/")
+        self.request.user = SimpleNamespace(is_active=True, is_staff=True)
+        admin_site = AdminSite()
+        self.listing_admin = ListingAdmin(Listing, admin_site)
+        self.user_file_admin = UserFileAdmin(UserFile, admin_site)
+
+    def test_listing_admin_blocks_add_and_change(self):
+        self.assertFalse(self.listing_admin.has_add_permission(self.request))
+        self.assertFalse(self.listing_admin.has_change_permission(self.request))
+        self.assertTrue(self.listing_admin.has_view_permission(self.request))
+
+    def test_user_file_admin_blocks_add_and_change(self):
+        self.assertFalse(self.user_file_admin.has_add_permission(self.request))
+        self.assertFalse(self.user_file_admin.has_change_permission(self.request))
+        self.assertTrue(self.user_file_admin.has_view_permission(self.request))

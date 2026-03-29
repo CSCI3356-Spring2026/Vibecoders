@@ -1,3 +1,7 @@
+import os
+import subprocess
+import sys
+from pathlib import Path
 from unittest.mock import MagicMock
 
 from allauth.core.exceptions import ImmediateHttpResponse
@@ -5,9 +9,10 @@ from allauth.socialaccount.models import SocialAccount
 from django.conf import settings
 from django.contrib import messages
 from django.test import RequestFactory, TestCase
+from django.utils import timezone
 
 from ..adapters import MarketplaceSocialAccountAdapter, NoSignupAccountAdapter
-from ..legal import set_pending_legal_acceptance
+from ..legal import is_legal_review_required, set_pending_legal_acceptance
 from ..models import Role
 from .helpers import User, add_middleware, message_texts
 
@@ -34,6 +39,62 @@ class AuthSettingsTests(TestCase):
         self.assertTrue(settings.SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT)
         self.assertTrue(settings.SOCIALACCOUNT_PROVIDERS["google"]["EMAIL_AUTHENTICATION"])
         self.assertEqual(settings.LOGIN_URL, "/accounts/login/")
+
+    def test_debug_settings_use_a_stable_secret_key_when_env_is_missing(self):
+        env = os.environ.copy()
+        env.update(
+            {
+                "DJANGO_DEBUG": "true",
+                "DJANGO_SECRET_KEY": "",
+                "DJANGO_ALLOWED_HOSTS": "127.0.0.1,localhost",
+            }
+        )
+        command = [sys.executable, "-c", "import vibecoders.settings as s; print(s.SECRET_KEY)"]
+
+        first_result = subprocess.run(
+            command,
+            cwd=Path(__file__).resolve().parents[2],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        second_result = subprocess.run(
+            command,
+            cwd=Path(__file__).resolve().parents[2],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(first_result.returncode, 0, msg=first_result.stderr)
+        self.assertEqual(second_result.returncode, 0, msg=second_result.stderr)
+        self.assertEqual(first_result.stdout.strip(), second_result.stdout.strip())
+        self.assertEqual(first_result.stdout.strip(), "django-insecure-padly-dev-key-local-only")
+
+    def test_production_settings_require_explicit_allowed_hosts(self):
+        env = os.environ.copy()
+        env.update(
+            {
+                "DJANGO_DEBUG": "false",
+                "DJANGO_SECRET_KEY": "test-secret",
+                "DJANGO_ALLOWED_HOSTS": "",
+                "DJANGO_CSRF_TRUSTED_ORIGINS": "",
+                "CHANNEL_REDIS_URL": "redis://localhost:6379/0",
+            }
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", "import vibecoders.settings"],
+            cwd=Path(__file__).resolve().parents[2],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Set DJANGO_ALLOWED_HOSTS when running with DJANGO_DEBUG=false.", result.stderr)
 
 
 class MarketplaceSocialAccountAdapterTests(TestCase):
@@ -125,6 +186,21 @@ class MarketplaceSocialAccountAdapterTests(TestCase):
 
         self.assertEqual(ctx.exception.response.url, "/users/login/")
         self.assertIn(adapter.legal_error_message, message_texts(request))
+        self.assertTrue(is_legal_review_required(request))
+
+    def test_existing_user_with_current_legal_acceptance_can_login_without_pending_session_acceptance(self):
+        user = User.objects.create_user(username="eagle", email="eagle@bc.edu", password="test")
+        accepted_at = timezone.now()
+        user.terms_accepted_at = accepted_at
+        user.privacy_accepted_at = accepted_at
+        user.legal_policy_version = settings.LEGAL_DOCUMENT_VERSION
+        user.save(update_fields=["terms_accepted_at", "privacy_accepted_at", "legal_policy_version"])
+
+        adapter = MarketplaceSocialAccountAdapter()
+        request = add_middleware(RequestFactory().get("/"))
+        sociallogin = self.make_sociallogin("eagle@bc.edu", user=user)
+
+        adapter.pre_social_login(request, sociallogin)
 
     def test_missing_email_login_raises(self):
         adapter = MarketplaceSocialAccountAdapter()

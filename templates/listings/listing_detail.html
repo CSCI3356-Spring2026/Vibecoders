@@ -1,270 +1,584 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}{{ listing.title }} | {{ site_product_name }}{% endblock %}
+{% block body_class %}listing-detail-body{% endblock %}
+
+{% block extra_js %}
+    {% if listing_images|length > 1 %}
+        <script type="module" src="{% static 'js/listing-detail-gallery.js' %}"></script>
+    {% endif %}
+{% endblock %}
 
 {% block content %}
-<section class="app-page">
-    <div class="container">
-        <div class="app-shell">
-            <a class="listing-reset-link" href="{% url back_url_name %}">Back to {{ back_label }}</a>
+<section class="listing-detail-page">
+    <div class="container-fluid listing-detail-container">
+        <a class="listing-detail-back-link" href="{% url back_url_name %}">Back to {{ back_label }}</a>
 
-            <div class="app-header app-header-shell">
-                <div class="app-header-main">
+        <header class="listing-detail-hero">
+            <div class="listing-detail-hero-copy">
+                <p class="listing-browser-kicker">{{ listing.get_property_type_display }}</p>
+                <h1 class="listing-detail-title">{{ listing.title }}</h1>
+                <p class="listing-detail-address">{{ listing.address }}</p>
+
+                <div class="listing-detail-price-row">
                     <div>
-                        <p class="app-kicker">{{ listing.get_property_type_display }}</p>
-                        <h1 class="app-title">{{ listing.title }}</h1>
-                        <p class="app-subtitle">{{ listing.address }}</p>
-                    </div>
-                    <div class="app-price-block">
                         <div class="listing-detail-price">${{ listing.price|floatformat:0 }}/month</div>
                         {% if listing.utilities_estimate or listing.parking_fee %}
-                            <div class="listing-card-summary">Est. total ${{ listing.estimated_monthly_total|floatformat:0 }}/month including monthly extras</div>
+                            <p class="listing-detail-price-note">
+                                Est. total ${{ listing.estimated_monthly_total|floatformat:0 }}/month including monthly extras
+                            </p>
                         {% endif %}
-                        <div class="listing-detail-meta">
-                            <span class="listing-lease">{{ listing.get_lease_type_display }}</span>
-                            <span class="listing-card-status {% if listing.status == 'AVAILABLE' %}is-available{% elif listing.status == 'PENDING' %}is-pending{% else %}is-taken{% endif %}">{{ listing.get_status_display }}</span>
-                        </div>
-                        <form
-                            class="listing-favorite-form listing-favorite-form-detail"
-                            method="post"
-                            action="{% url 'listings:toggle_favorite' listing.pk %}"
-                        >
-                            {% csrf_token %}
-                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                            <button
-                                class="listing-favorite-button{% if is_favorited %} is-favorited{% endif %}"
-                                type="submit"
-                                data-favorite-button
-                                aria-pressed="{% if is_favorited %}true{% else %}false{% endif %}"
-                            >
-                                {% if is_favorited %}Saved listing{% else %}Save listing{% endif %}
-                            </button>
-                        </form>
                     </div>
+                    <div class="listing-detail-meta">
+                        {% if listing.is_verified %}
+                            <span class="listing-card-verified">Verified</span>
+                        {% elif request.user.id == listing.owner_id or request.user.is_bc_admin %}
+                            <span class="listing-card-status {% if listing.approval_status == 'pending' %}is-pending{% elif listing.approval_status == 'approved' %}is-available{% else %}is-taken{% endif %}">
+                                {{ listing.get_approval_status_display }}
+                            </span>
+                        {% endif %}
+                        <span class="listing-card-status {% if listing.status == 'AVAILABLE' %}is-available{% elif listing.status == 'PENDING' %}is-pending{% else %}is-taken{% endif %}">
+                            {{ listing.get_status_display }}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="listing-detail-stats">
+                    <div class="listing-detail-stat">
+                        <span class="listing-detail-stat-label">Bedrooms</span>
+                        <span class="listing-detail-stat-value">{{ listing.rooms }}</span>
+                    </div>
+                    <div class="listing-detail-stat">
+                        <span class="listing-detail-stat-label">Bathrooms</span>
+                        <span class="listing-detail-stat-value">{{ listing.bathrooms }}</span>
+                    </div>
+                    <div class="listing-detail-stat">
+                        <span class="listing-detail-stat-label">Square feet</span>
+                        <span class="listing-detail-stat-value">{{ listing.sq_ft|default:"N/A" }}</span>
+                    </div>
+                </div>
+
+                <div class="listing-detail-trust-row">
+                    {% if review_count %}
+                        <span class="listing-detail-trust-chip">{{ average_rating|floatformat:1 }} ★ average</span>
+                        <span class="listing-detail-trust-chip">{{ review_count }} resident review{{ review_count|pluralize }}</span>
+                    {% else %}
+                        <span class="listing-detail-trust-chip">No resident reviews yet</span>
+                    {% endif %}
+                    {% if listing.is_verified %}
+                        <span class="listing-detail-trust-chip is-verified">Approved by Padly</span>
+                    {% endif %}
                 </div>
             </div>
 
-            <div class="app-detail-grid">
-                <div class="listing-panel">
-                    {% if listing_images %}
-                        <div class="listing-detail-gallery mb-4">
-                            {% for image in listing_images %}
-                                <img src="{{ image.versioned_url }}" alt="{{ listing.title }}" class="listing-detail-image">
-                            {% endfor %}
+            <div class="listing-detail-hero-side">
+                <div class="app-chip-row listing-detail-chip-row">
+                    {% for item in listing_highlight_items %}
+                        <span class="listing-lease{% if forloop.first %}{% else %} listing-lease-muted{% endif %}">{{ item }}</span>
+                    {% endfor %}
+                </div>
+                {% if can_favorite_listing %}
+                    <form
+                        class="listing-favorite-form listing-favorite-form-detail"
+                        method="post"
+                        action="{% url 'listings:toggle_favorite' listing.pk %}"
+                    >
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button
+                            class="listing-favorite-button{% if is_favorited %} is-favorited{% endif %}"
+                            type="submit"
+                            data-favorite-button
+                            aria-pressed="{% if is_favorited %}true{% else %}false{% endif %}"
+                            aria-label="{% if is_favorited %}Remove saved listing{% else %}Save listing{% endif %}"
+                        >
+                            <span class="listing-favorite-button-icon" aria-hidden="true"></span>
+                            <span class="listing-favorite-button-label">{% if is_favorited %}Saved listing{% else %}Save listing{% endif %}</span>
+                        </button>
+                    </form>
+                {% endif %}
+            </div>
+        </header>
+
+        <nav class="listing-detail-nav" aria-label="Listing sections">
+            <a class="listing-detail-nav-link" href="#overview">Overview</a>
+            <a class="listing-detail-nav-link" href="#costs">Costs & policies</a>
+            <a class="listing-detail-nav-link" href="#amenities">Amenities</a>
+            <a class="listing-detail-nav-link" href="#community">Community</a>
+            <a class="listing-detail-nav-link" href="#contact">Contact</a>
+        </nav>
+
+        <section class="listing-detail-gallery-shell"{% if listing_images|length > 1 %} data-listing-gallery{% endif %}>
+            {% if listing_images %}
+                <div class="listing-detail-gallery-stage">
+                    <img
+                        class="listing-detail-gallery-active-image"
+                        src="{{ listing_images.0.versioned_url }}"
+                        alt="{{ listing.title }}"
+                        data-listing-gallery-active-image
+                    >
+                    {% if listing_images|length > 1 %}
+                        <button class="listing-detail-gallery-control is-prev" type="button" data-listing-gallery-prev aria-label="Previous photo">
+                            Previous
+                        </button>
+                        <button class="listing-detail-gallery-control is-next" type="button" data-listing-gallery-next aria-label="Next photo">
+                            Next
+                        </button>
+                        <div class="listing-detail-gallery-count" data-listing-gallery-count>
+                            1 / {{ listing_images|length }}
                         </div>
                     {% endif %}
-
-                    <div class="app-panel-head">
-                        <div>
-                            <h2 class="app-section-heading">Overview</h2>
-                        </div>
-                    </div>
-
-                    <div class="app-stat-grid app-stat-grid-tight mb-4">
-                        <div class="app-stat-card is-primary">
-                            <span class="app-stat-label">Bedrooms</span>
-                            <span class="app-stat-value">{{ listing.rooms }}</span>
-                        </div>
-                        <div class="app-stat-card is-secondary">
-                            <span class="app-stat-label">Bathrooms</span>
-                            <span class="app-stat-value">{{ listing.bathrooms }}</span>
-                        </div>
-                        <div class="app-stat-card is-accent">
-                            <span class="app-stat-label">Square feet</span>
-                            <span class="app-stat-value">{{ listing.sq_ft|default:"N/A" }}</span>
-                        </div>
-                    </div>
-
-                    <p class="listing-card-summary mb-0">
-                        {{ listing.description|default:"No description was provided for this listing yet." }}
-                    </p>
                 </div>
 
-                <div class="app-stack">
-                    <div class="listing-panel">
-                        <div class="app-panel-head">
+                {% if listing_images|length > 1 %}
+                    <div class="listing-detail-gallery-strip" role="list">
+                        {% for image in listing_images %}
+                            <button
+                                class="listing-detail-gallery-thumb{% if forloop.first %} is-active{% endif %}"
+                                type="button"
+                                role="listitem"
+                                data-listing-gallery-thumb
+                                data-image-index="{{ forloop.counter0 }}"
+                                data-image-url="{{ image.versioned_url }}"
+                                data-image-alt="{{ listing.title }} photo {{ forloop.counter }}"
+                                aria-label="Open photo {{ forloop.counter }}"
+                                {% if forloop.first %}aria-current="true"{% else %}aria-current="false"{% endif %}
+                            >
+                                <img src="{{ image.versioned_url }}" alt="{{ listing.title }} photo {{ forloop.counter }}">
+                            </button>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% else %}
+                <div class="listing-detail-gallery-empty">
+                    <span class="listing-detail-gallery-empty-label">{{ listing.get_property_type_display }}</span>
+                    <h2 class="listing-detail-gallery-empty-title">{{ listing.title }}</h2>
+                    <p class="listing-detail-gallery-empty-copy">Photos have not been added for this listing yet.</p>
+                </div>
+            {% endif %}
+        </section>
+
+        <div class="listing-detail-layout">
+            <div class="listing-detail-main">
+                {% if request.user.id == listing.owner_id or request.user.is_bc_admin %}
+                    <section class="listing-detail-panel listing-detail-review-state-panel">
+                        <div class="listing-detail-panel-head">
                             <div>
-                                <h2 class="app-section-heading">Timeline</h2>
-                            </div>
+                            <p class="listing-results-kicker">Listing review</p>
+                            <h2 class="listing-results-title">
+                                {% if listing.approval_status == 'approved' %}
+                                        Listing approved.
+                                    {% elif listing.approval_status == 'pending' %}
+                                        Pending review.
+                                    {% else %}
+                                        Changes required.
+                                    {% endif %}
+                            </h2>
                         </div>
-                        <div class="app-compact-list">
-                            <div class="app-compact-item app-compact-item-static">
-                                <span class="app-compact-title">Move-in</span>
-                                <span class="app-compact-meta">{{ listing.start_date }}</span>
+                    </div>
+                    <p class="listing-detail-panel-copy">
+                        {% if listing.approval_status == 'approved' %}
+                                Eligible for search while status and dates remain valid.
+                        {% elif listing.approval_status == 'pending' %}
+                                Waiting on admin review.
+                        {% else %}
+                                Update the listing and resubmit.
+                        {% endif %}
+                    </p>
+                        <div class="listing-detail-feature-grid">
+                            <div class="listing-detail-feature-card">
+                                <span class="listing-detail-feature-label">Review state</span>
+                                <span class="listing-detail-feature-value">{{ listing.get_approval_status_display }}</span>
                             </div>
-                            <div class="app-compact-item app-compact-item-static">
-                                <span class="app-compact-title">Move-out</span>
-                                <span class="app-compact-meta">{{ listing.end_date }}</span>
+                            <div class="listing-detail-feature-card">
+                                <span class="listing-detail-feature-label">Submitted</span>
+                                <span class="listing-detail-feature-value">{{ listing.submitted_for_approval_at|date:"M d, Y" }}</span>
                             </div>
-                            <div class="app-compact-item app-compact-item-static">
-                                {% include "listings/includes/owner_meta.html" with listing=listing size_class="user-avatar-md" expanded=True show_role=True %}
-                            </div>
-                            {% if listing.distance_to_campus %}
-                                <div class="app-compact-item app-compact-item-static">
-                                    <span class="app-compact-title">Distance to campus</span>
-                                    <span class="app-compact-meta">{{ listing.distance_to_campus }} mi</span>
+                            {% if listing.reviewed_at %}
+                                <div class="listing-detail-feature-card">
+                                    <span class="listing-detail-feature-label">Reviewed</span>
+                                    <span class="listing-detail-feature-value">{{ listing.reviewed_at|date:"M d, Y" }}</span>
+                                </div>
+                            {% endif %}
+                            {% if listing.reviewed_by %}
+                                <div class="listing-detail-feature-card">
+                                    <span class="listing-detail-feature-label">Reviewed by</span>
+                                    <span class="listing-detail-feature-value">{{ listing.reviewed_by.display_name }}</span>
                                 </div>
                             {% endif %}
                         </div>
-                    </div>
-
-                    <div class="listing-panel">
-                        <div class="app-panel-head">
-                            <div>
-                                <h2 class="app-section-heading">Highlights</h2>
+                        {% if listing.approval_notes %}
+                            <div class="listing-detail-review-note">
+                                <strong>Admin notes</strong>
+                                <p>{{ listing.approval_notes }}</p>
                             </div>
-                        </div>
-                        <div class="app-chip-row mb-3">
-                            <span class="listing-lease">{{ listing.get_lease_type_display }}</span>
-                            <span class="listing-lease listing-lease-secondary">{{ listing.get_property_type_display }}</span>
-                            {% if listing.has_yard %}<span class="listing-lease listing-lease-muted">Yard</span>{% endif %}
-                            {% if listing.has_parking %}<span class="listing-lease listing-lease-muted">Parking</span>{% endif %}
-                            {% if listing.is_furnished %}<span class="listing-lease listing-lease-muted">Furnished</span>{% endif %}
-                        </div>
+                        {% endif %}
+                    </section>
+                {% endif %}
 
-                        <div class="app-compact-list">
-                            <div class="app-compact-item app-compact-item-static">
-                                <span class="app-compact-title">Base rent</span>
-                                <span class="app-compact-meta">${{ listing.price|floatformat:0 }}/month</span>
+                <section class="listing-detail-panel" id="overview">
+                    <div class="listing-detail-panel-head">
+                        <div>
+                            <p class="listing-results-kicker">Overview</p>
+                            <h2 class="listing-results-title">Overview</h2>
+                        </div>
+                    </div>
+                    <p class="listing-detail-description">
+                        {{ listing.description|default:"No description was provided for this listing yet." }}
+                    </p>
+                    <div class="listing-detail-feature-grid">
+                        <div class="listing-detail-feature-card">
+                            <span class="listing-detail-feature-label">Move-in</span>
+                            <span class="listing-detail-feature-value">{{ listing.start_date }}</span>
+                        </div>
+                        <div class="listing-detail-feature-card">
+                            <span class="listing-detail-feature-label">Move-out</span>
+                            <span class="listing-detail-feature-value">{{ listing.end_date }}</span>
+                        </div>
+                        <div class="listing-detail-feature-card">
+                            <span class="listing-detail-feature-label">Listed by</span>
+                            <span class="listing-detail-feature-value">{{ listing.owner.display_name }}</span>
+                        </div>
+                        {% if listing.distance_to_campus %}
+                            <div class="listing-detail-feature-card">
+                                <span class="listing-detail-feature-label">Distance to campus</span>
+                                <span class="listing-detail-feature-value">{{ listing.distance_to_campus }} mi</span>
+                            </div>
+                        {% endif %}
+                    </div>
+                </section>
+
+                <section class="listing-detail-panel" id="costs">
+                    <div class="listing-detail-panel-head">
+                        <div>
+                            <p class="listing-results-kicker">Costs & policies</p>
+                            <h2 class="listing-results-title">Costs and policies</h2>
+                        </div>
+                    </div>
+                    <div class="listing-detail-data-grid">
+                        <div class="listing-detail-data-list">
+                            <div class="listing-detail-data-row">
+                                <span>Base rent</span>
+                                <strong>${{ listing.price|floatformat:0 }}/month</strong>
                             </div>
                             {% if listing.utilities_estimate %}
-                                <div class="app-compact-item app-compact-item-static">
-                                    <span class="app-compact-title">Utilities estimate</span>
-                                    <span class="app-compact-meta">${{ listing.utilities_estimate|floatformat:0 }}/month</span>
+                                <div class="listing-detail-data-row">
+                                    <span>Utilities estimate</span>
+                                    <strong>${{ listing.utilities_estimate|floatformat:0 }}/month</strong>
                                 </div>
                             {% endif %}
                             {% if listing.parking_fee %}
-                                <div class="app-compact-item app-compact-item-static">
-                                    <span class="app-compact-title">Parking fee</span>
-                                    <span class="app-compact-meta">${{ listing.parking_fee|floatformat:0 }}/month</span>
+                                <div class="listing-detail-data-row">
+                                    <span>Parking fee</span>
+                                    <strong>${{ listing.parking_fee|floatformat:0 }}/month</strong>
                                 </div>
                             {% endif %}
                             {% if listing.security_deposit %}
-                                <div class="app-compact-item app-compact-item-static">
-                                    <span class="app-compact-title">Security deposit</span>
-                                    <span class="app-compact-meta">${{ listing.security_deposit|floatformat:0 }}</span>
+                                <div class="listing-detail-data-row">
+                                    <span>Security deposit</span>
+                                    <strong>${{ listing.security_deposit|floatformat:0 }}</strong>
                                 </div>
                             {% endif %}
                             {% if listing.application_fee %}
-                                <div class="app-compact-item app-compact-item-static">
-                                    <span class="app-compact-title">Application fee</span>
-                                    <span class="app-compact-meta">${{ listing.application_fee|floatformat:0 }}</span>
+                                <div class="listing-detail-data-row">
+                                    <span>Application fee</span>
+                                    <strong>${{ listing.application_fee|floatformat:0 }}</strong>
                                 </div>
                             {% endif %}
                             {% if listing.utilities_estimate or listing.parking_fee %}
-                                <div class="app-compact-item app-compact-item-static">
-                                    <span class="app-compact-title">Estimated monthly total</span>
-                                    <span class="app-compact-meta">${{ listing.estimated_monthly_total|floatformat:0 }}/month</span>
+                                <div class="listing-detail-data-row is-emphasis">
+                                    <span>Estimated monthly total</span>
+                                    <strong>${{ listing.estimated_monthly_total|floatformat:0 }}/month</strong>
                                 </div>
                             {% endif %}
-                            <div class="app-compact-item app-compact-item-static">
-                                <span class="app-compact-title">Utilities</span>
-                                <span class="app-compact-meta">{{ listing.utilities_included|default:"Not listed" }}</span>
-                            </div>
-                            <div class="app-compact-item app-compact-item-static">
-                                <span class="app-compact-title">Pet policy</span>
-                                <span class="app-compact-meta">{{ listing.pet_policy|default:"Not listed" }}</span>
-                            </div>
-                            <div class="app-compact-item app-compact-item-static">
-                                <span class="app-compact-title">Amenities</span>
-                                <span class="app-compact-meta">{{ listing.amenities|default:"Not listed" }}</span>
-                            </div>
-                            <div class="app-compact-item app-compact-item-static">
-                                <span class="app-compact-title">Security features</span>
-                                <span class="app-compact-meta">{{ listing.security_features|default:"Not listed" }}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="listing-panel">
-                        <div class="app-panel-head">
-                            <div>
-                                <h2 class="app-section-heading">Messages</h2>
-                            </div>
                         </div>
 
-                        {% if listing.owner_id == request.user.id %}
-                            <div class="app-compact-list">
-                                <div class="app-compact-item app-compact-item-static">
-                                    <span class="app-compact-title">Owner view</span>
-                                    <span class="app-compact-meta">You posted this listing. Conversation threads appear below.</span>
-                                </div>
-                            </div>
-                        {% elif request.user.can_start_listing_conversations %}
-                            {% if existing_conversation %}
-                                <div class="app-compact-list">
-                                    <a class="app-compact-item" href="{% url 'communications:detail' existing_conversation.id %}">
-                                        <span class="app-compact-title">Open conversation</span>
-                                        <span class="app-compact-meta">
-                                            {% if existing_conversation.ui_has_unread %}Unread reply{% else %}Latest message{% endif %}
-                                            • {{ existing_conversation.last_message_at|date:"M d, Y" }}
-                                        </span>
-                                        <span class="app-compact-meta">{{ existing_conversation.last_message_preview|default:"Open your thread for the latest messages." }}</span>
-                                    </a>
-                                </div>
-                            {% endif %}
-                            {% if can_message_listing %}
-                                <form method="post" action="{% url 'listings:message_listing' listing.pk %}" class="app-stack">
-                                    {% csrf_token %}
-                                    <label class="form-label fw-semibold" for="{{ message_form.body.id_for_label }}">Message</label>
-                                    {{ message_form.body }}
-                                    <button class="btn btn-brand" type="submit">
-                                        {% if existing_conversation %}Send message{% else %}Start conversation{% endif %}
-                                    </button>
-                                </form>
-                            {% else %}
-                                <div class="app-compact-list">
-                                    <div class="app-compact-item app-compact-item-static">
-                                        <span class="app-compact-title">Messaging unavailable</span>
-                                        <span class="app-compact-meta">This listing is no longer accepting new conversations.</span>
+                        <div class="listing-detail-policy-cards">
+                            <div class="listing-detail-policy-card">
+                                <span class="listing-detail-feature-label">Utilities included</span>
+                                {% if utility_items %}
+                                    <div class="listing-detail-pill-list">
+                                        {% for item in utility_items %}
+                                            <span class="listing-detail-pill">{{ item }}</span>
+                                        {% endfor %}
                                     </div>
-                                </div>
-                            {% endif %}
-                        {% else %}
-                            <div class="app-compact-list">
-                                <div class="app-compact-item app-compact-item-static">
-                                    <span class="app-compact-title">Listing-only access</span>
-                                    <span class="app-compact-meta">This account can publish listings but cannot start new renter threads.</span>
-                                </div>
+                                {% else %}
+                                    <p class="listing-detail-panel-copy">Not listed</p>
+                                {% endif %}
                             </div>
-                        {% endif %}
+                            <div class="listing-detail-policy-card">
+                                <span class="listing-detail-feature-label">Pet policy</span>
+                                <p class="listing-detail-panel-copy">{{ listing.pet_policy|default:"Not listed" }}</p>
+                            </div>
+                        </div>
                     </div>
+                </section>
 
-                    {% if show_owner_conversations %}
-                        <div class="listing-panel">
-                            <div class="app-panel-head">
-                                <div>
-                                    <h2 class="app-section-heading">Conversation threads</h2>
-                                </div>
-                            </div>
-
-                            {% if owner_conversations %}
-                                <div class="app-compact-list">
-                                    {% for conversation in owner_conversations %}
-                                        <a class="app-compact-item" href="{% url 'communications:detail' conversation.id %}">
-                                            <div class="identity-row listing-person-row">
-                                                {% include "includes/user_avatar.html" with user_obj=conversation.participant avatar_class="listing-person-avatar user-avatar user-avatar-sm" %}
-                                                <div class="identity-copy">
-                                                    <span class="app-compact-title">{{ conversation.ui_counterparty_name }}</span>
-                                                    <span class="app-compact-meta">
-                                                        {{ conversation.participant.email }} • {{ conversation.last_message_at|date:"M d, Y" }}
-                                                    </span>
-                                                    <span class="app-compact-meta">
-                                                        {% if conversation.ui_has_unread %}Unread reply{% else %}Latest message{% endif %}
-                                                        • {{ conversation.last_message_preview|default:"No messages yet." }}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </a>
+                <section class="listing-detail-panel" id="amenities">
+                    <div class="listing-detail-panel-head">
+                        <div>
+                            <p class="listing-results-kicker">Amenities</p>
+                            <h2 class="listing-results-title">Amenities</h2>
+                        </div>
+                    </div>
+                    <div class="listing-detail-amenities-grid">
+                        <div class="listing-detail-amenities-column">
+                            <h3 class="listing-detail-subheading">Amenities</h3>
+                            {% if amenity_items %}
+                                <div class="listing-detail-pill-list">
+                                    {% for item in amenity_items %}
+                                        <span class="listing-detail-pill">{{ item }}</span>
                                     {% endfor %}
                                 </div>
                             {% else %}
-                                <p class="app-panel-copy mb-0">No messages yet for this listing.</p>
+                                <p class="listing-detail-panel-copy">No amenities listed.</p>
                             {% endif %}
                         </div>
+                        <div class="listing-detail-amenities-column">
+                            <h3 class="listing-detail-subheading">Security features</h3>
+                            {% if security_feature_items %}
+                                <div class="listing-detail-pill-list">
+                                    {% for item in security_feature_items %}
+                                        <span class="listing-detail-pill">{{ item }}</span>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <p class="listing-detail-panel-copy">No security features listed.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </section>
+
+                <section class="listing-detail-panel" id="community">
+                    <div class="listing-detail-panel-head">
+                        <div>
+                            <p class="listing-results-kicker">Community</p>
+                            <h2 class="listing-results-title">Reviews and verification</h2>
+                        </div>
+                    </div>
+
+                    <div class="listing-detail-community-summary">
+                        <div class="listing-detail-community-stat">
+                            <span class="listing-detail-feature-label">Average rating</span>
+                            <strong class="listing-detail-community-value">
+                                {% if review_count %}
+                                    {{ average_rating|floatformat:1 }} ★
+                                {% else %}
+                                    --
+                                {% endif %}
+                            </strong>
+                        </div>
+                        <div class="listing-detail-community-stat">
+                            <span class="listing-detail-feature-label">Resident reviews</span>
+                            <strong class="listing-detail-community-value">{{ review_count }}</strong>
+                        </div>
+                        <div class="listing-detail-community-stat">
+                            <span class="listing-detail-feature-label">Trust state</span>
+                            <strong class="listing-detail-community-value">
+                                {% if listing.is_verified %}
+                                    Verified
+                                {% else %}
+                                    {{ listing.get_approval_status_display }}
+                                {% endif %}
+                            </strong>
+                        </div>
+                    </div>
+
+                    {% if review_requires_contact %}
+                        <p class="listing-detail-panel-copy">
+                            Reviews open after you message the owner.
+                        </p>
                     {% endif %}
-                </div>
+
+                    {% if can_review_listing and review_form %}
+                        <div class="listing-detail-community-form">
+                            <h3 class="listing-detail-subheading">{% if existing_review %}Update your review{% else %}Leave a review{% endif %}</h3>
+                            <form method="post" action="{% url 'listings:submit_review' listing.pk %}">
+                                {% csrf_token %}
+                                <div class="listing-review-star-group">
+                                    {% for radio in review_form.rating %}
+                                        <label class="listing-review-star-option" for="{{ radio.id_for_label }}">
+                                            {{ radio.tag }}
+                                            <span>{{ radio.choice_label }}</span>
+                                        </label>
+                                    {% endfor %}
+                                </div>
+                                {% for error in review_form.rating.errors %}
+                                    <div class="app-field-error">{{ error }}</div>
+                                {% endfor %}
+                                <div class="mt-3">
+                                    <label class="form-label fw-semibold" for="{{ review_form.comment.id_for_label }}">{{ review_form.comment.label }}</label>
+                                    {{ review_form.comment }}
+                                    {% for error in review_form.comment.errors %}
+                                        <div class="app-field-error">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                                <button class="btn btn-brand mt-3" type="submit">{% if existing_review %}Update review{% else %}Publish review{% endif %}</button>
+                            </form>
+                        </div>
+                    {% endif %}
+
+                    {% if listing_reviews %}
+                        <div class="listing-review-list">
+                            {% for review in listing_reviews %}
+                                <article class="listing-review-card">
+                                    <div class="listing-review-card-head">
+                                        <div class="identity-row listing-person-row">
+                                            {% include "includes/user_avatar.html" with user_obj=review.author avatar_class="listing-person-avatar user-avatar user-avatar-sm" %}
+                                            <div class="identity-copy">
+                                                <strong class="listing-review-author">{{ review.author.display_name }}</strong>
+                                                <span class="listing-review-meta">{{ review.updated_at|date:"M d, Y" }}</span>
+                                            </div>
+                                        </div>
+                                        <span class="listing-review-rating">{{ review.rating }} ★</span>
+                                    </div>
+                                    {% if review.comment %}
+                                        <p class="listing-review-comment">{{ review.comment }}</p>
+                                    {% else %}
+                                        <p class="listing-detail-panel-copy mb-0">No comment.</p>
+                                    {% endif %}
+                                </article>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="listing-detail-panel-copy mb-0">No reviews yet.</p>
+                    {% endif %}
+                </section>
+
+                {% if show_owner_conversations %}
+                    <section class="listing-detail-panel" id="owner-threads">
+                        <div class="listing-detail-panel-head">
+                            <div>
+                                <p class="listing-results-kicker">Messages</p>
+                                <h2 class="listing-results-title">Conversation threads</h2>
+                            </div>
+                        </div>
+
+                        {% if owner_conversations %}
+                            <div class="app-compact-list">
+                                {% for conversation in owner_conversations %}
+                                    <a class="app-compact-item" href="{% url 'communications:detail' conversation.id %}">
+                                        <div class="identity-row listing-person-row">
+                                            {% include "includes/user_avatar.html" with user_obj=conversation.participant avatar_class="listing-person-avatar user-avatar user-avatar-sm" %}
+                                            <div class="identity-copy">
+                                                <span class="app-compact-title">{{ conversation.ui_counterparty_name }}</span>
+                                                <span class="app-compact-meta">
+                                                    {{ conversation.participant.email }} • {{ conversation.last_message_at|date:"M d, Y" }}
+                                                </span>
+                                                <span class="app-compact-meta">
+                                                    {% if conversation.ui_has_unread %}Unread reply{% else %}Latest message{% endif %}
+                                                    • {{ conversation.last_message_preview|default:"No messages yet." }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </a>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="listing-detail-panel-copy">No messages yet.</p>
+                        {% endif %}
+                    </section>
+                {% endif %}
             </div>
+
+            <aside class="listing-detail-sidebar" id="contact">
+                <section class="listing-detail-panel listing-detail-contact-card">
+                    <div class="listing-detail-panel-head">
+                        <div>
+                            <p class="listing-results-kicker">Contact</p>
+                            <h2 class="listing-results-title">
+                                {% if listing.owner_id == request.user.id %}
+                                    Owner dashboard
+                                {% else %}
+                                    Contact about this home
+                                {% endif %}
+                            </h2>
+                        </div>
+                    </div>
+
+                    {% include "listings/includes/owner_meta.html" with listing=listing size_class="user-avatar-md" expanded=True show_role=True %}
+
+                    <div class="listing-detail-sidebar-summary">
+                        <div class="listing-detail-data-row">
+                            <span>Lease type</span>
+                            <strong>{{ listing.get_lease_type_display }}</strong>
+                        </div>
+                        <div class="listing-detail-data-row">
+                            <span>Available from</span>
+                            <strong>{{ listing.start_date }}</strong>
+                        </div>
+                        <div class="listing-detail-data-row">
+                            <span>Available until</span>
+                            <strong>{{ listing.end_date }}</strong>
+                        </div>
+                    </div>
+
+                    {% if listing.owner_id == request.user.id %}
+                        <p class="listing-detail-panel-copy">You posted this listing.</p>
+                    {% elif request.user.can_start_listing_conversations %}
+                        {% if existing_conversation %}
+                            <a class="btn btn-outline-secondary w-100" href="{% url 'communications:detail' existing_conversation.id %}">
+                                {% if existing_conversation.ui_has_unread %}Open unread conversation{% else %}Open existing conversation{% endif %}
+                            </a>
+                        {% endif %}
+
+                        {% if can_message_listing %}
+                            <form method="post" action="{% url 'listings:message_listing' listing.pk %}" class="listing-detail-message-form">
+                                {% csrf_token %}
+                                <label class="form-label fw-semibold" for="{{ message_form.body.id_for_label }}">Message</label>
+                                {{ message_form.body }}
+                                <button class="btn btn-brand w-100" type="submit">
+                                    {% if existing_conversation %}Send message{% else %}Start conversation{% endif %}
+                                </button>
+                            </form>
+                        {% else %}
+                            <p class="listing-detail-panel-copy">New conversations are closed.</p>
+                        {% endif %}
+                    {% else %}
+                        <p class="listing-detail-panel-copy">This account cannot start conversations.</p>
+                    {% endif %}
+                </section>
+
+                {% if can_report_listing %}
+                    <section class="listing-detail-panel listing-detail-report-card">
+                        <div class="listing-detail-panel-head">
+                            <div>
+                                <p class="listing-results-kicker">Report listing</p>
+                                <h2 class="listing-results-title">Report this listing</h2>
+                            </div>
+                        </div>
+                        {% if active_listing_report %}
+                            <p class="listing-detail-panel-copy">
+                                You already submitted a report on this listing.
+                            </p>
+                            <div class="listing-detail-data-row">
+                                <span>Status</span>
+                                <strong>{{ active_listing_report.get_status_display }}</strong>
+                            </div>
+                            <div class="listing-detail-data-row">
+                                <span>Reason</span>
+                                <strong>{{ active_listing_report.get_reason_display }}</strong>
+                            </div>
+                        {% elif report_form %}
+                            <form method="post" action="{% url 'listings:report_listing' listing.pk %}">
+                                {% csrf_token %}
+                                <label class="form-label fw-semibold" for="{{ report_form.reason.id_for_label }}">{{ report_form.reason.label }}</label>
+                                {{ report_form.reason }}
+                                {% for error in report_form.reason.errors %}
+                                    <div class="app-field-error">{{ error }}</div>
+                                {% endfor %}
+                                <label class="form-label fw-semibold mt-3" for="{{ report_form.details.id_for_label }}">{{ report_form.details.label }}</label>
+                                {{ report_form.details }}
+                                {% for error in report_form.details.errors %}
+                                    <div class="app-field-error">{{ error }}</div>
+                                {% endfor %}
+                                <button class="btn btn-outline-secondary w-100 mt-3" type="submit">Submit report</button>
+                            </form>
+                        {% endif %}
+                    </section>
+                {% endif %}
+            </aside>
         </div>
     </div>
 </section>

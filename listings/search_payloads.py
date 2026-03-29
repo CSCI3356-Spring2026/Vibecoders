@@ -23,11 +23,13 @@ def listing_marker_payload(listing):
 
 def listing_card_payload(listing):
     image = _primary_image_from_prefetch(listing)
+    can_favorite = bool(getattr(listing, "can_favorite", False))
+    average_rating = getattr(listing, "average_rating", None)
     return {
         "id": listing.id,
         "url": reverse("listings:detail", args=[listing.pk]),
-        "favorite_url": reverse("listings:toggle_favorite", args=[listing.pk]),
-        "is_favorited": bool(getattr(listing, "is_favorited", False)),
+        "favorite_url": reverse("listings:toggle_favorite", args=[listing.pk]) if can_favorite else "",
+        "is_favorited": bool(getattr(listing, "is_favorited", False)) if can_favorite else False,
         "title": listing.title,
         "address": listing.address,
         "price": f"${listing.price:.0f}/mo",
@@ -38,6 +40,9 @@ def listing_card_payload(listing):
         },
         "lease_type": listing.get_lease_type_display(),
         "property_type": listing.get_property_type_display(),
+        "is_verified": bool(getattr(listing, "is_verified", False)),
+        "average_rating": round(float(average_rating), 1) if average_rating is not None else None,
+        "review_count": int(getattr(listing, "review_count", 0) or 0),
         "rooms": listing.rooms,
         "bathrooms": f"{listing.bathrooms:g}",
         "sq_ft": listing.sq_ft,

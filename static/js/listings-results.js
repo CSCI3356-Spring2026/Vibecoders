@@ -73,8 +73,10 @@ function buildFavoriteForm(card, csrfToken, nextUrl) {
                 type="submit"
                 data-favorite-button
                 aria-pressed="${pressed}"
+                aria-label="${card.is_favorited ? "Remove saved listing" : "Save listing"}"
             >
-                ${escapeHtml(label)}
+                <span class="listing-favorite-button-icon" aria-hidden="true"></span>
+                <span class="listing-favorite-button-label">${escapeHtml(label)}</span>
             </button>
         </form>
     `;
@@ -101,6 +103,11 @@ function buildCardMarkup(card, { csrfToken, nextUrl }) {
     const summary = card.description
         ? `<p class="listing-card-summary">${escapeHtml(card.description)}</p>`
         : "";
+    const verifiedBadge = card.is_verified ? '<span class="listing-card-verified">Verified</span>' : "";
+    const ratingMarkup =
+        card.review_count > 0 && card.average_rating !== null
+            ? `<span class="listing-card-rating">${escapeHtml(card.average_rating)} ★ · ${escapeHtml(card.review_count)} review${pluralize(card.review_count)}</span>`
+            : "";
 
     return `
         <div class="listing-card-shell">
@@ -114,12 +121,19 @@ function buildCardMarkup(card, { csrfToken, nextUrl }) {
             >
                 <div class="listing-card-media">
                     ${media}
-                    <div class="listing-card-badge">${escapeHtml(card.lease_type)}</div>
                 </div>
                 <div class="listing-card-body">
+                    <div class="listing-card-topline">
+                        <div class="listing-card-badges">
+                            ${verifiedBadge}
+                            <span class="listing-card-badge">${escapeHtml(card.lease_type)}</span>
+                            <span class="listing-card-chip">${escapeHtml(card.property_type)}</span>
+                        </div>
+                        <span class="listing-card-status is-${escapeHtml(card.status.state)}">${escapeHtml(card.status.label)}</span>
+                    </div>
                     <div class="listing-card-price-row">
                         <span class="listing-card-price">${escapeHtml(card.price)}</span>
-                        <span class="listing-card-status is-${escapeHtml(card.status.state)}">${escapeHtml(card.status.label)}</span>
+                        ${ratingMarkup}
                     </div>
                     <h3 class="listing-card-title">${escapeHtml(card.title)}</h3>
                     <p class="listing-card-address">${escapeHtml(card.address)}</p>

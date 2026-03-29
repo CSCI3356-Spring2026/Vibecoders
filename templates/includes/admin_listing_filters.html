@@ -9,9 +9,15 @@
                 value="{{ query }}"
             >
             <select class="form-select" name="status">
-                <option value="">All Statuses</option>
+                <option value="">All Availability</option>
                 {% for value, label in status_options %}
                     <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <select class="form-select" name="review_status">
+                <option value="">All Review States</option>
+                {% for value, label in review_status_options %}
+                    <option value="{{ value }}" {% if selected_review_status == value %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
         </div>

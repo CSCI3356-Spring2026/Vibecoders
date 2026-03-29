@@ -18,31 +18,32 @@
                 </span>
             </a>
 
-            <div class="auth-layout">
-                <div class="auth-stage">
-                    <p class="auth-kicker">Boston College Housing</p>
-                    <h1 class="auth-stage-title">Secure access for housing, listings, and messages.</h1>
-                    <p class="auth-stage-copy">
-                        Continue with Google to access the marketplace. Verified `@bc.edu` accounts can browse and
-                        message, while external accounts can post and manage listings.
-                    </p>
-                    <div class="auth-stage-list">
-                        <div class="auth-stage-item">
-                            <span class="auth-stage-dot" aria-hidden="true"></span>
-                            <span>Google-based sign in and account verification</span>
+            <div class="auth-layout{% block auth_layout_class %}{% endblock %}">
+                <div class="auth-stage{% block auth_stage_class %}{% endblock %}">
+                    {% block auth_stage %}
+                        <p class="auth-kicker">Boston College Housing</p>
+                        <h1 class="auth-stage-title">Sign in with Google.</h1>
+                        <p class="auth-stage-copy">
+                            Verified `@bc.edu` accounts can browse and message. Other accounts can manage listings.
+                        </p>
+                        <div class="auth-stage-list">
+                            <div class="auth-stage-item">
+                                <span class="auth-stage-dot" aria-hidden="true"></span>
+                                <span>Google sign-in</span>
+                            </div>
+                            <div class="auth-stage-item">
+                                <span class="auth-stage-dot" aria-hidden="true"></span>
+                                <span>Marketplace access for verified BC users</span>
+                            </div>
+                            <div class="auth-stage-item">
+                                <span class="auth-stage-dot" aria-hidden="true"></span>
+                                <span>Listing tools for owners and admins</span>
+                            </div>
                         </div>
-                        <div class="auth-stage-item">
-                            <span class="auth-stage-dot" aria-hidden="true"></span>
-                            <span>Marketplace access for verified BC users</span>
-                        </div>
-                        <div class="auth-stage-item">
-                            <span class="auth-stage-dot" aria-hidden="true"></span>
-                            <span>Listing tools for owners, realtors, and admins</span>
-                        </div>
-                    </div>
+                    {% endblock %}
                 </div>
 
-                <div class="listing-panel auth-panel">
+                <div class="listing-panel auth-panel{% block auth_panel_class %}{% endblock %}">
                     <div class="auth-panel-body">
                         {% if messages %}
                             {% for message in messages %}

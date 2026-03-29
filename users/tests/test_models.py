@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.test.client import RequestFactory
 from django.utils import timezone
 
-from ..legal import set_pending_legal_acceptance
+from ..legal import LEGAL_ACCEPTANCE_SESSION_KEY, set_pending_legal_acceptance
 from ..models import AdminProfile, Role, StudentProfile
 from ..session_security import RECENT_AUTH_SESSION_KEY, get_recent_auth_at
 from .helpers import User, add_middleware
@@ -185,6 +185,7 @@ class CustomUserModelTests(TestCase):
         self.assertIsNotNone(user.privacy_accepted_at)
         self.assertTrue(user.has_current_legal_acceptance)
         self.assertIn(RECENT_AUTH_SESSION_KEY, request.session)
+        self.assertNotIn(LEGAL_ACCEPTANCE_SESSION_KEY, request.session)
         self.assertIsNotNone(get_recent_auth_at(request))
 
     def test_google_profile_image_is_synced_on_login(self):

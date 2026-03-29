@@ -1,6 +1,7 @@
 from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.db.models import F, Q
@@ -30,14 +31,49 @@ LISTING_PROPERTY_TYPES = [
     ("studio", "Studio"),
     ("dorm", "Dormitory"),
 ]
+LISTING_APPROVAL_PENDING = "pending"
+LISTING_APPROVAL_APPROVED = "approved"
+LISTING_APPROVAL_REJECTED = "rejected"
+LISTING_APPROVAL_CHOICES = [
+    (LISTING_APPROVAL_PENDING, "Pending review"),
+    (LISTING_APPROVAL_APPROVED, "Approved"),
+    (LISTING_APPROVAL_REJECTED, "Rejected"),
+]
+LISTING_REPORT_STATUS_OPEN = "open"
+LISTING_REPORT_STATUS_IN_REVIEW = "in_review"
+LISTING_REPORT_STATUS_RESOLVED = "resolved"
+LISTING_REPORT_STATUS_DISMISSED = "dismissed"
+LISTING_REPORT_STATUS_CHOICES = [
+    (LISTING_REPORT_STATUS_OPEN, "Open"),
+    (LISTING_REPORT_STATUS_IN_REVIEW, "In review"),
+    (LISTING_REPORT_STATUS_RESOLVED, "Resolved"),
+    (LISTING_REPORT_STATUS_DISMISSED, "Dismissed"),
+]
+LISTING_REPORT_REASON_SCAM = "scam"
+LISTING_REPORT_REASON_INACCURATE = "inaccurate"
+LISTING_REPORT_REASON_SAFETY = "safety"
+LISTING_REPORT_REASON_SPAM = "spam"
+LISTING_REPORT_REASON_UNAVAILABLE = "unavailable"
+LISTING_REPORT_REASON_OTHER = "other"
+LISTING_REPORT_REASON_CHOICES = [
+    (LISTING_REPORT_REASON_SCAM, "Scam or suspicious"),
+    (LISTING_REPORT_REASON_INACCURATE, "Inaccurate listing details"),
+    (LISTING_REPORT_REASON_SAFETY, "Safety concern"),
+    (LISTING_REPORT_REASON_SPAM, "Spam or duplicate"),
+    (LISTING_REPORT_REASON_UNAVAILABLE, "No longer available"),
+    (LISTING_REPORT_REASON_OTHER, "Other"),
+]
+LISTING_APPROVAL_VALUES = tuple(value for value, _ in LISTING_APPROVAL_CHOICES)
 LISTING_LEASE_TYPE_VALUES = tuple(value for value, _ in LISTING_LEASE_TYPES)
 LISTING_STATUS_VALUES = tuple(value for value, _ in LISTING_STATUS_CHOICES)
 LISTING_PROPERTY_TYPE_VALUES = tuple(value for value, _ in LISTING_PROPERTY_TYPES)
+LISTING_REPORT_STATUS_VALUES = tuple(value for value, _ in LISTING_REPORT_STATUS_CHOICES)
+LISTING_REPORT_REASON_VALUES = tuple(value for value, _ in LISTING_REPORT_REASON_CHOICES)
 
 
 class ListingQuerySet(models.QuerySet):
     def with_related(self):
-        return self.select_related("owner").prefetch_related("images", "owner__socialaccount_set")
+        return self.select_related("owner", "reviewed_by").prefetch_related("images", "owner__socialaccount_set")
 
     def public(self, *, as_of=None):
         return self.filter(Listing.public_visibility_q(as_of=as_of))
@@ -50,10 +86,14 @@ class Listing(models.Model):
     STATUS_AVAILABLE = LISTING_STATUS_AVAILABLE
     STATUS_PENDING = LISTING_STATUS_PENDING
     STATUS_TAKEN = LISTING_STATUS_TAKEN
+    APPROVAL_PENDING = LISTING_APPROVAL_PENDING
+    APPROVAL_APPROVED = LISTING_APPROVAL_APPROVED
+    APPROVAL_REJECTED = LISTING_APPROVAL_REJECTED
 
     LEASE_TYPES = LISTING_LEASE_TYPES
     STATUS_CHOICES = LISTING_STATUS_CHOICES
     PROPERTY_TYPES = LISTING_PROPERTY_TYPES
+    APPROVAL_CHOICES = LISTING_APPROVAL_CHOICES
 
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="listings")
     title = models.CharField(max_length=200)
@@ -90,6 +130,18 @@ class Listing(models.Model):
     amenities = models.TextField(blank=True, help_text="Comma separated list")
     security_features = models.TextField(blank=True)
 
+    approval_status = models.CharField(max_length=16, choices=APPROVAL_CHOICES, default=APPROVAL_PENDING, db_index=True)
+    submitted_for_approval_at = models.DateTimeField(null=True, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_listings",
+    )
+    approval_notes = models.TextField(blank=True)
     is_hidden = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     objects = ListingQuerySet.as_manager()
@@ -100,6 +152,7 @@ class Listing(models.Model):
             models.Index(fields=["is_hidden", "status", "end_date", "created_at"], name="listing_public_idx"),
             models.Index(fields=["owner", "created_at"], name="listing_owner_idx"),
             models.Index(fields=["status", "created_at"], name="listing_status_idx"),
+            models.Index(fields=["approval_status", "created_at"], name="listing_approval_idx"),
         ]
         constraints = [
             models.CheckConstraint(
@@ -150,12 +203,17 @@ class Listing(models.Model):
                 condition=Q(property_type__in=LISTING_PROPERTY_TYPE_VALUES),
                 name="listing_property_type_valid",
             ),
+            models.CheckConstraint(
+                condition=Q(approval_status__in=LISTING_APPROVAL_VALUES),
+                name="listing_approval_status_valid",
+            ),
         ]
 
     @classmethod
     def public_visibility_q(cls, *, as_of=None):
         return Q(
             is_hidden=False,
+            approval_status=cls.APPROVAL_APPROVED,
             status=cls.STATUS_AVAILABLE,
             end_date__gte=as_of or timezone.localdate(),
         )
@@ -175,6 +233,15 @@ class Listing(models.Model):
             raise ValidationError({"end_date": "End date must be on or after the start date."})
 
     def save(self, *args, **kwargs):
+        if self.submitted_for_approval_at is None:
+            self.submitted_for_approval_at = timezone.now()
+        if self.approval_status == self.APPROVAL_APPROVED:
+            if self.reviewed_at is None:
+                self.reviewed_at = self.submitted_for_approval_at
+            if self.approved_at is None:
+                self.approved_at = self.reviewed_at
+        elif self.approval_status == self.APPROVAL_REJECTED and self.reviewed_at is None:
+            self.reviewed_at = timezone.now()
         self._validate_owner_immutability()
         super().save(*args, **kwargs)
 
@@ -218,11 +285,60 @@ class Listing(models.Model):
 
     @property
     def is_publicly_active(self):
-        return not self.is_hidden and self.status == self.STATUS_AVAILABLE and self.end_date >= timezone.localdate()
+        return (
+            not self.is_hidden
+            and self.approval_status == self.APPROVAL_APPROVED
+            and self.status == self.STATUS_AVAILABLE
+            and self.end_date >= timezone.localdate()
+        )
 
     @property
     def has_map_coordinates(self):
         return self.latitude is not None and self.longitude is not None
+
+    @property
+    def is_approved(self):
+        return self.approval_status == self.APPROVAL_APPROVED
+
+    @property
+    def is_pending_review(self):
+        return self.approval_status == self.APPROVAL_PENDING
+
+    @property
+    def is_rejected(self):
+        return self.approval_status == self.APPROVAL_REJECTED
+
+    @property
+    def is_verified(self):
+        return self.is_approved and self.approved_at is not None
+
+    def submit_for_approval(self):
+        self.approval_status = self.APPROVAL_PENDING
+        self.submitted_for_approval_at = timezone.now()
+        self.reviewed_at = None
+        self.approved_at = None
+        self.reviewed_by = None
+        self.approval_notes = ""
+
+    def approve(self, *, reviewer, notes=""):
+        reviewed_at = timezone.now()
+        self.approval_status = self.APPROVAL_APPROVED
+        self.reviewed_by = reviewer
+        self.reviewed_at = reviewed_at
+        self.approved_at = reviewed_at
+        self.approval_notes = notes.strip()
+        if self.submitted_for_approval_at is None:
+            self.submitted_for_approval_at = reviewed_at
+
+    def reject(self, *, reviewer, notes=""):
+        reviewed_at = timezone.now()
+        self.approval_status = self.APPROVAL_REJECTED
+        self.reviewed_by = reviewer
+        self.reviewed_at = reviewed_at
+        self.approved_at = None
+        self.approval_notes = notes.strip()
+        if self.submitted_for_approval_at is None:
+            self.submitted_for_approval_at = reviewed_at
 
 
 class ListingImage(models.Model):
@@ -293,5 +409,148 @@ class ListingFavorite(models.Model):
             models.Index(fields=["listing", "created_at"], name="listing_favorite_listing_idx"),
         ]
 
+    def clean(self):
+        super().clean()
+        listing_owner_id = getattr(self.listing, "owner_id", None)
+        if listing_owner_id is None and self.listing_id:
+            listing_owner_id = Listing.objects.filter(pk=self.listing_id).values_list("owner_id", flat=True).first()
+        if self.user_id and listing_owner_id == self.user_id:
+            raise ValidationError({"listing": "You cannot save your own listing."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.user_id} favorited listing {self.listing_id}"
+
+
+class ListingReview(models.Model):
+    listing = models.ForeignKey(Listing, on_delete=models.CASCADE, related_name="reviews")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="listing_reviews")
+    rating = models.PositiveSmallIntegerField()
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["listing", "author"], name="listing_review_unique"),
+            models.CheckConstraint(
+                condition=Q(rating__gte=1) & Q(rating__lte=5),
+                name="listing_review_rating_valid",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["listing", "updated_at"], name="listing_review_listing_idx"),
+            models.Index(fields=["author", "updated_at"], name="listing_review_author_idx"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if not self.listing_id:
+            return
+        user_model = get_user_model()
+        if self.author_id and not user_model._default_manager.filter(pk=self.author_id, role="student").exists():
+            raise ValidationError({"comment": "Only student accounts can leave resident reviews."})
+        listing_owner_id = getattr(self.listing, "owner_id", None)
+        if listing_owner_id is None:
+            listing_owner_id = Listing.objects.filter(pk=self.listing_id).values_list("owner_id", flat=True).first()
+        if self.author_id and listing_owner_id == self.author_id:
+            raise ValidationError({"comment": "You cannot review your own listing."})
+        if not Listing.objects.filter(pk=self.listing_id, approval_status=Listing.APPROVAL_APPROVED).exists():
+            raise ValidationError({"comment": "Only approved listings can receive public reviews."})
+        if self.author_id and not self.listing.conversations.filter(participant_id=self.author_id).exists():
+            raise ValidationError({"comment": "Contact the lister before leaving a resident review."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
+class ListingReport(models.Model):
+    STATUS_OPEN = LISTING_REPORT_STATUS_OPEN
+    STATUS_IN_REVIEW = LISTING_REPORT_STATUS_IN_REVIEW
+    STATUS_RESOLVED = LISTING_REPORT_STATUS_RESOLVED
+    STATUS_DISMISSED = LISTING_REPORT_STATUS_DISMISSED
+    REASON_SCAM = LISTING_REPORT_REASON_SCAM
+    REASON_INACCURATE = LISTING_REPORT_REASON_INACCURATE
+    REASON_SAFETY = LISTING_REPORT_REASON_SAFETY
+    REASON_SPAM = LISTING_REPORT_REASON_SPAM
+    REASON_UNAVAILABLE = LISTING_REPORT_REASON_UNAVAILABLE
+    REASON_OTHER = LISTING_REPORT_REASON_OTHER
+
+    REASON_CHOICES = LISTING_REPORT_REASON_CHOICES
+    STATUS_CHOICES = LISTING_REPORT_STATUS_CHOICES
+
+    listing = models.ForeignKey(Listing, on_delete=models.CASCADE, related_name="reports")
+    reporter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="listing_reports")
+    reason = models.CharField(max_length=20, choices=REASON_CHOICES)
+    details = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_OPEN)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="listing_reports_reviewed",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    resolution_notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(reason__in=LISTING_REPORT_REASON_VALUES),
+                name="listing_report_reason_valid",
+            ),
+            models.CheckConstraint(
+                condition=Q(status__in=LISTING_REPORT_STATUS_VALUES),
+                name="listing_report_status_valid",
+            ),
+            models.UniqueConstraint(
+                fields=["listing", "reporter"],
+                condition=Q(status__in=[LISTING_REPORT_STATUS_OPEN, LISTING_REPORT_STATUS_IN_REVIEW]),
+                name="listing_report_active_unique",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["status", "created_at"], name="listing_report_status_idx"),
+            models.Index(fields=["listing", "status"], name="listing_report_listing_idx"),
+            models.Index(fields=["reporter", "created_at"], name="listing_report_reporter_idx"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if not self.listing_id:
+            return
+        user_model = get_user_model()
+        if self.reporter_id and not user_model._default_manager.filter(pk=self.reporter_id, role="student").exists():
+            raise ValidationError({"details": "Only student accounts can report listings."})
+        listing_owner_id = getattr(self.listing, "owner_id", None)
+        if listing_owner_id is None:
+            listing_owner_id = Listing.objects.filter(pk=self.listing_id).values_list("owner_id", flat=True).first()
+        if self.reporter_id and listing_owner_id == self.reporter_id:
+            raise ValidationError({"details": "You cannot report your own listing."})
+        if not Listing.objects.filter(pk=self.listing_id, approval_status=Listing.APPROVAL_APPROVED).exists():
+            raise ValidationError({"details": "Only approved listings can be reported."})
+
+    def mark_status(self, *, status, reviewer, resolution_notes=""):
+        self.status = status
+        cleaned_notes = resolution_notes.strip()
+        if status == self.STATUS_OPEN:
+            self.reviewed_by = None
+            self.reviewed_at = None
+            self.resolution_notes = ""
+            return
+        self.reviewed_by = reviewer
+        self.reviewed_at = timezone.now()
+        self.resolution_notes = cleaned_notes
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)

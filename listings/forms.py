@@ -8,7 +8,7 @@ from .address_provider import get_geoapify_autocomplete_config
 from .address_signing import unsign_address_selection
 from .fields import ListingImageField
 from .group_matching import SLEEP_SCHEDULES
-from .models import Listing, ListingImage
+from .models import Listing, ListingImage, ListingReport, ListingReview
 
 ADDRESS_SELECTION_MAX_AGE_SECONDS = 300
 
@@ -223,13 +223,19 @@ class ListingForm(forms.ModelForm):
         return cleaned_data
 
     def _clean_resulting_photo_count(self, cleaned_data):
-        uploaded_images = cleaned_data.get("images") or []
-        removed_images = cleaned_data.get("remove_images") or []
-        existing_images_count = self.instance.images.count() if self.instance.pk else 0
-        resulting_photo_count = max(existing_images_count - len(removed_images), 0) + len(uploaded_images)
-
-        if resulting_photo_count == 0:
+        if self._resulting_photo_count(cleaned_data=cleaned_data) == 0:
             self.add_error("images", "Add at least one photo.")
+
+    def _resulting_photo_count(self, *, cleaned_data=None):
+        if cleaned_data is not None:
+            uploaded_images = cleaned_data.get("images") or []
+            removed_images_count = len(cleaned_data.get("remove_images") or [])
+        else:
+            uploaded_images = []
+            removed_images_count = len(self.data.getlist(self.add_prefix("remove_images"))) if self.is_bound else 0
+
+        existing_images_count = self.instance.images.count() if self.instance.pk else 0
+        return max(existing_images_count - removed_images_count, 0) + len(uploaded_images)
 
     def _clean_verified_address(self, cleaned_data):
         if self._is_unchanged_instance_address(cleaned_data):
@@ -338,11 +344,8 @@ class ListingForm(forms.ModelForm):
         application_fee = as_decimal(self.preview_value("application_fee"))
         monthly_total = (price or Decimal("0")) + (utilities or Decimal("0")) + (parking or Decimal("0"))
         upfront_total = (price or Decimal("0")) + (deposit or Decimal("0")) + (application_fee or Decimal("0"))
-        existing_images_count = self.instance.images.count() if self.instance.pk else 0
-        uploaded_images_count = (
-            len(self.cleaned_data.get("images", [])) if self.is_bound and hasattr(self, "cleaned_data") else 0
-        )
-        photo_count = existing_images_count + uploaded_images_count
+        bound_cleaned_data = self.cleaned_data if self.is_bound and hasattr(self, "cleaned_data") else None
+        photo_count = self._resulting_photo_count(cleaned_data=bound_cleaned_data)
 
         checklist = [
             ("Basics", bool(self.preview_value("title") and self.preview_value("address"))),
@@ -386,6 +389,125 @@ class ListingForm(forms.ModelForm):
         }
 
 
+STAR_RATING_CHOICES = [(value, "★" * value) for value in range(1, 6)]
+
+
+class ListingReviewForm(forms.ModelForm):
+    class Meta:
+        model = ListingReview
+        fields = ["rating", "comment"]
+        widgets = {
+            "rating": forms.RadioSelect(choices=STAR_RATING_CHOICES),
+            "comment": forms.Textarea(
+                attrs={
+                    "rows": 4,
+                    "placeholder": "What was the actual living experience like?",
+                }
+            ),
+        }
+        labels = {
+            "rating": "Your rating",
+            "comment": "Resident notes",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["comment"].required = False
+        self.fields["rating"].widget.attrs.update({"class": "listing-review-stars"})
+        self.fields["comment"].widget.attrs.update({"class": "form-control"})
+
+    def clean_comment(self):
+        comment = (self.cleaned_data.get("comment") or "").strip()
+        if len(comment) > 2000:
+            raise ValidationError("Keep comments to 2,000 characters or fewer.")
+        return comment
+
+
+class ListingReportForm(forms.ModelForm):
+    class Meta:
+        model = ListingReport
+        fields = ["reason", "details"]
+        widgets = {
+            "reason": forms.Select(attrs={"class": "form-select"}),
+            "details": forms.Textarea(
+                attrs={
+                    "rows": 4,
+                    "class": "form-control",
+                    "placeholder": "Tell the admin team what is wrong with this listing.",
+                }
+            ),
+        }
+        labels = {
+            "reason": "Reason",
+            "details": "Details",
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        details = (cleaned_data.get("details") or "").strip()
+        reason = cleaned_data.get("reason")
+        if reason == ListingReport.REASON_OTHER and not details:
+            self.add_error("details", "Add context so the admin team can review this report.")
+        if len(details) > 2000:
+            self.add_error("details", "Keep report details to 2,000 characters or fewer.")
+        cleaned_data["details"] = details
+        return cleaned_data
+
+
+class AdminListingApprovalForm(forms.Form):
+    review_notes = forms.CharField(
+        required=False,
+        label="Review notes",
+        widget=forms.Textarea(
+            attrs={
+                "rows": 4,
+                "class": "form-control",
+                "placeholder": "Internal review notes or feedback for the listing owner.",
+            }
+        ),
+    )
+
+    def clean_review_notes(self):
+        notes = (self.cleaned_data.get("review_notes") or "").strip()
+        if len(notes) > 2000:
+            raise ValidationError("Keep review notes to 2,000 characters or fewer.")
+        return notes
+
+
+class AdminListingReportResolutionForm(forms.ModelForm):
+    class Meta:
+        model = ListingReport
+        fields = ["status", "resolution_notes"]
+        widgets = {
+            "status": forms.Select(attrs={"class": "form-select"}),
+            "resolution_notes": forms.Textarea(
+                attrs={
+                    "rows": 3,
+                    "class": "form-control",
+                    "placeholder": "Resolution details visible to the admin team.",
+                }
+            ),
+        }
+        labels = {
+            "status": "Report status",
+            "resolution_notes": "Resolution notes",
+        }
+
+    def clean_resolution_notes(self):
+        notes = (self.cleaned_data.get("resolution_notes") or "").strip()
+        if len(notes) > 2000:
+            raise ValidationError("Keep resolution notes to 2,000 characters or fewer.")
+        return notes
+
+    def clean(self):
+        cleaned_data = super().clean()
+        status = cleaned_data.get("status")
+        notes = cleaned_data.get("resolution_notes") or ""
+        if status in {ListingReport.STATUS_RESOLVED, ListingReport.STATUS_DISMISSED} and not notes:
+            self.add_error("resolution_notes", "Add resolution notes before closing out a report.")
+        return cleaned_data
+
+
 class GroupMatchPreferencesForm(forms.Form):
     CLEANLINESS_CHOICES = [(value, f"{value}/5") for value in range(1, 6)]
     SOCIAL_CHOICES = [(value, f"{value}/5") for value in range(1, 6)]
@@ -393,31 +515,31 @@ class GroupMatchPreferencesForm(forms.Form):
     unit_size = forms.IntegerField(
         min_value=1,
         max_value=4,
-        label="Your unit size",
+        label="People already in your group",
         widget=forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 4}),
     )
     budget_min = forms.DecimalField(
         min_value=0,
         max_digits=8,
         decimal_places=0,
-        label="Budget min (per person)",
+        label="Minimum budget per person",
         widget=forms.NumberInput(attrs={"class": "form-control", "min": 0, "step": 50}),
     )
     budget_max = forms.DecimalField(
         min_value=0,
         max_digits=8,
         decimal_places=0,
-        label="Budget max (per person)",
+        label="Maximum budget per person",
         widget=forms.NumberInput(attrs={"class": "form-control", "min": 0, "step": 50}),
     )
     cleanliness = forms.ChoiceField(
         choices=CLEANLINESS_CHOICES,
-        label="Cleanliness level",
+        label="Cleanliness priority",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     social = forms.ChoiceField(
         choices=SOCIAL_CHOICES,
-        label="Social level",
+        label="Social energy",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     sleep_schedule = forms.ChoiceField(
@@ -428,18 +550,18 @@ class GroupMatchPreferencesForm(forms.Form):
     desired_group_min = forms.IntegerField(
         min_value=1,
         max_value=8,
-        label="Desired group size (min)",
+        label="Target household size (min)",
         widget=forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 8}),
     )
     desired_group_max = forms.IntegerField(
         min_value=1,
         max_value=8,
-        label="Desired group size (max)",
+        label="Target household size (max)",
         widget=forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 8}),
     )
     location_keywords = forms.CharField(
         required=False,
-        label="Preferred areas",
+        label="Neighborhood focus",
         widget=forms.TextInput(
             attrs={
                 "class": "form-control",
@@ -454,10 +576,13 @@ class GroupMatchPreferencesForm(forms.Form):
         budget_max = cleaned_data.get("budget_max")
         desired_min = cleaned_data.get("desired_group_min")
         desired_max = cleaned_data.get("desired_group_max")
+        unit_size = cleaned_data.get("unit_size")
 
         if budget_min is not None and budget_max is not None and budget_min > budget_max:
             raise ValidationError("Budget min must be less than or equal to budget max.")
         if desired_min is not None and desired_max is not None and desired_min > desired_max:
             raise ValidationError("Desired group size min must be less than or equal to max.")
+        if unit_size is not None and desired_min is not None and desired_min < unit_size:
+            raise ValidationError("Target household size must be at least as large as your current group.")
 
         return cleaned_data

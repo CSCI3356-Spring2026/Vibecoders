@@ -18,6 +18,12 @@
     {% endif %}
 {% endblock %}
 
+{% block global_messages %}
+    {% if not listing_maps_enabled %}
+        {{ block.super }}
+    {% endif %}
+{% endblock %}
+
 {% block content %}
     {% if listing_maps_enabled %}
         <section
@@ -25,198 +31,210 @@
             data-listings-page
             data-listings-search-url="{{ listing_search_url }}"
             data-listings-map-style-url="{{ listing_map_style_url }}"
+            data-listings-map-default-style-url="{{ listing_map_style_url }}"
+            data-listings-map-satellite-style-url="{{ listing_map_satellite_style_url }}"
             data-selected-listing-id=""
         >
             <form class="listing-favorite-probe" method="post" action="#" hidden aria-hidden="true">
                 {% csrf_token %}
             </form>
-            <div class="listing-browser-topbar">
-                <div class="listing-browser-title-group">
-                    <p class="listing-browser-kicker">Listings</p>
-                    <div class="listing-browser-title-row">
-                        <h1 class="listing-browser-title">{% if has_listing_only_access %}Your listings{% else %}Boston College housing map{% endif %}</h1>
-                        <div class="listing-browser-meta">
-                            <span class="app-meta-chip app-meta-chip-primary">{{ listings_total }} result{{ listings_total|pluralize }}</span>
-                            <span class="app-meta-chip app-meta-chip-secondary">
-                                {% if active_filters.q or active_filters.max_price or active_filters.lease_type or active_filters.available_by or active_filters.saved %}
-                                    Live filters on
-                                {% else %}
-                                    {% if has_listing_only_access %}Your inventory{% else %}Map-first browse{% endif %}
-                                {% endif %}
-                            </span>
-                        </div>
-                    </div>
-                    <p class="listing-browser-subtitle">
-                        {% if has_listing_only_access %}
-                            Manage your inventory in a live map workspace.
-                        {% else %}
-                            Pan, zoom, and refine filters to keep the map and results list in sync.
-                        {% endif %}
-                    </p>
-                </div>
-                <div class="listing-browser-actions">
-                    {% if not has_listing_only_access %}
-                        <a class="btn btn-outline-secondary" href="{% url 'listings:group_match' %}">Group match</a>
-                    {% endif %}
-                    <a class="btn btn-brand" href="{% url 'listings:create_listing' %}">New listing</a>
-                    {% if has_listing_only_access %}
-                        <a class="btn btn-outline-secondary" href="{% url 'users:posts' %}">Open posts</a>
-                    {% endif %}
-                </div>
-            </div>
-
-            <form
-                class="listing-filter-shell"
-                method="get"
-                action="{% url 'listings:listing_list' %}"
-                data-listings-filters
-                data-listings-filter-form
-            >
-                <div class="listing-filter-shell-copy">
-                    <div>
-                        <p class="listing-filter-kicker">Filters</p>
-                        <h2 class="listing-filter-title">Results refresh automatically as you type and move the map.</h2>
-                    </div>
-                    <a class="listing-reset-link" href="{% url 'listings:listing_list' %}">Reset</a>
-                </div>
-
-                <div class="listing-filter-grid">
-                    <div class="listing-filter-field listing-filter-field-search">
-                        <label class="form-label" for="filter-query">Search</label>
-                        <input
-                            class="form-control"
-                            id="filter-query"
-                            type="search"
-                            name="q"
-                            value="{{ active_filters.q }}"
-                            placeholder="Address, neighborhood, or title"
-                        >
-                    </div>
-                    <div class="listing-filter-field">
-                        <label class="form-label" for="filter-price">Max price</label>
-                        <select class="form-select" id="filter-price" name="max_price">
-                            {% for value, label in max_price_filters %}
-                                <option value="{{ value }}"{% if active_filters.max_price == value %} selected{% endif %}>
-                                    {{ label }}
-                                </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="listing-filter-field">
-                        <label class="form-label" for="filter-lease">Lease type</label>
-                        <select class="form-select" id="filter-lease" name="lease_type">
-                            <option value="">Any lease type</option>
-                            {% for value, label in lease_type_filters %}
-                                <option value="{{ value }}"{% if active_filters.lease_type == value %} selected{% endif %}>
-                                    {{ label }}
-                                </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="listing-filter-field">
-                        <label class="form-label" for="filter-date">Available by</label>
-                        <select class="form-select" id="filter-date" name="available_by">
-                            {% for value, label in move_in_filters %}
-                                <option value="{{ value }}"{% if active_filters.available_by == value %} selected{% endif %}>
-                                    {{ label }}
-                                </option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="listing-filter-field listing-filter-field-checkbox">
-                        <div class="form-check">
-                            <input
-                                class="form-check-input"
-                                type="checkbox"
-                                id="filter-saved"
-                                name="saved"
-                                value="1"
-                                {% if active_filters.saved %}checked{% endif %}
-                            >
-                            <label class="form-check-label" for="filter-saved">Saved listings</label>
-                        </div>
-                    </div>
-                </div>
-            </form>
-
             <section class="listing-browser-shell" data-listings-browser-shell>
-                <aside class="listing-results-pane" data-listings-results data-listings-results-pane>
-                    <div class="listing-results-pane-head">
-                        <div>
-                            <p class="listing-results-kicker">Results</p>
-                            <h2 class="listing-results-title">Visible listings</h2>
-                            <p class="listing-results-summary" data-listings-results-summary>
-                                {% if active_filters.q %}
-                                    {{ listings_total }} result{{ listings_total|pluralize }} for "{{ active_filters.q }}".
-                                {% else %}
-                                    {{ listings_total }} result{{ listings_total|pluralize }} in view.
-                                {% endif %}
-                            </p>
-                        </div>
-                    </div>
-
-                    {% if has_listing_only_access %}
-                        <div class="alert alert-warning listing-results-alert" role="alert">
-                            This account can manage its own listings only.
-                        </div>
-                    {% endif %}
-
-                    <div class="alert alert-danger listing-live-error" role="alert" hidden data-listings-live-error></div>
-
-                    <div class="listing-results-scroll">
-                        <div
-                            class="listing-results-grid"
-                            data-listings-results-list
-                            data-favorite-csrf-token="{{ csrf_token }}"
-                            data-favorite-next-url="{{ request.get_full_path }}"
-                            {% if not listings %}hidden{% endif %}
-                        >
-                            {% for listing in listings %}
-                                {% include "listings/includes/listing_result_card.html" with listing=listing %}
-                            {% endfor %}
-                        </div>
-
-                        <div class="app-empty listing-results-empty" data-listings-empty-state{% if listings %} hidden{% endif %}>
-                            <h3 class="app-empty-title">No listings match this view.</h3>
-                            <p class="app-empty-copy">Adjust filters or move the map to bring more homes back into view.</p>
-                        </div>
-
-                        <div data-listings-pagination>
-                            {% include "includes/pagination.html" with page_obj=listings pagination_query=pagination_query %}
-                        </div>
-                    </div>
-                </aside>
-
-                <section class="listing-map-pane" data-listings-map-pane data-listings-map-shell>
-                    <div class="listing-map-pane-head">
-                        <div>
-                            <p class="listing-map-kicker">Map</p>
-                            <h2 class="listing-map-title">Explore the market spatially.</h2>
-                        </div>
-                        <span class="app-meta-chip app-meta-chip-neutral">Boston College area</span>
-                    </div>
-
-                    <div
-                        class="listing-map-frame"
-                        data-listing-map-root
-                        data-listings-map-root
-                        data-listings-map
-                        data-listings-search-url="{{ listing_search_url }}"
-                        data-listings-map-style-url="{{ listing_map_style_url }}"
-                        data-default-lat="{{ listing_map_default_lat }}"
-                        data-default-lng="{{ listing_map_default_lng }}"
+                <section class="listing-browser-workspace" data-listings-workspace>
+                    <form
+                        class="listing-filter-shell listing-filter-toolbar"
+                        method="get"
+                        action="{% url 'listings:listing_list' %}"
+                        data-listings-filters
+                        data-listings-filter-form
                     >
-                        <div class="listing-map" data-listing-map-canvas data-listings-map-canvas></div>
-                    </div>
-
-                    {% if not listing_initial_payload.markers %}
-                        <div class="listing-map-note">
-                            <h3 class="listing-map-note-title">No map-ready listings in this view yet.</h3>
-                            <p class="listing-map-note-copy">
-                                Listings appear here after verified addresses resolve to coordinates.
-                            </p>
+                        <div class="listing-filter-shell-copy">
+                            <div>
+                                <h1 class="listing-browser-title">
+                                    {% if has_listing_only_access %}
+                                        Your listings
+                                    {% else %}
+                                        Boston College rentals
+                                    {% endif %}
+                                </h1>
+                                <p class="listing-browser-count">
+                                    {% if has_listing_only_access %}
+                                        {{ listings_total }} listing{{ listings_total|pluralize }}
+                                    {% else %}
+                                        {{ listings_total }} rental{{ listings_total|pluralize }}
+                                    {% endif %}
+                                </p>
+                            </div>
+                            <div class="listing-browser-actions">
+                                <a class="btn btn-brand" href="{% url 'listings:create_listing' %}">Create listing</a>
+                                {% if has_listing_only_access %}
+                                    <a class="btn btn-outline-secondary" href="{% url 'users:posts' %}">My listings</a>
+                                {% endif %}
+                                <a class="listing-reset-link" href="{% url 'listings:listing_list' %}">Reset</a>
+                            </div>
                         </div>
-                    {% endif %}
+
+                        <div class="listing-filter-grid">
+                            <div class="listing-filter-field listing-filter-field-search">
+                                <label class="form-label" for="filter-query">Search</label>
+                                <input
+                                    class="form-control"
+                                    id="filter-query"
+                                    type="search"
+                                    name="q"
+                                    value="{{ active_filters.q }}"
+                                    placeholder="Address, neighborhood, or title"
+                                >
+                            </div>
+                            <div class="listing-filter-field">
+                                <label class="form-label" for="filter-price">Max price</label>
+                                <select class="form-select" id="filter-price" name="max_price">
+                                    {% for value, label in max_price_filters %}
+                                        <option value="{{ value }}"{% if active_filters.max_price == value %} selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="listing-filter-field">
+                                <label class="form-label" for="filter-lease">Lease type</label>
+                                <select class="form-select" id="filter-lease" name="lease_type">
+                                    <option value="">Any lease type</option>
+                                    {% for value, label in lease_type_filters %}
+                                        <option value="{{ value }}"{% if active_filters.lease_type == value %} selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="listing-filter-field">
+                                <label class="form-label" for="filter-date">Available by</label>
+                                <select class="form-select" id="filter-date" name="available_by">
+                                    {% for value, label in move_in_filters %}
+                                        <option value="{{ value }}"{% if active_filters.available_by == value %} selected{% endif %}>
+                                            {{ label }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="listing-filter-field listing-filter-field-saved">
+                                <label class="form-label" for="filter-saved">Saved</label>
+                                <select class="form-select" id="filter-saved" name="saved">
+                                    <option value="">All listings</option>
+                                    <option value="1"{% if active_filters.saved %} selected{% endif %}>Saved only</option>
+                                </select>
+                            </div>
+                        </div>
+                    </form>
+
+                    <div class="listing-browser-main">
+                        <aside class="listing-results-pane" data-listings-results data-listings-results-pane>
+                            <div class="listing-results-pane-head">
+                                <div>
+                                    <h2 class="listing-results-title">Results</h2>
+                                    <p class="listing-results-summary" data-listings-results-summary>
+                                        {% if active_filters.q %}
+                                            {{ listings_total }} result{{ listings_total|pluralize }} for "{{ active_filters.q }}".
+                                        {% else %}
+                                            {{ listings_total }} result{{ listings_total|pluralize }} in view.
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {% if has_listing_only_access %}
+                                <div class="alert alert-warning listing-results-alert" role="alert">
+                                    This account can manage its own listings only.
+                                </div>
+                            {% endif %}
+
+                            {% if messages %}
+                                {% for message in messages %}
+                                    <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags|default:'info' }}{% endif %} listing-results-alert" role="alert">
+                                        {{ message }}
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+
+                            <div class="alert alert-danger listing-live-error" role="alert" hidden data-listings-live-error></div>
+
+                            <div class="listing-results-scroll">
+                                <div
+                                    class="listing-results-grid"
+                                    data-listings-results-list
+                                    data-favorite-csrf-token="{{ csrf_token }}"
+                                    data-favorite-next-url="{{ request.get_full_path }}"
+                                    {% if not listings %}hidden{% endif %}
+                                >
+                                    {% for listing in listings %}
+                                        {% include "listings/includes/listing_result_card.html" with listing=listing %}
+                                    {% endfor %}
+                                </div>
+
+                                <div class="app-empty listing-results-empty" data-listings-empty-state{% if listings %} hidden{% endif %}>
+                                    <h3 class="app-empty-title">No listings match this view.</h3>
+                                    <p class="app-empty-copy">Change filters or move the map.</p>
+                                </div>
+
+                                <div data-listings-pagination>
+                                    {% include "includes/pagination.html" with page_obj=listings pagination_query=pagination_query %}
+                                </div>
+                            </div>
+                        </aside>
+
+                        <section class="listing-map-pane" data-listings-map-pane data-listings-map-shell>
+                            <div class="listing-map-pane-head">
+                                <div>
+                                    <h2 class="listing-map-title">Map</h2>
+                                </div>
+                                <div class="listing-map-head-actions">
+                                    {% if listing_map_satellite_enabled %}
+                                        <div class="listing-map-style-toggle" role="group" aria-label="Map style">
+                                            <button
+                                                class="listing-map-style-button is-active"
+                                                type="button"
+                                                data-listings-map-style-toggle
+                                                data-style-mode="map"
+                                                aria-pressed="true"
+                                            >
+                                                Map
+                                            </button>
+                                            <button
+                                                class="listing-map-style-button"
+                                                type="button"
+                                                data-listings-map-style-toggle
+                                                data-style-mode="satellite"
+                                                aria-pressed="false"
+                                            >
+                                                Satellite
+                                            </button>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <div
+                                class="listing-map-frame"
+                                data-listing-map-root
+                                data-listings-map-root
+                                data-listings-map
+                                data-listings-search-url="{{ listing_search_url }}"
+                                data-listings-map-style-url="{{ listing_map_style_url }}"
+                                data-listings-map-default-style-url="{{ listing_map_style_url }}"
+                                data-listings-map-satellite-style-url="{{ listing_map_satellite_style_url }}"
+                                data-default-lat="{{ listing_map_default_lat }}"
+                                data-default-lng="{{ listing_map_default_lng }}"
+                            >
+                                <div class="listing-map" data-listing-map-canvas data-listings-map-canvas></div>
+                            </div>
+
+                            {% if not listing_initial_payload.markers %}
+                                <div class="listing-map-note">
+                                    <h3 class="listing-map-note-title">No mapped listings yet.</h3>
+                                    <p class="listing-map-note-copy">Verified listings show up here.</p>
+                                </div>
+                            {% endif %}
+                        </section>
+                    </div>
                 </section>
             </section>
         </section>
@@ -234,9 +252,9 @@
                                 <h1 class="app-title">{% if has_listing_only_access %}Your listings{% else %}Listings{% endif %}</h1>
                                 <p class="app-subtitle">
                                     {% if has_listing_only_access %}
-                                        Inventory for this account.
+                                        Your inventory.
                                     {% else %}
-                                        Browse active rentals and subleases.
+                                        Rentals and subleases.
                                     {% endif %}
                                 </p>
                             </div>
@@ -269,7 +287,7 @@
                             <div class="app-panel-head">
                                 <div>
                                     <h2 class="app-section-heading">Filters</h2>
-                                    <p class="app-panel-copy">Refine the current view.</p>
+                                    <p class="app-panel-copy">Current filters</p>
                                 </div>
                                 <a class="listing-reset-link" href="{% url 'listings:listing_list' %}">Reset</a>
                             </div>
@@ -318,17 +336,11 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <div class="form-check">
-                                        <input
-                                            class="form-check-input"
-                                            type="checkbox"
-                                            id="filter-saved"
-                                            name="saved"
-                                            value="1"
-                                            {% if active_filters.saved %}checked{% endif %}
-                                        >
-                                        <label class="form-check-label" for="filter-saved">Saved listings</label>
-                                    </div>
+                                    <label class="form-label" for="filter-saved">Saved</label>
+                                    <select class="form-select" id="filter-saved" name="saved">
+                                        <option value="">All listings</option>
+                                        <option value="1"{% if active_filters.saved %} selected{% endif %}>Saved only</option>
+                                    </select>
                                 </div>
                                 <button class="btn btn-brand w-100" type="submit">Apply filters</button>
                             </form>
@@ -347,11 +359,6 @@
                                             {% endif %}
                                         </p>
                                     </div>
-                                    {% if not has_listing_only_access %}
-                                        <div class="listing-panel-actions">
-                                            <a class="btn btn-outline-secondary btn-sm" href="{% url 'listings:group_match' %}">Group match</a>
-                                        </div>
-                                    {% endif %}
                                 </div>
 
                                 {% if has_listing_only_access %}
@@ -373,7 +380,7 @@
                                 {% else %}
                                     <div class="app-empty">
                                         <h3 class="app-empty-title">No listings match these filters.</h3>
-                                        <p class="app-empty-copy">Reset the view or adjust a filter to see more results.</p>
+                                        <p class="app-empty-copy">Reset filters or change the search.</p>
                                     </div>
                                 {% endif %}
 

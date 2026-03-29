@@ -3,6 +3,7 @@ from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
 LEGAL_ACCEPTANCE_SESSION_KEY = "legal_acceptance"
+LEGAL_REVIEW_REQUIRED_SESSION_KEY = "legal_review_required"
 
 
 def build_legal_acceptance_payload(accepted_at=None):
@@ -16,8 +17,15 @@ def build_legal_acceptance_payload(accepted_at=None):
 def set_pending_legal_acceptance(request, accepted_at=None):
     payload = build_legal_acceptance_payload(accepted_at=accepted_at)
     request.session[LEGAL_ACCEPTANCE_SESSION_KEY] = payload
+    clear_legal_review_required(request)
     request.session.modified = True
     return payload
+
+
+def clear_pending_legal_acceptance(request):
+    if LEGAL_ACCEPTANCE_SESSION_KEY in request.session:
+        request.session.pop(LEGAL_ACCEPTANCE_SESSION_KEY, None)
+        request.session.modified = True
 
 
 def get_pending_legal_acceptance(request):
@@ -41,6 +49,21 @@ def get_pending_legal_acceptance(request):
 
 def has_current_legal_acceptance(request):
     return get_pending_legal_acceptance(request) is not None
+
+
+def mark_legal_review_required(request):
+    request.session[LEGAL_REVIEW_REQUIRED_SESSION_KEY] = settings.LEGAL_DOCUMENT_VERSION
+    request.session.modified = True
+
+
+def clear_legal_review_required(request):
+    if LEGAL_REVIEW_REQUIRED_SESSION_KEY in request.session:
+        request.session.pop(LEGAL_REVIEW_REQUIRED_SESSION_KEY, None)
+        request.session.modified = True
+
+
+def is_legal_review_required(request):
+    return request.session.get(LEGAL_REVIEW_REQUIRED_SESSION_KEY) == settings.LEGAL_DOCUMENT_VERSION
 
 
 def persist_legal_acceptance_for_user(user, payload):

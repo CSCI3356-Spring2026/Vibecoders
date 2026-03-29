@@ -1,8 +1,11 @@
 import tempfile
 
+from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils.http import content_disposition_header
 
 from ..models import UserFile
 from .helpers import User
@@ -48,6 +51,22 @@ class UserFilesViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(UserFile.objects.filter(owner=self.user, title="lease-agreement.txt").exists())
 
+    def test_upload_rejects_title_over_max_length(self):
+        self.client.force_login(self.user)
+        upload = SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                response = self.client.post(
+                    reverse("users:files"),
+                    {"title": "a" * 121, "file": upload},
+                    follow=True,
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ensure this value has at most 120 characters")
+        self.assertFalse(UserFile.objects.filter(owner=self.user).exists())
+
     def test_files_view_is_paginated(self):
         self.client.force_login(self.user)
 
@@ -65,6 +84,26 @@ class UserFilesViewTests(TestCase):
         self.assertNotContains(first_page, "Doc 0")
         self.assertContains(second_page, "Doc 0")
         self.assertNotContains(first_page, "confirm(")
+
+    def test_selected_file_link_preserves_search_query_with_url_encoding(self):
+        self.client.force_login(self.user)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                user_file = UserFile.objects.create(
+                    owner=self.user,
+                    title="lease & forms",
+                    file=SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain"),
+                )
+
+                response = self.client.get(reverse("users:files"), {"q": "lease & forms"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            f"{reverse('users:files')}?file={user_file.id}&q=lease%20%26%20forms&page=1",
+            html=False,
+        )
 
     def test_delete_redirect_preserves_page_and_query(self):
         self.client.force_login(self.user)
@@ -164,6 +203,74 @@ class UserFilesViewTests(TestCase):
         self.assertContains(response, "Upload a valid image file.")
         self.assertFalse(UserFile.objects.filter(owner=self.user, title="Bad Image").exists())
 
+    @override_settings(USER_FILE_TOTAL_LIMIT=1)
+    def test_model_enforces_document_library_limit(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                UserFile.objects.create(
+                    owner=self.user,
+                    title="Lease",
+                    file=SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain"),
+                )
+
+                with self.assertRaises(ValidationError) as exc:
+                    UserFile.objects.create(
+                        owner=self.user,
+                        title="Second lease",
+                        file=SimpleUploadedFile("lease-2.txt", b"hello", content_type="text/plain"),
+                    )
+
+        self.assertIn("You can store up to 1 file in your document library.", exc.exception.message_dict["file"][0])
+
+    @override_settings(USER_FILE_TOTAL_LIMIT=1)
+    def test_upload_rejects_when_document_library_limit_is_reached(self):
+        self.client.force_login(self.user)
+        upload = SimpleUploadedFile("lease-2.txt", b"hello", content_type="text/plain")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                UserFile.objects.create(
+                    owner=self.user,
+                    title="Lease",
+                    file=SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain"),
+                )
+
+                response = self.client.post(
+                    reverse("users:files"),
+                    {"title": "Second lease", "file": upload},
+                    follow=True,
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "You can store up to 1 file in your document library.")
+        self.assertEqual(UserFile.objects.filter(owner=self.user).count(), 1)
+
+    @override_settings(USER_FILE_UPLOAD_RATE_LIMIT=1, USER_FILE_UPLOAD_RATE_WINDOW_SECONDS=60)
+    def test_upload_is_rate_limited(self):
+        self.client.force_login(self.user)
+        cache.clear()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                first_response = self.client.post(
+                    reverse("users:files"),
+                    {"title": "Lease", "file": SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain")},
+                    follow=True,
+                )
+                second_response = self.client.post(
+                    reverse("users:files"),
+                    {
+                        "title": "Second lease",
+                        "file": SimpleUploadedFile("lease-2.txt", b"hello", content_type="text/plain"),
+                    },
+                    follow=True,
+                )
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 200)
+        self.assertContains(second_response, "Too many file uploads in a short time. Wait a few minutes and try again.")
+        self.assertEqual(UserFile.objects.filter(owner=self.user).count(), 1)
+
     def test_owner_can_preview_file_through_authenticated_view(self):
         self.client.force_login(self.user)
 
@@ -181,6 +288,10 @@ class UserFilesViewTests(TestCase):
         self.assertEqual(response["X-Frame-Options"], "SAMEORIGIN")
         self.assertEqual(response["Cache-Control"], "private, no-store")
         self.assertEqual(response["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(response["Cross-Origin-Resource-Policy"], "same-origin")
+        self.assertEqual(response["Referrer-Policy"], "no-referrer")
+        self.assertEqual(response["X-Robots-Tag"], "noindex, nofollow")
+        self.assertEqual(response["Content-Disposition"], content_disposition_header(False, "lease.pdf"))
 
     def test_other_user_cannot_preview_private_file(self):
         other_user = User.objects.create_user(username="other", email="other@bc.edu", password="test")
@@ -245,3 +356,7 @@ class UserFilesViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Cache-Control"], "private, no-store")
         self.assertEqual(response["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(response["Cross-Origin-Resource-Policy"], "same-origin")
+        self.assertEqual(response["Referrer-Policy"], "no-referrer")
+        self.assertEqual(response["X-Robots-Tag"], "noindex, nofollow")
+        self.assertEqual(response["Content-Disposition"], content_disposition_header(True, "lease.txt"))

@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Review Listing | {{ site_product_name }}{% endblock %}
+
+{% block content %}
+<section class="app-page admin-dashboard">
+    <div class="container">
+        <div class="app-shell">
+            <div class="admin-header listing-panel">
+                <div>
+                    <p class="app-kicker">Listing Review</p>
+                    <h1 class="app-title">{{ listing.title }}</h1>
+                    <p class="app-subtitle">{{ listing.address }}</p>
+                </div>
+                <div class="admin-header-meta">
+                    <span class="admin-meta-chip">{{ listing.get_approval_status_display }}</span>
+                    <a class="btn btn-outline-secondary" href="{% url 'users:admin_listings' %}">Back to queue</a>
+                </div>
+            </div>
+
+            <div class="app-layout">
+                {% include "includes/admin_sidebar.html" with active_section="listings" %}
+
+                <div class="app-main">
+                    <div class="admin-stat-grid">
+                        <div class="admin-stat-card admin-stat-card-primary">
+                            <span class="admin-stat-label">Price</span>
+                            <span class="admin-stat-value">${{ listing.price|floatformat:0 }}</span>
+                        </div>
+                        <div class="admin-stat-card admin-stat-card-accent">
+                            <span class="admin-stat-label">Resident Reviews</span>
+                            <span class="admin-stat-value">{{ listing.review_count }}</span>
+                        </div>
+                        <div class="admin-stat-card admin-stat-card-secondary">
+                            <span class="admin-stat-label">Open Reports</span>
+                            <span class="admin-stat-value">{{ listing.open_report_count }}</span>
+                        </div>
+                        <div class="admin-stat-card admin-stat-card-warm">
+                            <span class="admin-stat-label">Submitted</span>
+                            <span class="admin-stat-value">{{ listing.submitted_for_approval_at|date:"M d" }}</span>
+                        </div>
+                    </div>
+
+                    <div class="listing-panel admin-review-grid">
+                        <section class="admin-review-main">
+                            <div class="admin-review-section">
+                                <div class="admin-table-head">
+                                    <h2 class="app-section-heading">Approval action</h2>
+                                </div>
+                                <form method="post" action="{% url 'users:admin_review_listing' listing.id %}" class="admin-review-form">
+                                    {% csrf_token %}
+                                    <label class="form-label fw-semibold" for="{{ approval_form.review_notes.id_for_label }}">{{ approval_form.review_notes.label }}</label>
+                                    {{ approval_form.review_notes }}
+                                    {% for error in approval_form.review_notes.errors %}
+                                        <div class="app-field-error">{{ error }}</div>
+                                    {% endfor %}
+                                    <div class="admin-user-actions mt-3">
+                                        <button class="btn btn-brand" type="submit" name="action" value="approve">Approve listing</button>
+                                        <button class="btn btn-outline-secondary" type="submit" name="action" value="reject">Reject listing</button>
+                                        <a class="btn btn-outline-secondary" href="{% url 'listings:detail' listing.id %}">Open listing detail</a>
+                                    </div>
+                                </form>
+                            </div>
+
+                            {% if listing.images.all %}
+                                <div class="admin-review-section">
+                                    <div class="admin-table-head">
+                                        <h2 class="app-section-heading">Submitted photos</h2>
+                                    </div>
+                                    <div class="admin-review-photo-grid">
+                                        {% for image in listing.images.all %}
+                                            <img src="{{ image.versioned_url }}" alt="{{ listing.title }} photo {{ forloop.counter }}">
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% endif %}
+
+                            <div class="admin-review-section">
+                                <div class="admin-table-head">
+                                    <h2 class="app-section-heading">Listing details</h2>
+                                </div>
+                                <div class="admin-review-facts">
+                                    <div><span>Availability</span><strong>{{ listing.get_status_display }}</strong></div>
+                                    <div><span>Lease</span><strong>{{ listing.get_lease_type_display }}</strong></div>
+                                    <div><span>Type</span><strong>{{ listing.get_property_type_display }}</strong></div>
+                                    <div><span>Layout</span><strong>{{ listing.rooms }} bd · {{ listing.bathrooms }} ba{% if listing.sq_ft %} · {{ listing.sq_ft }} sqft{% endif %}</strong></div>
+                                    <div><span>Move-in</span><strong>{{ listing.start_date }}</strong></div>
+                                    <div><span>Move-out</span><strong>{{ listing.end_date }}</strong></div>
+                                </div>
+                                <p class="admin-review-body">{{ listing.description|default:"No description provided." }}</p>
+                            </div>
+
+                            <div class="admin-review-section">
+                                <div class="admin-table-head">
+                                    <h2 class="app-section-heading">Community signals</h2>
+                                </div>
+                                {% if reviews %}
+                                    <div class="admin-list-grid">
+                                        {% for review in reviews %}
+                                            <div class="admin-list-item admin-list-item-static">
+                                                <div>
+                                                    <div class="admin-list-title">{{ review.author.display_name }} · {{ review.rating }} ★</div>
+                                                    <div class="admin-list-meta">{{ review.updated_at|date:"M d, Y" }}</div>
+                                                    <div class="admin-list-meta">{{ review.comment|default:"No written note." }}</div>
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <p class="app-panel-copy mb-0">No reviews.</p>
+                                {% endif %}
+                            </div>
+                        </section>
+
+                        <aside class="admin-review-side">
+                            <div class="admin-review-section">
+                                <div class="admin-table-head">
+                                    <h2 class="app-section-heading">Owner context</h2>
+                                </div>
+                                <div class="admin-review-facts">
+                                    <div><span>Name</span><strong>{{ listing.owner.display_name }}</strong></div>
+                                    <div><span>Email</span><strong>{{ listing.owner.email }}</strong></div>
+                                    <div><span>Role</span><strong>{{ listing.owner.display_role }}</strong></div>
+                                    <div><span>Created</span><strong>{{ listing.created_at|date:"M d, Y" }}</strong></div>
+                                </div>
+                            </div>
+
+                            <div class="admin-review-section">
+                                <div class="admin-table-head">
+                                    <h2 class="app-section-heading">Reports</h2>
+                                </div>
+                                {% if reports %}
+                                    <div class="admin-list-grid">
+                                        {% for report in reports %}
+                                            <div class="admin-list-item admin-list-item-static admin-report-card">
+                                                <div>
+                                                    <div class="admin-list-title">{{ report.get_reason_display }}</div>
+                                                    <div class="admin-list-meta">{{ report.reporter.display_name }} · {{ report.created_at|date:"M d, Y" }}</div>
+                                                    <div class="admin-list-meta">{{ report.details|default:"No details provided." }}</div>
+                                                </div>
+                                                <form method="post" action="{% url 'users:admin_update_report' report.id %}" class="admin-report-form">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                    {{ report.ui_form.status }}
+                                                    {{ report.ui_form.resolution_notes }}
+                                                    <button class="btn btn-outline-secondary btn-sm" type="submit">Update</button>
+                                                </form>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <p class="app-panel-copy mb-0">No reports.</p>
+                                {% endif %}
+                            </div>
+                        </aside>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
