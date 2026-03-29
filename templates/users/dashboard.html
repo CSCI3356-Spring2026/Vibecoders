@@ -51,6 +51,7 @@
                             <a class="btn btn-brand" href="{% url 'users:files' %}">Open document library</a>
                             {% if can_browse_marketplace %}
                                 <a class="btn btn-outline-secondary" href="{% url 'listings:listing_list' %}">Browse listings</a>
+                                <a class="btn btn-outline-secondary" href="{% url 'listings:group_match' %}">Open group match studio</a>
                             {% else %}
                                 <a class="btn btn-outline-secondary" href="{% url 'users:posts' %}">Open my listings</a>
                             {% endif %}
@@ -142,6 +143,12 @@
                                 {% endif %}
                             </span>
                         </a>
+                        {% if can_browse_marketplace %}
+                            <a class="app-compact-item" href="{% url 'listings:group_match' %}">
+                                <span class="app-compact-title">Group match studio</span>
+                                <span class="app-compact-meta">Build household-size plans around live inventory and your profile defaults.</span>
+                            </a>
+                        {% endif %}
                         {% if request.user.can_access_admin_panel %}
                             <a class="app-compact-item" href="{% url 'users:admin_dashboard' %}">
                                 <span class="app-compact-title">Admin workspace</span>

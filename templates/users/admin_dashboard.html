@@ -28,16 +28,16 @@
                                 <span class="admin-stat-value">{{ total_listings }}</span>
                             </div>
                             <div class="admin-stat-card admin-stat-card-accent">
-                                <span class="admin-stat-label">Pending Listings</span>
-                                <span class="admin-stat-value">{{ pending_listings }}</span>
+                                <span class="admin-stat-label">Pending Review</span>
+                                <span class="admin-stat-value">{{ pending_review_listings }}</span>
                             </div>
                             <div class="admin-stat-card admin-stat-card-secondary">
-                                <span class="admin-stat-label">Approved Listings</span>
+                                <span class="admin-stat-label">Verified Listings</span>
                                 <span class="admin-stat-value">{{ approved_listings }}</span>
                             </div>
                             <div class="admin-stat-card admin-stat-card-warm">
-                                <span class="admin-stat-label">Conversations</span>
-                                <span class="admin-stat-value">{{ total_conversations }}</span>
+                                <span class="admin-stat-label">Open Reports</span>
+                                <span class="admin-stat-value">{{ open_reports }}</span>
                             </div>
                         </div>
                     </div>
@@ -49,16 +49,16 @@
                                 <span class="admin-stat-value">{{ student_users }}</span>
                             </div>
                             <div class="admin-stat-card admin-stat-card-accent">
-                                <span class="admin-stat-label">Realtors</span>
-                                <span class="admin-stat-value">{{ realtor_users }}</span>
+                                <span class="admin-stat-label">Reports In Review</span>
+                                <span class="admin-stat-value">{{ reports_in_review }}</span>
                             </div>
                             <div class="admin-stat-card admin-stat-card-secondary">
-                                <span class="admin-stat-label">Admins</span>
-                                <span class="admin-stat-value">{{ admin_users_total }}</span>
+                                <span class="admin-stat-label">Rejected Listings</span>
+                                <span class="admin-stat-value">{{ rejected_listings }}</span>
                             </div>
                             <div class="admin-stat-card admin-stat-card-warm">
-                                <span class="admin-stat-label">Messages</span>
-                                <span class="admin-stat-value">{{ total_messages }}</span>
+                                <span class="admin-stat-label">Conversations</span>
+                                <span class="admin-stat-value">{{ total_conversations }}</span>
                             </div>
                         </div>
                     </div>
@@ -78,7 +78,8 @@
                                         <tr>
                                             <th scope="col">Property</th>
                                             <th scope="col">Posted By</th>
-                                            <th scope="col">Status</th>
+                                            <th scope="col">Review</th>
+                                            <th scope="col">Signals</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -104,9 +105,15 @@
                                                     </div>
                                                 </td>
                                                 <td>
-                                                    <span class="admin-status-pill {% if listing.status == 'PENDING' %}is-pending{% elif listing.status == 'AVAILABLE' %}is-approved{% else %}is-muted{% endif %}">
-                                                        {{ listing.get_status_display }}
+                                                    <span class="admin-status-pill {% if listing.approval_status == 'pending' %}is-pending{% elif listing.approval_status == 'approved' %}is-approved{% else %}is-muted{% endif %}">
+                                                        {{ listing.get_approval_status_display }}
                                                     </span>
+                                                </td>
+                                                <td>
+                                                    <div class="admin-poster">
+                                                        <div class="admin-poster-name">{{ listing.review_count }} review{{ listing.review_count|pluralize }}</div>
+                                                        <div class="admin-poster-email">{{ listing.open_report_count }} open report{{ listing.open_report_count|pluralize }}</div>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         {% endfor %}

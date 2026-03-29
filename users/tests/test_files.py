@@ -1,5 +1,6 @@
 import tempfile
 
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
@@ -82,6 +83,26 @@ class UserFilesViewTests(TestCase):
         self.assertNotContains(first_page, "Doc 0")
         self.assertContains(second_page, "Doc 0")
         self.assertNotContains(first_page, "confirm(")
+
+    def test_selected_file_link_preserves_search_query_with_url_encoding(self):
+        self.client.force_login(self.user)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                user_file = UserFile.objects.create(
+                    owner=self.user,
+                    title="lease & forms",
+                    file=SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain"),
+                )
+
+                response = self.client.get(reverse("users:files"), {"q": "lease & forms"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            f"{reverse('users:files')}?file={user_file.id}&q=lease%20%26%20forms&page=1",
+            html=False,
+        )
 
     def test_delete_redirect_preserves_page_and_query(self):
         self.client.force_login(self.user)
@@ -221,6 +242,32 @@ class UserFilesViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "You can store up to 1 file in your document library.")
+        self.assertEqual(UserFile.objects.filter(owner=self.user).count(), 1)
+
+    @override_settings(USER_FILE_UPLOAD_RATE_LIMIT=1, USER_FILE_UPLOAD_RATE_WINDOW_SECONDS=60)
+    def test_upload_is_rate_limited(self):
+        self.client.force_login(self.user)
+        cache.clear()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                first_response = self.client.post(
+                    reverse("users:files"),
+                    {"title": "Lease", "file": SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain")},
+                    follow=True,
+                )
+                second_response = self.client.post(
+                    reverse("users:files"),
+                    {
+                        "title": "Second lease",
+                        "file": SimpleUploadedFile("lease-2.txt", b"hello", content_type="text/plain"),
+                    },
+                    follow=True,
+                )
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 200)
+        self.assertContains(second_response, "Too many file uploads in a short time. Wait a few minutes and try again.")
         self.assertEqual(UserFile.objects.filter(owner=self.user).count(), 1)
 
     def test_owner_can_preview_file_through_authenticated_view(self):

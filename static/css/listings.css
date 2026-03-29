@@ -229,6 +229,199 @@
     color: var(--primary-600);
 }
 
+.listing-card-verified {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.28rem 0.62rem;
+    border-radius: 999px;
+    background: rgba(var(--secondary-rgb), 0.12);
+    color: var(--secondary-600);
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.listing-card-rating {
+    color: var(--gray-700);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.listing-detail-trust-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+    margin-top: 1rem;
+}
+
+.listing-detail-trust-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.48rem 0.8rem;
+    border: 1px solid rgba(var(--gray-300-rgb), 0.9);
+    border-radius: 999px;
+    background: rgba(var(--white-rgb), 0.9);
+    color: var(--gray-700);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.listing-detail-trust-chip.is-verified {
+    border-color: rgba(var(--secondary-rgb), 0.28);
+    background: rgba(var(--secondary-rgb), 0.1);
+    color: var(--secondary-600);
+}
+
+.listing-detail-review-state-panel {
+    border-color: rgba(var(--accent-rgb), 0.22);
+    background:
+        linear-gradient(135deg, rgba(var(--white-rgb), 0.98), rgba(var(--accent-rgb), 0.06)),
+        var(--white);
+}
+
+.listing-detail-review-note {
+    margin-top: 1.1rem;
+    padding: 1rem 1.1rem;
+    border-radius: 1rem;
+    background: rgba(var(--white-rgb), 0.86);
+    border: 1px solid rgba(var(--gray-300-rgb), 0.8);
+}
+
+.listing-detail-review-note strong {
+    display: block;
+    margin-bottom: 0.45rem;
+    color: var(--gray-900);
+}
+
+.listing-detail-review-note p {
+    margin: 0;
+    color: var(--gray-700);
+    line-height: 1.6;
+}
+
+.listing-detail-community-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.9rem;
+}
+
+.listing-detail-community-stat {
+    padding: 1rem 1.05rem;
+    border: 1px solid rgba(var(--gray-300-rgb), 0.8);
+    border-radius: 1rem;
+    background: rgba(var(--gray-100-rgb), 0.68);
+}
+
+.listing-detail-community-value {
+    display: block;
+    margin-top: 0.35rem;
+    color: var(--gray-900);
+    font-size: 1.25rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+}
+
+.listing-detail-community-form {
+    margin-top: 1.25rem;
+    padding: 1.2rem;
+    border: 1px solid rgba(var(--gray-300-rgb), 0.8);
+    border-radius: 1rem;
+    background: rgba(var(--white-rgb), 0.92);
+}
+
+.listing-review-star-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+}
+
+.listing-review-star-option {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 4.2rem;
+    min-height: 3rem;
+    padding: 0.8rem 0.95rem;
+    border: 1px solid rgba(var(--gray-300-rgb), 0.8);
+    border-radius: 0.9rem;
+    background: rgba(var(--gray-100-rgb), 0.85);
+    color: var(--accent-500);
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.listing-review-star-option input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.listing-review-star-option span {
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+}
+
+.listing-review-star-option:has(input:checked) {
+    border-color: rgba(var(--accent-rgb), 0.45);
+    background: rgba(var(--accent-rgb), 0.12);
+    color: var(--accent-500);
+    box-shadow: 0 12px 28px rgba(var(--accent-rgb), 0.14);
+}
+
+.listing-review-list {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1.3rem;
+}
+
+.listing-review-card {
+    padding: 1.15rem;
+    border: 1px solid rgba(var(--gray-300-rgb), 0.8);
+    border-radius: 1rem;
+    background: rgba(var(--white-rgb), 0.94);
+}
+
+.listing-review-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.85rem;
+}
+
+.listing-review-author {
+    color: var(--gray-900);
+    font-size: 0.95rem;
+}
+
+.listing-review-meta {
+    display: block;
+    color: var(--gray-500);
+    font-size: 0.8rem;
+}
+
+.listing-review-rating {
+    color: var(--accent-500);
+    font-size: 0.92rem;
+    font-weight: 800;
+}
+
+.listing-review-comment {
+    margin: 0;
+    color: var(--gray-700);
+    line-height: 1.65;
+}
+
+.listing-detail-report-card .form-select,
+.listing-detail-report-card .form-control {
+    width: 100%;
+}
+
 .listing-results-pane,
 .listing-map-pane {
     display: flex;

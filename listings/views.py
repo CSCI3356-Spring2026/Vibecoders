@@ -26,19 +26,18 @@ from .address_provider import get_geoapify_autocomplete_config, normalize_geoapi
 from .address_signing import sign_address_selection
 from .filtering import MAX_PRICE_FILTERS, MOVE_IN_FILTERS, apply_listing_filters
 from .form_services import handle_listing_form_submission, validation_message
-from .forms import GroupMatchPreferencesForm, ListingForm
+from .forms import GroupMatchPreferencesForm, ListingForm, ListingReportForm, ListingReviewForm
 from .geocoding import BOSTON_COLLEGE_LATITUDE, BOSTON_COLLEGE_LONGITUDE
 from .group_matching import (
     BudgetRange,
     Preferences,
-    Unit,
     build_group_options,
-    sample_candidate_units,
 )
-from .models import Listing, ListingFavorite
+from .models import Listing, ListingFavorite, ListingReport, ListingReview
 from .search_payloads import listing_card_payload, listing_marker_payload
 from .selectors import (
     accessible_listing_detail_queryset,
+    listing_reviews_queryset,
     marketplace_listings_for_user,
     messageable_listings_for_user,
     searchable_marketplace_listings_for_user,
@@ -62,17 +61,18 @@ ADDRESS_PICKER_BLOCKED_STATUS = (
     "Verified address search is unavailable right now. Listing authoring is blocked until Geoapify "
     "autocomplete is configured."
 )
+LISTING_REPORT_RATE_LIMIT_ERROR = "Too many listing reports were sent in a short time. Wait a bit and try again."
 
 GROUP_MATCH_DEFAULTS = {
-    "unit_size": 2,
+    "unit_size": 1,
     "budget_min": 1000,
     "budget_max": 1600,
     "cleanliness": 4,
     "social": 3,
     "sleep_schedule": "balanced",
-    "desired_group_min": 4,
-    "desired_group_max": 6,
-    "location_keywords": "Allston, Brighton",
+    "desired_group_min": 3,
+    "desired_group_max": 5,
+    "location_keywords": "",
 }
 
 
@@ -274,6 +274,43 @@ def _can_favorite_listing(user, listing):
     )
 
 
+def _can_review_listing(user, listing):
+    return (
+        getattr(user, "is_authenticated", False)
+        and getattr(user, "can_browse_marketplace", False)
+        and listing.owner_id != getattr(user, "id", None)
+        and listing.is_approved
+    )
+
+
+def _can_report_listing(user, listing):
+    return (
+        getattr(user, "is_authenticated", False)
+        and getattr(user, "can_browse_marketplace", False)
+        and listing.owner_id != getattr(user, "id", None)
+    )
+
+
+def _consume_listing_report_rate_limit(user):
+    user_id = getattr(user, "id", None)
+    if not user_id:
+        return False
+
+    return consume_rate_limit(
+        scope="listing-report",
+        identifier=str(user_id),
+        limit=getattr(settings, "LISTING_REPORT_RATE_LIMIT", 10),
+        window_seconds=getattr(settings, "LISTING_REPORT_RATE_WINDOW_SECONDS", 3600),
+    )
+
+
+def _first_form_error(form, *, fallback):
+    for errors in form.errors.values():
+        if errors:
+            return errors[0]
+    return fallback
+
+
 def _apply_listing_ui_flags(listings, user):
     for listing in listings:
         listing.can_favorite = _can_favorite_listing(user, listing)
@@ -305,95 +342,163 @@ def _listing_highlight_items(listing):
     return items
 
 
-def _compatible_listings_for_group(user, *, group_size, budget_range, location_keywords):
-    queryset = with_favorite_state(marketplace_listings_for_user(user), user).filter(rooms=group_size)
+def _clamp(value, minimum, maximum):
+    return max(minimum, min(value, maximum))
+
+
+def _group_match_sleep_schedule_from_bedtime(bedtime):
+    if bedtime is None:
+        return GROUP_MATCH_DEFAULTS["sleep_schedule"]
+    if bedtime >= 23 or bedtime <= 2:
+        return "late"
+    if 20 <= bedtime <= 22:
+        return "early"
+    return "balanced"
+
+
+def _group_match_social_from_profile(profile):
+    values = [
+        value
+        for value in (
+            profile.guest_level,
+            profile.drink,
+            profile.party,
+            profile.noise_level,
+        )
+        if value is not None
+    ]
+    if not values:
+        return GROUP_MATCH_DEFAULTS["social"]
+    return _clamp(round(sum(values) / len(values)), 1, 5)
+
+
+def _group_match_size_defaults(social_preference):
+    if social_preference >= 4:
+        return 4, 6
+    if social_preference <= 2:
+        return 2, 4
+    return 3, 5
+
+
+def _group_match_initial_data(user):
+    defaults = GROUP_MATCH_DEFAULTS.copy()
+    profile = getattr(user, "student_profile", None)
+    if profile is None:
+        return defaults
+
+    if profile.messy_level is not None:
+        defaults["cleanliness"] = profile.messy_level
+    defaults["social"] = _group_match_social_from_profile(profile)
+    defaults["sleep_schedule"] = _group_match_sleep_schedule_from_bedtime(profile.bedtime)
+    defaults["desired_group_min"], defaults["desired_group_max"] = _group_match_size_defaults(defaults["social"])
+    return defaults
+
+
+def _group_match_preferences(raw_data):
+    location_keywords = _parse_location_keywords(raw_data.get("location_keywords", ""))
+    preferences = Preferences(
+        budget=BudgetRange(Decimal(str(raw_data["budget_min"])), Decimal(str(raw_data["budget_max"]))),
+        cleanliness=int(raw_data["cleanliness"]),
+        social=int(raw_data["social"]),
+        sleep_schedule=raw_data["sleep_schedule"],
+        desired_group_min=int(raw_data["desired_group_min"]),
+        desired_group_max=int(raw_data["desired_group_max"]),
+        location_keywords=location_keywords,
+    )
+    return preferences, location_keywords
+
+
+def _group_match_listings_by_size(user, *, unit_size, preferences):
+    minimum_group_size = max(unit_size, preferences.desired_group_min)
+    maximum_group_size = max(minimum_group_size, preferences.desired_group_max)
+    target_sizes = tuple(range(minimum_group_size, maximum_group_size + 1))
+
     price_per_person = ExpressionWrapper(
         F("price") / F("rooms"),
         output_field=DecimalField(max_digits=10, decimal_places=2),
     )
-    queryset = queryset.annotate(price_per_person=price_per_person)
-    if not budget_range.is_valid:
-        return queryset.none()
-    queryset = queryset.filter(
-        price_per_person__gte=budget_range.minimum,
-        price_per_person__lte=budget_range.maximum,
+    queryset = with_favorite_state(marketplace_listings_for_user(user), user).filter(rooms__in=target_sizes)
+    queryset = queryset.annotate(price_per_person=price_per_person).filter(
+        price_per_person__gte=preferences.budget.minimum,
+        price_per_person__lte=preferences.budget.maximum,
     )
-    if location_keywords:
+
+    if preferences.location_keywords:
         location_query = Q()
-        for keyword in location_keywords:
+        for keyword in preferences.location_keywords:
             location_query |= Q(address__icontains=keyword) | Q(title__icontains=keyword)
         queryset = queryset.filter(location_query)
-    return queryset
+
+    listings_by_size = {group_size: [] for group_size in target_sizes}
+    for listing in queryset:
+        listings_by_size.setdefault(listing.rooms, []).append(listing)
+    return listings_by_size
 
 
 @login_required
 @require_GET
 def group_match(request):
-    form = GroupMatchPreferencesForm(request.GET or None, initial=GROUP_MATCH_DEFAULTS)
     if not request.user.can_browse_marketplace:
         return HttpResponseForbidden("Verified student access is required to use group matching.")
 
-    show_form = not bool(request.GET) or request.GET.get("edit") == "1"
-    if request.GET and not show_form and not form.is_valid():
-        show_form = True
+    initial_data = _group_match_initial_data(request.user)
+    form = GroupMatchPreferencesForm(request.GET or None, initial=initial_data)
+    group_options = []
+    selected_group_id = ""
+    selected_group_option = None
+    location_keywords = ()
+    effective_data = initial_data
 
-    if show_form:
-        context = {
-            "form": form,
-            "group_options": [],
-            "selected_group_id": "",
-            "location_keywords": (),
-            "show_form": True,
-        }
-        return render(request, "listings/group_match.html", context)
+    if request.GET:
+        if form.is_valid():
+            effective_data = form.cleaned_data
+        else:
+            return render(
+                request,
+                "listings/group_match.html",
+                {
+                    "form": form,
+                    "group_options": [],
+                    "selected_group_id": "",
+                    "selected_group_option": None,
+                    "location_keywords": (),
+                    "group_match_uses_profile_defaults": False,
+                    "group_match_total_matches": 0,
+                    "group_match_sizes_with_inventory": 0,
+                },
+            )
 
-    data = form.cleaned_data
-    location_keywords = _parse_location_keywords(data.get("location_keywords", ""))
-    base_preferences = Preferences(
-        budget=BudgetRange(Decimal(str(data["budget_min"])), Decimal(str(data["budget_max"]))),
-        cleanliness=int(data["cleanliness"]),
-        social=int(data["social"]),
-        sleep_schedule=data["sleep_schedule"],
-        desired_group_min=int(data["desired_group_min"]),
-        desired_group_max=int(data["desired_group_max"]),
-        location_keywords=location_keywords,
+    preferences, location_keywords = _group_match_preferences(effective_data)
+    listings_by_size = _group_match_listings_by_size(
+        request.user,
+        unit_size=int(effective_data["unit_size"]),
+        preferences=preferences,
     )
-    base_unit = Unit(
-        unit_id="you",
-        label="Your unit",
-        size=int(data["unit_size"]),
-        preferences=base_preferences,
+    group_options = build_group_options(
+        base_unit_size=int(effective_data["unit_size"]),
+        preferences=preferences,
+        listings_by_size=listings_by_size,
+        max_options=6,
     )
 
-    candidate_units = sample_candidate_units()
-    group_options = build_group_options(base_unit, candidate_units, max_options=6)
+    listing_limit = 6
+    for option in group_options:
+        option.listings = _apply_listing_ui_flags(list(option.listings[:listing_limit]), request.user)
 
     selected_group_id = request.GET.get("group") or (group_options[0].option_id if group_options else "")
     if selected_group_id and not any(option.option_id == selected_group_id for option in group_options):
         selected_group_id = group_options[0].option_id if group_options else ""
-    listing_limit = 6
-    for option in group_options:
-        if location_keywords:
-            option_keywords = location_keywords
-        else:
-            option_keywords = tuple(
-                sorted({keyword for unit in option.units for keyword in unit.preferences.location_keywords})
-            )
-        listings_queryset = _compatible_listings_for_group(
-            request.user,
-            group_size=option.group_size,
-            budget_range=option.budget_range,
-            location_keywords=option_keywords,
-        )
-        option.listings_count = listings_queryset.count()
-        option.listings = _apply_listing_ui_flags(list(listings_queryset[:listing_limit]), request.user)
+    selected_group_option = next((option for option in group_options if option.option_id == selected_group_id), None)
 
     context = {
         "form": form,
         "group_options": group_options,
         "selected_group_id": selected_group_id,
+        "selected_group_option": selected_group_option,
         "location_keywords": location_keywords,
-        "show_form": show_form,
+        "group_match_uses_profile_defaults": not bool(request.GET) and hasattr(request.user, "student_profile"),
+        "group_match_total_matches": sum(option.listings_count for option in group_options),
+        "group_match_sizes_with_inventory": sum(1 for option in group_options if option.listings_count),
     }
     return render(request, "listings/group_match.html", context)
 
@@ -424,11 +529,31 @@ def listing_detail(request, pk):
     owner_conversations = None
     back_url_name, back_label = _workspace_destination(request.user)
     show_owner_conversations = listing.owner_id == request.user.id
+    can_review_listing = _can_review_listing(request.user, listing)
+    can_report_listing = _can_report_listing(request.user, listing)
     can_message_listing = (
         request.user.can_start_listing_conversations
         and listing.owner_id != request.user.id
         and listing.is_publicly_active
     )
+    listing_reviews = list(listing_reviews_queryset(listing))
+    existing_review = next((review for review in listing_reviews if review.author_id == request.user.id), None)
+    review_form = ListingReviewForm(instance=existing_review) if can_review_listing else None
+    active_listing_report = None
+    report_form = None
+
+    if can_report_listing:
+        active_listing_report = (
+            ListingReport.objects.filter(
+                listing=listing,
+                reporter=request.user,
+                status__in=[ListingReport.STATUS_OPEN, ListingReport.STATUS_IN_REVIEW],
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if active_listing_report is None:
+            report_form = ListingReportForm()
 
     if request.user.can_start_listing_conversations and listing.owner_id != request.user.id:
         existing_conversation = (
@@ -454,6 +579,13 @@ def listing_detail(request, pk):
         "listing": listing,
         "listing_images": listing_images,
         "is_favorited": bool(getattr(listing, "is_favorited", False)),
+        "average_rating": getattr(listing, "average_rating", None),
+        "review_count": int(getattr(listing, "review_count", 0) or 0),
+        "listing_reviews": listing_reviews,
+        "existing_review": existing_review,
+        "review_form": review_form,
+        "report_form": report_form,
+        "active_listing_report": active_listing_report,
         "message_form": message_form,
         "existing_conversation": existing_conversation,
         "can_message_listing": can_message_listing,
@@ -462,12 +594,69 @@ def listing_detail(request, pk):
         "back_url_name": back_url_name,
         "back_label": back_label,
         "can_favorite_listing": listing.can_favorite,
+        "can_review_listing": can_review_listing,
+        "can_report_listing": can_report_listing,
         "listing_highlight_items": _listing_highlight_items(listing),
         "amenity_items": _split_listing_detail_items(listing.amenities),
         "utility_items": _split_listing_detail_items(listing.utilities_included),
         "security_feature_items": _split_listing_detail_items(listing.security_features),
     }
     return render(request, "listings/listing_detail.html", context)
+
+
+@login_required
+@require_POST
+def submit_listing_review(request, pk):
+    listing = get_object_or_404(accessible_listing_detail_queryset(request.user), pk=pk)
+    if not _can_review_listing(request.user, listing):
+        return HttpResponseForbidden("Only marketplace users can review approved listings they do not own.")
+
+    review = ListingReview.objects.filter(listing=listing, author=request.user).first()
+    form = ListingReviewForm(request.POST, instance=review)
+    if form.is_valid():
+        review = form.save(commit=False)
+        review.listing = listing
+        review.author = request.user
+        review.save()
+        messages.success(request, "Your rating has been saved.")
+    else:
+        messages.error(request, _first_form_error(form, fallback="Add a rating before saving your review."))
+
+    return redirect(f"{reverse('listings:detail', args=[listing.pk])}#community")
+
+
+@login_required
+@require_POST
+def report_listing(request, pk):
+    listing = get_object_or_404(accessible_listing_detail_queryset(request.user), pk=pk)
+    if not _can_report_listing(request.user, listing):
+        return HttpResponseForbidden("Only marketplace users can report listings they do not own.")
+    if not _consume_listing_report_rate_limit(request.user):
+        messages.error(request, LISTING_REPORT_RATE_LIMIT_ERROR)
+        return redirect(f"{reverse('listings:detail', args=[listing.pk])}#community")
+
+    existing_report = ListingReport.objects.filter(
+        listing=listing,
+        reporter=request.user,
+        status__in=[ListingReport.STATUS_OPEN, ListingReport.STATUS_IN_REVIEW],
+    ).first()
+    if existing_report is not None:
+        messages.info(request, "You already have an active report on this listing.")
+        return redirect(f"{reverse('listings:detail', args=[listing.pk])}#community")
+
+    form = ListingReportForm(request.POST)
+    if form.is_valid():
+        report = form.save(commit=False)
+        report.listing = listing
+        report.reporter = request.user
+        report.save()
+        messages.success(request, "The listing has been reported for admin review.")
+    else:
+        messages.error(
+            request, _first_form_error(form, fallback="Add enough detail for the admin team to review this report.")
+        )
+
+    return redirect(f"{reverse('listings:detail', args=[listing.pk])}#community")
 
 
 @login_required
@@ -521,7 +710,7 @@ def create_listing(request):
         form = ListingForm(request.POST, request.FILES)
         listing = handle_listing_form_submission(form=form, owner=request.user)
         if listing is not None:
-            messages.success(request, "Listing created.")
+            messages.success(request, "Listing submitted for review.")
             return redirect("listings:detail", pk=listing.pk)
     else:
         form = ListingForm()
@@ -541,7 +730,7 @@ def edit_listing(request, pk):
         form = ListingForm(request.POST, request.FILES, instance=listing)
         listing = handle_listing_form_submission(form=form, owner=request.user)
         if listing is not None:
-            messages.success(request, "Listing updated.")
+            messages.success(request, "Listing updated and re-submitted for review.")
             return redirect("listings:detail", pk=listing.pk)
     else:
         form = ListingForm(instance=listing)

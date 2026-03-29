@@ -75,7 +75,7 @@
                                         <div class="files-list-row">
                                             <a
                                                 class="files-list-link"
-                                                href="{% url 'users:files' %}?file={{ item.id }}{% if query %}&q={{ query }}{% endif %}&page={{ files.number }}"
+                                                href="{% url 'users:files' %}?file={{ item.id }}{% if query %}&q={{ query|urlencode }}{% endif %}&page={{ files.number }}"
                                             >
                                                 <div class="files-list-title">{{ item.display_title }}</div>
                                                 <div class="files-list-meta">Uploaded {{ item.uploaded_at|date:"M d, Y" }}</div>

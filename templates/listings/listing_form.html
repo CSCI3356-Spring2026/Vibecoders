@@ -20,7 +20,7 @@
                 <div>
                     <p class="listing-wizard-eyebrow">{% if is_edit %}Edit listing{% else %}New listing{% endif %}</p>
                     <h1 class="listing-wizard-title">{% if is_edit %}Update your listing{% else %}List your place{% endif %}</h1>
-                    <p class="listing-wizard-subtitle">Complete each step to unlock the next.</p>
+                    <p class="listing-wizard-subtitle">Complete each step, then send the listing into the admin review queue.</p>
                 </div>
                 <div class="listing-wizard-header-side">
                     <div class="listing-wizard-progress">
@@ -234,7 +234,7 @@
                         <div class="listing-wizard-panel-head">
                             <p class="listing-wizard-panel-kicker">Step 5</p>
                             <h2 class="listing-wizard-panel-title">Review</h2>
-                            <p class="listing-wizard-panel-copy">Upload photos and do a final pass.</p>
+                            <p class="listing-wizard-panel-copy">Upload photos, do a final pass, and submit for approval.</p>
                         </div>
                         <div class="listing-wizard-grid listing-wizard-grid-1">
                             <div class="listing-form-field">
@@ -321,7 +321,7 @@
                         </div>
                         <div class="listing-wizard-footer-actions">
                             <button type="button" class="btn btn-brand" data-step-next>Continue</button>
-                            <button type="submit" class="btn btn-brand" data-step-submit>{% if is_edit %}Save changes{% else %}Create listing{% endif %}</button>
+                            <button type="submit" class="btn btn-brand" data-step-submit>{% if is_edit %}Save and resubmit{% else %}Submit for review{% endif %}</button>
                         </div>
                     </div>
                 </div>

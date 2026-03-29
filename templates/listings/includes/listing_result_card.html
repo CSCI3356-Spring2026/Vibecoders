@@ -20,6 +20,9 @@
         <div class="listing-card-body">
             <div class="listing-card-topline">
                 <div class="listing-card-badges">
+                    {% if listing.is_verified %}
+                        <span class="listing-card-verified">Verified</span>
+                    {% endif %}
                     <span class="listing-card-badge">{{ listing.get_lease_type_display }}</span>
                     <span class="listing-card-chip">{{ listing.get_property_type_display }}</span>
                 </div>
@@ -27,6 +30,9 @@
             </div>
             <div class="listing-card-price-row">
                 <span class="listing-card-price">${{ listing.price|floatformat:0 }}/mo</span>
+                {% if listing.review_count %}
+                    <span class="listing-card-rating">{{ listing.average_rating|floatformat:1 }} ★ · {{ listing.review_count }} review{{ listing.review_count|pluralize }}</span>
+                {% endif %}
             </div>
             <h3 class="listing-card-title">{{ listing.title }}</h3>
             <p class="listing-card-address">{{ listing.address }}</p>

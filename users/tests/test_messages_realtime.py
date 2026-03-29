@@ -29,6 +29,7 @@ class MessagesRealtimeTests(TransactionTestCase):
             lease_type="FULL",
             start_date="2026-09-01",
             end_date="2027-05-31",
+            approval_status="approved",
         )
         self.conversation = ListingConversation.objects.create(
             listing=self.listing,

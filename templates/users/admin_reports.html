@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Reports & Issues | {{ site_product_name }}{% endblock %}
+
+{% block content %}
+<section class="app-page admin-dashboard">
+    <div class="container">
+        <div class="app-shell">
+            <div class="admin-header listing-panel">
+                <div>
+                    <p class="app-kicker">Admin Dashboard</p>
+                    <h1 class="app-title">Reports &amp; Issues</h1>
+                    <p class="app-subtitle">Review listing reports, status changes, and abuse signals.</p>
+                </div>
+                <div class="admin-header-meta">
+                    <a class="btn btn-outline-secondary" href="{% url 'users:admin_dashboard' %}">Back to dashboard</a>
+                </div>
+            </div>
+
+            <div class="app-layout">
+                {% include "includes/admin_sidebar.html" with active_section="reports" %}
+
+                <div class="app-main">
+                    <div class="listing-panel admin-filter">
+                        <form method="get" class="admin-filter-form">
+                            <div class="admin-filter-inputs">
+                                <input class="form-control" type="search" name="q" placeholder="Search reports..." value="{{ query }}">
+                                <select class="form-select" name="status">
+                                    <option value="">All Report Statuses</option>
+                                    {% for value, label in status_options %}
+                                        <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                <select class="form-select" name="reason">
+                                    <option value="">All Reasons</option>
+                                    {% for value, label in reason_options %}
+                                        <option value="{{ value }}" {% if selected_reason == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <button class="btn btn-brand" type="submit">Filter</button>
+                        </form>
+                    </div>
+
+                    <div class="listing-panel admin-table">
+                        <div class="admin-table-head">
+                            <h2 class="app-section-heading">Listing reports</h2>
+                            <span class="admin-table-count">{{ reports_total }} results</span>
+                        </div>
+
+                        {% if reports %}
+                            <div class="admin-list-grid">
+                                {% for report in reports %}
+                                    <div class="admin-list-item admin-list-item-static admin-report-card">
+                                        <div>
+                                            <div class="admin-list-title">{{ report.listing.title }}</div>
+                                            <div class="admin-list-meta">{{ report.listing.address }}</div>
+                                            <div class="admin-list-meta">{{ report.reporter.display_name }} reported {{ report.get_reason_display|lower }} on {{ report.created_at|date:"M d, Y" }}</div>
+                                            <div class="admin-list-meta">{{ report.details|default:"No details provided." }}</div>
+                                            <div class="admin-list-meta">Current status: {{ report.get_status_display }}</div>
+                                        </div>
+                                        <form method="post" action="{% url 'users:admin_update_report' report.id %}" class="admin-report-form">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                            {{ report.ui_form.status }}
+                                            {{ report.ui_form.resolution_notes }}
+                                            <div class="admin-user-actions">
+                                                <button class="btn btn-outline-secondary btn-sm" type="submit">Update</button>
+                                                <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:admin_listing_detail' report.listing.id %}">Open listing</a>
+                                            </div>
+                                        </form>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            {% include "includes/pagination.html" with page_obj=reports pagination_query=pagination_query %}
+                        {% else %}
+                            <p class="app-panel-copy mb-0">No reports match the current filters.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

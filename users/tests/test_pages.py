@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from communications.models import ListingConversation
 from communications.selectors import accessible_conversations_for_user
+from listings.models import Listing, ListingReport
 
 from ..session_security import RECENT_AUTH_SESSION_KEY
 from .helpers import User
@@ -253,6 +254,7 @@ class UserPageTests(TestCase):
 
         self.assertContains(response, "user-avatar-image")
         self.assertContains(response, "https://example.com/eagle-avatar.png")
+        self.assertNotContains(response, ">Group match<", html=False)
 
     def test_account_dashboard_shows_google_avatar_when_available(self):
         SocialAccount.objects.create(
@@ -281,6 +283,8 @@ class UserPageTests(TestCase):
         self.assertContains(dashboard_response, "https://example.com/avatar.jpg")
         self.assertContains(dashboard_response, self.user.display_role)
         self.assertContains(dashboard_response, "Open document library")
+        self.assertContains(dashboard_response, "Open group match studio")
+        self.assertContains(dashboard_response, "Group match studio")
         self.assertContains(dashboard_response, "Workspace")
         self.assertNotContains(dashboard_response, "Permissions")
         self.assertNotContains(dashboard_response, "Email verification")
@@ -454,6 +458,7 @@ assert.equal(root.classList.contains("is-open"), false);
             lease_type="FULL",
             start_date="2026-09-01",
             end_date="2027-05-31",
+            approval_status="approved",
         )
         self.client.force_login(self.user)
 
@@ -473,6 +478,7 @@ assert.equal(root.classList.contains("is-open"), false);
                 lease_type="FULL",
                 start_date="2026-09-01",
                 end_date="2027-05-31",
+                approval_status="approved",
             )
         self.client.force_login(self.user)
 
@@ -502,6 +508,7 @@ assert.equal(root.classList.contains("is-open"), false);
             lease_type="FULL",
             start_date="2026-09-01",
             end_date="2027-05-31",
+            approval_status="approved",
         )
         SocialAccount.objects.create(
             user=self.user,
@@ -543,6 +550,7 @@ assert.equal(root.classList.contains("is-open"), false);
             lease_type="FULL",
             start_date="2026-09-01",
             end_date="2027-05-31",
+            approval_status="approved",
         )
         participant = User.objects.create_user(username="student", email="student@bc.edu", password="test")
         conversation = ListingConversation.objects.create(
@@ -568,6 +576,7 @@ assert.equal(root.classList.contains("is-open"), false);
             lease_type="FULL",
             start_date="2026-09-01",
             end_date="2027-05-31",
+            approval_status="approved",
         )
         participant = User.objects.create_user(username="student", email="student@bc.edu", password="test")
         SocialAccount.objects.create(
@@ -596,6 +605,7 @@ assert.equal(root.classList.contains("is-open"), false);
             lease_type="FULL",
             start_date="2026-09-01",
             end_date="2027-05-31",
+            approval_status="approved",
         )
         participant = User.objects.create_user(username="student", email="student@bc.edu", password="test")
         conversation = ListingConversation.objects.create(
@@ -621,6 +631,7 @@ assert.equal(root.classList.contains("is-open"), false);
             lease_type="FULL",
             start_date="2026-09-01",
             end_date="2027-05-31",
+            approval_status="approved",
         )
         participant = User.objects.create_user(username="student", email="student@bc.edu", password="test")
         conversation = ListingConversation.objects.create(
@@ -658,6 +669,7 @@ assert.equal(root.classList.contains("is-open"), false);
                 lease_type="FULL",
                 start_date="2026-09-01",
                 end_date="2027-05-31",
+                approval_status="approved",
             )
             conversation = ListingConversation.objects.create(
                 listing=listing,
@@ -685,6 +697,7 @@ assert.equal(root.classList.contains("is-open"), false);
             lease_type="FULL",
             start_date="2026-09-01",
             end_date="2027-05-31",
+            approval_status="approved",
         )
         participant = User.objects.create_user(username="student", email="student@bc.edu", password="test")
         conversation = ListingConversation.objects.create(
@@ -711,6 +724,7 @@ assert.equal(root.classList.contains("is-open"), false);
             lease_type="FULL",
             start_date="2026-09-01",
             end_date="2027-05-31",
+            approval_status="approved",
         )
         conversation = ListingConversation.objects.create(
             listing=listing,
@@ -756,6 +770,7 @@ assert.equal(root.classList.contains("is-open"), false);
                 lease_type="FULL",
                 start_date="2026-09-01",
                 end_date="2027-05-31",
+                approval_status="approved",
             )
         self.client.force_login(admin)
 
@@ -767,6 +782,72 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertNotContains(first_page, "Admin listing 0")
         self.assertContains(second_page, "Admin listing 0")
         self.assertNotContains(first_page, "confirm(")
+
+    def test_admin_can_approve_listing_from_review_page(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        owner = User.objects.create_user(username="owner", email="owner@bc.edu", password="test")
+        listing = owner.listings.create(
+            title="Queued listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+        )
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            reverse("users:admin_review_listing", args=[listing.id]),
+            {"action": "approve", "review_notes": "Address and photos look consistent."},
+            follow=False,
+        )
+
+        listing.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("users:admin_listing_detail", args=[listing.id]))
+        self.assertEqual(listing.approval_status, Listing.APPROVAL_APPROVED)
+        self.assertEqual(listing.reviewed_by, admin)
+        self.assertEqual(listing.approval_notes, "Address and photos look consistent.")
+
+    def test_admin_reports_page_can_update_report_status(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        owner = User.objects.create_user(username="owner", email="owner@bc.edu", password="test")
+        reporter = User.objects.create_user(username="reporter", email="reporter@bc.edu", password="test")
+        listing = owner.listings.create(
+            title="Reported listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status="approved",
+        )
+        report = ListingReport.objects.create(
+            listing=listing,
+            reporter=reporter,
+            reason=ListingReport.REASON_SPAM,
+            details="Duplicate inventory.",
+        )
+        self.client.force_login(admin)
+
+        page_response = self.client.get(reverse("users:admin_reports"))
+        update_response = self.client.post(
+            reverse("users:admin_update_report", args=[report.id]),
+            {
+                f"report-{report.id}-status": ListingReport.STATUS_RESOLVED,
+                f"report-{report.id}-resolution_notes": "Removed the duplicate and kept the canonical listing.",
+                "next": reverse("users:admin_reports"),
+            },
+            follow=False,
+        )
+
+        report.refresh_from_db()
+        self.assertEqual(page_response.status_code, 200)
+        self.assertContains(page_response, "Reported listing")
+        self.assertEqual(update_response.status_code, 302)
+        self.assertEqual(update_response["Location"], reverse("users:admin_reports"))
+        self.assertEqual(report.status, ListingReport.STATUS_RESOLVED)
+        self.assertEqual(report.reviewed_by, admin)
 
     def test_user_can_delete_their_account(self):
         self.client.force_login(self.user)
@@ -827,6 +908,7 @@ assert.equal(root.classList.contains("is-open"), false);
             lease_type="FULL",
             start_date="2026-09-01",
             end_date="2027-05-31",
+            approval_status="approved",
         )
         self.client.force_login(admin)
 

@@ -20,7 +20,7 @@ from communications.models import ListingConversation, ListingMessage
 from users.models import Role
 
 from ..address_signing import sign_address_selection, unsign_address_selection
-from ..models import Listing, ListingFavorite, ListingImage
+from ..models import Listing, ListingFavorite, ListingImage, ListingReport, ListingReview
 from .base import ListingTestCase
 
 
@@ -281,6 +281,7 @@ class ListingPageTests(ListingTestCase):
             start_date=date(2026, 9, 1),
             end_date=date(2027, 5, 31),
             description="Close to campus.",
+            approval_status="approved",
         )
         self.client.force_login(self.user)
         url = reverse("listings:toggle_favorite", args=[listing.pk])
@@ -303,6 +304,7 @@ class ListingPageTests(ListingTestCase):
             start_date=date(2026, 9, 1),
             end_date=date(2027, 5, 31),
             description="Close to campus.",
+            approval_status="approved",
         )
         ListingFavorite.objects.create(user=self.user, listing=listing)
         self.client.force_login(self.user)
@@ -322,6 +324,7 @@ class ListingPageTests(ListingTestCase):
             start_date=date(2026, 9, 1),
             end_date=date(2027, 5, 31),
             description="Close to campus.",
+            approval_status="approved",
         )
         other_listing = self.create_listing(title="Unsaved listing", address="200 Comm Ave")
         ListingFavorite.objects.create(user=self.user, listing=listing)
@@ -779,6 +782,7 @@ assert.equal(capturedElements[0].style.transform ?? "", "");
             description="Visible to students.",
             latitude=42.3355,
             longitude=-71.1685,
+            approval_status="approved",
         )
         own_listing = realtor.listings.create(
             title="Realtor listing",
@@ -791,6 +795,7 @@ assert.equal(capturedElements[0].style.transform ?? "", "");
             description="Owned by realtor.",
             latitude=42.3356,
             longitude=-71.1684,
+            approval_status="approved",
         )
         self.client.force_login(realtor)
 
@@ -1218,6 +1223,18 @@ assert.equal(picker.isSelectionComplete(), true);
         self.assertEqual(created_listing.utilities_estimate, 90)
         self.assertEqual(created_listing.security_deposit, 1200)
 
+    def test_created_listing_starts_pending_review(self):
+        self.client.force_login(self.user)
+        payload = self.listing_payload(images=[self.make_image_upload()])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                response = self.client.post(reverse("listings:create_listing"), payload, follow=True)
+
+        created_listing = self.user.listings.get()
+        self.assertEqual(created_listing.approval_status, Listing.APPROVAL_PENDING)
+        self.assertContains(response, "Listing submitted for review.")
+
     def test_authenticated_user_can_create_listing_and_persist_verified_coordinates(self):
         self.client.force_login(self.user)
         payload = self.listing_payload(images=[self.make_image_upload()])
@@ -1230,6 +1247,89 @@ assert.equal(picker.isSelectionComplete(), true);
         created_listing = self.user.listings.get()
         self.assertAlmostEqual(created_listing.latitude, 42.3355)
         self.assertAlmostEqual(created_listing.longitude, -71.1685)
+
+    def test_unapproved_listing_is_hidden_from_marketplace(self):
+        self.client.force_login(self.user)
+        approved_listing = self.create_listing(title="Approved listing")
+        pending_owner = get_user_model().objects.create_user(
+            username="pending-owner",
+            email="pending-owner@bc.edu",
+            password="test",
+        )
+        pending_owner.listings.create(
+            title="Pending listing",
+            address="10 Beacon St",
+            price="1400.00",
+            lease_type="FULL",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 5, 31),
+            approval_status=Listing.APPROVAL_PENDING,
+        )
+
+        response = self.client.get(reverse("listings:listing_list"))
+
+        self.assertContains(response, approved_listing.title)
+        self.assertNotContains(response, "Pending listing")
+
+    def test_marketplace_user_can_submit_review_for_approved_listing(self):
+        owner = get_user_model().objects.create_user(
+            username="review-owner",
+            email="review-owner@bc.edu",
+            password="test",
+        )
+        listing = owner.listings.create(
+            title="Reviewed home",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 5, 31),
+            approval_status=Listing.APPROVAL_APPROVED,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("listings:submit_review", args=[listing.pk]),
+            {"rating": "5", "comment": "Actually lived here and it was great."},
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response["Location"].endswith("#community"))
+        review = ListingReview.objects.get(listing=listing, author=self.user)
+        self.assertEqual(review.rating, 5)
+
+    def test_marketplace_user_can_report_listing_once_until_resolved(self):
+        owner = get_user_model().objects.create_user(
+            username="report-owner",
+            email="report-owner@bc.edu",
+            password="test",
+        )
+        listing = owner.listings.create(
+            title="Flagged home",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 5, 31),
+            approval_status=Listing.APPROVAL_APPROVED,
+        )
+        self.client.force_login(self.user)
+
+        first_response = self.client.post(
+            reverse("listings:report_listing", args=[listing.pk]),
+            {"reason": ListingReport.REASON_INACCURATE, "details": "The posted details do not match the unit."},
+            follow=False,
+        )
+        second_response = self.client.post(
+            reverse("listings:report_listing", args=[listing.pk]),
+            {"reason": ListingReport.REASON_SPAM, "details": "Trying again."},
+            follow=True,
+        )
+
+        self.assertEqual(first_response.status_code, 302)
+        self.assertEqual(ListingReport.objects.filter(listing=listing, reporter=self.user).count(), 1)
+        self.assertContains(second_response, "You already have an active report on this listing.")
 
     def test_create_listing_rejects_submission_without_selected_signed_token(self):
         self.client.force_login(self.user)
@@ -1544,6 +1644,7 @@ assert.equal(picker.isSelectionComplete(), true);
             lease_type="FULL",
             start_date=date(2026, 9, 1),
             end_date=date(2027, 5, 31),
+            approval_status="approved",
         )
         self.create_listing(title="Student listing", address="20 Main St")
         self.client.force_login(realtor)
@@ -1788,7 +1889,7 @@ class GroupMatchPageTests(ListingTestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.context["show_form"])
+        self.assertEqual(response.context["group_options"], [])
         self.assertContains(response, "Budget min must be less than or equal to budget max.")
 
     def test_group_match_page_filters_listings_by_size_and_budget(self):
@@ -1835,6 +1936,7 @@ class GroupMatchPageTests(ListingTestCase):
         self.assertIn(matching_listing.id, listing_ids)
         self.assertNotIn(pricey_listing.id, listing_ids)
         self.assertNotIn(wrong_size_listing.id, listing_ids)
+        self.assertNotContains(response, "Compatible duo")
 
     def test_group_match_results_render_first_selected_panel_expanded(self):
         self.client.force_login(self.user)

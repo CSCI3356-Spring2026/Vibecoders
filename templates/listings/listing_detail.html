@@ -31,6 +31,13 @@
                         {% endif %}
                     </div>
                     <div class="listing-detail-meta">
+                        {% if listing.is_verified %}
+                            <span class="listing-card-verified">Verified</span>
+                        {% elif request.user.id == listing.owner_id or request.user.is_bc_admin %}
+                            <span class="listing-card-status {% if listing.approval_status == 'pending' %}is-pending{% elif listing.approval_status == 'approved' %}is-available{% else %}is-taken{% endif %}">
+                                {{ listing.get_approval_status_display }}
+                            </span>
+                        {% endif %}
                         <span class="listing-card-status {% if listing.status == 'AVAILABLE' %}is-available{% elif listing.status == 'PENDING' %}is-pending{% else %}is-taken{% endif %}">
                             {{ listing.get_status_display }}
                         </span>
@@ -50,6 +57,18 @@
                         <span class="listing-detail-stat-label">Square feet</span>
                         <span class="listing-detail-stat-value">{{ listing.sq_ft|default:"N/A" }}</span>
                     </div>
+                </div>
+
+                <div class="listing-detail-trust-row">
+                    {% if review_count %}
+                        <span class="listing-detail-trust-chip">{{ average_rating|floatformat:1 }} ★ average</span>
+                        <span class="listing-detail-trust-chip">{{ review_count }} resident review{{ review_count|pluralize }}</span>
+                    {% else %}
+                        <span class="listing-detail-trust-chip">No resident reviews yet</span>
+                    {% endif %}
+                    {% if listing.is_verified %}
+                        <span class="listing-detail-trust-chip is-verified">Approved by Padly</span>
+                    {% endif %}
                 </div>
             </div>
 
@@ -84,6 +103,7 @@
             <a class="listing-detail-nav-link" href="#overview">Overview</a>
             <a class="listing-detail-nav-link" href="#costs">Costs & policies</a>
             <a class="listing-detail-nav-link" href="#amenities">Amenities</a>
+            <a class="listing-detail-nav-link" href="#community">Community</a>
             <a class="listing-detail-nav-link" href="#contact">Contact</a>
         </nav>
 
@@ -139,6 +159,62 @@
 
         <div class="listing-detail-layout">
             <div class="listing-detail-main">
+                {% if request.user.id == listing.owner_id or request.user.is_bc_admin %}
+                    <section class="listing-detail-panel listing-detail-review-state-panel">
+                        <div class="listing-detail-panel-head">
+                            <div>
+                                <p class="listing-results-kicker">Listing review</p>
+                                <h2 class="listing-results-title">
+                                    {% if listing.approval_status == 'approved' %}
+                                        This listing is approved and carrying the verified badge.
+                                    {% elif listing.approval_status == 'pending' %}
+                                        This listing is in the admin review queue.
+                                    {% else %}
+                                        This listing needs changes before it can go live again.
+                                    {% endif %}
+                                </h2>
+                            </div>
+                        </div>
+                        <p class="listing-detail-panel-copy">
+                            {% if listing.approval_status == 'approved' %}
+                                Approved listings are eligible to appear in search and group match as long as availability and visibility stay valid.
+                            {% elif listing.approval_status == 'pending' %}
+                                Admins can review the address, photos, pricing, policies, and owner details before this listing is shown publicly.
+                            {% else %}
+                                Review notes from the admin team are shown below. Update the listing and submit it again to return to the queue.
+                            {% endif %}
+                        </p>
+                        <div class="listing-detail-feature-grid">
+                            <div class="listing-detail-feature-card">
+                                <span class="listing-detail-feature-label">Review state</span>
+                                <span class="listing-detail-feature-value">{{ listing.get_approval_status_display }}</span>
+                            </div>
+                            <div class="listing-detail-feature-card">
+                                <span class="listing-detail-feature-label">Submitted</span>
+                                <span class="listing-detail-feature-value">{{ listing.submitted_for_approval_at|date:"M d, Y" }}</span>
+                            </div>
+                            {% if listing.reviewed_at %}
+                                <div class="listing-detail-feature-card">
+                                    <span class="listing-detail-feature-label">Reviewed</span>
+                                    <span class="listing-detail-feature-value">{{ listing.reviewed_at|date:"M d, Y" }}</span>
+                                </div>
+                            {% endif %}
+                            {% if listing.reviewed_by %}
+                                <div class="listing-detail-feature-card">
+                                    <span class="listing-detail-feature-label">Reviewed by</span>
+                                    <span class="listing-detail-feature-value">{{ listing.reviewed_by.display_name }}</span>
+                                </div>
+                            {% endif %}
+                        </div>
+                        {% if listing.approval_notes %}
+                            <div class="listing-detail-review-note">
+                                <strong>Admin notes</strong>
+                                <p>{{ listing.approval_notes }}</p>
+                            </div>
+                        {% endif %}
+                    </section>
+                {% endif %}
+
                 <section class="listing-detail-panel" id="overview">
                     <div class="listing-detail-panel-head">
                         <div>
@@ -272,6 +348,96 @@
                     </div>
                 </section>
 
+                <section class="listing-detail-panel" id="community">
+                    <div class="listing-detail-panel-head">
+                        <div>
+                            <p class="listing-results-kicker">Community</p>
+                            <h2 class="listing-results-title">Resident feedback and trust signals</h2>
+                        </div>
+                    </div>
+
+                    <div class="listing-detail-community-summary">
+                        <div class="listing-detail-community-stat">
+                            <span class="listing-detail-feature-label">Average rating</span>
+                            <strong class="listing-detail-community-value">
+                                {% if review_count %}
+                                    {{ average_rating|floatformat:1 }} ★
+                                {% else %}
+                                    --
+                                {% endif %}
+                            </strong>
+                        </div>
+                        <div class="listing-detail-community-stat">
+                            <span class="listing-detail-feature-label">Resident reviews</span>
+                            <strong class="listing-detail-community-value">{{ review_count }}</strong>
+                        </div>
+                        <div class="listing-detail-community-stat">
+                            <span class="listing-detail-feature-label">Trust state</span>
+                            <strong class="listing-detail-community-value">
+                                {% if listing.is_verified %}
+                                    Verified
+                                {% else %}
+                                    {{ listing.get_approval_status_display }}
+                                {% endif %}
+                            </strong>
+                        </div>
+                    </div>
+
+                    {% if can_review_listing and review_form %}
+                        <div class="listing-detail-community-form">
+                            <h3 class="listing-detail-subheading">{% if existing_review %}Update your review{% else %}Leave a review{% endif %}</h3>
+                            <form method="post" action="{% url 'listings:submit_review' listing.pk %}">
+                                {% csrf_token %}
+                                <div class="listing-review-star-group">
+                                    {% for radio in review_form.rating %}
+                                        <label class="listing-review-star-option" for="{{ radio.id_for_label }}">
+                                            {{ radio.tag }}
+                                            <span>{{ radio.choice_label }}</span>
+                                        </label>
+                                    {% endfor %}
+                                </div>
+                                {% for error in review_form.rating.errors %}
+                                    <div class="app-field-error">{{ error }}</div>
+                                {% endfor %}
+                                <div class="mt-3">
+                                    <label class="form-label fw-semibold" for="{{ review_form.comment.id_for_label }}">{{ review_form.comment.label }}</label>
+                                    {{ review_form.comment }}
+                                    {% for error in review_form.comment.errors %}
+                                        <div class="app-field-error">{{ error }}</div>
+                                    {% endfor %}
+                                </div>
+                                <button class="btn btn-brand mt-3" type="submit">{% if existing_review %}Update review{% else %}Publish review{% endif %}</button>
+                            </form>
+                        </div>
+                    {% endif %}
+
+                    {% if listing_reviews %}
+                        <div class="listing-review-list">
+                            {% for review in listing_reviews %}
+                                <article class="listing-review-card">
+                                    <div class="listing-review-card-head">
+                                        <div class="identity-row listing-person-row">
+                                            {% include "includes/user_avatar.html" with user_obj=review.author avatar_class="listing-person-avatar user-avatar user-avatar-sm" %}
+                                            <div class="identity-copy">
+                                                <strong class="listing-review-author">{{ review.author.display_name }}</strong>
+                                                <span class="listing-review-meta">{{ review.updated_at|date:"M d, Y" }}</span>
+                                            </div>
+                                        </div>
+                                        <span class="listing-review-rating">{{ review.rating }} ★</span>
+                                    </div>
+                                    {% if review.comment %}
+                                        <p class="listing-review-comment">{{ review.comment }}</p>
+                                    {% else %}
+                                        <p class="listing-detail-panel-copy mb-0">No written notes were added with this rating.</p>
+                                    {% endif %}
+                                </article>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="listing-detail-panel-copy mb-0">No resident reviews have been shared yet.</p>
+                    {% endif %}
+                </section>
+
                 {% if show_owner_conversations %}
                     <section class="listing-detail-panel" id="owner-threads">
                         <div class="listing-detail-panel-head">
@@ -365,6 +531,45 @@
                         <p class="listing-detail-panel-copy">This account can publish listings but cannot start new renter threads.</p>
                     {% endif %}
                 </section>
+
+                {% if can_report_listing %}
+                    <section class="listing-detail-panel listing-detail-report-card">
+                        <div class="listing-detail-panel-head">
+                            <div>
+                                <p class="listing-results-kicker">Report listing</p>
+                                <h2 class="listing-results-title">Flag issues for admin review</h2>
+                            </div>
+                        </div>
+                        {% if active_listing_report %}
+                            <p class="listing-detail-panel-copy">
+                                You already submitted a report on this listing.
+                            </p>
+                            <div class="listing-detail-data-row">
+                                <span>Status</span>
+                                <strong>{{ active_listing_report.get_status_display }}</strong>
+                            </div>
+                            <div class="listing-detail-data-row">
+                                <span>Reason</span>
+                                <strong>{{ active_listing_report.get_reason_display }}</strong>
+                            </div>
+                        {% elif report_form %}
+                            <form method="post" action="{% url 'listings:report_listing' listing.pk %}">
+                                {% csrf_token %}
+                                <label class="form-label fw-semibold" for="{{ report_form.reason.id_for_label }}">{{ report_form.reason.label }}</label>
+                                {{ report_form.reason }}
+                                {% for error in report_form.reason.errors %}
+                                    <div class="app-field-error">{{ error }}</div>
+                                {% endfor %}
+                                <label class="form-label fw-semibold mt-3" for="{{ report_form.details.id_for_label }}">{{ report_form.details.label }}</label>
+                                {{ report_form.details }}
+                                {% for error in report_form.details.errors %}
+                                    <div class="app-field-error">{{ error }}</div>
+                                {% endfor %}
+                                <button class="btn btn-outline-secondary w-100 mt-3" type="submit">Submit report</button>
+                            </form>
+                        {% endif %}
+                    </section>
+                {% endif %}
             </aside>
         </div>
     </div>

@@ -19,6 +19,7 @@ from django.views.decorators.http import require_GET, require_POST
 from communications.selectors import accessible_conversations_for_user, conversation_summary_for_user
 from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
+from listings.selectors import with_feedback_summary
 
 from .forms import AdminProfileForm, GoogleLoginAcceptanceForm, StudentProfileForm, UserFileUploadForm
 from .legal import (
@@ -32,6 +33,7 @@ from .session_security import has_recent_auth
 FILES_PER_PAGE = 12
 POSTS_PER_PAGE = 12
 LOGIN_RATE_LIMIT_ERROR = "Too many sign-in attempts. Wait a few minutes and try again."
+FILE_UPLOAD_RATE_LIMIT_ERROR = "Too many file uploads in a short time. Wait a few minutes and try again."
 
 
 def _consume_login_rate_limit(request):
@@ -40,6 +42,19 @@ def _consume_login_rate_limit(request):
         identifier=request_rate_limit_identifier(request),
         limit=getattr(settings, "LOGIN_INIT_RATE_LIMIT", 10),
         window_seconds=getattr(settings, "LOGIN_INIT_RATE_WINDOW_SECONDS", 300),
+    )
+
+
+def _consume_user_file_upload_rate_limit(user):
+    user_id = getattr(user, "id", None)
+    if not user_id:
+        return False
+
+    return consume_rate_limit(
+        scope="user-file-upload",
+        identifier=str(user_id),
+        limit=getattr(settings, "USER_FILE_UPLOAD_RATE_LIMIT", 25),
+        window_seconds=getattr(settings, "USER_FILE_UPLOAD_RATE_WINDOW_SECONDS", 300),
     )
 
 
@@ -236,7 +251,7 @@ def profile_setup(request):
 @login_required
 def posts(request):
     listings_qs = (
-        request.user.listings.with_related()
+        with_feedback_summary(request.user.listings.with_related())
         .annotate(
             conversation_count=Count(
                 "conversations",
@@ -262,7 +277,9 @@ def files(request):
 
     if request.method == "POST":
         form = UserFileUploadForm(request.POST, request.FILES)
-        if form.is_valid():
+        if not _consume_user_file_upload_rate_limit(request.user):
+            form.add_error("file", FILE_UPLOAD_RATE_LIMIT_ERROR)
+        elif form.is_valid():
             user_file = form.save(commit=False)
             user_file.owner = request.user
             if not user_file.title:

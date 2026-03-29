@@ -69,6 +69,18 @@
                                             <div class="app-compact-meta">
                                                 ${{ listing.price|floatformat:0 }}/mo • {{ listing.get_status_display }} • {{ listing.conversation_count }} conversation{{ listing.conversation_count|pluralize }}
                                             </div>
+                                            <div class="app-compact-meta">
+                                                Review: {{ listing.get_approval_status_display }}
+                                                {% if listing.is_verified %}
+                                                    • Verified
+                                                {% endif %}
+                                                {% if listing.review_count %}
+                                                    • {{ listing.average_rating|floatformat:1 }} ★ from {{ listing.review_count }} review{{ listing.review_count|pluralize }}
+                                                {% endif %}
+                                            </div>
+                                            {% if listing.approval_notes %}
+                                                <div class="app-compact-meta">{{ listing.approval_notes }}</div>
+                                            {% endif %}
                                         </div>
                                     </div>
 

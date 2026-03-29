@@ -260,6 +260,100 @@
     color: var(--gray-900);
 }
 
+.admin-list-item-static {
+    align-items: flex-start;
+}
+
+.admin-review-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(20rem, 0.95fr);
+    gap: 1.25rem;
+    padding: 1.5rem;
+}
+
+.admin-review-main,
+.admin-review-side {
+    display: grid;
+    gap: 1rem;
+}
+
+.admin-review-section {
+    padding: 1.2rem;
+    border: 1px solid rgba(var(--gray-300-rgb), 0.6);
+    border-radius: var(--radius-md);
+    background: var(--surface-gradient);
+}
+
+.admin-review-form .form-control,
+.admin-report-form .form-control,
+.admin-report-form .form-select {
+    width: 100%;
+}
+
+.admin-review-photo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.85rem;
+}
+
+.admin-review-photo-grid img {
+    width: 100%;
+    aspect-ratio: 1.2 / 1;
+    object-fit: cover;
+    border-radius: 0.9rem;
+}
+
+.admin-review-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.8rem;
+}
+
+.admin-review-facts div {
+    padding: 0.85rem 0.95rem;
+    border-radius: 0.85rem;
+    background: rgba(var(--white-rgb), 0.82);
+    border: 1px solid rgba(var(--gray-300-rgb), 0.75);
+}
+
+.admin-review-facts span {
+    display: block;
+    color: var(--gray-500);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.admin-review-facts strong {
+    display: block;
+    margin-top: 0.3rem;
+    color: var(--gray-900);
+    font-size: 0.92rem;
+}
+
+.admin-review-body {
+    margin: 1rem 0 0;
+    color: var(--gray-700);
+    line-height: 1.7;
+}
+
+.admin-report-card {
+    gap: 1.2rem;
+}
+
+.admin-report-form {
+    display: grid;
+    gap: 0.65rem;
+    min-width: min(18rem, 100%);
+}
+
+@media (max-width: 991.98px) {
+    .admin-review-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 .admin-list-meta {
     font-size: 0.82rem;
     color: var(--gray-500);

@@ -101,6 +101,11 @@ function buildCardMarkup(card, { csrfToken, nextUrl }) {
     const summary = card.description
         ? `<p class="listing-card-summary">${escapeHtml(card.description)}</p>`
         : "";
+    const verifiedBadge = card.is_verified ? '<span class="listing-card-verified">Verified</span>' : "";
+    const ratingMarkup =
+        card.review_count > 0 && card.average_rating !== null
+            ? `<span class="listing-card-rating">${escapeHtml(card.average_rating)} ★ · ${escapeHtml(card.review_count)} review${pluralize(card.review_count)}</span>`
+            : "";
 
     return `
         <div class="listing-card-shell">
@@ -118,6 +123,7 @@ function buildCardMarkup(card, { csrfToken, nextUrl }) {
                 <div class="listing-card-body">
                     <div class="listing-card-topline">
                         <div class="listing-card-badges">
+                            ${verifiedBadge}
                             <span class="listing-card-badge">${escapeHtml(card.lease_type)}</span>
                             <span class="listing-card-chip">${escapeHtml(card.property_type)}</span>
                         </div>
@@ -125,6 +131,7 @@ function buildCardMarkup(card, { csrfToken, nextUrl }) {
                     </div>
                     <div class="listing-card-price-row">
                         <span class="listing-card-price">${escapeHtml(card.price)}</span>
+                        ${ratingMarkup}
                     </div>
                     <h3 class="listing-card-title">${escapeHtml(card.title)}</h3>
                     <p class="listing-card-address">${escapeHtml(card.address)}</p>

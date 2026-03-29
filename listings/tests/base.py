@@ -2,6 +2,9 @@ from datetime import date, timedelta
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.utils import timezone
+
+from listings.models import Listing
 
 User = get_user_model()
 
@@ -21,6 +24,10 @@ class ListingTestCase(TestCase):
             "end_date": today + timedelta(days=300),
             "property_type": "apartment",
             "description": "Sunny place near campus.",
+            "approval_status": Listing.APPROVAL_APPROVED,
+            "submitted_for_approval_at": timezone.now(),
+            "reviewed_at": timezone.now(),
+            "approved_at": timezone.now(),
         }
         payload.update(overrides)
         return self.user.listings.create(**payload)
