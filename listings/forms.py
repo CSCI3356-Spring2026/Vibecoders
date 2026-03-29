@@ -218,7 +218,18 @@ class ListingForm(forms.ModelForm):
         if not cleaned_data.get("description"):
             self.add_error("description", "Add a short description so renters understand the space.")
 
+        self._clean_resulting_photo_count(cleaned_data)
+
         return cleaned_data
+
+    def _clean_resulting_photo_count(self, cleaned_data):
+        uploaded_images = cleaned_data.get("images") or []
+        removed_images = cleaned_data.get("remove_images") or []
+        existing_images_count = self.instance.images.count() if self.instance.pk else 0
+        resulting_photo_count = max(existing_images_count - len(removed_images), 0) + len(uploaded_images)
+
+        if resulting_photo_count == 0:
+            self.add_error("images", "Add at least one photo.")
 
     def _clean_verified_address(self, cleaned_data):
         if self._is_unchanged_instance_address(cleaned_data):
