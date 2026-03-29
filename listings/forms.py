@@ -2,10 +2,12 @@ from decimal import Decimal, InvalidOperation
 
 from django import forms
 from django.core import signing
+from django.core.exceptions import ValidationError
 
 from .address_provider import get_geoapify_autocomplete_config
 from .address_signing import unsign_address_selection
 from .fields import ListingImageField
+from .group_matching import SLEEP_SCHEDULES
 from .models import Listing, ListingImage
 
 ADDRESS_SELECTION_MAX_AGE_SECONDS = 300
@@ -371,3 +373,80 @@ class ListingForm(forms.ModelForm):
             "completed_sections": completed_sections,
             "total_sections": len(checklist),
         }
+
+
+class GroupMatchPreferencesForm(forms.Form):
+    CLEANLINESS_CHOICES = [(value, f"{value}/5") for value in range(1, 6)]
+    SOCIAL_CHOICES = [(value, f"{value}/5") for value in range(1, 6)]
+
+    unit_size = forms.IntegerField(
+        min_value=1,
+        max_value=4,
+        label="Your unit size",
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 4}),
+    )
+    budget_min = forms.DecimalField(
+        min_value=0,
+        max_digits=8,
+        decimal_places=0,
+        label="Budget min (per person)",
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": 0, "step": 50}),
+    )
+    budget_max = forms.DecimalField(
+        min_value=0,
+        max_digits=8,
+        decimal_places=0,
+        label="Budget max (per person)",
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": 0, "step": 50}),
+    )
+    cleanliness = forms.ChoiceField(
+        choices=CLEANLINESS_CHOICES,
+        label="Cleanliness level",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    social = forms.ChoiceField(
+        choices=SOCIAL_CHOICES,
+        label="Social level",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    sleep_schedule = forms.ChoiceField(
+        choices=SLEEP_SCHEDULES,
+        label="Sleep schedule",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    desired_group_min = forms.IntegerField(
+        min_value=1,
+        max_value=8,
+        label="Desired group size (min)",
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 8}),
+    )
+    desired_group_max = forms.IntegerField(
+        min_value=1,
+        max_value=8,
+        label="Desired group size (max)",
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 8}),
+    )
+    location_keywords = forms.CharField(
+        required=False,
+        label="Preferred areas",
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "Allston, Brighton, Chestnut Hill",
+            }
+        ),
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        budget_min = cleaned_data.get("budget_min")
+        budget_max = cleaned_data.get("budget_max")
+        desired_min = cleaned_data.get("desired_group_min")
+        desired_max = cleaned_data.get("desired_group_max")
+
+        if budget_min is not None and budget_max is not None and budget_min > budget_max:
+            raise ValidationError("Budget min must be less than or equal to budget max.")
+        if desired_min is not None and desired_max is not None and desired_min > desired_max:
+            raise ValidationError("Desired group size min must be less than or equal to max.")
+
+        return cleaned_data

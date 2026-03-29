@@ -8,6 +8,7 @@ urlpatterns = [
     path("", views.listing_list, name="listing_list"),
     path("search/", views.listing_search, name="search"),
     path("address-suggestions/", views.address_suggestions, name="address_suggestions"),
+    path("group-match/", views.group_match, name="group_match"),
     path("<int:pk>/", views.listing_detail, name="detail"),
     path("<int:pk>/message/", views.message_listing, name="message_listing"),
     path("<int:pk>/favorite/", views.toggle_favorite, name="toggle_favorite"),
