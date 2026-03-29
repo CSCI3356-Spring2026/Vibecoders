@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Group Matching | {{ site_product_name }}{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/group-match.css' %}">
+{% endblock %}
+
+{% block extra_js %}
+    <script type="module" src="{% static 'js/group-match.js' %}"></script>
+{% endblock %}
+
+{% block content %}
+<section class="group-match-hero">
+    <div class="container">
+        <p class="group-match-kicker">Group matching</p>
+        <h1 class="group-match-title">Find the best people and listings to complete your housing group.</h1>
+        <p class="group-match-subtitle">
+            Pair your unit with compatible individuals or partial groups, then compare housing options that fit the full
+            group size and budget.
+        </p>
+    </div>
+</section>
+
+{% if show_form %}
+    <section class="container group-match-form-shell">
+        <div class="group-match-form-card">
+            <div class="app-panel-head">
+                <div>
+                    <h2 class="app-section-heading">Your preferences</h2>
+                    <p class="app-panel-copy">
+                        Set your unit size, budget, and lifestyle preferences to generate matches.
+                    </p>
+                </div>
+            </div>
+            <form class="group-match-form" method="get">
+                <div class="row g-3">
+                    {% include "listings/includes/form_field.html" with field=form.unit_size wrapper_class="col-12" %}
+                    {% include "listings/includes/form_field.html" with field=form.budget_min wrapper_class="col-md-6" %}
+                    {% include "listings/includes/form_field.html" with field=form.budget_max wrapper_class="col-md-6" %}
+                    {% include "listings/includes/form_field.html" with field=form.cleanliness wrapper_class="col-md-6" %}
+                    {% include "listings/includes/form_field.html" with field=form.social wrapper_class="col-md-6" %}
+                    {% include "listings/includes/form_field.html" with field=form.sleep_schedule wrapper_class="col-md-6" %}
+                    {% include "listings/includes/form_field.html" with field=form.desired_group_min wrapper_class="col-md-6" %}
+                    {% include "listings/includes/form_field.html" with field=form.desired_group_max wrapper_class="col-md-6" %}
+                    {% include "listings/includes/form_field.html" with field=form.location_keywords wrapper_class="col-12" %}
+                </div>
+                {% if form.non_field_errors %}
+                    <div class="app-field-error mt-3">{{ form.non_field_errors|join:", " }}</div>
+                {% endif %}
+                <div class="group-match-actions">
+                    <button class="btn btn-brand" type="submit">Find matches</button>
+                    {% if request.GET %}
+                        <a class="btn btn-outline-secondary" href="{% url 'listings:group_match' %}">Reset</a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </section>
+{% else %}
+    <section class="container group-match-grid">
+        <div class="group-match-results app-stack">
+            <div class="group-match-toolbar">
+                <div>
+                    <h2 class="app-section-heading">Potential group matches</h2>
+                    <p class="app-panel-copy">Tap a group to reveal listings that fit the full size.</p>
+                </div>
+                <div class="group-match-toolbar-actions">
+                    <a class="btn btn-outline-secondary" href="{% url 'listings:group_match' %}?edit=1{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}">Back to my preferences</a>
+                </div>
+            </div>
+
+            {% if location_keywords %}
+                <div class="group-match-focus">
+                    <span class="app-meta-chip app-meta-chip-secondary">Focus: {{ location_keywords|join:", " }}</span>
+                </div>
+            {% endif %}
+
+            {% if group_options %}
+                <div class="group-options-grid" data-group-options>
+                    {% for option in group_options %}
+                        <div class="group-option-shell" data-group-shell>
+                            <button
+                                class="group-option-card"
+                                type="button"
+                                data-group-option
+                                data-group-id="{{ option.option_id }}"
+                                data-group-size="{{ option.group_size }}"
+                                data-group-score="{{ option.compatibility_score }}"
+                                data-group-listings="{{ option.listings_count }}"
+                            >
+                                <div class="group-option-head">
+                                    <span class="group-option-title">{{ option.label }}</span>
+                                    <span class="group-option-size">{{ option.group_size }} people</span>
+                                </div>
+                                <div class="group-option-members">
+                                    {% for member in option.members %}
+                                        <span class="group-member-chip">{{ member }}</span>
+                                    {% endfor %}
+                                </div>
+                                <div class="group-option-meta">
+                                    <div>
+                                        <span class="group-option-score">{{ option.compatibility_score }}%</span>
+                                        <span class="group-option-score-label">compatibility</span>
+                                    </div>
+                                    <div class="group-option-meter" aria-hidden="true">
+                                        <span style="width: {{ option.compatibility_score }}%"></span>
+                                    </div>
+                                </div>
+                            </button>
+
+                            <div
+                                class="group-listings-panel"
+                                data-group-listings-panel
+                                data-group-id="{{ option.option_id }}"
+                                hidden
+                            >
+                                <div class="group-listings-meta">
+                                    <span class="app-meta-chip app-meta-chip-primary">{{ option.group_size }} people</span>
+                                    <span class="app-meta-chip app-meta-chip-secondary">${{ option.budget_range.minimum|floatformat:0 }}–${{ option.budget_range.maximum|floatformat:0 }} pp</span>
+                                    <span class="app-meta-chip app-meta-chip-neutral">{{ option.listings_count }} listing{{ option.listings_count|pluralize }}</span>
+                                </div>
+                                {% if option.listings %}
+                                    <div class="group-listings-grid">
+                                        {% for listing in option.listings %}
+                                            {% include "listings/includes/listing_result_card.html" with listing=listing %}
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <div class="app-empty">
+                                        <h3 class="app-empty-title">No listings match this group.</h3>
+                                        <p class="app-empty-copy">Try widening the budget or adjusting the group size range.</p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="app-empty">
+                    <h3 class="app-empty-title">No compatible combinations yet.</h3>
+                    <p class="app-empty-copy">Adjust your preferred group size to see more options.</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <section class="app-section">
+            <div class="app-panel-head">
+                <div>
+                    <h2 class="app-section-heading">Scenario comparison</h2>
+                    <p class="app-panel-copy">Compare group sizes, compatibility, and listing availability.</p>
+                </div>
+            </div>
+            {% if group_options %}
+                <div class="table-responsive">
+                    <table class="table group-compare-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">Group option</th>
+                                <th scope="col">Size</th>
+                                <th scope="col">Avg compatibility</th>
+                                <th scope="col">Listings</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for option in group_options %}
+                                <tr data-group-row data-group-id="{{ option.option_id }}">
+                                    <td>{{ option.label }}</td>
+                                    <td>{{ option.group_size }}</td>
+                                    <td>{{ option.compatibility_score }}%</td>
+                                    <td>{{ option.listings_count }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="app-empty">
+                    <h3 class="app-empty-title">No scenarios to compare.</h3>
+                    <p class="app-empty-copy">Adjust your preferences to generate group options.</p>
+                </div>
+            {% endif %}
+        </section>
+    </section>
+{% endif %}
+{% endblock %}

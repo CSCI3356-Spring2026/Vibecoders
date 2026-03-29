@@ -1,8 +1,11 @@
+from decimal import Decimal
+
 import requests
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.db.models import DecimalField, ExpressionWrapper, F, Q
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -22,8 +25,16 @@ from .address_provider import get_geoapify_autocomplete_config, normalize_geoapi
 from .address_signing import sign_address_selection
 from .filtering import MAX_PRICE_FILTERS, MOVE_IN_FILTERS, apply_listing_filters
 from .form_services import handle_listing_form_submission, validation_message
-from .forms import ListingForm
+from .forms import GroupMatchPreferencesForm, ListingForm
 from .geocoding import BOSTON_COLLEGE_LATITUDE, BOSTON_COLLEGE_LONGITUDE
+from .group_matching import (
+    BudgetRange,
+    Preferences,
+    Unit,
+    build_group_options,
+    default_base_members,
+    sample_candidate_units,
+)
 from .models import Listing, ListingFavorite
 from .search_payloads import listing_card_payload, listing_marker_payload
 from .selectors import (
@@ -51,6 +62,18 @@ ADDRESS_PICKER_BLOCKED_STATUS = (
     "Verified address search is unavailable right now. Listing authoring is blocked until Geoapify "
     "autocomplete is configured."
 )
+
+GROUP_MATCH_DEFAULTS = {
+    "unit_size": 2,
+    "budget_min": 1000,
+    "budget_max": 1600,
+    "cleanliness": 4,
+    "social": 3,
+    "sleep_schedule": "balanced",
+    "desired_group_min": 4,
+    "desired_group_max": 6,
+    "location_keywords": "Allston, Brighton",
+}
 
 
 def _workspace_destination(user):
@@ -233,6 +256,97 @@ def listing_list(request):
         context["listing_map_default_lat"] = BOSTON_COLLEGE_LATITUDE
         context["listing_map_default_lng"] = BOSTON_COLLEGE_LONGITUDE
     return render(request, "listings/listing_list.html", context)
+
+
+def _parse_location_keywords(raw_keywords: str) -> tuple[str, ...]:
+    if not raw_keywords:
+        return ()
+    parts = [keyword.strip() for keyword in raw_keywords.split(",")]
+    return tuple(keyword for keyword in parts if keyword)
+
+
+def _compatible_listings_for_group(user, *, group_size, budget_range, location_keywords):
+    queryset = with_favorite_state(marketplace_listings_for_user(user), user).filter(rooms=group_size)
+    price_per_person = ExpressionWrapper(
+        F("price") / F("rooms"),
+        output_field=DecimalField(max_digits=10, decimal_places=2),
+    )
+    queryset = queryset.annotate(price_per_person=price_per_person)
+    if not budget_range.is_valid:
+        return queryset.none()
+    queryset = queryset.filter(
+        price_per_person__gte=budget_range.minimum,
+        price_per_person__lte=budget_range.maximum,
+    )
+    if location_keywords:
+        location_query = Q()
+        for keyword in location_keywords:
+            location_query |= Q(address__icontains=keyword) | Q(title__icontains=keyword)
+        queryset = queryset.filter(location_query)
+    return queryset
+
+
+@login_required
+@require_GET
+def group_match(request):
+    show_form = not bool(request.GET) or request.GET.get("edit") == "1"
+    form = GroupMatchPreferencesForm(request.GET or None, initial=GROUP_MATCH_DEFAULTS)
+    if show_form:
+        data = GROUP_MATCH_DEFAULTS
+    elif form.is_valid():
+        data = form.cleaned_data
+    else:
+        data = GROUP_MATCH_DEFAULTS
+
+    location_keywords = _parse_location_keywords(data.get("location_keywords", ""))
+    base_preferences = Preferences(
+        budget=BudgetRange(Decimal(str(data["budget_min"])), Decimal(str(data["budget_max"]))),
+        cleanliness=int(data["cleanliness"]),
+        social=int(data["social"]),
+        sleep_schedule=data["sleep_schedule"],
+        desired_group_min=int(data["desired_group_min"]),
+        desired_group_max=int(data["desired_group_max"]),
+        location_keywords=location_keywords,
+    )
+    base_unit = Unit(
+        unit_id="you",
+        label="You",
+        size=int(data["unit_size"]),
+        members=default_base_members(int(data["unit_size"])),
+        preferences=base_preferences,
+    )
+
+    candidate_units = sample_candidate_units()
+    group_options = build_group_options(base_unit, candidate_units, max_options=6)
+
+    selected_group_id = request.GET.get("group") or (group_options[0].option_id if group_options else "")
+    if selected_group_id and not any(option.option_id == selected_group_id for option in group_options):
+        selected_group_id = group_options[0].option_id if group_options else ""
+    listing_limit = 6
+    for option in group_options:
+        if location_keywords:
+            option_keywords = location_keywords
+        else:
+            option_keywords = tuple(
+                sorted({keyword for unit in option.units for keyword in unit.preferences.location_keywords})
+            )
+        listings_queryset = _compatible_listings_for_group(
+            request.user,
+            group_size=option.group_size,
+            budget_range=option.budget_range,
+            location_keywords=option_keywords,
+        )
+        option.listings_count = listings_queryset.count()
+        option.listings = list(listings_queryset[:listing_limit])
+
+    context = {
+        "form": form,
+        "group_options": group_options,
+        "selected_group_id": selected_group_id,
+        "location_keywords": location_keywords,
+        "show_form": show_form,
+    }
+    return render(request, "listings/group_match.html", context)
 
 
 @login_required

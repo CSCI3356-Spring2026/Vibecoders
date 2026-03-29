@@ -1688,3 +1688,50 @@ assert.equal(picker.isSelectionComplete(), true);
         response = self.client.get(reverse("listings:detail", args=[listing.pk]))
 
         self.assertContains(response, "https://example.com/owner-avatar.jpg")
+
+
+class GroupMatchPageTests(ListingTestCase):
+    def test_group_match_page_filters_listings_by_size_and_budget(self):
+        self.client.force_login(self.user)
+        matching_listing = self.create_listing(
+            title="Allston group home",
+            address="Allston",
+            rooms=4,
+            price="4800.00",
+        )
+        pricey_listing = self.create_listing(
+            title="Luxury option",
+            address="Allston",
+            rooms=4,
+            price="8000.00",
+        )
+        wrong_size_listing = self.create_listing(
+            title="Smaller spot",
+            address="Allston",
+            rooms=3,
+            price="3600.00",
+        )
+
+        response = self.client.get(
+            reverse("listings:group_match"),
+            {
+                "unit_size": 2,
+                "budget_min": 1000,
+                "budget_max": 1600,
+                "cleanliness": 4,
+                "social": 3,
+                "sleep_schedule": "balanced",
+                "desired_group_min": 4,
+                "desired_group_max": 6,
+                "location_keywords": "Allston",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        group_options = response.context["group_options"]
+        group_option = next((option for option in group_options if option.group_size == 4), None)
+        self.assertIsNotNone(group_option)
+        listing_ids = {listing.id for listing in group_option.listings}
+        self.assertIn(matching_listing.id, listing_ids)
+        self.assertNotIn(pricey_listing.id, listing_ids)
+        self.assertNotIn(wrong_size_listing.id, listing_ids)
