@@ -1,0 +1,17 @@
+.profile-form-grid .profile-slider-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.profile-form-grid .profile-slider-labels {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: #6c757d;
+}
+
+.profile-form-grid .profile-other-field.is-hidden {
+    display: none;
+}

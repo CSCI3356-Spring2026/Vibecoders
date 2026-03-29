@@ -11,6 +11,7 @@ from django.db.models import Count, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_GET, require_POST
 
@@ -18,9 +19,9 @@ from communications.selectors import accessible_conversations_for_user, conversa
 from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
 
-from .forms import GoogleLoginAcceptanceForm, UserFileUploadForm
+from .forms import AdminProfileForm, GoogleLoginAcceptanceForm, StudentProfileForm, UserFileUploadForm
 from .legal import has_current_legal_acceptance, set_pending_legal_acceptance
-from .models import Role, UserFile
+from .models import AdminProfile, Role, StudentProfile, UserFile
 from .selectors import accessible_user_files_queryset
 from .session_security import has_recent_auth
 
@@ -162,6 +163,44 @@ def _dashboard_context(user):
 @login_required
 def dashboard(request):
     return render(request, "users/dashboard.html", _dashboard_context(request.user))
+
+
+@login_required
+def profile_setup(request):
+    user = request.user
+    next_url = safe_next_url(request, request.POST.get("next") or request.GET.get("next"), "")
+    if user.role == Role.STUDENT:
+        profile, _ = StudentProfile.objects.get_or_create(user=user)
+        form_class = StudentProfileForm
+        role_label = "Student"
+    elif user.role in {Role.ADMIN, Role.REALTOR}:
+        profile, _ = AdminProfile.objects.get_or_create(user=user)
+        form_class = AdminProfileForm
+        role_label = "Admin" if user.role == Role.ADMIN else "Realtor"
+    else:
+        messages.info(request, "Profile details are only available for student or admin accounts.")
+        return redirect("users:dashboard")
+
+    if request.method == "POST":
+        form = form_class(request.POST, instance=profile)
+        if form.is_valid():
+            form.save()
+            if not user.profile_completed_at:
+                user.profile_completed_at = timezone.now()
+                user.save(update_fields={"profile_completed_at"})
+            messages.success(request, "Profile updated.")
+            if next_url:
+                return redirect(next_url)
+            return redirect("users:profile_setup")
+    else:
+        form = form_class(instance=profile)
+
+    context = {
+        "form": form,
+        "role_label": role_label,
+        "next_url": next_url,
+    }
+    return render(request, "users/profile_form.html", context)
 
 
 @login_required
