@@ -27,6 +27,9 @@
             data-listings-map-style-url="{{ listing_map_style_url }}"
             data-selected-listing-id=""
         >
+            <form class="listing-favorite-probe" method="post" action="#" hidden aria-hidden="true">
+                {% csrf_token %}
+            </form>
             <div class="listing-browser-topbar">
                 <div class="listing-browser-title-group">
                     <p class="listing-browser-kicker">Listings</p>
@@ -35,7 +38,7 @@
                         <div class="listing-browser-meta">
                             <span class="app-meta-chip app-meta-chip-primary">{{ listings_total }} result{{ listings_total|pluralize }}</span>
                             <span class="app-meta-chip app-meta-chip-secondary">
-                                {% if active_filters.q or active_filters.max_price or active_filters.lease_type or active_filters.available_by %}
+                                {% if active_filters.q or active_filters.max_price or active_filters.lease_type or active_filters.available_by or active_filters.saved %}
                                     Live filters on
                                 {% else %}
                                     {% if has_listing_only_access %}Your inventory{% else %}Map-first browse{% endif %}
@@ -117,6 +120,19 @@
                             {% endfor %}
                         </select>
                     </div>
+                    <div class="listing-filter-field listing-filter-field-checkbox">
+                        <div class="form-check">
+                            <input
+                                class="form-check-input"
+                                type="checkbox"
+                                id="filter-saved"
+                                name="saved"
+                                value="1"
+                                {% if active_filters.saved %}checked{% endif %}
+                            >
+                            <label class="form-check-label" for="filter-saved">Saved listings</label>
+                        </div>
+                    </div>
                 </div>
             </form>
 
@@ -145,7 +161,13 @@
                     <div class="alert alert-danger listing-live-error" role="alert" hidden data-listings-live-error></div>
 
                     <div class="listing-results-scroll">
-                        <div class="listing-results-grid" data-listings-results-list{% if not listings %} hidden{% endif %}>
+                        <div
+                            class="listing-results-grid"
+                            data-listings-results-list
+                            data-favorite-csrf-token="{{ csrf_token }}"
+                            data-favorite-next-url="{{ request.get_full_path }}"
+                            {% if not listings %}hidden{% endif %}
+                        >
                             {% for listing in listings %}
                                 {% include "listings/includes/listing_result_card.html" with listing=listing %}
                             {% endfor %}
@@ -199,6 +221,9 @@
         <section class="app-page">
             <div class="container">
                 <div class="app-shell">
+                    <form class="listing-favorite-probe" method="post" action="#" hidden aria-hidden="true">
+                        {% csrf_token %}
+                    </form>
                     <div class="app-header app-header-shell">
                         <div class="app-header-main">
                             <div>
@@ -222,7 +247,7 @@
                         <div class="app-meta">
                             <span class="app-meta-chip app-meta-chip-primary">{{ listings_total }} {% if has_listing_only_access %}owned{% else %}active{% endif %}</span>
                             <span class="app-meta-chip app-meta-chip-secondary">
-                                {% if active_filters.q or active_filters.max_price or active_filters.lease_type or active_filters.available_by %}
+                                {% if active_filters.q or active_filters.max_price or active_filters.lease_type or active_filters.available_by or active_filters.saved %}
                                     Filtered
                                 {% else %}
                                     {% if has_listing_only_access %}Your inventory{% else %}All listings{% endif %}
@@ -289,6 +314,19 @@
                                         {% endfor %}
                                     </select>
                                 </div>
+                                <div>
+                                    <div class="form-check">
+                                        <input
+                                            class="form-check-input"
+                                            type="checkbox"
+                                            id="filter-saved"
+                                            name="saved"
+                                            value="1"
+                                            {% if active_filters.saved %}checked{% endif %}
+                                        >
+                                        <label class="form-check-label" for="filter-saved">Saved listings</label>
+                                    </div>
+                                </div>
                                 <button class="btn btn-brand w-100" type="submit">Apply filters</button>
                             </form>
                         </aside>
@@ -315,7 +353,11 @@
                                 {% endif %}
 
                                 {% if listings %}
-                                    <div class="listing-results-grid">
+                                    <div
+                                        class="listing-results-grid"
+                                        data-favorite-csrf-token="{{ csrf_token }}"
+                                        data-favorite-next-url="{{ request.get_full_path }}"
+                                    >
                                         {% for listing in listings %}
                                             {% include "listings/includes/listing_result_card.html" with listing=listing %}
                                         {% endfor %}

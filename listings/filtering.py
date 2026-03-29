@@ -70,6 +70,11 @@ def apply_listing_filters(queryset, params, *, viewport_required=False):
         move_in_deadline = timezone.localdate() + timedelta(days=int(available_by))
         queryset = queryset.filter(start_date__lte=move_in_deadline)
 
+    saved = params.get("saved", "").strip().lower()
+    saved_enabled = saved in {"1", "true", "yes", "on"}
+    if saved_enabled:
+        queryset = queryset.filter(is_favorited=True)
+
     bounds = parse_viewport_bounds(params)
     if viewport_required and bounds is None:
         queryset = queryset.none()
@@ -86,4 +91,5 @@ def apply_listing_filters(queryset, params, *, viewport_required=False):
         "max_price": max_price,
         "lease_type": lease_type,
         "available_by": available_by,
+        "saved": "1" if saved_enabled else "",
     }

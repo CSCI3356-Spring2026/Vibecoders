@@ -10,6 +10,7 @@ urlpatterns = [
     path("address-suggestions/", views.address_suggestions, name="address_suggestions"),
     path("<int:pk>/", views.listing_detail, name="detail"),
     path("<int:pk>/message/", views.message_listing, name="message_listing"),
+    path("<int:pk>/favorite/", views.toggle_favorite, name="toggle_favorite"),
     path("create/", views.create_listing, name="create_listing"),
     path("edit/<int:pk>/", views.edit_listing, name="edit_listing"),
     path("delete/<int:pk>/", views.delete_listing, name="delete_listing"),
