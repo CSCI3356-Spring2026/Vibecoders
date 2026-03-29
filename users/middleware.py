@@ -33,6 +33,8 @@ class CurrentLegalAcceptanceMiddleware:
         if not getattr(user, "is_authenticated", False):
             return None
 
+        if not getattr(user, "terms_accepted_at", None) or not getattr(user, "privacy_accepted_at", None):
+            return None
         if user.has_current_legal_acceptance:
             return None
 

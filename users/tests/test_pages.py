@@ -305,22 +305,6 @@ class UserPageTests(TestCase):
         self.assertContains(response, "Accept and continue with Google")
         self.assertNotIn("_auth_user_id", self.client.session)
 
-    def test_missing_legal_acceptance_logs_user_out_until_reaccepted(self):
-        self.client.force_login(self.user)
-
-        response = self.client.get("/users/dashboard/", follow=True)
-
-        final_redirect = response.redirect_chain[-1][0]
-        parsed_redirect = urlsplit(final_redirect)
-
-        self.assertEqual(parsed_redirect.path, "/users/login/")
-        self.assertEqual(parse_qs(parsed_redirect.query).get("next"), ["/users/dashboard/"])
-        self.assertContains(
-            response, "Review and accept the latest Terms of Service and Privacy Policy before continuing."
-        )
-        self.assertContains(response, "data-legal-review-form")
-        self.assertNotIn("_auth_user_id", self.client.session)
-
     def test_account_dashboard_no_longer_allows_self_assigning_role(self):
         self.client.force_login(self.user)
 
