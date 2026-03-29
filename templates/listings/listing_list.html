@@ -116,18 +116,12 @@
                                     {% endfor %}
                                 </select>
                             </div>
-                            <div class="listing-filter-field listing-filter-field-checkbox">
-                                <div class="form-check">
-                                    <input
-                                        class="form-check-input"
-                                        type="checkbox"
-                                        id="filter-saved"
-                                        name="saved"
-                                        value="1"
-                                        {% if active_filters.saved %}checked{% endif %}
-                                    >
-                                    <label class="form-check-label" for="filter-saved">Saved listings</label>
-                                </div>
+                            <div class="listing-filter-field listing-filter-field-saved">
+                                <label class="form-label" for="filter-saved">Saved</label>
+                                <select class="form-select" id="filter-saved" name="saved">
+                                    <option value="">All listings</option>
+                                    <option value="1"{% if active_filters.saved %} selected{% endif %}>Saved only</option>
+                                </select>
                             </div>
                         </div>
                     </form>
@@ -342,17 +336,11 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <div class="form-check">
-                                        <input
-                                            class="form-check-input"
-                                            type="checkbox"
-                                            id="filter-saved"
-                                            name="saved"
-                                            value="1"
-                                            {% if active_filters.saved %}checked{% endif %}
-                                        >
-                                        <label class="form-check-label" for="filter-saved">Saved listings</label>
-                                    </div>
+                                    <label class="form-label" for="filter-saved">Saved</label>
+                                    <select class="form-select" id="filter-saved" name="saved">
+                                        <option value="">All listings</option>
+                                        <option value="1"{% if active_filters.saved %} selected{% endif %}>Saved only</option>
+                                    </select>
                                 </div>
                                 <button class="btn btn-brand w-100" type="submit">Apply filters</button>
                             </form>

@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import requests
 from allauth.socialaccount.models import SocialAccount
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -356,6 +357,16 @@ class ListingPageTests(ListingTestCase):
         self.assertIn(listing.id, listing_ids)
         self.assertNotIn(other_listing.id, listing_ids)
 
+    def test_listing_page_renders_saved_filter_as_select_control(self):
+        self.create_listing(title="Saved filter listing")
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"), {"saved": "1"})
+
+        self.assertContains(response, '<select class="form-select" id="filter-saved" name="saved">', html=False)
+        self.assertContains(response, '<option value="">All listings</option>', html=False)
+        self.assertContains(response, '<option value="1" selected>Saved only</option>', html=False)
+
     def test_listing_page_renders_map_first_layout_hooks(self):
         self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
         self.client.force_login(self.user)
@@ -413,7 +424,10 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(
             response, 'data-listings-map-default-style-url="https://maps.geoapify.com/v1/styles/osm-liberty/'
         )
-        self.assertContains(response, 'data-listings-map-satellite-style-url="builtin://satellite"')
+        self.assertContains(
+            response,
+            f'data-listings-map-satellite-style-url="{settings.LISTING_MAP_SATELLITE_STYLE_URL}"',
+        )
         self.assertContains(response, "data-listings-map-style-toggle")
         self.assertContains(response, 'data-selected-listing-id=""')
 

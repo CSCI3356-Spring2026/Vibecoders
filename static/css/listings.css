@@ -120,7 +120,7 @@
 
 .listing-filter-grid {
     display: grid;
-    grid-template-columns: minmax(16rem, 2.3fr) repeat(3, minmax(8.5rem, 1fr)) auto;
+    grid-template-columns: minmax(16rem, 2.3fr) repeat(4, minmax(8.75rem, 1fr));
     gap: 0.7rem;
     align-items: end;
 }
@@ -139,20 +139,8 @@
     text-transform: uppercase;
 }
 
-.listing-filter-field-checkbox {
-    display: flex;
-    align-items: flex-end;
-    padding-top: 0;
-}
-
-.listing-filter-field-checkbox .form-check {
-    display: inline-flex;
-    align-items: center;
-    min-height: 2.45rem;
-    padding: 0.3rem 0.72rem;
-    border: 1px solid rgba(var(--gray-700-rgb), 0.14);
-    border-radius: var(--radius-md);
-    background: rgba(var(--gray-100-rgb), 0.75);
+.listing-filter-field-saved .form-select {
+    min-width: 0;
 }
 
 .listing-card-verified {
@@ -674,13 +662,16 @@
 }
 
 .listing-favorite-form:not(.listing-favorite-form-detail) .listing-favorite-button {
-    width: 2.15rem;
-    min-width: 2.15rem;
-    min-height: 2.15rem;
+    width: 1.95rem;
+    min-width: 1.95rem;
+    min-height: 1.95rem;
     padding: 0;
     border-radius: 999px;
-    background: rgba(var(--white-rgb), 0.96);
-    box-shadow: var(--shadow-sm);
+    border-color: rgba(var(--gray-900-rgb), 0.08);
+    background: rgba(var(--white-rgb), 0.92);
+    box-shadow: 0 4px 14px rgba(var(--gray-900-rgb), 0.08);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
 }
 
 .listing-favorite-form-detail .listing-favorite-button {
@@ -922,6 +913,12 @@
     display: grid;
     grid-template-columns: 10rem minmax(0, 1fr);
     min-height: 12.75rem;
+}
+
+.listing-results-pane .listing-favorite-form {
+    top: 0.55rem;
+    left: 0.55rem;
+    right: auto;
 }
 
 .listing-results-pane .listing-card-media {
@@ -1449,6 +1446,11 @@
     .listing-card-media,
     .listing-results-pane .listing-card-media {
         aspect-ratio: 16 / 10;
+    }
+
+    .listing-results-pane .listing-favorite-form {
+        left: auto;
+        right: 0.55rem;
     }
 
     .listing-card-price-row,
