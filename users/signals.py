@@ -29,7 +29,7 @@ def sync_role_profile(sender, instance, **kwargs):
     if instance.role == Role.STUDENT:
         StudentProfile.objects.get_or_create(user=instance)
         AdminProfile.objects.filter(user=instance).delete()
-    elif instance.role == Role.ADMIN or Role.REALTOR:
+    elif instance.role in {Role.ADMIN, Role.REALTOR}:
         AdminProfile.objects.get_or_create(user=instance)
         StudentProfile.objects.filter(user=instance).delete()
     else:

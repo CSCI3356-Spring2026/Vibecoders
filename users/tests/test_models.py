@@ -114,7 +114,7 @@ class CustomUserModelTests(TestCase):
         self.assertTrue(StudentProfile.objects.filter(user=student).exists())
         self.assertTrue(AdminProfile.objects.filter(user=admin).exists())
 
-    def test_realtor_role_transition_removes_role_specific_profiles(self):
+    def test_realtor_role_transition_moves_to_admin_profile(self):
         user = User.objects.create_user(username="stu", email="stu@bc.edu", password="test")
 
         self.assertTrue(StudentProfile.objects.filter(user=user).exists())
@@ -123,7 +123,7 @@ class CustomUserModelTests(TestCase):
         user.save(update_fields=["email"])
 
         self.assertFalse(StudentProfile.objects.filter(user=user).exists())
-        self.assertFalse(AdminProfile.objects.filter(user=user).exists())
+        self.assertTrue(AdminProfile.objects.filter(user=user).exists())
 
     def test_str_representation(self):
         user = User.objects.create_user(username="eagle", email="eagle@bc.edu", password="test")

@@ -269,6 +269,9 @@ LOGIN_URL = "/accounts/login/"
 LOGIN_REDIRECT_URL = "/users/dashboard/"  # Where to go after login
 LOGOUT_REDIRECT_URL = "/"  # Where to go after logout
 
+# Profile completion enforcement
+PROFILE_COMPLETION_REQUIRED = env_bool("PROFILE_COMPLETION_REQUIRED", "test" not in sys.argv)
+
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
         "SCOPE": ["profile", "email"],

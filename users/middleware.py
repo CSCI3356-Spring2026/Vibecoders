@@ -1,5 +1,6 @@
 from urllib.parse import urlencode
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout
 from django.shortcuts import redirect
@@ -28,6 +29,9 @@ class CurrentLegalAcceptanceMiddleware:
     def process_view(self, request, view_func, view_args, view_kwargs):
         user = getattr(request, "user", None)
         if not getattr(user, "is_authenticated", False):
+            return None
+
+        if not getattr(settings, "PROFILE_COMPLETION_REQUIRED", True):
             return None
         if not getattr(user, "terms_accepted_at", None) or not getattr(user, "privacy_accepted_at", None):
             return None
