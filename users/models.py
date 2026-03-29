@@ -2,7 +2,9 @@ import re
 from pathlib import Path
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
@@ -20,6 +22,11 @@ def _email_domain(email):
     if "@" not in normalized_email:
         return ""
     return normalized_email.rsplit("@", 1)[1]
+
+
+def _document_library_limit_message(limit):
+    noun = "file" if limit == 1 else "files"
+    return f"You can store up to {limit} {noun} in your document library."
 
 
 class Role(models.TextChoices):
@@ -160,14 +167,6 @@ class CustomUser(AbstractUser):
         return self.is_realtor
 
     @property
-    def access_summary(self):
-        if self.is_bc_admin:
-            return "Admin access with marketplace oversight."
-        if self.can_browse_marketplace:
-            return "Verified student access to browse, message, and list."
-        return "Listing-only access for external listers."
-
-    @property
     def display_role(self):
         """Human-readable role label for templates (e.g. 'Student', 'Admin')."""
         return self.get_role_display()
@@ -306,9 +305,23 @@ class UserFile(models.Model):
             return Path(self.file.name).name
         return ""
 
+    def _validate_total_file_limit(self):
+        if not self._state.adding or not self.owner_id:
+            return
+
+        get_user_model()._default_manager.select_for_update().filter(pk=self.owner_id).exists()
+        existing_files_count = type(self).objects.filter(owner_id=self.owner_id).count()
+        if existing_files_count >= settings.USER_FILE_TOTAL_LIMIT:
+            raise ValidationError({"file": _document_library_limit_message(settings.USER_FILE_TOTAL_LIMIT)})
+
+    def clean(self):
+        super().clean()
+        self._validate_total_file_limit()
+
     def save(self, *args, **kwargs):
-        self.full_clean()
-        super().save(*args, **kwargs)
+        with transaction.atomic():
+            self.full_clean()
+            super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.display_title} ({self.owner})"

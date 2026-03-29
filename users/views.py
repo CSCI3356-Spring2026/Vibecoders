@@ -7,6 +7,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.db.models import Count, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -63,6 +64,18 @@ def _workspace_summary(user):
         "has_listing_only_access": user.has_listing_only_access,
         **conversation_summary_for_user(user),
     }
+
+
+def _add_form_validation_errors(form, exc, *, default_field):
+    if hasattr(exc, "message_dict"):
+        for field_name, messages_list in exc.message_dict.items():
+            target_field = field_name if field_name in form.fields else default_field
+            for message in messages_list:
+                form.add_error(target_field, message)
+        return
+
+    for message in exc.messages:
+        form.add_error(default_field, message)
 
 
 def _selected_file_flags(user_file):
@@ -255,8 +268,12 @@ def files(request):
             if not user_file.title:
                 uploaded_name = Path(user_file.file.name).name
                 user_file.title = uploaded_name
-            user_file.save()
-            return redirect("users:files")
+            try:
+                user_file.save()
+            except ValidationError as exc:
+                _add_form_validation_errors(form, exc, default_field="file")
+            else:
+                return redirect("users:files")
     else:
         form = UserFileUploadForm()
 

@@ -204,7 +204,7 @@ def address_suggestions(request):
         )
         response.raise_for_status()
         suggestions = normalize_geoapify_suggestions(response.json())
-    except Exception:
+    except (requests.RequestException, TypeError, ValueError):
         return _autocomplete_error_response()
 
     results = []

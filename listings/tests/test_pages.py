@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
+import requests
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -149,8 +150,33 @@ class ListingPageTests(ListingTestCase):
         LISTING_GEOAPIFY_API_KEY="geoapify-test-key",
         LISTING_GEOAPIFY_AUTOCOMPLETE_URL="https://api.geoapify.com/v1/geocode/autocomplete",
     )
-    @patch("requests.get", side_effect=Exception("provider unavailable"))
+    @patch("requests.get", side_effect=requests.RequestException("provider unavailable"))
     def test_address_autocomplete_endpoint_returns_retry_friendly_inline_error_contract(self, requests_get):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:address_suggestions"), {"q": "140 Commonwealth"})
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.json(),
+            {
+                "results": [],
+                "error": {
+                    "message": "Address suggestions are temporarily unavailable. Try again.",
+                    "retryable": True,
+                },
+            },
+        )
+        requests_get.assert_called_once()
+
+    @override_settings(
+        LISTING_GEOAPIFY_API_KEY="geoapify-test-key",
+        LISTING_GEOAPIFY_AUTOCOMPLETE_URL="https://api.geoapify.com/v1/geocode/autocomplete",
+    )
+    @patch("requests.get")
+    def test_address_autocomplete_endpoint_handles_malformed_provider_payload(self, requests_get):
+        requests_get.return_value.raise_for_status.return_value = None
+        requests_get.return_value.json.side_effect = ValueError("malformed payload")
         self.client.force_login(self.user)
 
         response = self.client.get(reverse("listings:address_suggestions"), {"q": "140 Commonwealth"})

@@ -44,6 +44,7 @@ class GoogleLoginAcceptanceForm(forms.Form):
 class UserFileUploadForm(forms.ModelForm):
     title = forms.CharField(
         required=False,
+        max_length=UserFile._meta.get_field("title").max_length,
         widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Optional title"}),
     )
 

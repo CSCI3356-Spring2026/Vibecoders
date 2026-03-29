@@ -1,3 +1,7 @@
+import os
+import subprocess
+import sys
+from pathlib import Path
 from unittest.mock import MagicMock
 
 from allauth.core.exceptions import ImmediateHttpResponse
@@ -35,6 +39,29 @@ class AuthSettingsTests(TestCase):
         self.assertTrue(settings.SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT)
         self.assertTrue(settings.SOCIALACCOUNT_PROVIDERS["google"]["EMAIL_AUTHENTICATION"])
         self.assertEqual(settings.LOGIN_URL, "/accounts/login/")
+
+    def test_production_settings_require_explicit_allowed_hosts(self):
+        env = os.environ.copy()
+        env.update(
+            {
+                "DJANGO_DEBUG": "false",
+                "DJANGO_SECRET_KEY": "test-secret",
+                "DJANGO_ALLOWED_HOSTS": "",
+                "DJANGO_CSRF_TRUSTED_ORIGINS": "",
+                "CHANNEL_REDIS_URL": "redis://localhost:6379/0",
+            }
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", "import vibecoders.settings"],
+            cwd=Path(__file__).resolve().parents[2],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Set DJANGO_ALLOWED_HOSTS when running with DJANGO_DEBUG=false.", result.stderr)
 
 
 class MarketplaceSocialAccountAdapterTests(TestCase):

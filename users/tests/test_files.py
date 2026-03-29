@@ -1,5 +1,6 @@
 import tempfile
 
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -47,6 +48,22 @@ class UserFilesViewTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(UserFile.objects.filter(owner=self.user, title="lease-agreement.txt").exists())
+
+    def test_upload_rejects_title_over_max_length(self):
+        self.client.force_login(self.user)
+        upload = SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                response = self.client.post(
+                    reverse("users:files"),
+                    {"title": "a" * 121, "file": upload},
+                    follow=True,
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ensure this value has at most 120 characters")
+        self.assertFalse(UserFile.objects.filter(owner=self.user).exists())
 
     def test_files_view_is_paginated(self):
         self.client.force_login(self.user)
@@ -163,6 +180,48 @@ class UserFilesViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Upload a valid image file.")
         self.assertFalse(UserFile.objects.filter(owner=self.user, title="Bad Image").exists())
+
+    @override_settings(USER_FILE_TOTAL_LIMIT=1)
+    def test_model_enforces_document_library_limit(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                UserFile.objects.create(
+                    owner=self.user,
+                    title="Lease",
+                    file=SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain"),
+                )
+
+                with self.assertRaises(ValidationError) as exc:
+                    UserFile.objects.create(
+                        owner=self.user,
+                        title="Second lease",
+                        file=SimpleUploadedFile("lease-2.txt", b"hello", content_type="text/plain"),
+                    )
+
+        self.assertIn("You can store up to 1 file in your document library.", exc.exception.message_dict["file"][0])
+
+    @override_settings(USER_FILE_TOTAL_LIMIT=1)
+    def test_upload_rejects_when_document_library_limit_is_reached(self):
+        self.client.force_login(self.user)
+        upload = SimpleUploadedFile("lease-2.txt", b"hello", content_type="text/plain")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                UserFile.objects.create(
+                    owner=self.user,
+                    title="Lease",
+                    file=SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain"),
+                )
+
+                response = self.client.post(
+                    reverse("users:files"),
+                    {"title": "Second lease", "file": upload},
+                    follow=True,
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "You can store up to 1 file in your document library.")
+        self.assertEqual(UserFile.objects.filter(owner=self.user).count(), 1)
 
     def test_owner_can_preview_file_through_authenticated_view(self):
         self.client.force_login(self.user)
