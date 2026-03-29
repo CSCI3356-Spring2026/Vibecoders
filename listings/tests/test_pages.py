@@ -246,7 +246,16 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, reverse("listings:detail", args=[listing.pk]))
 
     def test_listing_favorite_toggle_creates_and_removes(self):
-        listing = self.create_listing()
+        owner = get_user_model().objects.create_user(username="owner2", email="owner2@bc.edu", password="test")
+        listing = owner.listings.create(
+            title="Saved listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 5, 31),
+            description="Close to campus.",
+        )
         self.client.force_login(self.user)
         url = reverse("listings:toggle_favorite", args=[listing.pk])
 
@@ -259,7 +268,16 @@ class ListingPageTests(ListingTestCase):
         self.assertFalse(ListingFavorite.objects.filter(user=self.user, listing=listing).exists())
 
     def test_listing_list_includes_favorite_state(self):
-        listing = self.create_listing()
+        owner = get_user_model().objects.create_user(username="owner3", email="owner3@bc.edu", password="test")
+        listing = owner.listings.create(
+            title="Saved listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 5, 31),
+            description="Close to campus.",
+        )
         ListingFavorite.objects.create(user=self.user, listing=listing)
         self.client.force_login(self.user)
 
@@ -269,7 +287,16 @@ class ListingPageTests(ListingTestCase):
         self.assertTrue(listings_page.object_list[0].is_favorited)
 
     def test_listing_list_saved_filter_limits_results(self):
-        listing = self.create_listing(title="Saved listing")
+        owner = get_user_model().objects.create_user(username="owner4", email="owner4@bc.edu", password="test")
+        listing = owner.listings.create(
+            title="Saved listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 5, 31),
+            description="Close to campus.",
+        )
         other_listing = self.create_listing(title="Unsaved listing", address="200 Comm Ave")
         ListingFavorite.objects.create(user=self.user, listing=listing)
         self.client.force_login(self.user)
@@ -1691,6 +1718,36 @@ assert.equal(picker.isSelectionComplete(), true);
 
 
 class GroupMatchPageTests(ListingTestCase):
+    def test_group_match_requires_marketplace_access(self):
+        realtor = get_user_model().objects.create_user(username="agent", email="agent@gmail.com", password="test")
+        self.client.force_login(realtor)
+
+        response = self.client.get(reverse("listings:group_match"))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_group_match_invalid_preferences_show_form_errors(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("listings:group_match"),
+            {
+                "unit_size": 2,
+                "budget_min": 1700,
+                "budget_max": 1000,
+                "cleanliness": 4,
+                "social": 3,
+                "sleep_schedule": "balanced",
+                "desired_group_min": 4,
+                "desired_group_max": 6,
+                "location_keywords": "Allston",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["show_form"])
+        self.assertContains(response, "Budget min must be less than or equal to budget max.")
+
     def test_group_match_page_filters_listings_by_size_and_budget(self):
         self.client.force_login(self.user)
         matching_listing = self.create_listing(
@@ -1735,3 +1792,39 @@ class GroupMatchPageTests(ListingTestCase):
         self.assertIn(matching_listing.id, listing_ids)
         self.assertNotIn(pricey_listing.id, listing_ids)
         self.assertNotIn(wrong_size_listing.id, listing_ids)
+
+    def test_group_match_results_render_first_selected_panel_expanded(self):
+        self.client.force_login(self.user)
+        self.create_listing(
+            title="Allston group home",
+            address="Allston",
+            rooms=4,
+            price="4800.00",
+        )
+
+        response = self.client.get(
+            reverse("listings:group_match"),
+            {
+                "unit_size": 2,
+                "budget_min": 1000,
+                "budget_max": 1600,
+                "cleanliness": 4,
+                "social": 3,
+                "sleep_schedule": "balanced",
+                "desired_group_min": 4,
+                "desired_group_max": 6,
+                "location_keywords": "Allston",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'aria-expanded="true"', count=1)
+
+    def test_listing_owner_cannot_favorite_their_own_listing(self):
+        listing = self.create_listing()
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse("listings:toggle_favorite", args=[listing.pk]))
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(ListingFavorite.objects.filter(user=self.user, listing=listing).exists())

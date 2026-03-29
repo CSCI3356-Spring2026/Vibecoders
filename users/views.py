@@ -169,6 +169,7 @@ def dashboard(request):
 def profile_setup(request):
     user = request.user
     next_url = safe_next_url(request, request.POST.get("next") or request.GET.get("next"), "")
+    profile_needs_completion = settings.PROFILE_COMPLETION_REQUIRED and not user.profile_completed_at
     if user.role == Role.STUDENT:
         profile, _ = StudentProfile.objects.get_or_create(user=user)
         form_class = StudentProfileForm
@@ -188,9 +189,11 @@ def profile_setup(request):
             if not user.profile_completed_at:
                 user.profile_completed_at = timezone.now()
                 user.save(update_fields={"profile_completed_at"})
-            messages.success(request, "Profile updated.")
+            messages.success(request, "Profile completed." if profile_needs_completion else "Profile updated.")
             if next_url:
                 return redirect(next_url)
+            if profile_needs_completion:
+                return redirect("users:dashboard")
             return redirect("users:profile_setup")
     else:
         form = form_class(instance=profile)
@@ -199,6 +202,7 @@ def profile_setup(request):
         "form": form,
         "role_label": role_label,
         "next_url": next_url,
+        "profile_needs_completion": profile_needs_completion,
     }
     return render(request, "users/profile_form.html", context)
 

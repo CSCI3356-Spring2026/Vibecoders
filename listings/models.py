@@ -293,5 +293,17 @@ class ListingFavorite(models.Model):
             models.Index(fields=["listing", "created_at"], name="listing_favorite_listing_idx"),
         ]
 
+    def clean(self):
+        super().clean()
+        listing_owner_id = getattr(self.listing, "owner_id", None)
+        if listing_owner_id is None and self.listing_id:
+            listing_owner_id = Listing.objects.filter(pk=self.listing_id).values_list("owner_id", flat=True).first()
+        if self.user_id and listing_owner_id == self.user_id:
+            raise ValidationError({"listing": "You cannot save your own listing."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.user_id} favorited listing {self.listing_id}"

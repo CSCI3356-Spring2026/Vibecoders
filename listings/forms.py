@@ -223,13 +223,19 @@ class ListingForm(forms.ModelForm):
         return cleaned_data
 
     def _clean_resulting_photo_count(self, cleaned_data):
-        uploaded_images = cleaned_data.get("images") or []
-        removed_images = cleaned_data.get("remove_images") or []
-        existing_images_count = self.instance.images.count() if self.instance.pk else 0
-        resulting_photo_count = max(existing_images_count - len(removed_images), 0) + len(uploaded_images)
-
-        if resulting_photo_count == 0:
+        if self._resulting_photo_count(cleaned_data=cleaned_data) == 0:
             self.add_error("images", "Add at least one photo.")
+
+    def _resulting_photo_count(self, *, cleaned_data=None):
+        if cleaned_data is not None:
+            uploaded_images = cleaned_data.get("images") or []
+            removed_images_count = len(cleaned_data.get("remove_images") or [])
+        else:
+            uploaded_images = []
+            removed_images_count = len(self.data.getlist(self.add_prefix("remove_images"))) if self.is_bound else 0
+
+        existing_images_count = self.instance.images.count() if self.instance.pk else 0
+        return max(existing_images_count - removed_images_count, 0) + len(uploaded_images)
 
     def _clean_verified_address(self, cleaned_data):
         if self._is_unchanged_instance_address(cleaned_data):
@@ -338,11 +344,8 @@ class ListingForm(forms.ModelForm):
         application_fee = as_decimal(self.preview_value("application_fee"))
         monthly_total = (price or Decimal("0")) + (utilities or Decimal("0")) + (parking or Decimal("0"))
         upfront_total = (price or Decimal("0")) + (deposit or Decimal("0")) + (application_fee or Decimal("0"))
-        existing_images_count = self.instance.images.count() if self.instance.pk else 0
-        uploaded_images_count = (
-            len(self.cleaned_data.get("images", [])) if self.is_bound and hasattr(self, "cleaned_data") else 0
-        )
-        photo_count = existing_images_count + uploaded_images_count
+        bound_cleaned_data = self.cleaned_data if self.is_bound and hasattr(self, "cleaned_data") else None
+        photo_count = self._resulting_photo_count(cleaned_data=bound_cleaned_data)
 
         checklist = [
             ("Basics", bool(self.preview_value("title") and self.preview_value("address"))),

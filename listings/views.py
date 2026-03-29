@@ -32,7 +32,6 @@ from .group_matching import (
     Preferences,
     Unit,
     build_group_options,
-    default_base_members,
     sample_candidate_units,
 )
 from .models import Listing, ListingFavorite
@@ -228,7 +227,8 @@ def listing_list(request):
     map_requested = settings.LISTING_MAPS_ENABLED
     listing_map_style_url = _listing_map_style_url() if map_requested else ""
     map_enabled = map_requested and bool(listing_map_style_url)
-    listings_page_items = list(listings_page.object_list)
+    listings_page_items = _apply_listing_ui_flags(list(listings_page.object_list), request.user)
+    listings_page.object_list = listings_page_items
 
     context = {
         "listings": listings_page,
@@ -265,6 +265,20 @@ def _parse_location_keywords(raw_keywords: str) -> tuple[str, ...]:
     return tuple(keyword for keyword in parts if keyword)
 
 
+def _can_favorite_listing(user, listing):
+    return (
+        getattr(user, "is_authenticated", False)
+        and getattr(user, "can_browse_marketplace", False)
+        and listing.owner_id != getattr(user, "id", None)
+    )
+
+
+def _apply_listing_ui_flags(listings, user):
+    for listing in listings:
+        listing.can_favorite = _can_favorite_listing(user, listing)
+    return listings
+
+
 def _compatible_listings_for_group(user, *, group_size, budget_range, location_keywords):
     queryset = with_favorite_state(marketplace_listings_for_user(user), user).filter(rooms=group_size)
     price_per_person = ExpressionWrapper(
@@ -289,15 +303,25 @@ def _compatible_listings_for_group(user, *, group_size, budget_range, location_k
 @login_required
 @require_GET
 def group_match(request):
-    show_form = not bool(request.GET) or request.GET.get("edit") == "1"
     form = GroupMatchPreferencesForm(request.GET or None, initial=GROUP_MATCH_DEFAULTS)
-    if show_form:
-        data = GROUP_MATCH_DEFAULTS
-    elif form.is_valid():
-        data = form.cleaned_data
-    else:
-        data = GROUP_MATCH_DEFAULTS
+    if not request.user.can_browse_marketplace:
+        return HttpResponseForbidden("Verified student access is required to use group matching.")
 
+    show_form = not bool(request.GET) or request.GET.get("edit") == "1"
+    if request.GET and not show_form and not form.is_valid():
+        show_form = True
+
+    if show_form:
+        context = {
+            "form": form,
+            "group_options": [],
+            "selected_group_id": "",
+            "location_keywords": (),
+            "show_form": True,
+        }
+        return render(request, "listings/group_match.html", context)
+
+    data = form.cleaned_data
     location_keywords = _parse_location_keywords(data.get("location_keywords", ""))
     base_preferences = Preferences(
         budget=BudgetRange(Decimal(str(data["budget_min"])), Decimal(str(data["budget_max"]))),
@@ -310,9 +334,8 @@ def group_match(request):
     )
     base_unit = Unit(
         unit_id="you",
-        label="You",
+        label="Your unit",
         size=int(data["unit_size"]),
-        members=default_base_members(int(data["unit_size"])),
         preferences=base_preferences,
     )
 
@@ -337,7 +360,7 @@ def group_match(request):
             location_keywords=option_keywords,
         )
         option.listings_count = listings_queryset.count()
-        option.listings = list(listings_queryset[:listing_limit])
+        option.listings = _apply_listing_ui_flags(list(listings_queryset[:listing_limit]), request.user)
 
     context = {
         "form": form,
@@ -354,7 +377,7 @@ def group_match(request):
 def listing_search(request):
     base_queryset = with_favorite_state(searchable_marketplace_listings_for_user(request.user), request.user)
     listings, _ = apply_listing_filters(base_queryset, request.GET, viewport_required=True)
-    listings = list(listings)
+    listings = _apply_listing_ui_flags(list(listings), request.user)
     return JsonResponse(
         {
             "total": len(listings),
@@ -368,6 +391,7 @@ def listing_search(request):
 def listing_detail(request, pk):
     listing_queryset = with_favorite_state(accessible_listing_detail_queryset(request.user), request.user)
     listing = get_object_or_404(listing_queryset, pk=pk)
+    listing.can_favorite = _can_favorite_listing(request.user, listing)
     listing_images = list(listing.images.all())
     message_form = None
     existing_conversation = None
@@ -411,6 +435,7 @@ def listing_detail(request, pk):
         "show_owner_conversations": show_owner_conversations,
         "back_url_name": back_url_name,
         "back_label": back_label,
+        "can_favorite_listing": listing.can_favorite,
     }
     return render(request, "listings/listing_detail.html", context)
 
@@ -419,6 +444,8 @@ def listing_detail(request, pk):
 @require_POST
 def toggle_favorite(request, pk):
     listing = get_object_or_404(accessible_listing_detail_queryset(request.user), pk=pk)
+    if not _can_favorite_listing(request.user, listing):
+        return HttpResponseForbidden("You can only save listings posted by other marketplace users.")
     favorite, created = ListingFavorite.objects.get_or_create(user=request.user, listing=listing)
     if not created:
         favorite.delete()

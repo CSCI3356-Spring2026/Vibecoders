@@ -40,20 +40,22 @@
             </div>
         </div>
     </a>
-    <form
-        class="listing-favorite-form"
-        method="post"
-        action="{% url 'listings:toggle_favorite' listing.pk %}"
-    >
-        {% csrf_token %}
-        <input type="hidden" name="next" value="{{ request.get_full_path }}">
-        <button
-            class="listing-favorite-button{% if listing.is_favorited %} is-favorited{% endif %}"
-            type="submit"
-            data-favorite-button
-            aria-pressed="{% if listing.is_favorited %}true{% else %}false{% endif %}"
+    {% if listing.can_favorite %}
+        <form
+            class="listing-favorite-form"
+            method="post"
+            action="{% url 'listings:toggle_favorite' listing.pk %}"
         >
-            {% if listing.is_favorited %}Saved{% else %}Save{% endif %}
-        </button>
-    </form>
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button
+                class="listing-favorite-button{% if listing.is_favorited %} is-favorited{% endif %}"
+                type="submit"
+                data-favorite-button
+                aria-pressed="{% if listing.is_favorited %}true{% else %}false{% endif %}"
+            >
+                {% if listing.is_favorited %}Saved{% else %}Save{% endif %}
+            </button>
+        </form>
+    {% endif %}
 </div>

@@ -31,6 +31,74 @@ class UserPageTests(TestCase):
                 self.assertEqual(response.status_code, 302)
                 self.assertIn("/accounts/login/", response.url)
 
+    @override_settings(PROFILE_COMPLETION_REQUIRED=True)
+    def test_profile_completion_redirects_incomplete_user_to_setup(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get("/users/dashboard/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response["Location"].startswith(reverse("users:profile_setup")))
+
+    @override_settings(PROFILE_COMPLETION_REQUIRED=True)
+    def test_profile_setup_requires_questionnaire_fields_before_completion(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("users:profile_setup"),
+            {
+                "preferred_name": "",
+                "age": "",
+                "gender": "",
+                "gender_other": "",
+                "major": "",
+                "bio": "",
+                "messy_level": "",
+                "guest_level": "",
+                "bedtime": "",
+                "noise_level": "",
+                "smoke": "",
+                "drink": "",
+                "party": "",
+                "pets": "",
+            },
+        )
+
+        self.user.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(self.user.profile_completed_at)
+        self.assertContains(response, "This field is required.")
+
+    @override_settings(PROFILE_COMPLETION_REQUIRED=True)
+    def test_profile_setup_completion_redirects_to_dashboard(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("users:profile_setup"),
+            {
+                "preferred_name": "Eagle",
+                "age": "20",
+                "gender": "male",
+                "gender_other": "",
+                "major": "CS",
+                "bio": "Looking for a clean and social apartment.",
+                "messy_level": "4",
+                "guest_level": "3",
+                "bedtime": "23",
+                "noise_level": "2",
+                "smoke": "",
+                "drink": "2",
+                "party": "2",
+                "pets": "",
+            },
+            follow=False,
+        )
+
+        self.user.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("users:dashboard"))
+        self.assertIsNotNone(self.user.profile_completed_at)
+
     def test_login_page_has_google_call_to_action(self):
         response = self.client.get("/users/login/")
 

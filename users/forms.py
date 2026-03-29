@@ -44,13 +44,37 @@ class GenderOtherRequiredMixin:
         return cleaned_data
 
 
-class StudentProfileForm(GenderOtherRequiredMixin, forms.ModelForm):
+class BaseProfileForm(GenderOtherRequiredMixin, forms.ModelForm):
+    completion_fields = ()
+    field_labels = {
+        "gender": "Gender",
+        "gender_other": "Other (please specify)",
+    }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if "gender" in self.fields:
-            self.fields["gender"].label = "Gender"
-        if "gender_other" in self.fields:
-            self.fields["gender_other"].label = "Other (please specify)"
+        for field_name, label in self.field_labels.items():
+            if field_name in self.fields:
+                self.fields[field_name].label = label
+        for field_name in self.completion_fields:
+            if field_name in self.fields:
+                self.fields[field_name].required = True
+
+
+class StudentProfileForm(BaseProfileForm):
+    completion_fields = (
+        "preferred_name",
+        "age",
+        "gender",
+        "major",
+        "bio",
+        "messy_level",
+        "guest_level",
+        "bedtime",
+        "noise_level",
+        "drink",
+        "party",
+    )
 
     class Meta:
         model = StudentProfile
@@ -88,13 +112,8 @@ class StudentProfileForm(GenderOtherRequiredMixin, forms.ModelForm):
         }
 
 
-class AdminProfileForm(GenderOtherRequiredMixin, forms.ModelForm):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if "gender" in self.fields:
-            self.fields["gender"].label = "Gender"
-        if "gender_other" in self.fields:
-            self.fields["gender_other"].label = "Other (please specify)"
+class AdminProfileForm(BaseProfileForm):
+    completion_fields = ("preferred_name", "age", "gender", "bio")
 
     class Meta:
         model = AdminProfile

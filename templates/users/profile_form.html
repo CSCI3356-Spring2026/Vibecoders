@@ -14,17 +14,29 @@
                 <div class="app-header-main">
                     <p class="app-kicker">Profile</p>
                     <h1 class="app-title">{{ role_label }} details</h1>
-                    <p class="app-subtitle">Fill out the profile fields for your account.</p>
+                    {% if profile_needs_completion %}
+                        <p class="app-subtitle">Complete the required profile fields below before continuing.</p>
+                    {% else %}
+                        <p class="app-subtitle">Keep your account details current for better matching and account context.</p>
+                    {% endif %}
                 </div>
-                <div class="app-actions">
-                    <a class="btn btn-outline-secondary" href="{% url 'users:dashboard' %}">Back to dashboard</a>
-                </div>
+                {% if not profile_needs_completion %}
+                    <div class="app-actions">
+                        <a class="btn btn-outline-secondary" href="{% url 'users:dashboard' %}">Back to dashboard</a>
+                    </div>
+                {% endif %}
             </div>
 
             <form method="post" class="listing-panel">
                 {% csrf_token %}
                 {% if next_url %}
                     <input type="hidden" name="next" value="{{ next_url }}">
+                {% endif %}
+
+                {% if profile_needs_completion %}
+                    <p class="profile-form-note">
+                        Required fields must be completed before you can access the rest of the app.
+                    </p>
                 {% endif %}
 
                 {% if form.errors %}

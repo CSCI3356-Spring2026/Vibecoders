@@ -29,9 +29,6 @@ class BudgetRange:
             return 0.0
         return float((overlap_max - overlap_min) / span)
 
-    def intersection(self, other: "BudgetRange") -> "BudgetRange":
-        return BudgetRange(max(self.minimum, other.minimum), min(self.maximum, other.maximum))
-
     @property
     def is_valid(self) -> bool:
         return self.minimum <= self.maximum
@@ -53,7 +50,6 @@ class Unit:
     unit_id: str
     label: str
     size: int
-    members: tuple[str, ...]
     preferences: Preferences
 
 
@@ -64,7 +60,6 @@ class GroupOption:
     group_size: int
     compatibility_score: int
     budget_range: BudgetRange
-    members: tuple[str, ...]
     label: str
     listings_count: int = 0
     listings: Sequence | None = None
@@ -125,7 +120,6 @@ def build_group_options(
 
             budget_range = _group_budget_range(units)
             score = group_compatibility(units)
-            members = tuple(member for unit in units for member in unit.members)
             label = " + ".join(unit.label for unit in units)
             option_id = "group-" + "-".join(unit.unit_id for unit in units)
 
@@ -136,7 +130,6 @@ def build_group_options(
                     group_size=group_size,
                     compatibility_score=score,
                     budget_range=budget_range,
-                    members=members,
                     label=label,
                 )
             )
@@ -149,9 +142,8 @@ def sample_candidate_units() -> list[Unit]:
     return [
         Unit(
             unit_id="group-a",
-            label="Group A",
+            label="Compatible duo",
             size=2,
-            members=("Nina", "Owen"),
             preferences=Preferences(
                 budget=BudgetRange(Decimal("1100"), Decimal("1700")),
                 cleanliness=4,
@@ -164,9 +156,8 @@ def sample_candidate_units() -> list[Unit]:
         ),
         Unit(
             unit_id="group-b",
-            label="Group B",
+            label="Compatible trio",
             size=3,
-            members=("Priya", "Sam", "Theo"),
             preferences=Preferences(
                 budget=BudgetRange(Decimal("900"), Decimal("1500")),
                 cleanliness=3,
@@ -179,9 +170,8 @@ def sample_candidate_units() -> list[Unit]:
         ),
         Unit(
             unit_id="solo-c",
-            label="Individual C",
+            label="Quiet solo",
             size=1,
-            members=("Chris",),
             preferences=Preferences(
                 budget=BudgetRange(Decimal("1000"), Decimal("1600")),
                 cleanliness=5,
@@ -194,9 +184,8 @@ def sample_candidate_units() -> list[Unit]:
         ),
         Unit(
             unit_id="solo-d",
-            label="Individual D",
+            label="Flexible solo",
             size=1,
-            members=("Devon",),
             preferences=Preferences(
                 budget=BudgetRange(Decimal("950"), Decimal("1800")),
                 cleanliness=4,
@@ -208,12 +197,3 @@ def sample_candidate_units() -> list[Unit]:
             ),
         ),
     ]
-
-
-def default_base_members(size: int) -> tuple[str, ...]:
-    if size <= 1:
-        return ("You",)
-    names = ["You"]
-    extras = ["Roommate A", "Roommate B", "Roommate C"]
-    names.extend(extras[: max(0, size - 1)])
-    return tuple(names)

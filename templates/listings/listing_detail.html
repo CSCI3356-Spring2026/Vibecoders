@@ -24,22 +24,24 @@
                             <span class="listing-lease">{{ listing.get_lease_type_display }}</span>
                             <span class="listing-card-status {% if listing.status == 'AVAILABLE' %}is-available{% elif listing.status == 'PENDING' %}is-pending{% else %}is-taken{% endif %}">{{ listing.get_status_display }}</span>
                         </div>
-                        <form
-                            class="listing-favorite-form listing-favorite-form-detail"
-                            method="post"
-                            action="{% url 'listings:toggle_favorite' listing.pk %}"
-                        >
-                            {% csrf_token %}
-                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
-                            <button
-                                class="listing-favorite-button{% if is_favorited %} is-favorited{% endif %}"
-                                type="submit"
-                                data-favorite-button
-                                aria-pressed="{% if is_favorited %}true{% else %}false{% endif %}"
+                        {% if can_favorite_listing %}
+                            <form
+                                class="listing-favorite-form listing-favorite-form-detail"
+                                method="post"
+                                action="{% url 'listings:toggle_favorite' listing.pk %}"
                             >
-                                {% if is_favorited %}Saved listing{% else %}Save listing{% endif %}
-                            </button>
-                        </form>
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button
+                                    class="listing-favorite-button{% if is_favorited %} is-favorited{% endif %}"
+                                    type="submit"
+                                    data-favorite-button
+                                    aria-pressed="{% if is_favorited %}true{% else %}false{% endif %}"
+                                >
+                                    {% if is_favorited %}Saved listing{% else %}Save listing{% endif %}
+                                </button>
+                            </form>
+                        {% endif %}
                     </div>
                 </div>
             </div>

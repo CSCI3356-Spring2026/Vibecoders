@@ -23,11 +23,12 @@ def listing_marker_payload(listing):
 
 def listing_card_payload(listing):
     image = _primary_image_from_prefetch(listing)
+    can_favorite = bool(getattr(listing, "can_favorite", False))
     return {
         "id": listing.id,
         "url": reverse("listings:detail", args=[listing.pk]),
-        "favorite_url": reverse("listings:toggle_favorite", args=[listing.pk]),
-        "is_favorited": bool(getattr(listing, "is_favorited", False)),
+        "favorite_url": reverse("listings:toggle_favorite", args=[listing.pk]) if can_favorite else "",
+        "is_favorited": bool(getattr(listing, "is_favorited", False)) if can_favorite else False,
         "title": listing.title,
         "address": listing.address,
         "price": f"${listing.price:.0f}/mo",

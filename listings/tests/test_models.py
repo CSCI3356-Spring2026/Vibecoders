@@ -24,7 +24,7 @@ from ..address_provider import get_geoapify_autocomplete_config, normalize_geoap
 from ..address_signing import sign_address_selection, unsign_address_selection
 from ..forms import ListingForm
 from ..geocoding import geocode_listing_address
-from ..models import Listing, ListingImage
+from ..models import Listing, ListingFavorite, ListingImage
 from .base import ListingTestCase
 
 
@@ -216,6 +216,14 @@ class ListingModelTests(ListingTestCase):
 
         self.assertEqual(form.fields["common_utilities"].initial, ["Water", "WiFi"])
         self.assertEqual(form.fields["other_utilities"].initial, "Heat")
+
+    def test_listing_owner_cannot_favorite_their_own_listing(self):
+        listing = self.create_listing()
+
+        with self.assertRaises(ValidationError) as exc:
+            ListingFavorite.objects.create(user=self.user, listing=listing)
+
+        self.assertIn("You cannot save your own listing.", exc.exception.message_dict["listing"][0])
 
     def test_start_listing_conversation_rejects_listing_only_user(self):
         listing = self.create_listing()

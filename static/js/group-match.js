@@ -2,8 +2,14 @@ const optionButtons = Array.from(document.querySelectorAll('[data-group-option]'
 const listingPanels = Array.from(document.querySelectorAll('[data-group-listings-panel]'));
 const comparisonRows = Array.from(document.querySelectorAll('[data-group-row]'));
 
+const setButtonState = (button, isActive) => {
+    button.classList.toggle('is-active', isActive);
+    button.classList.toggle('is-expanded', isActive);
+    button.setAttribute('aria-expanded', isActive ? 'true' : 'false');
+};
+
 const hideAllPanels = () => {
-    optionButtons.forEach((button) => button.classList.remove('is-active', 'is-expanded'));
+    optionButtons.forEach((button) => setButtonState(button, false));
     listingPanels.forEach((panel) => panel.setAttribute('hidden', 'hidden'));
     comparisonRows.forEach((row) => row.classList.remove('is-active'));
 };
@@ -13,7 +19,7 @@ const showPanel = (selectedId) => {
     const activeButton = optionButtons.find((button) => button.dataset.groupId === selectedId);
     const activePanel = listingPanels.find((panel) => panel.dataset.groupId === selectedId);
     if (activeButton) {
-        activeButton.classList.add('is-active', 'is-expanded');
+        setButtonState(activeButton, true);
     }
     if (activePanel) {
         activePanel.removeAttribute('hidden');
