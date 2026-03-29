@@ -11,6 +11,21 @@ function escapeHtml(value) {
         .replaceAll("'", "&#39;");
 }
 
+function getCookie(name) {
+    if (typeof document === "undefined") {
+        return "";
+    }
+
+    const cookies = document.cookie ? document.cookie.split(";") : [];
+    for (const cookie of cookies) {
+        const trimmed = cookie.trim();
+        if (trimmed.startsWith(`${name}=`)) {
+            return decodeURIComponent(trimmed.slice(name.length + 1));
+        }
+    }
+    return "";
+}
+
 function buildInitials(name) {
     return String(name || "")
         .trim()
@@ -40,7 +55,32 @@ function buildOwnerAvatar(card) {
     `;
 }
 
-function buildCardMarkup(card) {
+function buildFavoriteForm(card, csrfToken, nextUrl) {
+    if (!card.favorite_url) {
+        return "";
+    }
+
+    const label = card.is_favorited ? "Saved" : "Save";
+    const pressed = card.is_favorited ? "true" : "false";
+    const favoritedClass = card.is_favorited ? " is-favorited" : "";
+
+    return `
+        <form class="listing-favorite-form" method="post" action="${escapeHtml(card.favorite_url)}">
+            <input type="hidden" name="csrfmiddlewaretoken" value="${escapeHtml(csrfToken)}">
+            <input type="hidden" name="next" value="${escapeHtml(nextUrl)}">
+            <button
+                class="listing-favorite-button${favoritedClass}"
+                type="submit"
+                data-favorite-button
+                aria-pressed="${pressed}"
+            >
+                ${escapeHtml(label)}
+            </button>
+        </form>
+    `;
+}
+
+function buildCardMarkup(card, { csrfToken, nextUrl }) {
     const specs = [
         `<span>${escapeHtml(card.rooms)} bd</span>`,
         `<span>${escapeHtml(card.bathrooms)} ba</span>`,
@@ -63,38 +103,41 @@ function buildCardMarkup(card) {
         : "";
 
     return `
-        <a
-            class="listing-card"
-            href="${escapeHtml(card.url)}"
-            data-listing-card
-            data-listing-id="${escapeHtml(card.id)}"
-            data-listing-detail-url="${escapeHtml(card.url)}"
-            data-listing-selected="false"
-        >
-            <div class="listing-card-media">
-                ${media}
-                <div class="listing-card-badge">${escapeHtml(card.lease_type)}</div>
-            </div>
-            <div class="listing-card-body">
-                <div class="listing-card-price-row">
-                    <span class="listing-card-price">${escapeHtml(card.price)}</span>
-                    <span class="listing-card-status is-${escapeHtml(card.status.state)}">${escapeHtml(card.status.label)}</span>
+        <div class="listing-card-shell">
+            <a
+                class="listing-card"
+                href="${escapeHtml(card.url)}"
+                data-listing-card
+                data-listing-id="${escapeHtml(card.id)}"
+                data-listing-detail-url="${escapeHtml(card.url)}"
+                data-listing-selected="false"
+            >
+                <div class="listing-card-media">
+                    ${media}
+                    <div class="listing-card-badge">${escapeHtml(card.lease_type)}</div>
                 </div>
-                <h3 class="listing-card-title">${escapeHtml(card.title)}</h3>
-                <p class="listing-card-address">${escapeHtml(card.address)}</p>
-                <div class="listing-card-specs">${specs.join("")}</div>
-                ${summary}
-                <div class="listing-card-owner">
-                    <div class="listing-owner-meta">
-                        ${buildOwnerAvatar(card)}
-                        <div class="listing-owner-copy">
-                            <span class="listing-owner-label">Posted by</span>
-                            <span class="listing-owner-name">${escapeHtml(card.owner_name || "Listing owner")}</span>
+                <div class="listing-card-body">
+                    <div class="listing-card-price-row">
+                        <span class="listing-card-price">${escapeHtml(card.price)}</span>
+                        <span class="listing-card-status is-${escapeHtml(card.status.state)}">${escapeHtml(card.status.label)}</span>
+                    </div>
+                    <h3 class="listing-card-title">${escapeHtml(card.title)}</h3>
+                    <p class="listing-card-address">${escapeHtml(card.address)}</p>
+                    <div class="listing-card-specs">${specs.join("")}</div>
+                    ${summary}
+                    <div class="listing-card-owner">
+                        <div class="listing-owner-meta">
+                            ${buildOwnerAvatar(card)}
+                            <div class="listing-owner-copy">
+                                <span class="listing-owner-label">Posted by</span>
+                                <span class="listing-owner-name">${escapeHtml(card.owner_name || "Listing owner")}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </a>
+            </a>
+            ${buildFavoriteForm(card, csrfToken, nextUrl)}
+        </div>
     `;
 }
 
@@ -191,9 +234,11 @@ export function createListingsResults(root) {
         },
         render(payload, state = {}) {
             const cards = Array.isArray(payload?.cards) ? payload.cards : [];
+            const csrfToken = list?.dataset.favoriteCsrfToken || getCookie("csrftoken") || "";
+            const nextUrl = list?.dataset.favoriteNextUrl || window.location.href;
 
             if (list) {
-                list.innerHTML = cards.map((card) => buildCardMarkup(card)).join("");
+                list.innerHTML = cards.map((card) => buildCardMarkup(card, { csrfToken, nextUrl })).join("");
             }
 
             reindexCards();

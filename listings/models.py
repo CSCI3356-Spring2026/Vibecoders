@@ -273,3 +273,25 @@ def delete_listing_image_file(sender, instance, **kwargs):
         name = instance.image.name
         if name:
             transaction.on_commit(lambda: storage.delete(name))
+
+
+class ListingFavorite(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="listing_favorites",
+    )
+    listing = models.ForeignKey(Listing, on_delete=models.CASCADE, related_name="favorites")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user", "listing"], name="listing_favorite_unique"),
+        ]
+        indexes = [
+            models.Index(fields=["user", "created_at"], name="listing_favorite_user_idx"),
+            models.Index(fields=["listing", "created_at"], name="listing_favorite_listing_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.user_id} favorited listing {self.listing_id}"

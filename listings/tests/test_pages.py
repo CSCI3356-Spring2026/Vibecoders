@@ -19,7 +19,7 @@ from communications.models import ListingConversation, ListingMessage
 from users.models import Role
 
 from ..address_signing import sign_address_selection, unsign_address_selection
-from ..models import Listing, ListingImage
+from ..models import Listing, ListingFavorite, ListingImage
 from .base import ListingTestCase
 
 
@@ -244,6 +244,42 @@ class ListingPageTests(ListingTestCase):
         response = self.client.get(reverse("listings:listing_list"))
 
         self.assertContains(response, reverse("listings:detail", args=[listing.pk]))
+
+    def test_listing_favorite_toggle_creates_and_removes(self):
+        listing = self.create_listing()
+        self.client.force_login(self.user)
+        url = reverse("listings:toggle_favorite", args=[listing.pk])
+
+        response = self.client.post(url, {"next": reverse("listings:detail", args=[listing.pk])})
+        self.assertRedirects(response, reverse("listings:detail", args=[listing.pk]))
+        self.assertTrue(ListingFavorite.objects.filter(user=self.user, listing=listing).exists())
+
+        response = self.client.post(url, {"next": reverse("listings:detail", args=[listing.pk])})
+        self.assertRedirects(response, reverse("listings:detail", args=[listing.pk]))
+        self.assertFalse(ListingFavorite.objects.filter(user=self.user, listing=listing).exists())
+
+    def test_listing_list_includes_favorite_state(self):
+        listing = self.create_listing()
+        ListingFavorite.objects.create(user=self.user, listing=listing)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"))
+
+        listings_page = response.context["listings"]
+        self.assertTrue(listings_page.object_list[0].is_favorited)
+
+    def test_listing_list_saved_filter_limits_results(self):
+        listing = self.create_listing(title="Saved listing")
+        other_listing = self.create_listing(title="Unsaved listing", address="200 Comm Ave")
+        ListingFavorite.objects.create(user=self.user, listing=listing)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"), {"saved": "1"})
+
+        listings_page = response.context["listings"]
+        listing_ids = [item.id for item in listings_page.object_list]
+        self.assertIn(listing.id, listing_ids)
+        self.assertNotIn(other_listing.id, listing_ids)
 
     def test_listing_page_renders_map_first_layout_hooks(self):
         self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)

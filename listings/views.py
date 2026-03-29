@@ -16,7 +16,7 @@ from communications.services import (
     start_listing_conversation,
 )
 from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
-from core.utils import get_page, preserved_query_suffix
+from core.utils import get_page, preserved_query_suffix, safe_next_url
 
 from .address_provider import get_geoapify_autocomplete_config, normalize_geoapify_suggestions
 from .address_signing import sign_address_selection
@@ -24,13 +24,14 @@ from .filtering import MAX_PRICE_FILTERS, MOVE_IN_FILTERS, apply_listing_filters
 from .form_services import handle_listing_form_submission, validation_message
 from .forms import ListingForm
 from .geocoding import BOSTON_COLLEGE_LATITUDE, BOSTON_COLLEGE_LONGITUDE
-from .models import Listing
+from .models import Listing, ListingFavorite
 from .search_payloads import listing_card_payload, listing_marker_payload
 from .selectors import (
     accessible_listing_detail_queryset,
     marketplace_listings_for_user,
     messageable_listings_for_user,
     searchable_marketplace_listings_for_user,
+    with_favorite_state,
 )
 
 LISTINGS_PER_PAGE = 12
@@ -91,10 +92,6 @@ def _listing_form_context(form, *, is_edit, back_url_name, back_label, listing=N
     if listing is not None:
         context["listing"] = listing
     return context
-
-
-def _get_listing_for_user(user, pk):
-    return get_object_or_404(accessible_listing_detail_queryset(user), pk=pk)
 
 
 def _listing_initial_payload(listings, *, total):
@@ -202,7 +199,7 @@ def address_suggestions(request):
 
 @login_required
 def listing_list(request):
-    base_queryset = marketplace_listings_for_user(request.user)
+    base_queryset = with_favorite_state(marketplace_listings_for_user(request.user), request.user)
     listings, active_filters = apply_listing_filters(base_queryset, request.GET)
     listings_page = get_page(listings, request.GET.get("page"), LISTINGS_PER_PAGE)
     map_requested = settings.LISTING_MAPS_ENABLED
@@ -241,7 +238,7 @@ def listing_list(request):
 @login_required
 @require_GET
 def listing_search(request):
-    base_queryset = searchable_marketplace_listings_for_user(request.user)
+    base_queryset = with_favorite_state(searchable_marketplace_listings_for_user(request.user), request.user)
     listings, _ = apply_listing_filters(base_queryset, request.GET, viewport_required=True)
     listings = list(listings)
     return JsonResponse(
@@ -255,7 +252,8 @@ def listing_search(request):
 
 @login_required
 def listing_detail(request, pk):
-    listing = _get_listing_for_user(request.user, pk)
+    listing_queryset = with_favorite_state(accessible_listing_detail_queryset(request.user), request.user)
+    listing = get_object_or_404(listing_queryset, pk=pk)
     listing_images = list(listing.images.all())
     message_form = None
     existing_conversation = None
@@ -291,6 +289,7 @@ def listing_detail(request, pk):
     context = {
         "listing": listing,
         "listing_images": listing_images,
+        "is_favorited": bool(getattr(listing, "is_favorited", False)),
         "message_form": message_form,
         "existing_conversation": existing_conversation,
         "can_message_listing": can_message_listing,
@@ -300,6 +299,20 @@ def listing_detail(request, pk):
         "back_label": back_label,
     }
     return render(request, "listings/listing_detail.html", context)
+
+
+@login_required
+@require_POST
+def toggle_favorite(request, pk):
+    listing = get_object_or_404(accessible_listing_detail_queryset(request.user), pk=pk)
+    favorite, created = ListingFavorite.objects.get_or_create(user=request.user, listing=listing)
+    if not created:
+        favorite.delete()
+
+    next_url = safe_next_url(request, request.POST.get("next"), reverse("listings:detail", args=[listing.pk]))
+    if request.headers.get("x-requested-with") == "XMLHttpRequest":
+        return JsonResponse({"is_favorited": created})
+    return redirect(next_url)
 
 
 @login_required
