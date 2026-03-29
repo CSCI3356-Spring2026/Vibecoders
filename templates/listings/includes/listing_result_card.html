@@ -64,8 +64,10 @@
                 type="submit"
                 data-favorite-button
                 aria-pressed="{% if listing.is_favorited %}true{% else %}false{% endif %}"
+                aria-label="{% if listing.is_favorited %}Remove saved listing{% else %}Save listing{% endif %}"
             >
-                {% if listing.is_favorited %}Saved{% else %}Save{% endif %}
+                <span class="listing-favorite-button-icon" aria-hidden="true"></span>
+                <span class="listing-favorite-button-label">{% if listing.is_favorited %}Saved{% else %}Save{% endif %}</span>
             </button>
         </form>
     {% endif %}

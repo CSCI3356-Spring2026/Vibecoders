@@ -370,13 +370,13 @@ class ListingPageTests(ListingTestCase):
 
         self.assertContains(response, "data-listings-page")
         self.assertContains(response, "listing-browser-page")
-        self.assertContains(response, "listing-browser-rail")
         self.assertContains(response, "data-listings-workspace")
         self.assertContains(response, "data-listings-filters")
         self.assertContains(response, "data-listings-filter-form")
         self.assertContains(response, "data-listings-browser-shell")
         self.assertContains(response, "data-listings-results-pane")
         self.assertContains(response, "data-listings-map-pane")
+        self.assertContains(response, "listing-browser-main")
         self.assertContains(response, "data-listings-map-root")
         self.assertContains(response, "data-listings-map")
         self.assertContains(response, "data-listings-results")
@@ -413,11 +413,12 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(
             response, 'data-listings-map-default-style-url="https://maps.geoapify.com/v1/styles/osm-liberty/'
         )
-        self.assertContains(response, 'data-listings-map-satellite-style-url=""')
+        self.assertContains(response, 'data-listings-map-satellite-style-url="builtin://satellite"')
+        self.assertContains(response, "data-listings-map-style-toggle")
         self.assertContains(response, 'data-selected-listing-id=""')
 
     @override_settings(LISTING_MAP_SATELLITE_STYLE_URL="https://tiles.example.com/satellite/style.json")
-    def test_listing_page_exposes_satellite_toggle_only_when_satellite_style_is_configured(self):
+    def test_listing_page_exposes_configured_satellite_toggle(self):
         self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
         self.client.force_login(self.user)
 
@@ -561,7 +562,7 @@ root.querySelector = (selector) => (selector === "[data-listings-map-canvas]" ? 
 const view = createListingsMapView({{
     root,
     defaultStyleUrl: "https://maps.example.com/style.json",
-    satelliteStyleUrl: "https://maps.example.com/satellite.json",
+    satelliteStyleUrl: "builtin://satellite",
     defaultLat: 42.3355,
     defaultLng: -71.1685,
     initialMarkers: [{{ id: 1, price: "$1800", title: "Beacon apartment", lat: 42.3355, lng: -71.1685 }}],
@@ -575,7 +576,9 @@ globalThis.__map.handlers["style.load"]();
 assert.equal(capturedElements.length, 1);
 assert.equal(capturedElements[0].className.includes("listing-map-marker"), true);
 assert.equal(capturedElements[0].style.transform ?? "", "");
-assert.deepEqual(globalThis.__map.styleCalls, ["https://maps.example.com/satellite.json"]);
+assert.equal(typeof globalThis.__map.styleCalls[0], "object");
+assert.equal(globalThis.__map.styleCalls[0].sources.satellite.type, "raster");
+assert.equal(globalThis.__map.styleCalls[0].layers[0].id, "satellite");
 assert.equal(view.getStyleMode(), "satellite");
 """
         result = subprocess.run(
@@ -1322,6 +1325,112 @@ assert.equal(picker.isSelectionComplete(), true);
 
         self.assertContains(response, approved_listing.title)
         self.assertNotContains(response, "Pending listing")
+
+    def test_admin_marketplace_hides_unapproved_listings(self):
+        admin = get_user_model().objects.create_user(
+            username="admin-user",
+            email="admin-user@bc.edu",
+            password="testpass123",
+            role=Role.ADMIN,
+        )
+        approved_listing = self.create_listing(title="Approved listing")
+        self.user.listings.create(
+            title="Pending listing",
+            address="10 Beacon St",
+            price="1400.00",
+            lease_type="FULL",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 5, 31),
+            approval_status=Listing.APPROVAL_PENDING,
+        )
+        self.user.listings.create(
+            title="Rejected listing",
+            address="20 Beacon St",
+            price="1500.00",
+            lease_type="FULL",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 5, 31),
+            approval_status=Listing.APPROVAL_REJECTED,
+        )
+        self.client.force_login(admin)
+
+        response = self.client.get(reverse("listings:listing_list"))
+
+        self.assertContains(response, approved_listing.title)
+        self.assertNotContains(response, "Pending listing")
+        self.assertNotContains(response, "Rejected listing")
+
+    def test_admin_live_search_hides_unapproved_listings_from_map_payload(self):
+        admin = get_user_model().objects.create_user(
+            username="admin-search",
+            email="admin-search@bc.edu",
+            password="testpass123",
+            role=Role.ADMIN,
+        )
+        approved_listing = self.create_listing(title="Approved listing", latitude=42.3355, longitude=-71.1685)
+        self.user.listings.create(
+            title="Pending listing",
+            address="10 Beacon St",
+            price="1400.00",
+            lease_type="FULL",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 5, 31),
+            latitude=42.3356,
+            longitude=-71.1684,
+            approval_status=Listing.APPROVAL_PENDING,
+        )
+        self.user.listings.create(
+            title="Rejected listing",
+            address="20 Beacon St",
+            price="1500.00",
+            lease_type="FULL",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 5, 31),
+            latitude=42.3354,
+            longitude=-71.1683,
+            approval_status=Listing.APPROVAL_REJECTED,
+        )
+        self.client.force_login(admin)
+
+        response = self.client.get(
+            reverse("listings:search"),
+            {
+                "west": "-71.3",
+                "south": "42.2",
+                "east": "-71.0",
+                "north": "42.5",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual([item["id"] for item in payload["cards"]], [approved_listing.id])
+        self.assertEqual([item["id"] for item in payload["markers"]], [approved_listing.id])
+
+    def test_admin_can_still_open_pending_listing_detail_for_review(self):
+        admin = get_user_model().objects.create_user(
+            username="admin-detail",
+            email="admin-detail@bc.edu",
+            password="testpass123",
+            role=Role.ADMIN,
+        )
+        pending_listing = self.user.listings.create(
+            title="Pending listing",
+            address="10 Beacon St",
+            price="1400.00",
+            lease_type="FULL",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 5, 31),
+            approval_status=Listing.APPROVAL_PENDING,
+        )
+        self.client.force_login(admin)
+
+        response = self.client.get(reverse("listings:detail", args=[pending_listing.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, pending_listing.title)
+        self.assertContains(response, "Pending review.")
 
     def test_marketplace_user_can_submit_review_for_approved_listing(self):
         owner = get_user_model().objects.create_user(

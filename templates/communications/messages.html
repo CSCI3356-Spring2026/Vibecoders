@@ -30,8 +30,7 @@
                 <div class="app-header-main">
                     <div>
                         <p class="app-kicker">Messages</p>
-                        <h1 class="app-title">Listing conversations</h1>
-                        <p class="app-subtitle">Listing threads.</p>
+                        <h1 class="app-title">Messages</h1>
                     </div>
                     <div class="app-meta">
                         <span class="app-meta-chip" data-total-conversations="header">{{ conversations_total }} conversation{{ conversations_total|pluralize }}</span>
@@ -48,7 +47,6 @@
                     <div class="app-panel-head messages-panel-head">
                         <div>
                             <h2 class="app-section-heading">Inbox</h2>
-                            <p class="app-panel-copy">Recent threads</p>
                         </div>
                         {% if conversations %}
                             <span class="app-meta-chip" data-total-conversations="sidebar">{{ conversations_total }} total</span>
@@ -99,7 +97,6 @@
                             <div class="messages-thread-party">
                                 {% include "includes/user_avatar.html" with user=selected_conversation.ui_counterparty size_class="user-avatar-md" extra_class="messages-thread-user-avatar" %}
                                 <div class="messages-thread-toolbar-main">
-                                    <p class="app-kicker mb-0">Conversation</p>
                                     <h2 class="messages-thread-title">{{ selected_conversation.ui_counterparty_name }}</h2>
                                     <div class="messages-thread-meta">
                                         <span>{{ selected_conversation.ui_counterparty_role_label }}</span>
@@ -171,7 +168,7 @@
                             <div class="messages-compose-head">
                                 <label class="form-label fw-semibold mb-0" for="{{ reply_form.body.id_for_label }}">Reply</label>
                                 <div class="messages-compose-meta">
-                                    <span class="messages-compose-note">Listing thread</span>
+                                    <span class="messages-compose-note">Live</span>
                                     <span class="messages-compose-count" data-message-count>0 / {{ reply_max_length }}</span>
                                 </div>
                             </div>

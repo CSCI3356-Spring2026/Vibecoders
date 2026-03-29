@@ -17,6 +17,29 @@ function buildMarkerElement(markerData) {
     return element;
 }
 
+function builtInSatelliteStyle() {
+    return {
+        version: 8,
+        sources: {
+            satellite: {
+                type: "raster",
+                tiles: ["https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+                tileSize: 256,
+                attribution: "Imagery © Esri",
+            },
+        },
+        layers: [
+            {
+                id: "satellite",
+                type: "raster",
+                source: "satellite",
+                minzoom: 0,
+                maxzoom: 22,
+            },
+        ],
+    };
+}
+
 function setMarkerSelectedState(element, isSelected) {
     element.classList.toggle("is-selected", isSelected);
     element.setAttribute("aria-pressed", isSelected ? "true" : "false");
@@ -51,8 +74,11 @@ export function createListingsMapView({
         };
     }
 
-    const resolveStyleUrl = (mode) => {
+    const resolveStyle = (mode) => {
         if (mode === "satellite" && resolvedSatelliteStyleUrl) {
+            if (resolvedSatelliteStyleUrl === "builtin://satellite") {
+                return builtInSatelliteStyle();
+            }
             return resolvedSatelliteStyleUrl;
         }
         return resolvedDefaultStyleUrl;
@@ -62,7 +88,7 @@ export function createListingsMapView({
 
     const map = new maplibregl.Map({
         container: canvas,
-        style: resolveStyleUrl(activeStyleMode),
+        style: resolveStyle(activeStyleMode),
         center: [defaultLng, defaultLat],
         zoom: 12,
     });
@@ -193,7 +219,7 @@ export function createListingsMapView({
 
             activeStyleMode = nextMode;
             mapLoaded = false;
-            map.setStyle(resolveStyleUrl(activeStyleMode));
+            map.setStyle(resolveStyle(activeStyleMode));
         },
         setSelectedListing(listingId) {
             activeListingId = listingId ? String(listingId) : "";

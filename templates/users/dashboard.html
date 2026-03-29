@@ -23,14 +23,6 @@
                             </div>
                         </div>
 
-                        <p class="account-hero-copy">
-                            {% if has_listing_only_access %}
-                                Listings, documents, and conversations.
-                            {% else %}
-                                Profile, listings, documents, and messages.
-                            {% endif %}
-                        </p>
-
                         <div class="app-meta">
                             <span class="app-meta-chip">{{ request.user.display_role }}</span>
                             {% if has_listing_only_access %}
@@ -51,7 +43,6 @@
                             <a class="btn btn-brand" href="{% url 'users:files' %}">Open document library</a>
                             {% if can_browse_marketplace %}
                                 <a class="btn btn-outline-secondary" href="{% url 'listings:listing_list' %}">Browse listings</a>
-                                <a class="btn btn-outline-secondary" href="{% url 'listings:group_match' %}">Group match</a>
                             {% else %}
                                 <a class="btn btn-outline-secondary" href="{% url 'users:posts' %}">Open my listings</a>
                             {% endif %}
@@ -118,18 +109,18 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading">Workspace</h2>
-                            <p class="app-panel-copy">Shortcuts</p>
+                            <p class="app-panel-copy">Main actions</p>
                         </div>
                     </div>
 
                     <div class="app-compact-list">
                         <a class="app-compact-item" href="{% url 'users:profile_setup' %}">
                             <span class="app-compact-title">Profile</span>
-                            <span class="app-compact-meta">Edit your details.</span>
+                            <span class="app-compact-meta">Edit details.</span>
                         </a>
                         <a class="app-compact-item" href="{% url 'users:posts' %}">
                             <span class="app-compact-title">My listings</span>
-                            <span class="app-compact-meta">View and edit listings.</span>
+                            <span class="app-compact-meta">Manage listings.</span>
                         </a>
                         <a class="app-compact-item" href="{% url 'communications:messages' %}">
                             <span class="app-compact-title">Inbox</span>
@@ -137,20 +128,20 @@
                                 {% if unread_conversations_count %}
                                     {{ unread_conversations_count }} unread thread{{ unread_conversations_count|pluralize }}.
                                 {% else %}
-                                    View conversations.
+                                    Open conversations.
                                 {% endif %}
                             </span>
                         </a>
                         {% if can_browse_marketplace %}
                             <a class="app-compact-item" href="{% url 'listings:group_match' %}">
                                 <span class="app-compact-title">Group match</span>
-                                <span class="app-compact-meta">Compare group sizes against current listings.</span>
+                                <span class="app-compact-meta">Compare group options.</span>
                             </a>
                         {% endif %}
                         {% if request.user.can_access_admin_panel %}
                             <a class="app-compact-item" href="{% url 'users:admin_dashboard' %}">
                                 <span class="app-compact-title">Admin</span>
-                                <span class="app-compact-meta">Moderation and admin tools.</span>
+                                <span class="app-compact-meta">Moderation tools.</span>
                             </a>
                         {% endif %}
                     </div>

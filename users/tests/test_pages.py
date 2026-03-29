@@ -576,7 +576,7 @@ assert.equal(root.classList.contains("is-open"), false);
         response = self.client.get(reverse("communications:messages"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Listing conversations")
+        self.assertContains(response, "Messages")
         self.assertContains(response, listing.title)
         self.assertContains(response, "Is this still available?")
         self.assertContains(response, "Yes, it is.")

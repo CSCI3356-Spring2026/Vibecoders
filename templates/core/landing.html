@@ -9,12 +9,12 @@
         <div class="home-hero-shell">
             <div class="home-hero-copy">
                 <p class="home-eyebrow">{% if has_listing_only_access %}Listing Workspace{% else %}Boston College Housing{% endif %}</p>
-                <h1 class="home-title">{% if has_listing_only_access %}Manage listings.{% else %}Find housing near campus.{% endif %}</h1>
+                <h1 class="home-title">{% if has_listing_only_access %}Manage listings.{% else %}Find a place near campus.{% endif %}</h1>
                 <p class="home-subtitle">
                     {% if has_listing_only_access %}
                         Your active inventory.
                     {% else %}
-                        Active rentals and subleases.
+                        Rentals and subleases near Boston College.
                     {% endif %}
                 </p>
 
@@ -33,11 +33,9 @@
                     {% if has_listing_only_access %}
                         <a class="home-pill home-pill-primary" href="{% url 'users:posts' %}">My listings</a>
                         <a class="home-pill home-pill-secondary" href="{% url 'listings:create_listing' %}">Create listing</a>
-                        <a class="home-pill home-pill-accent" href="{% url 'listings:listing_list' %}?lease_type=SUBLEASE">My subleases</a>
                     {% else %}
                         <a class="home-pill home-pill-primary" href="{% url 'listings:listing_list' %}">All listings</a>
                         <a class="home-pill home-pill-secondary" href="{% url 'listings:listing_list' %}?lease_type=SUBLEASE">Subleases</a>
-                        <a class="home-pill home-pill-accent" href="{% url 'listings:listing_list' %}?max_price=1500">Under $1,500</a>
                     {% endif %}
                 </div>
             </div>

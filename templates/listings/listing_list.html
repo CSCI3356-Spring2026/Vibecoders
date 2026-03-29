@@ -39,58 +39,6 @@
                 {% csrf_token %}
             </form>
             <section class="listing-browser-shell" data-listings-browser-shell>
-                <aside class="listing-browser-rail">
-                    <div class="listing-browser-market">
-                        <p class="listing-browser-kicker">Listings</p>
-                        <h1 class="listing-browser-title">
-                            {% if has_listing_only_access %}
-                                Your listings
-                            {% else %}
-                                Boston College rentals
-                            {% endif %}
-                        </h1>
-                        <p class="listing-browser-count">{{ listings_total }} result{{ listings_total|pluralize }}</p>
-                        <div class="listing-browser-meta">
-                            <span class="app-meta-chip app-meta-chip-primary">
-                                {% if active_filters.q %}{{ active_filters.q }}{% else %}Map search{% endif %}
-                            </span>
-                            <span class="app-meta-chip app-meta-chip-secondary">
-                                {% if active_filters.max_price or active_filters.lease_type or active_filters.available_by or active_filters.saved %}
-                                    Filtered
-                                {% else %}
-                                    {% if has_listing_only_access %}Inventory{% else %}All results{% endif %}
-                                {% endif %}
-                            </span>
-                        </div>
-                    </div>
-
-                    <div class="listing-browser-actions">
-                        {% if not has_listing_only_access %}
-                            <a class="btn btn-outline-secondary" href="{% url 'listings:group_match' %}">Group match</a>
-                        {% endif %}
-                        <a class="btn btn-brand" href="{% url 'listings:create_listing' %}">New listing</a>
-                        {% if has_listing_only_access %}
-                            <a class="btn btn-outline-secondary" href="{% url 'users:posts' %}">Open posts</a>
-                        {% endif %}
-                    </div>
-
-                    <div class="listing-browser-footer">
-                        <a class="listing-browser-footer-brand" href="{% url 'core:landing' %}">
-                            {% include "includes/site_mark.html" with mark_class="site-brand-mark" %}
-                            <span class="listing-browser-footer-brand-copy">
-                                <span class="site-brand-name">{{ site_product_name }}</span>
-                                <span class="site-brand-meta">by {{ site_company_name }}</span>
-                            </span>
-                        </a>
-                        <div class="listing-browser-footer-links">
-                            <a href="{% url 'core:landing' %}">Home</a>
-                            <a href="{% url 'communications:messages' %}">Messages</a>
-                            <a href="{% url 'core:terms' %}">Terms</a>
-                            <a href="{% url 'core:privacy' %}">Privacy</a>
-                        </div>
-                    </div>
-                </aside>
-
                 <section class="listing-browser-workspace" data-listings-workspace>
                     <form
                         class="listing-filter-shell listing-filter-toolbar"
@@ -101,10 +49,28 @@
                     >
                         <div class="listing-filter-shell-copy">
                             <div>
-                                <p class="listing-filter-kicker">Filters</p>
-                                <h2 class="listing-filter-title">Filters</h2>
+                                <h1 class="listing-browser-title">
+                                    {% if has_listing_only_access %}
+                                        Your listings
+                                    {% else %}
+                                        Boston College rentals
+                                    {% endif %}
+                                </h1>
+                                <p class="listing-browser-count">
+                                    {% if has_listing_only_access %}
+                                        {{ listings_total }} listing{{ listings_total|pluralize }}
+                                    {% else %}
+                                        {{ listings_total }} rental{{ listings_total|pluralize }}
+                                    {% endif %}
+                                </p>
                             </div>
-                            <a class="listing-reset-link" href="{% url 'listings:listing_list' %}">Reset</a>
+                            <div class="listing-browser-actions">
+                                <a class="btn btn-brand" href="{% url 'listings:create_listing' %}">Create listing</a>
+                                {% if has_listing_only_access %}
+                                    <a class="btn btn-outline-secondary" href="{% url 'users:posts' %}">My listings</a>
+                                {% endif %}
+                                <a class="listing-reset-link" href="{% url 'listings:listing_list' %}">Reset</a>
+                            </div>
                         </div>
 
                         <div class="listing-filter-grid">
@@ -170,12 +136,11 @@
                         <aside class="listing-results-pane" data-listings-results data-listings-results-pane>
                             <div class="listing-results-pane-head">
                                 <div>
-                                    <p class="listing-results-kicker">Results</p>
-                                    <h2 class="listing-results-title">Homes in this map view</h2>
+                                    <h2 class="listing-results-title">Results</h2>
                                     <p class="listing-results-summary" data-listings-results-summary>
                                         {% if active_filters.q %}
                                             {{ listings_total }} result{{ listings_total|pluralize }} for "{{ active_filters.q }}".
-                                {% else %}
+                                        {% else %}
                                             {{ listings_total }} result{{ listings_total|pluralize }} in view.
                                         {% endif %}
                                     </p>
@@ -225,7 +190,6 @@
                         <section class="listing-map-pane" data-listings-map-pane data-listings-map-shell>
                             <div class="listing-map-pane-head">
                                 <div>
-                                    <p class="listing-map-kicker">Map</p>
                                     <h2 class="listing-map-title">Map</h2>
                                 </div>
                                 <div class="listing-map-head-actions">
@@ -251,7 +215,6 @@
                                             </button>
                                         </div>
                                     {% endif %}
-                                    <span class="app-meta-chip app-meta-chip-neutral">Boston College area</span>
                                 </div>
                             </div>
 
@@ -273,9 +236,7 @@
                             {% if not listing_initial_payload.markers %}
                                 <div class="listing-map-note">
                                     <h3 class="listing-map-note-title">No mapped listings yet.</h3>
-                                    <p class="listing-map-note-copy">
-                                        Listings appear after address verification.
-                                    </p>
+                                    <p class="listing-map-note-copy">Verified listings show up here.</p>
                                 </div>
                             {% endif %}
                         </section>
@@ -299,7 +260,7 @@
                                     {% if has_listing_only_access %}
                                         Your inventory.
                                     {% else %}
-                                        Active rentals and subleases.
+                                        Rentals and subleases.
                                     {% endif %}
                                 </p>
                             </div>
@@ -410,11 +371,6 @@
                                             {% endif %}
                                         </p>
                                     </div>
-                                    {% if not has_listing_only_access %}
-                                        <div class="listing-panel-actions">
-                                            <a class="btn btn-outline-secondary btn-sm" href="{% url 'listings:group_match' %}">Group match</a>
-                                        </div>
-                                    {% endif %}
                                 </div>
 
                                 {% if has_listing_only_access %}

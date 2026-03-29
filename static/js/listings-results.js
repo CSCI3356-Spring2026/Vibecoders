@@ -73,8 +73,10 @@ function buildFavoriteForm(card, csrfToken, nextUrl) {
                 type="submit"
                 data-favorite-button
                 aria-pressed="${pressed}"
+                aria-label="${card.is_favorited ? "Remove saved listing" : "Save listing"}"
             >
-                ${escapeHtml(label)}
+                <span class="listing-favorite-button-icon" aria-hidden="true"></span>
+                <span class="listing-favorite-button-label">${escapeHtml(label)}</span>
             </button>
         </form>
     `;

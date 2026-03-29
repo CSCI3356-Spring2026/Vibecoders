@@ -41,8 +41,6 @@ def marketplace_listings_for_user(user):
     public_listings = with_feedback_summary(Listing.objects.with_related().public()).order_by("-created_at")
     if not getattr(user, "is_authenticated", False):
         return public_listings
-    if user.is_bc_admin:
-        return with_feedback_summary(Listing.objects.with_related()).order_by("-created_at")
     if user.can_browse_marketplace:
         return public_listings
     return with_feedback_summary(Listing.objects.with_related().filter(owner=user)).order_by("-created_at")
