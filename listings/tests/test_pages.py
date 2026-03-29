@@ -1112,11 +1112,14 @@ assert.equal(picker.isSelectionComplete(), true);
     def test_authenticated_user_can_create_listing(self):
         self.client.force_login(self.user)
         payload = self.listing_payload(
+            images=[self.make_image_upload()],
             utilities_estimate="90.00",
             security_deposit="1200.00",
         )
 
-        response = self.client.post(reverse("listings:create_listing"), payload)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                response = self.client.post(reverse("listings:create_listing"), payload)
 
         self.assertEqual(response.status_code, 302)
         created_listing = self.user.listings.get()
@@ -1127,9 +1130,11 @@ assert.equal(picker.isSelectionComplete(), true);
 
     def test_authenticated_user_can_create_listing_and_persist_verified_coordinates(self):
         self.client.force_login(self.user)
-        payload = self.listing_payload()
+        payload = self.listing_payload(images=[self.make_image_upload()])
 
-        response = self.client.post(reverse("listings:create_listing"), payload)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                response = self.client.post(reverse("listings:create_listing"), payload)
 
         self.assertEqual(response.status_code, 302)
         created_listing = self.user.listings.get()
@@ -1190,20 +1195,23 @@ assert.equal(picker.isSelectionComplete(), true);
         listing = self.create_listing(latitude=42.3355, longitude=-71.1685)
         self.client.force_login(self.user)
 
-        response = self.client.post(
-            reverse("listings:edit_listing", args=[listing.pk]),
-            {
-                "title": "Updated listing",
-                "address": listing.address,
-                "price": listing.price,
-                "lease_type": listing.lease_type,
-                "start_date": listing.start_date,
-                "end_date": listing.end_date,
-                "property_type": listing.property_type,
-                "description": listing.description,
-                "status": "PENDING",
-            },
-        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                response = self.client.post(
+                    reverse("listings:edit_listing", args=[listing.pk]),
+                    {
+                        "title": "Updated listing",
+                        "address": listing.address,
+                        "price": listing.price,
+                        "lease_type": listing.lease_type,
+                        "start_date": listing.start_date,
+                        "end_date": listing.end_date,
+                        "property_type": listing.property_type,
+                        "description": listing.description,
+                        "status": "PENDING",
+                        "images": self.make_image_upload(),
+                    },
+                )
 
         listing.refresh_from_db()
         self.assertEqual(response.status_code, 302)
@@ -1219,20 +1227,23 @@ assert.equal(picker.isSelectionComplete(), true);
         listing = self.create_listing(latitude=42.3355, longitude=-71.1685)
         self.client.force_login(self.user)
 
-        response = self.client.post(
-            reverse("listings:edit_listing", args=[listing.pk]),
-            {
-                "title": "Updated listing",
-                "address": listing.address,
-                "price": listing.price,
-                "lease_type": listing.lease_type,
-                "start_date": listing.start_date,
-                "end_date": listing.end_date,
-                "property_type": listing.property_type,
-                "description": listing.description,
-                "status": listing.status,
-            },
-        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                response = self.client.post(
+                    reverse("listings:edit_listing", args=[listing.pk]),
+                    {
+                        "title": "Updated listing",
+                        "address": listing.address,
+                        "price": listing.price,
+                        "lease_type": listing.lease_type,
+                        "start_date": listing.start_date,
+                        "end_date": listing.end_date,
+                        "property_type": listing.property_type,
+                        "description": listing.description,
+                        "status": listing.status,
+                        "images": self.make_image_upload(),
+                    },
+                )
 
         listing.refresh_from_db()
         self.assertEqual(response.status_code, 302)
