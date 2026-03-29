@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Profile | {{ site_product_name }}{% endblock %}
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/profile-form.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="app-page">
+    <div class="container">
+        <div class="app-shell">
+            <div class="app-header app-header-shell">
+                <div class="app-header-main">
+                    <p class="app-kicker">Profile</p>
+                    <h1 class="app-title">{{ role_label }} details</h1>
+                    <p class="app-subtitle">Fill out the profile fields for your account.</p>
+                </div>
+                <div class="app-actions">
+                    <a class="btn btn-outline-secondary" href="{% url 'users:dashboard' %}">Back to dashboard</a>
+                </div>
+            </div>
+
+            <form method="post" class="listing-panel">
+                {% csrf_token %}
+                {% if next_url %}
+                    <input type="hidden" name="next" value="{{ next_url }}">
+                {% endif %}
+
+                {% if form.errors %}
+                    <div class="alert alert-danger" role="alert">
+                        {% for error in form.non_field_errors %}
+                            <div>{{ error }}</div>
+                        {% endfor %}
+                        {% for field in form %}
+                            {% for error in field.errors %}
+                                <div>{{ error }}</div>
+                            {% endfor %}
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <div class="row g-4 profile-form-grid">
+                    {% if form.preferred_name %}
+                        {% include "listings/includes/form_field.html" with field=form.preferred_name wrapper_class="col-12" %}
+                    {% endif %}
+                    {% if form.age %}
+                        {% include "listings/includes/form_field.html" with field=form.age wrapper_class="col-12" %}
+                    {% endif %}
+
+                    {% if form.gender %}
+                        <div class="col-12 listing-form-field">
+                            <label class="form-label fw-semibold listing-form-label" for="{{ form.gender.id_for_label }}">{{ form.gender.label }}</label>
+                            {{ form.gender }}
+                            {% for error in form.gender.errors %}
+                                <div class="app-field-error">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    {% if form.gender_other %}
+                        <div class="col-12 listing-form-field profile-other-field" data-gender-other>
+                            <label class="form-label fw-semibold listing-form-label" for="{{ form.gender_other.id_for_label }}">{{ form.gender_other.label|default:"Other gender" }}</label>
+                            {{ form.gender_other }}
+                            {% for error in form.gender_other.errors %}
+                                <div class="app-field-error">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    {% if form.major %}
+                        {% include "listings/includes/form_field.html" with field=form.major wrapper_class="col-12" %}
+                    {% endif %}
+                    {% if form.bio %}
+                        {% include "listings/includes/form_field.html" with field=form.bio wrapper_class="col-12" %}
+                    {% endif %}
+
+                    {% if form.messy_level %}
+                        <div class="col-12 listing-form-field profile-slider-field">
+                            <label class="form-label fw-semibold listing-form-label" for="{{ form.messy_level.id_for_label }}">{{ form.messy_level.label }}</label>
+                            {{ form.messy_level }}
+                            <div class="profile-slider-labels">
+                                <span>Extremely messy</span>
+                                <span>Messy</span>
+                                <span>Neutral</span>
+                                <span>Clean</span>
+                                <span>Extremely clean</span>
+                            </div>
+                            {% for error in form.messy_level.errors %}
+                                <div class="app-field-error">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    {% if form.guest_level %}
+                        <div class="col-12 listing-form-field profile-slider-field">
+                            <label class="form-label fw-semibold listing-form-label" for="{{ form.guest_level.id_for_label }}">{{ form.guest_level.label }}</label>
+                            {{ form.guest_level }}
+                            <div class="profile-slider-labels">
+                                <span>Never</span>
+                                <span>Rarely</span>
+                                <span>Sometimes</span>
+                                <span>Often</span>
+                                <span>Everyday</span>
+                            </div>
+                            {% for error in form.guest_level.errors %}
+                                <div class="app-field-error">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    {% if form.noise_level %}
+                        <div class="col-12 listing-form-field profile-slider-field">
+                            <label class="form-label fw-semibold listing-form-label" for="{{ form.noise_level.id_for_label }}">{{ form.noise_level.label }}</label>
+                            {{ form.noise_level }}
+                            <div class="profile-slider-labels">
+                                <span>Silent</span>
+                                <span>Quiet</span>
+                                <span>Neutral</span>
+                                <span>Loud</span>
+                                <span>Very loud</span>
+                            </div>
+                            {% for error in form.noise_level.errors %}
+                                <div class="app-field-error">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    {% if form.drink %}
+                        <div class="col-12 listing-form-field profile-slider-field">
+                            <label class="form-label fw-semibold listing-form-label" for="{{ form.drink.id_for_label }}">{{ form.drink.label }}</label>
+                            {{ form.drink }}
+                            <div class="profile-slider-labels">
+                                <span>Never</span>
+                                <span>Rarely</span>
+                                <span>Sometimes</span>
+                                <span>Often</span>
+                                <span>Daily</span>
+                            </div>
+                            {% for error in form.drink.errors %}
+                                <div class="app-field-error">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    {% if form.party %}
+                        <div class="col-12 listing-form-field profile-slider-field">
+                            <label class="form-label fw-semibold listing-form-label" for="{{ form.party.id_for_label }}">{{ form.party.label }}</label>
+                            {{ form.party }}
+                            <div class="profile-slider-labels">
+                                <span>Never</span>
+                                <span>Rarely</span>
+                                <span>Sometimes</span>
+                                <span>Often</span>
+                                <span>Daily</span>
+                            </div>
+                            {% for error in form.party.errors %}
+                                <div class="app-field-error">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    {% if form.smoke %}
+                        {% include "listings/includes/form_field.html" with field=form.smoke wrapper_class="col-12" %}
+                    {% endif %}
+                    {% if form.pets %}
+                        {% include "listings/includes/form_field.html" with field=form.pets wrapper_class="col-12" %}
+                    {% endif %}
+                    {% if form.bedtime %}
+                        {% include "listings/includes/form_field.html" with field=form.bedtime wrapper_class="col-12" %}
+                    {% endif %}
+                </div>
+
+                <div class="app-actions mt-4">
+                    <button type="submit" class="btn btn-brand">Save profile</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+<script>
+    (function () {
+        const genderSelect = document.getElementById("{{ form.gender.id_for_label|default:'' }}");
+        const otherWrap = document.querySelector("[data-gender-other]");
+        if (!genderSelect || !otherWrap) {
+            return;
+        }
+        const toggleOther = () => {
+            const show = (genderSelect.value || "").toLowerCase() === "other";
+            otherWrap.classList.toggle("is-hidden", !show);
+        };
+        toggleOther();
+        genderSelect.addEventListener("change", toggleOther);
+    })();
+</script>
+{% endblock %}

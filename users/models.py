@@ -41,6 +41,7 @@ class CustomUser(AbstractUser):
         db_index=True,
         help_text="Access level for the housing platform.",
     )
+    profile_completed_at = models.DateTimeField(null=True, blank=True)
     terms_accepted_at = models.DateTimeField(null=True, blank=True)
     privacy_accepted_at = models.DateTimeField(null=True, blank=True)
     legal_policy_version = models.CharField(max_length=32, blank=True)
@@ -216,19 +217,55 @@ class CustomUser(AbstractUser):
 
 
 class StudentProfile(models.Model):
+    GENDER_CHOICES = [
+        ("male", "Male"),
+        ("female", "Female"),
+        ("other", "Other"),
+        ("prefer_not", "Prefer not to say"),
+    ]
+    MESSY_LEVEL_CHOICES = [
+        (1, "Extremely messy"),
+        (2, "Messy"),
+        (3, "Neutral"),
+        (4, "Clean"),
+        (5, "Extremely clean"),
+    ]
+    GUEST_LEVEL_CHOICES = [
+        (1, "Never"),
+        (2, "Rarely"),
+        (3, "Sometimes"),
+        (4, "Often"),
+        (5, "Everyday"),
+    ]
+    NOISE_LEVEL_CHOICES = [
+        (1, "Silent"),
+        (2, "Quiet"),
+        (3, "Neutral"),
+        (4, "Loud"),
+        (5, "Very loud"),
+    ]
+    FREQUENCY_CHOICES = [
+        (1, "Never"),
+        (2, "Rarely"),
+        (3, "Sometimes"),
+        (4, "Often"),
+        (5, "Daily"),
+    ]
+
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="student_profile")
     preferred_name = models.CharField(max_length=120, blank=True)
     age = models.PositiveIntegerField(null=True, blank=True)
-    gender = models.CharField(max_length=32, blank=True)
+    gender = models.CharField(max_length=24, blank=True, choices=GENDER_CHOICES)
+    gender_other = models.CharField(max_length=120, blank=True)
     major = models.CharField(max_length=120, blank=True)
     bio = models.CharField(max_length=300, blank=True)
-    messy_level = models.PositiveSmallIntegerField(null=True, blank=True)
-    guest_level = models.PositiveSmallIntegerField(null=True, blank=True)
+    messy_level = models.PositiveSmallIntegerField(null=True, blank=True, choices=MESSY_LEVEL_CHOICES)
+    guest_level = models.PositiveSmallIntegerField(null=True, blank=True, choices=GUEST_LEVEL_CHOICES)
     bedtime = models.PositiveSmallIntegerField(null=True, blank=True)
-    noise_level = models.PositiveSmallIntegerField(null=True, blank=True)
+    noise_level = models.PositiveSmallIntegerField(null=True, blank=True, choices=NOISE_LEVEL_CHOICES)
     smoke = models.BooleanField(default=False)
-    drink = models.BooleanField(default=False)
-    party = models.BooleanField(default=False)
+    drink = models.PositiveSmallIntegerField(null=True, blank=True, choices=FREQUENCY_CHOICES)
+    party = models.PositiveSmallIntegerField(null=True, blank=True, choices=FREQUENCY_CHOICES)
     pets = models.BooleanField(default=False)
 
     def __str__(self):
@@ -236,10 +273,13 @@ class StudentProfile(models.Model):
 
 
 class AdminProfile(models.Model):
+    GENDER_CHOICES = StudentProfile.GENDER_CHOICES
+
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="admin_profile")
     preferred_name = models.CharField(max_length=120, blank=True)
     age = models.PositiveIntegerField(null=True, blank=True)
-    gender = models.CharField(max_length=32, blank=True)
+    gender = models.CharField(max_length=24, blank=True, choices=GENDER_CHOICES)
+    gender_other = models.CharField(max_length=120, blank=True)
     bio = models.CharField(max_length=300, blank=True)
 
     def __str__(self):

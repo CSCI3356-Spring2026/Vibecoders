@@ -60,6 +60,7 @@ LOCAL_DEBUG_COMMANDS = {
     "shell",
     "createsuperuser",
 }
+RUNNING_TESTS = "test" in sys.argv
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env_bool("DJANGO_DEBUG", any(command in sys.argv for command in LOCAL_DEBUG_COMMANDS))
@@ -110,6 +111,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "users.middleware.CurrentLegalAcceptanceMiddleware",
+    "users.middleware.ProfileCompletionMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -203,7 +205,7 @@ LISTING_IMAGE_MAX_BYTES = env_int("LISTING_IMAGE_MAX_BYTES", 5 * 1024 * 1024)
 LISTING_IMAGE_UPLOAD_LIMIT = env_int("LISTING_IMAGE_UPLOAD_LIMIT", 10)
 LISTING_IMAGE_TOTAL_LIMIT = env_int("LISTING_IMAGE_TOTAL_LIMIT", 20)
 LISTING_MAPS_ENABLED = env_bool("LISTING_MAPS_ENABLED", True)
-LISTING_GEOCODING_ENABLED = env_bool("LISTING_GEOCODING_ENABLED", "test" not in sys.argv)
+LISTING_GEOCODING_ENABLED = False if RUNNING_TESTS else env_bool("LISTING_GEOCODING_ENABLED", True)
 LISTING_GEOCODER_URL = os.getenv("LISTING_GEOCODER_URL", "https://photon.komoot.io/api/").strip()
 LISTING_GEOCODER_URL = LISTING_GEOCODER_URL or "https://photon.komoot.io/api/"
 LISTING_GEOCODER_USER_AGENT = os.getenv("LISTING_GEOCODER_USER_AGENT", f"{SITE_PRODUCT_NAME}/1.0").strip()
@@ -267,6 +269,9 @@ LOGIN_URL = "/accounts/login/"
 
 LOGIN_REDIRECT_URL = "/users/dashboard/"  # Where to go after login
 LOGOUT_REDIRECT_URL = "/"  # Where to go after logout
+
+# Profile completion enforcement
+PROFILE_COMPLETION_REQUIRED = False if RUNNING_TESTS else env_bool("PROFILE_COMPLETION_REQUIRED", True)
 
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
