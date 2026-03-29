@@ -22,3 +22,13 @@ class UserFileAdmin(admin.ModelAdmin):
     list_display = ("title", "owner", "uploaded_at")
     search_fields = ("title", "owner__username", "owner__email")
     list_select_related = ("owner",)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_view_permission(self, request, obj=None):
+        user = getattr(request, "user", None)
+        return bool(getattr(user, "is_active", False) and getattr(user, "is_staff", False))

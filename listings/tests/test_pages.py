@@ -1286,6 +1286,7 @@ assert.equal(picker.isSelectionComplete(), true);
             end_date=date(2027, 5, 31),
             approval_status=Listing.APPROVAL_APPROVED,
         )
+        ListingConversation.objects.create(listing=listing, owner=owner, participant=self.user)
         self.client.force_login(self.user)
 
         response = self.client.post(
@@ -1298,6 +1299,32 @@ assert.equal(picker.isSelectionComplete(), true);
         self.assertTrue(response["Location"].endswith("#community"))
         review = ListingReview.objects.get(listing=listing, author=self.user)
         self.assertEqual(review.rating, 5)
+
+    def test_marketplace_user_needs_prior_contact_before_submitting_review(self):
+        owner = get_user_model().objects.create_user(
+            username="review-contact-owner",
+            email="review-contact-owner@bc.edu",
+            password="test",
+        )
+        listing = owner.listings.create(
+            title="Contact gated review",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 5, 31),
+            approval_status=Listing.APPROVAL_APPROVED,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("listings:submit_review", args=[listing.pk]),
+            {"rating": "4", "comment": "Trying to review without contact."},
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(ListingReview.objects.filter(listing=listing, author=self.user).exists())
 
     def test_marketplace_user_can_report_listing_once_until_resolved(self):
         owner = get_user_model().objects.create_user(

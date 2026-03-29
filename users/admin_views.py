@@ -1,3 +1,4 @@
+import logging
 from functools import wraps
 
 from django.contrib import messages
@@ -23,6 +24,25 @@ ADMIN_LISTINGS_PER_PAGE = 20
 ADMIN_USERS_PER_PAGE = 20
 ADMIN_REPORTS_PER_PAGE = 20
 ADMIN_USER_DETAIL_PREVIEW_LIMIT = 15
+
+logger = logging.getLogger(__name__)
+
+
+def _admin_listing_detail_context(listing, *, approval_form=None):
+    reports = list(listing_reports_queryset_for_admin(listing=listing))
+    reviews = list(listing_reviews_queryset(listing))
+    for report in reports:
+        report.ui_form = AdminListingReportResolutionForm(
+            instance=report,
+            prefix=f"report-{report.id}",
+        )
+
+    return {
+        "listing": listing,
+        "reports": reports,
+        "reviews": reviews,
+        "approval_form": approval_form or AdminListingApprovalForm(initial={"review_notes": listing.approval_notes}),
+    }
 
 
 def admin_required_view(view_func):
@@ -92,39 +112,39 @@ def admin_listings(request):
 @admin_required_view
 def admin_listing_detail(request, listing_id):
     listing = get_object_or_404(with_feedback_summary(Listing.objects.with_related()), id=listing_id)
-    reports = list(listing_reports_queryset_for_admin(listing=listing))
-    reviews = list(listing_reviews_queryset(listing))
-    for report in reports:
-        report.ui_form = AdminListingReportResolutionForm(
-            instance=report,
-            prefix=f"report-{report.id}",
-        )
-
-    context = {
-        "listing": listing,
-        "reports": reports,
-        "reviews": reviews,
-        "approval_form": AdminListingApprovalForm(initial={"review_notes": listing.approval_notes}),
-    }
-    return render(request, "users/admin_listing_detail.html", context)
+    return render(request, "users/admin_listing_detail.html", _admin_listing_detail_context(listing))
 
 
 @admin_required_view
 @require_POST
 def admin_review_listing(request, listing_id):
-    listing = get_object_or_404(Listing.objects.with_related(), id=listing_id)
+    listing = get_object_or_404(with_feedback_summary(Listing.objects.with_related()), id=listing_id)
     form = AdminListingApprovalForm(request.POST)
     action = request.POST.get("action", "").strip()
     if not form.is_valid():
         messages.error(request, "Keep review notes under 2,000 characters.")
-        return redirect("users:admin_listing_detail", listing_id=listing.id)
+        return render(
+            request,
+            "users/admin_listing_detail.html",
+            _admin_listing_detail_context(listing, approval_form=form),
+        )
 
     review_notes = form.cleaned_data["review_notes"]
     if action == "approve":
         listing.approve(reviewer=request.user, notes=review_notes)
+        logger.info("listing_approved listing_id=%s reviewer_id=%s", listing.id, request.user.id)
         messages.success(request, "Listing approved.")
     elif action == "reject":
+        if not review_notes:
+            form.add_error("review_notes", "Add review notes when rejecting a listing.")
+            messages.error(request, "Rejections need review notes so the owner knows what to fix.")
+            return render(
+                request,
+                "users/admin_listing_detail.html",
+                _admin_listing_detail_context(listing, approval_form=form),
+            )
         listing.reject(reviewer=request.user, notes=review_notes)
+        logger.info("listing_rejected listing_id=%s reviewer_id=%s", listing.id, request.user.id)
         messages.success(request, "Listing rejected.")
     else:
         return HttpResponseForbidden("Invalid review action.")
@@ -188,7 +208,7 @@ def admin_update_report(request, report_id):
     report = get_object_or_404(ListingReport.objects.select_related("listing"), id=report_id)
     form = AdminListingReportResolutionForm(request.POST, instance=report, prefix=f"report-{report.id}")
     if not form.is_valid():
-        messages.error(request, "Keep resolution notes under 2,000 characters.")
+        messages.error(request, "Add valid resolution notes before updating the report.")
         return redirect("users:admin_reports")
 
     updated_report = form.save(commit=False)
@@ -205,6 +225,13 @@ def admin_update_report(request, report_id):
             "resolution_notes",
             "updated_at",
         ]
+    )
+    logger.info(
+        "listing_report_updated report_id=%s listing_id=%s reviewer_id=%s status=%s",
+        updated_report.id,
+        updated_report.listing_id,
+        request.user.id,
+        updated_report.status,
     )
     messages.success(request, "Report updated.")
     redirect_to = safe_next_url(

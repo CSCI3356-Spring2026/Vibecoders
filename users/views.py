@@ -256,6 +256,7 @@ def posts(request):
             conversation_count=Count(
                 "conversations",
                 filter=Q(conversations__owner_deleted_at__isnull=True),
+                distinct=True,
             )
         )
         .order_by("-created_at")

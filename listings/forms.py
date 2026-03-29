@@ -499,6 +499,14 @@ class AdminListingReportResolutionForm(forms.ModelForm):
             raise ValidationError("Keep resolution notes to 2,000 characters or fewer.")
         return notes
 
+    def clean(self):
+        cleaned_data = super().clean()
+        status = cleaned_data.get("status")
+        notes = cleaned_data.get("resolution_notes") or ""
+        if status in {ListingReport.STATUS_RESOLVED, ListingReport.STATUS_DISMISSED} and not notes:
+            self.add_error("resolution_notes", "Add resolution notes before closing out a report.")
+        return cleaned_data
+
 
 class GroupMatchPreferencesForm(forms.Form):
     CLEANLINESS_CHOICES = [(value, f"{value}/5") for value in range(1, 6)]

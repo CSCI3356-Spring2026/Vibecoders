@@ -1,3 +1,4 @@
+import logging
 import re
 from decimal import Decimal
 
@@ -43,6 +44,8 @@ from .selectors import (
     searchable_marketplace_listings_for_user,
     with_favorite_state,
 )
+
+logger = logging.getLogger(__name__)
 
 LISTINGS_PER_PAGE = 12
 ADDRESS_AUTOCOMPLETE_MIN_QUERY_LENGTH = 3
@@ -205,6 +208,7 @@ def address_suggestions(request):
         response.raise_for_status()
         suggestions = normalize_geoapify_suggestions(response.json())
     except (requests.RequestException, TypeError, ValueError):
+        logger.warning("Address autocomplete lookup failed for query=%r", query, exc_info=True)
         return _autocomplete_error_response()
 
     results = []
@@ -274,21 +278,25 @@ def _can_favorite_listing(user, listing):
     )
 
 
-def _can_review_listing(user, listing):
+def _can_leave_listing_feedback(user):
     return (
         getattr(user, "is_authenticated", False)
+        and getattr(user, "is_student", False)
         and getattr(user, "can_browse_marketplace", False)
+    )
+
+
+def _can_review_listing(user, listing):
+    return (
+        _can_leave_listing_feedback(user)
         and listing.owner_id != getattr(user, "id", None)
         and listing.is_approved
+        and listing.conversations.filter(participant_id=getattr(user, "id", None)).exists()
     )
 
 
 def _can_report_listing(user, listing):
-    return (
-        getattr(user, "is_authenticated", False)
-        and getattr(user, "can_browse_marketplace", False)
-        and listing.owner_id != getattr(user, "id", None)
-    )
+    return _can_leave_listing_feedback(user) and listing.owner_id != getattr(user, "id", None) and listing.is_approved
 
 
 def _consume_listing_report_rate_limit(user):
@@ -536,6 +544,12 @@ def listing_detail(request, pk):
         and listing.owner_id != request.user.id
         and listing.is_publicly_active
     )
+    review_requires_contact = (
+        _can_leave_listing_feedback(request.user)
+        and listing.owner_id != request.user.id
+        and listing.is_approved
+        and not can_review_listing
+    )
     listing_reviews = list(listing_reviews_queryset(listing))
     existing_review = next((review for review in listing_reviews if review.author_id == request.user.id), None)
     review_form = ListingReviewForm(instance=existing_review) if can_review_listing else None
@@ -596,6 +610,7 @@ def listing_detail(request, pk):
         "can_favorite_listing": listing.can_favorite,
         "can_review_listing": can_review_listing,
         "can_report_listing": can_report_listing,
+        "review_requires_contact": review_requires_contact,
         "listing_highlight_items": _listing_highlight_items(listing),
         "amenity_items": _split_listing_detail_items(listing.amenities),
         "utility_items": _split_listing_detail_items(listing.utilities_included),
@@ -609,7 +624,7 @@ def listing_detail(request, pk):
 def submit_listing_review(request, pk):
     listing = get_object_or_404(accessible_listing_detail_queryset(request.user), pk=pk)
     if not _can_review_listing(request.user, listing):
-        return HttpResponseForbidden("Only marketplace users can review approved listings they do not own.")
+        return HttpResponseForbidden("Only student users with prior listing contact can review approved listings.")
 
     review = ListingReview.objects.filter(listing=listing, author=request.user).first()
     form = ListingReviewForm(request.POST, instance=review)
@@ -630,7 +645,7 @@ def submit_listing_review(request, pk):
 def report_listing(request, pk):
     listing = get_object_or_404(accessible_listing_detail_queryset(request.user), pk=pk)
     if not _can_report_listing(request.user, listing):
-        return HttpResponseForbidden("Only marketplace users can report listings they do not own.")
+        return HttpResponseForbidden("Only student users can report approved listings they do not own.")
     if not _consume_listing_report_rate_limit(request.user):
         messages.error(request, LISTING_REPORT_RATE_LIMIT_ERROR)
         return redirect(f"{reverse('listings:detail', args=[listing.pk])}#community")

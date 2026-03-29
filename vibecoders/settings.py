@@ -242,6 +242,7 @@ MESSAGE_SEND_RATE_WINDOW_SECONDS = env_int("MESSAGE_SEND_RATE_WINDOW_SECONDS", 6
 LOGIN_INIT_RATE_LIMIT = env_int("LOGIN_INIT_RATE_LIMIT", 10)
 LOGIN_INIT_RATE_WINDOW_SECONDS = env_int("LOGIN_INIT_RATE_WINDOW_SECONDS", 300)
 ACCOUNT_DELETION_RECENT_AUTH_SECONDS = env_int("ACCOUNT_DELETION_RECENT_AUTH_SECONDS", 1800)
+DJANGO_LOG_LEVEL = os.getenv("DJANGO_LOG_LEVEL", "INFO").strip().upper() or "INFO"
 
 
 # Default primary key field type
@@ -315,3 +316,24 @@ else:
             "BACKEND": "channels.layers.InMemoryChannelLayer",
         }
     }
+
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
+        }
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "standard",
+        }
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": DJANGO_LOG_LEVEL,
+    },
+}

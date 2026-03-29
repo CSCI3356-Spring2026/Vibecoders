@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from communications.models import ListingConversation
 from communications.selectors import accessible_conversations_for_user
-from listings.models import Listing, ListingReport
+from listings.models import Listing, ListingReport, ListingReview
 
 from ..session_security import RECENT_AUTH_SESSION_KEY
 from .helpers import User
@@ -490,6 +490,44 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertNotContains(first_page, "My listing 0")
         self.assertContains(second_page, "My listing 0")
 
+    def test_posts_page_conversation_count_is_not_inflated_by_feedback_annotations(self):
+        listing = self.user.listings.create(
+            title="Feedback heavy listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status="approved",
+        )
+        participant = User.objects.create_user(username="connected", email="connected@bc.edu", password="test")
+        first_reporter = User.objects.create_user(username="reporter-one", email="reporter-one@bc.edu", password="test")
+        second_reporter = User.objects.create_user(
+            username="reporter-two",
+            email="reporter-two@bc.edu",
+            password="test",
+        )
+        ListingConversation.objects.create(listing=listing, owner=self.user, participant=participant)
+        ListingReview.objects.create(listing=listing, author=participant, rating=4, comment="Real feedback.")
+        ListingReport.objects.create(
+            listing=listing,
+            reporter=first_reporter,
+            reason=ListingReport.REASON_SPAM,
+            details="Needs review.",
+        )
+        ListingReport.objects.create(
+            listing=listing,
+            reporter=second_reporter,
+            reason=ListingReport.REASON_INACCURATE,
+            details="Price looks stale.",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get("/users/posts/")
+
+        page_listing = list(response.context["listings"].object_list)[0]
+        self.assertEqual(page_listing.conversation_count, 1)
+
     def test_realtor_dashboard_shows_listing_only_copy(self):
         realtor = User.objects.create_user(username="agent", email="agent@gmail.com", password="test")
         self.client.force_login(realtor)
@@ -783,6 +821,34 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertContains(second_page, "Admin listing 0")
         self.assertNotContains(first_page, "confirm(")
 
+    def test_admin_listings_queue_prioritizes_pending_review(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        owner = User.objects.create_user(username="queue-owner", email="queue-owner@bc.edu", password="test")
+        approved = owner.listings.create(
+            title="Approved listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status="approved",
+        )
+        pending = owner.listings.create(
+            title="Pending listing",
+            address="141 Commonwealth Ave",
+            price="1300.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status="pending",
+        )
+        self.client.force_login(admin)
+
+        response = self.client.get("/users/admin-listings/")
+
+        listings = list(response.context["listings"].object_list[:2])
+        self.assertEqual([listing.id for listing in listings], [pending.id, approved.id])
+
     def test_admin_can_approve_listing_from_review_page(self):
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
         owner = User.objects.create_user(username="owner", email="owner@bc.edu", password="test")
@@ -808,6 +874,30 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertEqual(listing.approval_status, Listing.APPROVAL_APPROVED)
         self.assertEqual(listing.reviewed_by, admin)
         self.assertEqual(listing.approval_notes, "Address and photos look consistent.")
+
+    def test_admin_reject_requires_review_notes(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        owner = User.objects.create_user(username="queue-owner", email="queue-owner@bc.edu", password="test")
+        listing = owner.listings.create(
+            title="Needs review notes",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+        )
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            reverse("users:admin_review_listing", args=[listing.id]),
+            {"action": "reject", "review_notes": ""},
+            follow=False,
+        )
+
+        listing.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Add review notes when rejecting a listing.")
+        self.assertEqual(listing.approval_status, Listing.APPROVAL_PENDING)
 
     def test_admin_reports_page_can_update_report_status(self):
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
@@ -848,6 +938,41 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertEqual(update_response["Location"], reverse("users:admin_reports"))
         self.assertEqual(report.status, ListingReport.STATUS_RESOLVED)
         self.assertEqual(report.reviewed_by, admin)
+
+    def test_admin_reports_page_requires_resolution_notes_to_close_report(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        owner = User.objects.create_user(username="owner-two", email="owner-two@bc.edu", password="test")
+        reporter = User.objects.create_user(username="reporter-two", email="reporter-two@bc.edu", password="test")
+        listing = owner.listings.create(
+            title="Reported listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status="approved",
+        )
+        report = ListingReport.objects.create(
+            listing=listing,
+            reporter=reporter,
+            reason=ListingReport.REASON_SPAM,
+            details="Duplicate inventory.",
+        )
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            reverse("users:admin_update_report", args=[report.id]),
+            {
+                f"report-{report.id}-status": ListingReport.STATUS_RESOLVED,
+                f"report-{report.id}-resolution_notes": "",
+                "next": reverse("users:admin_reports"),
+            },
+            follow=True,
+        )
+
+        report.refresh_from_db()
+        self.assertContains(response, "Add valid resolution notes before updating the report.")
+        self.assertEqual(report.status, ListingReport.STATUS_OPEN)
 
     def test_user_can_delete_their_account(self):
         self.client.force_login(self.user)

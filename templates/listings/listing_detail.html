@@ -383,6 +383,12 @@
                         </div>
                     </div>
 
+                    {% if review_requires_contact %}
+                        <p class="listing-detail-panel-copy">
+                            Resident reviews unlock after you have an active conversation with the listing owner, which keeps feedback tied to real renter interest.
+                        </p>
+                    {% endif %}
+
                     {% if can_review_listing and review_form %}
                         <div class="listing-detail-community-form">
                             <h3 class="listing-detail-subheading">{% if existing_review %}Update your review{% else %}Leave a review{% endif %}</h3>
