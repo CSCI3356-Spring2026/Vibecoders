@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}{{ target.display_name }} | {{ site_product_name }}{% endblock %}
+
+{% block content %}
+<section class="app-page">
+    <div class="container">
+        <div class="app-shell">
+            <div class="app-header app-header-shell">
+                <div class="app-header-main">
+                    <div class="identity-row profile-hero-row">
+                        {% include "includes/user_avatar.html" with user_obj=target avatar_class="profile-hero-avatar user-avatar user-avatar-xl" %}
+                        <div class="identity-copy">
+                            <p class="app-kicker">Student</p>
+                            <h1 class="app-title">{{ target.display_name }}</h1>
+                            {% if their_profile.major %}
+                                <p class="app-subtitle">{{ their_profile.major }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="app-actions">
+                        <a class="btn btn-brand" href="{% url 'listings:listing_list' %}">Browse listings to message</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="app-meta mb-4">
+                {% if score is not None %}
+                    {% if score >= 75 %}
+                        <span class="app-meta-chip app-meta-chip-primary">{{ score }}% compatible with you</span>
+                    {% elif score >= 50 %}
+                        <span class="app-meta-chip app-meta-chip-secondary">{{ score }}% compatible with you</span>
+                    {% else %}
+                        <span class="app-meta-chip app-meta-chip-neutral">{{ score }}% compatible with you</span>
+                    {% endif %}
+                {% endif %}
+                {% if their_profile.gender %}
+                    <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_gender_display }}</span>
+                {% endif %}
+            </div>
+
+            {% if their_profile.bio %}
+                <div class="app-panel mb-4">
+                    <div class="app-panel-head">
+                        <h2 class="app-section-heading">About</h2>
+                    </div>
+                    <div class="app-panel-body">
+                        <p>{{ their_profile.bio }}</p>
+                    </div>
+                </div>
+            {% endif %}
+
+            <div class="app-panel mb-4">
+                <div class="app-panel-head">
+                    <h2 class="app-section-heading">Lifestyle</h2>
+                </div>
+                <div class="app-panel-body">
+                    <div class="app-compact-list">
+
+                        {% if their_profile.messy_level %}
+                            <div class="app-compact-item app-compact-item-static">
+                                <span class="workspace-item-label">Cleanliness</span>
+                                <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_messy_level_display }}</span>
+                            </div>
+                        {% endif %}
+
+                        {% if their_profile.noise_level %}
+                            <div class="app-compact-item app-compact-item-static">
+                                <span class="workspace-item-label">Noise level</span>
+                                <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_noise_level_display }}</span>
+                            </div>
+                        {% endif %}
+
+                        {% if their_profile.guest_level %}
+                            <div class="app-compact-item app-compact-item-static">
+                                <span class="workspace-item-label">Guests</span>
+                                <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_guest_level_display }}</span>
+                            </div>
+                        {% endif %}
+
+                        {% if their_profile.bedtime is not None %}
+                            <div class="app-compact-item app-compact-item-static">
+                                <span class="workspace-item-label">Bedtime</span>
+                                <span class="app-meta-chip app-meta-chip-neutral">
+                                    {% if their_profile.bedtime < 12 %}
+                                        {{ their_profile.bedtime }}:00 AM
+                                    {% elif their_profile.bedtime == 12 %}
+                                        12:00 PM
+                                    {% else %}
+                                        {{ their_profile.bedtime|add:"-12" }}:00 PM
+                                    {% endif %}
+                                </span>
+                            </div>
+                        {% endif %}
+
+                        {% if their_profile.drink %}
+                            <div class="app-compact-item app-compact-item-static">
+                                <span class="workspace-item-label">Drinking</span>
+                                <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_drink_display }}</span>
+                            </div>
+                        {% endif %}
+
+                        {% if their_profile.party %}
+                            <div class="app-compact-item app-compact-item-static">
+                                <span class="workspace-item-label">Parties</span>
+                                <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_party_display }}</span>
+                            </div>
+                        {% endif %}
+
+                        <div class="app-compact-item app-compact-item-static">
+                            <span class="workspace-item-label">Smoking</span>
+                            <span class="app-meta-chip app-meta-chip-neutral">{% if their_profile.smoke %}Yes{% else %}No{% endif %}</span>
+                        </div>
+
+                        <div class="app-compact-item app-compact-item-static">
+                            <span class="workspace-item-label">Pets</span>
+                            <span class="app-meta-chip app-meta-chip-neutral">{% if their_profile.pets %}Has/wants pets{% else %}No pets{% endif %}</span>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <a href="{% url 'users:browse_roommates' %}" class="btn btn-outline-secondary btn-sm">Back to Browse</a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

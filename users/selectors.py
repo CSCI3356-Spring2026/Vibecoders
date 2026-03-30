@@ -4,6 +4,7 @@ from django.db.models import Case, Count, IntegerField, Q, Value, When
 from listings.models import Listing, ListingReport
 from listings.selectors import with_feedback_summary
 
+from .compatibility import compute_compatibility
 from .models import Role, UserFile
 
 
@@ -114,3 +115,30 @@ def accessible_user_files_queryset(user):
     if user.is_bc_admin:
         return UserFile.objects.select_related("owner")
     return UserFile.objects.filter(owner=user).select_related("owner")
+
+
+def compatible_students_for_user(user, limit=30):
+    """
+    Return a list of dicts {user, profile, score} for active students (excluding `user`)
+    sorted descending by compatibility score. Students with no scoreable profile fields
+    are excluded. At most `limit` results are returned.
+    """
+    user_model = get_user_model()
+    candidates = (
+        user_model.objects.filter(role=Role.STUDENT, is_active=True)
+        .exclude(pk=user.pk)
+        .select_related("student_profile")
+    )
+
+    my_profile = getattr(user, "student_profile", None)
+
+    results = []
+    for candidate in candidates:
+        their_profile = getattr(candidate, "student_profile", None)
+        if their_profile is None:
+            continue
+        score = compute_compatibility(my_profile, their_profile) if my_profile else None
+        results.append({"user": candidate, "profile": their_profile, "score": score})
+
+    results.sort(key=lambda x: (x["score"] is not None, x["score"] or 0), reverse=True)
+    return results[:limit]
