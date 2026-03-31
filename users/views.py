@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 from allauth.socialaccount.providers.google import views as google_views
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import logout
+from django.contrib.auth import get_user_model, logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db.models import Count, Q
@@ -22,13 +22,14 @@ from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
 from listings.selectors import with_feedback_summary
 
+from .compatibility import compute_compatibility
 from .forms import AdminProfileForm, GoogleLoginAcceptanceForm, StudentProfileForm, UserFileUploadForm
 from .legal import (
     is_legal_review_required,
     set_pending_legal_acceptance,
 )
 from .models import AdminProfile, Role, StudentProfile, UserFile
-from .selectors import accessible_user_files_queryset
+from .selectors import accessible_user_files_queryset, compatible_students_for_user
 from .session_security import has_recent_auth
 
 FILES_PER_PAGE = 12
@@ -386,3 +387,43 @@ def delete_account(request):
     user.delete()
     messages.success(request, "Account deleted.")
     return redirect("core:landing")
+
+
+@login_required
+@require_GET
+def browse_roommates(request):
+    if not request.user.can_browse_marketplace:
+        raise Http404
+    my_profile = getattr(request.user, "student_profile", None)
+    matches = compatible_students_for_user(request.user)
+    return render(
+        request,
+        "users/browse_roommates.html",
+        {
+            "matches": matches,
+            "has_profile": my_profile is not None,
+        },
+    )
+
+
+@login_required
+@require_GET
+def public_profile(request, user_id):
+    if not request.user.can_browse_marketplace:
+        raise Http404
+    User = get_user_model()
+    target = get_object_or_404(User, id=user_id, role=Role.STUDENT, is_active=True)
+    their_profile = getattr(target, "student_profile", None)
+    if their_profile is None:
+        raise Http404
+    my_profile = getattr(request.user, "student_profile", None)
+    score = compute_compatibility(my_profile, their_profile) if my_profile else None
+    return render(
+        request,
+        "users/public_profile.html",
+        {
+            "target": target,
+            "their_profile": their_profile,
+            "score": score,
+        },
+    )

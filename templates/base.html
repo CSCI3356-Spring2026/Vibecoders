@@ -57,6 +57,9 @@
                                         {% elif request.user.has_listing_only_access %}
                                             <a class="nav-button" href="{% url 'users:posts' %}">My Listings</a>
                                         {% endif %}
+                                        {% if request.user.can_browse_marketplace %}
+                                            <a class="nav-button" href="{% url 'users:browse_roommates' %}">Browse</a>
+                                        {% endif %}
                                     {% endif %}
                                     {% if request.user.is_authenticated and not request.user.has_listing_only_access %}
                                         <a class="nav-button" href="{% url 'users:posts' %}">My Listings</a>
