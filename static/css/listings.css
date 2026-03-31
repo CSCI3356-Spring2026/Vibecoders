@@ -120,13 +120,39 @@
 
 .listing-filter-grid {
     display: grid;
-    grid-template-columns: minmax(16rem, 2.3fr) repeat(4, minmax(8.75rem, 1fr));
+    grid-template-columns: minmax(14rem, 2.2fr) repeat(5, minmax(8rem, 1fr));
     gap: 0.7rem;
     align-items: end;
 }
 
 .listing-filter-field {
     min-width: 0;
+}
+
+.listing-filter-field-checkboxes {
+    display: grid;
+    gap: 0.45rem;
+}
+
+.listing-filter-checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-height: 2.625rem;
+    padding: 0.35rem 0;
+}
+
+.listing-filter-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--gray-900);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.listing-filter-checkbox input {
+    margin: 0;
 }
 
 .listing-filter-form .form-label,

@@ -86,14 +86,45 @@
                                 >
                             </div>
                             <div class="listing-filter-field">
-                                <label class="form-label" for="filter-price">Max price</label>
-                                <select class="form-select" id="filter-price" name="max_price">
-                                    {% for value, label in max_price_filters %}
-                                        <option value="{{ value }}"{% if active_filters.max_price == value %} selected{% endif %}>
-                                            {{ label }}
-                                        </option>
-                                    {% endfor %}
-                                </select>
+                                <label class="form-label" for="filter-min-bedrooms">Min bedrooms</label>
+                                <input
+                                    class="form-control"
+                                    id="filter-min-bedrooms"
+                                    type="number"
+                                    name="min_bedrooms"
+                                    min="{{ bedrooms_filter_min }}"
+                                    step="1"
+                                    value="{{ active_filters.min_bedrooms }}"
+                                    placeholder="{{ bedrooms_filter_min }}"
+                                >
+                            </div>
+                            <div class="listing-filter-field">
+                                <label class="form-label" for="filter-min-price">Min price</label>
+                                <input
+                                    class="form-control"
+                                    id="filter-min-price"
+                                    type="number"
+                                    name="min_price"
+                                    min="{{ price_filter_min }}"
+                                    max="{{ price_filter_max }}"
+                                    step="1"
+                                    value="{{ active_filters.min_price }}"
+                                    placeholder="0"
+                                >
+                            </div>
+                            <div class="listing-filter-field">
+                                <label class="form-label" for="filter-max-price">Max price</label>
+                                <input
+                                    class="form-control"
+                                    id="filter-max-price"
+                                    type="number"
+                                    name="max_price"
+                                    min="{{ price_filter_min }}"
+                                    max="{{ price_filter_max }}"
+                                    step="1"
+                                    value="{{ active_filters.max_price }}"
+                                    placeholder="{{ price_filter_max }}"
+                                >
                             </div>
                             <div class="listing-filter-field">
                                 <label class="form-label" for="filter-lease">Lease type</label>
@@ -107,14 +138,78 @@
                                 </select>
                             </div>
                             <div class="listing-filter-field">
-                                <label class="form-label" for="filter-date">Available by</label>
-                                <select class="form-select" id="filter-date" name="available_by">
-                                    {% for value, label in move_in_filters %}
-                                        <option value="{{ value }}"{% if active_filters.available_by == value %} selected{% endif %}>
-                                            {{ label }}
-                                        </option>
-                                    {% endfor %}
-                                </select>
+                                <label class="form-label" for="filter-max-distance">Max distance from campus</label>
+                                <input
+                                    class="form-control"
+                                    id="filter-max-distance"
+                                    type="number"
+                                    name="max_distance"
+                                    min="0"
+                                    step="0.1"
+                                    value="{{ active_filters.max_distance }}"
+                                    placeholder="2.0"
+                                >
+                            </div>
+                            <div class="listing-filter-field">
+                                <label class="form-label" for="filter-availability-start">Available during</label>
+                                <input
+                                    class="form-control"
+                                    id="filter-availability-start"
+                                    type="date"
+                                    name="availability_start"
+                                    value="{{ active_filters.availability_start }}"
+                                >
+                            </div>
+                            <div class="listing-filter-field">
+                                <label class="form-label" for="filter-availability-end">Until</label>
+                                <input
+                                    class="form-control"
+                                    id="filter-availability-end"
+                                    type="date"
+                                    name="availability_end"
+                                    value="{{ active_filters.availability_end }}"
+                                >
+                            </div>
+                            <div class="listing-filter-field listing-filter-field-checkboxes">
+                                <span class="form-label">Features</span>
+                                <div class="listing-filter-checkbox-group">
+                                    <label class="listing-filter-checkbox">
+                                        <input
+                                            type="checkbox"
+                                            name="has_parking"
+                                            value="1"
+                                            {% if active_filters.has_parking %}checked{% endif %}
+                                        >
+                                        <span>Has parking</span>
+                                    </label>
+                                    <label class="listing-filter-checkbox">
+                                        <input
+                                            type="checkbox"
+                                            name="is_furnished"
+                                            value="1"
+                                            {% if active_filters.is_furnished %}checked{% endif %}
+                                        >
+                                        <span>Is furnished</span>
+                                    </label>
+                                    <label class="listing-filter-checkbox">
+                                        <input
+                                            type="checkbox"
+                                            name="allows_pets"
+                                            value="1"
+                                            {% if active_filters.allows_pets %}checked{% endif %}
+                                        >
+                                        <span>Allows pets </span>
+                                    </label>
+                                    <label class="listing-filter-checkbox">
+                                        <input
+                                            type="checkbox"
+                                            name="has_yard"
+                                            value="1"
+                                            {% if active_filters.has_yard %}checked{% endif %}
+                                        >
+                                        <span>Has a yard</span>
+                                    </label>
+                                </div>
                             </div>
                             <div class="listing-filter-field listing-filter-field-saved">
                                 <label class="form-label" for="filter-saved">Saved</label>
@@ -268,7 +363,7 @@
                         <div class="app-meta">
                             <span class="app-meta-chip app-meta-chip-primary">{{ listings_total }} {% if has_listing_only_access %}owned{% else %}active{% endif %}</span>
                             <span class="app-meta-chip app-meta-chip-secondary">
-                                {% if active_filters.q or active_filters.max_price or active_filters.lease_type or active_filters.available_by or active_filters.saved %}
+                                {% if active_filters.q or active_filters.min_bedrooms or active_filters.min_price or active_filters.max_price or active_filters.lease_type or active_filters.max_distance or active_filters.availability_start or active_filters.availability_end or active_filters.has_parking or active_filters.is_furnished or active_filters.allows_pets or active_filters.has_yard or active_filters.saved %}
                                     Filtered
                                 {% else %}
                                     {% if has_listing_only_access %}Your inventory{% else %}All listings{% endif %}
@@ -305,14 +400,45 @@
                                     >
                                 </div>
                                 <div>
-                                    <label class="form-label" for="filter-price">Max price</label>
-                                    <select class="form-select" id="filter-price" name="max_price">
-                                        {% for value, label in max_price_filters %}
-                                            <option value="{{ value }}"{% if active_filters.max_price == value %} selected{% endif %}>
-                                                {{ label }}
-                                            </option>
-                                        {% endfor %}
-                                    </select>
+                                    <label class="form-label" for="filter-min-bedrooms">Min bedrooms</label>
+                                    <input
+                                        class="form-control"
+                                        id="filter-min-bedrooms"
+                                        type="number"
+                                        name="min_bedrooms"
+                                        min="{{ bedrooms_filter_min }}"
+                                        step="1"
+                                        value="{{ active_filters.min_bedrooms }}"
+                                        placeholder="{{ bedrooms_filter_min }}"
+                                    >
+                                </div>
+                                <div>
+                                    <label class="form-label" for="filter-min-price">Min price</label>
+                                    <input
+                                        class="form-control"
+                                        id="filter-min-price"
+                                        type="number"
+                                        name="min_price"
+                                        min="{{ price_filter_min }}"
+                                        max="{{ price_filter_max }}"
+                                        step="1"
+                                        value="{{ active_filters.min_price }}"
+                                        placeholder="0"
+                                    >
+                                </div>
+                                <div>
+                                    <label class="form-label" for="filter-max-price">Max price</label>
+                                    <input
+                                        class="form-control"
+                                        id="filter-max-price"
+                                        type="number"
+                                        name="max_price"
+                                        min="{{ price_filter_min }}"
+                                        max="{{ price_filter_max }}"
+                                        step="1"
+                                        value="{{ active_filters.max_price }}"
+                                        placeholder="{{ price_filter_max }}"
+                                    >
                                 </div>
                                 <div>
                                     <label class="form-label" for="filter-lease">Lease type</label>
@@ -320,20 +446,84 @@
                                         <option value="">Any lease type</option>
                                         {% for value, label in lease_type_filters %}
                                             <option value="{{ value }}"{% if active_filters.lease_type == value %} selected{% endif %}>
-                                                {{ label }}
-                                            </option>
-                                        {% endfor %}
-                                    </select>
+                                            {{ label }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
                                 </div>
                                 <div>
-                                    <label class="form-label" for="filter-date">Available by</label>
-                                    <select class="form-select" id="filter-date" name="available_by">
-                                        {% for value, label in move_in_filters %}
-                                            <option value="{{ value }}"{% if active_filters.available_by == value %} selected{% endif %}>
-                                                {{ label }}
-                                            </option>
-                                        {% endfor %}
-                                    </select>
+                                    <label class="form-label" for="filter-max-distance">Max distance from campus</label>
+                                    <input
+                                        class="form-control"
+                                        id="filter-max-distance"
+                                        type="number"
+                                        name="max_distance"
+                                        min="0"
+                                        step="0.1"
+                                        value="{{ active_filters.max_distance }}"
+                                        placeholder="2.0"
+                                    >
+                                </div>
+                                <div>
+                                    <label class="form-label" for="filter-availability-start">Available during</label>
+                                    <input
+                                        class="form-control"
+                                        id="filter-availability-start"
+                                        type="date"
+                                        name="availability_start"
+                                        value="{{ active_filters.availability_start }}"
+                                    >
+                                </div>
+                                <div>
+                                    <label class="form-label" for="filter-availability-end">Until</label>
+                                    <input
+                                        class="form-control"
+                                        id="filter-availability-end"
+                                        type="date"
+                                        name="availability_end"
+                                        value="{{ active_filters.availability_end }}"
+                                    >
+                                </div>
+                                <div class="listing-filter-field-checkboxes">
+                                    <span class="form-label">Features</span>
+                                    <div class="listing-filter-checkbox-group">
+                                        <label class="listing-filter-checkbox">
+                                            <input
+                                                type="checkbox"
+                                                name="has_parking"
+                                                value="1"
+                                                {% if active_filters.has_parking %}checked{% endif %}
+                                            >
+                                            <span>Has parking</span>
+                                        </label>
+                                        <label class="listing-filter-checkbox">
+                                            <input
+                                                type="checkbox"
+                                                name="is_furnished"
+                                                value="1"
+                                                {% if active_filters.is_furnished %}checked{% endif %}
+                                            >
+                                            <span>Is furnished</span>
+                                        </label>
+                                        <label class="listing-filter-checkbox">
+                                            <input
+                                                type="checkbox"
+                                                name="allows_pets"
+                                                value="1"
+                                                {% if active_filters.allows_pets %}checked{% endif %}
+                                            >
+                                            <span>Allows pets </span>
+                                        </label>
+                                        <label class="listing-filter-checkbox">
+                                            <input
+                                                type="checkbox"
+                                                name="has_yard"
+                                                value="1"
+                                                {% if active_filters.has_yard %}checked{% endif %}
+                                            >
+                                            <span>Has a yard</span>
+                                        </label>
+                                    </div>
                                 </div>
                                 <div>
                                     <label class="form-label" for="filter-saved">Saved</label>

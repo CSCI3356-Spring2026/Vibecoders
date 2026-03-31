@@ -817,9 +817,11 @@ assert.equal(view.getStyleMode(), "satellite");
             reverse("listings:search"),
             {
                 "q": "Beacon",
+                "min_price": "900",
                 "max_price": "1000",
                 "lease_type": "SUBLEASE",
-                "available_by": "30",
+                "availability_start": str(date.today() + timedelta(days=5)),
+                "availability_end": str(date.today() + timedelta(days=30)),
                 "west": "-71.3",
                 "south": "42.2",
                 "east": "-71.0",
@@ -1051,18 +1053,20 @@ assert.equal(view.getStyleMode(), "satellite");
         self.assertContains(response, listing.owner.display_name)
         self.assertContains(response, "https://example.com/listing-owner.png")
 
-    def test_listing_list_filters_by_budget_and_lease_type(self):
+    def test_listing_list_filters_by_price_range_and_lease_type(self):
         affordable_listing = self.create_listing(title="Affordable", price="950.00", lease_type="SUBLEASE")
+        self.create_listing(title="Too cheap", address="100 Main St", price="700.00", lease_type="SUBLEASE")
         self.create_listing(title="Expensive", price="2200.00", lease_type="FULL")
         self.client.force_login(self.user)
 
         response = self.client.get(
             reverse("listings:listing_list"),
-            {"max_price": "1000", "lease_type": "SUBLEASE"},
+            {"min_price": "900", "max_price": "1000", "lease_type": "SUBLEASE"},
         )
 
         self.assertContains(response, affordable_listing.title)
         self.assertNotContains(response, "Expensive")
+        self.assertNotContains(response, "Too cheap")
 
     def test_listing_list_filters_by_search_query(self):
         matching_listing = self.create_listing(title="Beacon apartment", address="1731 Beacon St")
@@ -1077,14 +1081,192 @@ assert.equal(view.getStyleMode(), "satellite");
         self.assertContains(response, matching_listing.title)
         self.assertNotContains(response, "Comm Ave house")
 
-    def test_listing_list_ignores_invalid_max_price_filter(self):
+    def test_listing_list_ignores_invalid_price_filters(self):
         listing = self.create_listing(title="Beacon apartment", price="1800.00")
         self.client.force_login(self.user)
 
-        response = self.client.get(reverse("listings:listing_list"), {"max_price": "invalid"})
+        response = self.client.get(
+            reverse("listings:listing_list"),
+            {"min_price": "invalid", "max_price": "50000"},
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, listing.title)
+
+    def test_listing_list_filters_by_availability_date_overlap(self):
+        matching_listing = self.create_listing(
+            title="September opening",
+            start_date=date(2026, 9, 1),
+            end_date=date(2026, 12, 31),
+        )
+        self.create_listing(
+            title="Ends too early",
+            address="200 Main St",
+            start_date=date(2026, 6, 1),
+            end_date=date(2026, 8, 31),
+        )
+        self.create_listing(
+            title="Starts too late",
+            address="300 Main St",
+            start_date=date(2027, 1, 1),
+            end_date=date(2027, 5, 31),
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("listings:listing_list"),
+            {"availability_start": "2026-09-15", "availability_end": "2026-10-15"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, matching_listing.title)
+        self.assertNotContains(response, "Ends too early")
+        self.assertNotContains(response, "Starts too late")
+
+    def test_listing_list_filters_by_bedrooms_features_and_distance(self):
+        matching_listing = self.create_listing(
+            title="Match all filters",
+            rooms=3,
+            has_parking=True,
+            is_furnished=True,
+            has_yard=True,
+            distance_to_campus="1.2",
+            pet_policy="Cats allowed",
+        )
+        self.create_listing(
+            title="Too few bedrooms",
+            address="200 Main St",
+            rooms=2,
+            has_parking=True,
+            is_furnished=True,
+            has_yard=True,
+            distance_to_campus="1.0",
+            pet_policy="Pets allowed",
+        )
+        self.create_listing(
+            title="No parking",
+            address="300 Main St",
+            rooms=3,
+            has_parking=False,
+            is_furnished=True,
+            has_yard=True,
+            distance_to_campus="1.0",
+            pet_policy="Pets allowed",
+        )
+        self.create_listing(
+            title="Not furnished",
+            address="400 Main St",
+            rooms=3,
+            has_parking=True,
+            is_furnished=False,
+            has_yard=True,
+            distance_to_campus="1.0",
+            pet_policy="Pets allowed",
+        )
+        self.create_listing(
+            title="No pets",
+            address="450 Main St",
+            rooms=3,
+            has_parking=True,
+            is_furnished=True,
+            has_yard=True,
+            distance_to_campus="1.0",
+            pet_policy="",
+        )
+        self.create_listing(
+            title="No yard",
+            address="475 Main St",
+            rooms=3,
+            has_parking=True,
+            is_furnished=True,
+            has_yard=False,
+            distance_to_campus="1.0",
+            pet_policy="Pets allowed",
+        )
+        self.create_listing(
+            title="Too far",
+            address="500 Main St",
+            rooms=3,
+            has_parking=True,
+            is_furnished=True,
+            has_yard=True,
+            distance_to_campus="3.8",
+            pet_policy="Pets allowed",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("listings:listing_list"),
+            {
+                "min_bedrooms": "3",
+                "has_parking": "1",
+                "is_furnished": "1",
+                "allows_pets": "1",
+                "has_yard": "1",
+                "max_distance": "2.0",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, matching_listing.title)
+        self.assertNotContains(response, "Too few bedrooms")
+        self.assertNotContains(response, "No parking")
+        self.assertNotContains(response, "Not furnished")
+        self.assertNotContains(response, "No pets")
+        self.assertNotContains(response, "No yard")
+        self.assertNotContains(response, "Too far")
+
+    def test_listing_page_renders_price_and_availability_range_inputs(self):
+        self.create_listing(title="Filter form listing")
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("listings:listing_list"),
+            {
+                "min_price": "1000",
+                "max_price": "2000",
+                "availability_start": "2026-09-01",
+                "availability_end": "2026-12-31",
+            },
+        )
+
+        self.assertContains(response, 'name="min_price"')
+        self.assertContains(response, 'name="max_price"')
+        self.assertContains(response, 'min="0"')
+        self.assertContains(response, 'max="25000"')
+        self.assertContains(response, 'name="availability_start"')
+        self.assertContains(response, 'value="2026-09-01"')
+        self.assertContains(response, 'name="availability_end"')
+        self.assertContains(response, 'value="2026-12-31"')
+
+    def test_listing_page_renders_new_feature_filter_inputs(self):
+        self.create_listing(title="Feature filter listing")
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("listings:listing_list"),
+            {
+                "min_bedrooms": "2",
+                "has_parking": "1",
+                "is_furnished": "1",
+                "allows_pets": "1",
+                "has_yard": "1",
+                "max_distance": "1.5",
+            },
+        )
+
+        self.assertContains(response, 'name="min_bedrooms"')
+        self.assertContains(response, 'name="has_parking"')
+        self.assertContains(response, 'name="is_furnished"')
+        self.assertContains(response, 'name="allows_pets"')
+        self.assertContains(response, 'name="has_yard"')
+        self.assertContains(response, 'name="max_distance"')
+        self.assertContains(response, 'value="2"')
+        self.assertContains(response, 'value="1.5"')
+        self.assertContains(response, "Has parking")
+        self.assertContains(response, "Is furnished")
+        self.assertContains(response, "Allows pets")
+        self.assertContains(response, "Has a yard")
 
     def test_listing_list_is_paginated(self):
         for index in range(13):
