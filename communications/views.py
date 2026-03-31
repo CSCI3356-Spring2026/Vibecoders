@@ -1,18 +1,26 @@
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from core.utils import get_page, preserved_query_suffix
 
 from .forms import ConversationMessageForm
-from .selectors import accessible_conversations_for_user, conversation_summary_for_user, inbox_conversations_for_user
+from .selectors import (
+    accessible_conversations_for_user,
+    conversation_summary_for_user,
+    inbox_conversations_for_user,
+)
 from .services import (
     MESSAGE_SEND_RATE_LIMIT_ERROR,
     consume_message_send_rate_limit,
     delete_conversation_for_user,
     mark_conversation_read,
-    send_listing_message,
+    send_conversation_message,
+    start_direct_conversation,
 )
 
 MESSAGES_PER_PAGE = 12
@@ -30,7 +38,10 @@ def _decorate_conversation_for_user(conversation, user):
     conversation.ui_counterparty_name = conversation.ui_counterparty.display_name
     conversation.ui_counterparty_role_label = conversation.counterparty_role_label_for(user)
     conversation.ui_has_unread = conversation.has_unread_for(user)
-    conversation.ui_listing_image = conversation.listing.primary_image
+    conversation.ui_listing_image = conversation.listing.primary_image if conversation.listing_id else None
+    conversation.ui_context_title = conversation.context_title_for(user)
+    conversation.ui_context_subtitle = conversation.context_subtitle_for(user)
+    conversation.ui_context_meta = conversation.context_meta_for(user)
     return conversation
 
 
@@ -50,7 +61,6 @@ def messages_inbox(request, conversation_id=None):
     conversations_qs = inbox_conversations_for_user(request.user)
     conversations_page = get_page(conversations_qs, request.GET.get("page"), MESSAGES_PER_PAGE)
     _decorate_conversations_for_user(conversations_page.object_list, request.user)
-    reply_form = ConversationMessageForm()
 
     selected_conversation = None
     if conversation_id:
@@ -67,6 +77,11 @@ def messages_inbox(request, conversation_id=None):
         for conversation in conversations_page.object_list:
             if conversation.id == selected_conversation.id:
                 conversation.ui_has_unread = False
+
+    reply_placeholder = "Ask about timing, availability, rent, or next steps."
+    if selected_conversation and selected_conversation.is_direct:
+        reply_placeholder = "Introduce yourself, compare housing plans, or talk next steps."
+    reply_form = ConversationMessageForm(placeholder=reply_placeholder)
 
     conversation_rows = _conversation_rows(conversations_page, selected_conversation)
     thread_messages = []
@@ -107,12 +122,42 @@ def reply_conversation(request, conversation_id):
         return redirect("communications:detail", conversation_id=conversation.pk)
     form = ConversationMessageForm(request.POST)
     if form.is_valid():
-        send_listing_message(conversation, request.user, form.cleaned_data["body"])
+        send_conversation_message(conversation, request.user, form.cleaned_data["body"])
         messages.success(request, "Reply sent.")
     else:
         messages.error(request, "Enter a message before sending.")
 
     return redirect("communications:detail", conversation_id=conversation.pk)
+
+
+@login_required
+@require_POST
+def start_direct_conversation_view(request, user_id):
+    recipient = get_object_or_404(get_user_model()._default_manager.select_related("student_profile"), id=user_id)
+    if not consume_message_send_rate_limit(request.user):
+        messages.error(request, MESSAGE_SEND_RATE_LIMIT_ERROR)
+        return redirect("users:public_profile", user_id=recipient.pk)
+
+    form = ConversationMessageForm(
+        request.POST,
+        placeholder="Introduce yourself, compare housing plans, or talk next steps.",
+    )
+    if form.is_valid():
+        try:
+            conversation, _, created = start_direct_conversation(request.user, recipient, form.cleaned_data["body"])
+        except ValidationError as exc:
+            if hasattr(exc, "message_dict"):
+                message = next(iter(exc.message_dict.values()))[0]
+            else:
+                message = exc.messages[0]
+            messages.error(request, message)
+        else:
+            messages.success(request, "Conversation started." if created else "Message sent.")
+            return redirect("communications:detail", conversation_id=conversation.pk)
+    else:
+        messages.error(request, "Enter a message before sending.")
+
+    return redirect(f"{reverse('users:public_profile', args=[recipient.pk])}#message-user")
 
 
 @login_required

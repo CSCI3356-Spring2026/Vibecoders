@@ -21,6 +21,25 @@
                 {% include "includes/admin_sidebar.html" with active_section="reports" %}
 
                 <div class="app-main">
+                    <div class="admin-stat-grid admin-stat-grid-compact">
+                        <div class="admin-stat-card admin-stat-card-primary">
+                            <span class="admin-stat-label">Open</span>
+                            <span class="admin-stat-value">{{ open_reports }}</span>
+                        </div>
+                        <div class="admin-stat-card admin-stat-card-secondary">
+                            <span class="admin-stat-label">In Review</span>
+                            <span class="admin-stat-value">{{ in_review_reports }}</span>
+                        </div>
+                        <div class="admin-stat-card admin-stat-card-accent">
+                            <span class="admin-stat-label">Closed</span>
+                            <span class="admin-stat-value">{{ closed_reports }}</span>
+                        </div>
+                        <div class="admin-stat-card admin-stat-card-warm">
+                            <span class="admin-stat-label">Listings Affected</span>
+                            <span class="admin-stat-value">{{ affected_listings }}</span>
+                        </div>
+                    </div>
+
                     <div class="listing-panel admin-filter">
                         <form method="get" class="admin-filter-form">
                             <div class="admin-filter-inputs">
@@ -52,20 +71,61 @@
                             <div class="admin-list-grid">
                                 {% for report in reports %}
                                     <div class="admin-list-item admin-list-item-static admin-report-card">
-                                        <div>
+                                        <div class="admin-report-main">
+                                            <div class="admin-report-topline">
+                                                <div class="admin-report-tags">
+                                                    <span class="admin-report-chip admin-report-chip-reason">{{ report.get_reason_display }}</span>
+                                                    <span class="admin-report-chip admin-report-chip-status admin-report-chip-status-{{ report.status }}">
+                                                        {{ report.get_status_display }}
+                                                    </span>
+                                                </div>
+                                                <div class="admin-list-meta">{{ report.created_at|date:"M d, Y · P" }}</div>
+                                            </div>
                                             <div class="admin-list-title">{{ report.listing.title }}</div>
                                             <div class="admin-list-meta">{{ report.listing.address }}</div>
-                                            <div class="admin-list-meta">{{ report.reporter.display_name }} reported {{ report.get_reason_display|lower }} on {{ report.created_at|date:"M d, Y" }}</div>
-                                            <div class="admin-list-meta">{{ report.details|default:"No details provided." }}</div>
-                                            <div class="admin-list-meta">Current status: {{ report.get_status_display }}</div>
+                                            <div class="admin-report-metadata">
+                                                <div>
+                                                    <span>Reported by</span>
+                                                    <strong>{{ report.reporter.display_name }}</strong>
+                                                    <small>{{ report.reporter.email }}</small>
+                                                </div>
+                                                <div>
+                                                    <span>Listing owner</span>
+                                                    <strong>{{ report.listing.owner.display_name }}</strong>
+                                                    <small>{{ report.listing.owner.email }}</small>
+                                                </div>
+                                                <div>
+                                                    <span>Last reviewed</span>
+                                                    <strong>{% if report.reviewed_at %}{{ report.reviewed_at|date:"M d, Y · P" }}{% else %}Not reviewed{% endif %}</strong>
+                                                    <small>{% if report.reviewed_by %}{{ report.reviewed_by.display_name }}{% else %}Moderation queue{% endif %}</small>
+                                                </div>
+                                            </div>
+                                            <div class="admin-report-note">
+                                                <span class="admin-report-note-label">Reporter details</span>
+                                                <p>{{ report.details|default:"No details provided." }}</p>
+                                            </div>
+                                            {% if report.resolution_notes %}
+                                                <div class="admin-report-note admin-report-note-resolution">
+                                                    <span class="admin-report-note-label">Resolution notes</span>
+                                                    <p>{{ report.resolution_notes }}</p>
+                                                </div>
+                                            {% endif %}
                                         </div>
                                         <form method="post" action="{% url 'users:admin_update_report' report.id %}" class="admin-report-form">
                                             {% csrf_token %}
-                                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                            <input type="hidden" name="next" value="{{ report.ui_next }}">
+                                            <label class="form-label fw-semibold" for="{{ report.ui_form.status.id_for_label }}">{{ report.ui_form.status.label }}</label>
                                             {{ report.ui_form.status }}
+                                            {% for error in report.ui_form.status.errors %}
+                                                <div class="app-field-error">{{ error }}</div>
+                                            {% endfor %}
+                                            <label class="form-label fw-semibold" for="{{ report.ui_form.resolution_notes.id_for_label }}">{{ report.ui_form.resolution_notes.label }}</label>
                                             {{ report.ui_form.resolution_notes }}
+                                            {% for error in report.ui_form.resolution_notes.errors %}
+                                                <div class="app-field-error">{{ error }}</div>
+                                            {% endfor %}
                                             <div class="admin-user-actions">
-                                                <button class="btn btn-outline-secondary btn-sm" type="submit">Update</button>
+                                                <button class="btn btn-brand btn-sm" type="submit">Update report</button>
                                                 <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:admin_listing_detail' report.listing.id %}">Open listing</a>
                                             </div>
                                         </form>

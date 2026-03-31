@@ -135,7 +135,7 @@
                         {% if can_browse_marketplace %}
                             <a class="app-compact-item" href="{% url 'listings:group_match' %}">
                                 <span class="app-compact-title">Group match</span>
-                                <span class="app-compact-meta">Compare group options.</span>
+                                <span class="app-compact-meta">Compatible roommates and homes.</span>
                             </a>
                         {% endif %}
                         {% if request.user.can_access_admin_panel %}
@@ -208,7 +208,7 @@
                         <div class="app-compact-list">
                             {% for conversation in recent_conversations %}
                                 <a class="app-compact-item" href="{% url 'communications:detail' conversation.id %}">
-                                    <span class="app-compact-title">{{ conversation.listing.title }}</span>
+                                    <span class="app-compact-title">{{ conversation.ui_context_title }}</span>
                                     <span class="app-compact-meta">
                                         {{ conversation.ui_counterparty.get_full_name|default:conversation.ui_counterparty.username }}
                                         {% if conversation.ui_has_unread %}• Unread{% endif %}

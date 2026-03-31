@@ -9,14 +9,16 @@ behavior, websocket delivery, and supporting selectors and services.
 
 | Model | Purpose |
 | --- | --- |
-| `ListingConversation` | One conversation per listing and participant |
+| `ListingConversation` | Listing-context or direct student-to-student conversation |
 | `ListingMessage` | Individual messages inside a conversation |
 
 ### Core relationship rule
 
-There is at most one conversation per `(listing, participant)`.
+There is at most one listing conversation per `(listing, participant)` and at most one direct
+conversation per student pair.
 
-That means the listing owner never has multiple parallel threads with the same renter for the same listing.
+That means the listing owner never has multiple parallel threads with the same renter for the same listing,
+and roommate matches do not spawn duplicate direct threads.
 
 ## Access Model
 
@@ -26,6 +28,13 @@ That means the listing owner never has multiple parallel threads with the same r
 - user can start listing conversations
 - listing is currently public and messageable
 - user is not the listing owner
+
+### Who can start a direct roommate chat
+
+- authenticated, active student
+- sender has a completed roommate profile
+- recipient is an active student with a completed roommate profile
+- sender is not messaging themself
 
 ### Who can send a reply
 
@@ -46,6 +55,10 @@ Routes live under `/users/messages/`:
 - delete for current viewer: `/users/messages/<conversation_id>/delete/`
 
 The inbox is server-rendered and progressively enhanced with realtime updates.
+
+Additional direct-message entry point:
+
+- `/users/messages/start/user/<user_id>/`
 
 ## Websocket Surface
 
@@ -73,6 +86,7 @@ The inbox is server-rendered and progressively enhanced with realtime updates.
 `communications/services.py` owns the important side effects:
 
 - creating or reusing listing conversations
+- creating or reusing direct roommate conversations
 - validating conversation participants
 - sending replies
 - updating unread flags and preview fields
@@ -115,8 +129,9 @@ The same policy applies to HTTP reply flow and websocket send flow.
 
 Conversation serialization includes only the data needed by the inbox UI:
 
-- listing summary
-- listing image URL
+- listing summary when the conversation is listing-context
+- roommate-chat context labels for direct conversations
+- listing image URL when a listing exists
 - counterparty display data
 - preview text and timestamp
 - unread status
@@ -134,5 +149,6 @@ Message serialization includes:
 - owner and participant cannot be the same user
 - only participants can send messages
 - message bodies are normalized and length-limited
-- conversations are unique per listing and participant
+- listing conversations are unique per listing and participant
+- direct conversations are unique per student pair
 - realtime events are delivered only after transaction commit

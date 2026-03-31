@@ -1,42 +1,15 @@
-.group-match-page .app-header-shell {
-    background:
-        linear-gradient(135deg, rgba(var(--white-rgb), 1), rgba(var(--secondary-rgb), 0.05)),
-        var(--surface-gradient-strong);
-}
-
 .group-match-header .app-subtitle {
-    max-width: 34rem;
-}
-
-.group-match-summary-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-width: 42rem;
 }
 
 .group-match-layout {
     grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+    gap: 1.25rem;
 }
 
-.group-match-planner {
+.group-match-sidebar {
     display: grid;
     gap: 1rem;
-}
-
-.group-match-method-kicker,
-.group-match-spotlight-kicker {
-    margin: 0 0 0.45rem;
-    color: var(--gray-500);
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-}
-
-.group-match-form-card .app-panel-head,
-.group-match-method-card .app-panel-head,
-.group-match-plan-section .app-panel-head,
-.group-match-comparison .app-panel-head,
-.group-plan-detail .group-plan-detail-head {
-    margin-bottom: 1rem;
 }
 
 .group-match-form .listing-form-field {
@@ -46,308 +19,210 @@
 .group-match-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.7rem;
-    margin-top: 1.25rem;
+    gap: 0.65rem;
+    margin-top: 1rem;
 }
 
-.group-match-method-card {
-    background:
-        linear-gradient(180deg, rgba(var(--secondary-rgb), 0.06), rgba(var(--white-rgb), 1) 34%),
-        var(--surface-gradient-soft);
-}
-
-.group-match-method-list {
-    display: grid;
-    gap: 0.9rem;
-}
-
-.group-match-method-item {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 0.9rem;
-    align-items: start;
-}
-
-.group-match-method-index {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2rem;
-    height: 2rem;
-    border-radius: 999px;
-    background: rgba(var(--secondary-rgb), 0.12);
-    color: var(--secondary-600);
-    font-size: 0.78rem;
-    font-weight: 700;
-}
-
-.group-match-method-item p {
-    margin: 0;
-    color: var(--text-default);
-    font-size: 0.88rem;
-    line-height: 1.55;
-}
-
-.group-match-results {
+.group-match-main {
     display: grid;
     gap: 1rem;
 }
 
-.group-match-spotlight {
+.group-plan-strip {
     display: grid;
-    grid-template-columns: minmax(0, 1.3fr) repeat(4, minmax(0, 0.82fr));
-    gap: 0.9rem;
-    background:
-        linear-gradient(135deg, rgba(var(--primary-rgb), 0.06), rgba(var(--white-rgb), 1) 38%),
-        var(--surface-gradient-soft);
-}
-
-.group-match-spotlight-copy {
-    min-width: 0;
-}
-
-.group-match-spotlight-title {
-    margin: 0;
-    color: var(--text-strong);
-    font-size: 1.45rem;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-}
-
-.group-match-spotlight-headline {
-    margin: 0.5rem 0 0;
-    color: var(--primary-600);
-    font-size: 0.95rem;
-    font-weight: 700;
-    line-height: 1.4;
-}
-
-.group-match-spotlight-summary {
-    margin: 0.55rem 0 0;
-    color: var(--text-muted);
-    font-size: 0.88rem;
-    line-height: 1.6;
-}
-
-.group-match-spotlight-stats {
-    display: contents;
-}
-
-.group-match-spotlight-metric,
-.group-plan-signal {
-    padding: 0.95rem 1rem;
-    border: 1px solid rgba(var(--gray-700-rgb), 0.14);
-    border-radius: var(--radius-md);
-    background: var(--surface-gradient);
-}
-
-.group-match-spotlight-metric span,
-.group-plan-signal span {
-    display: block;
-    color: var(--gray-500);
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-}
-
-.group-match-spotlight-metric strong,
-.group-plan-signal strong {
-    display: block;
-    margin-top: 0.35rem;
-    color: var(--text-strong);
-    font-size: 1.2rem;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    line-height: 1.1;
-}
-
-.group-match-plan-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.85rem;
 }
 
 .group-plan-card {
-    position: relative;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
-    width: 100%;
-    min-height: 100%;
-    padding: 1rem 1.05rem 1.05rem;
+    gap: 0.6rem;
+    padding: 1rem;
     border: 1px solid rgba(var(--gray-700-rgb), 0.16);
     border-radius: var(--radius-md);
-    background: var(--surface-gradient);
+    background: rgba(var(--white-rgb), 0.98);
     color: inherit;
-    text-align: left;
-    box-shadow: none;
-    transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
-}
-
-.group-plan-card::before {
-    content: "";
-    position: absolute;
-    top: 0.9rem;
-    bottom: 0.9rem;
-    left: 0.7rem;
-    width: 2px;
-    border-radius: 999px;
-    background: rgba(var(--primary-rgb), 0.24);
+    text-decoration: none;
+    transition: border-color 140ms ease, background-color 140ms ease;
 }
 
 .group-plan-card:hover {
-    border-color: rgba(var(--gray-700-rgb), 0.24);
-    background: var(--surface-gradient-strong);
-    transform: translateY(-1px);
+    border-color: rgba(var(--gray-700-rgb), 0.28);
+    background: rgba(var(--gray-100-rgb), 0.45);
 }
 
 .group-plan-card.is-active {
-    border-color: rgba(var(--primary-rgb), 0.5);
-    background: rgba(var(--primary-rgb), 0.05);
-}
-
-.group-plan-card.is-active::before {
-    background: var(--primary-600);
+    border-color: rgba(var(--primary-rgb), 0.42);
+    background: rgba(var(--primary-rgb), 0.06);
 }
 
 .group-plan-card-head {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    gap: 0.8rem;
-    padding-left: 0.55rem;
+    gap: 0.85rem;
 }
 
-.group-plan-card-title {
+.group-plan-card-title,
+.group-match-selected-title,
+.group-roommate-name {
     color: var(--text-strong);
-    font-size: 0.96rem;
+    font-size: 0.98rem;
     font-weight: 700;
-    line-height: 1.3;
+    letter-spacing: -0.02em;
 }
 
 .group-plan-card-fit {
     color: var(--primary-600);
-    font-size: 1.45rem;
+    font-size: 1.35rem;
     font-weight: 700;
     letter-spacing: -0.04em;
     line-height: 1;
 }
 
-.group-plan-card-headline {
+.group-plan-card-headline,
+.group-match-selected-headline,
+.group-match-selected-summary,
+.group-roommate-bio {
     margin: 0;
-    padding-left: 0.55rem;
     color: var(--text-default);
-    font-size: 0.87rem;
+    font-size: 0.86rem;
     line-height: 1.5;
 }
 
-.group-plan-card-meta {
+.group-plan-card-meta,
+.group-roommate-traits,
+.group-match-score-strip {
     display: flex;
     flex-wrap: wrap;
     gap: 0.45rem;
-    padding-left: 0.55rem;
 }
 
-.group-plan-card-meta span {
+.group-plan-card-meta span,
+.group-roommate-traits span {
     display: inline-flex;
     align-items: center;
-    padding: 0.35rem 0.56rem;
+    padding: 0.3rem 0.56rem;
+    border: 1px solid rgba(var(--gray-700-rgb), 0.12);
     border-radius: 999px;
-    background: rgba(var(--gray-100-rgb), 0.9);
-    color: var(--gray-700);
-    font-size: 0.76rem;
-    font-weight: 700;
-}
-
-.group-plan-card-bars {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.45rem;
-    padding-left: 0.55rem;
-}
-
-.group-plan-card-bars span {
-    height: 0.38rem;
-    border-radius: 999px;
-    background: linear-gradient(90deg, var(--primary-500), var(--secondary-500));
-}
-
-.group-compare-table {
-    margin: 0;
-}
-
-.group-compare-table thead {
-    background: rgba(var(--gray-100-rgb), 0.95);
-}
-
-.group-compare-table th,
-.group-compare-table td {
-    padding: 0.9rem 1rem;
-    vertical-align: middle;
-}
-
-.group-compare-table tbody tr {
-    cursor: pointer;
-    transition: background-color 140ms ease;
-}
-
-.group-compare-table tbody tr:hover {
     background: rgba(var(--gray-100-rgb), 0.7);
+    color: var(--gray-700);
+    font-size: 0.72rem;
+    font-weight: 600;
 }
 
-.group-compare-table tbody tr.is-active {
-    background: rgba(var(--primary-rgb), 0.08);
+.group-match-selected {
+    display: grid;
+    gap: 1rem;
 }
 
-.group-plan-detail-head {
+.group-match-selected-head {
     display: flex;
-    align-items: start;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
 }
 
-.group-plan-detail-meta {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 0.5rem;
+.group-match-selected-title {
+    font-size: 1.25rem;
 }
 
-.group-plan-signal-grid {
-    display: grid;
+.group-match-selected-headline {
+    margin-top: 0.35rem;
+    color: var(--primary-600);
+    font-weight: 600;
+}
+
+.group-match-selected-summary {
+    margin-top: 0.4rem;
+    max-width: 38rem;
+    color: var(--text-muted);
+}
+
+.group-match-selected-stats {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.group-match-score-strip {
+    gap: 0.75rem;
+}
+
+.group-plan-signal {
+    min-width: 0;
+    flex: 1 1 0;
+    padding: 0.9rem 1rem;
+    border: 1px solid rgba(var(--gray-700-rgb), 0.14);
+    border-radius: var(--radius-md);
+    background: rgba(var(--gray-100-rgb), 0.4);
+}
+
+.group-plan-signal span {
+    display: block;
+    color: var(--gray-500);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.group-plan-signal strong {
+    display: block;
+    margin-top: 0.25rem;
+    color: var(--text-strong);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.group-roommate-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 0.85rem;
-    margin-bottom: 1rem;
+}
+
+.group-roommate-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-height: 100%;
+    padding: 1rem;
+    border: 1px solid rgba(var(--gray-700-rgb), 0.14);
+    border-radius: var(--radius-md);
+    background: rgba(var(--white-rgb), 0.98);
+    color: inherit;
+    text-decoration: none;
+    transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.group-roommate-card:hover {
+    border-color: rgba(var(--gray-700-rgb), 0.24);
+    background: rgba(var(--gray-100-rgb), 0.4);
+}
+
+.group-roommate-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.group-roommate-meta {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+
+.group-roommate-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    margin-top: auto;
 }
 
 .group-listings-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 1rem;
-}
-
-.group-match-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.55rem;
-}
-
-@media (max-width: 1199px) {
-    .group-match-spotlight {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .group-match-spotlight-copy {
-        grid-column: 1 / -1;
-    }
-
-    .group-match-plan-grid,
-    .group-plan-signal-grid,
-    .group-listings-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
 }
 
 @media (max-width: 991px) {
@@ -355,26 +230,32 @@
         grid-template-columns: minmax(0, 1fr);
     }
 
-    .group-plan-detail-head {
+    .group-match-sidebar {
+        position: static;
+    }
+
+    .group-match-selected-head {
         flex-direction: column;
     }
 
-    .group-plan-detail-meta {
-        justify-content: flex-start;
+    .group-match-selected-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
-@media (max-width: 767.98px) {
-    .group-match-summary-grid,
-    .group-match-spotlight,
-    .group-match-plan-grid,
-    .group-plan-signal-grid,
-    .group-listings-grid {
+@media (max-width: 767px) {
+    .group-plan-strip,
+    .group-roommate-grid,
+    .group-listings-grid,
+    .group-match-selected-stats {
         grid-template-columns: minmax(0, 1fr);
     }
 
-    .group-plan-card-head {
-        align-items: flex-start;
+    .group-roommate-card-top {
+        flex-direction: column;
+    }
+
+    .group-match-score-strip {
         flex-direction: column;
     }
 }

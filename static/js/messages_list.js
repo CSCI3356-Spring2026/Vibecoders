@@ -48,7 +48,8 @@ export function createConversationListController({ conversationList, conversatio
     const updateConversationItem = (item, conversation) => {
         item.querySelector("[data-role='conversation-name']").textContent = conversation.counterparty_name;
         item.querySelector("[data-role='conversation-date']").textContent = formatShortDate(conversation.last_message_at);
-        item.querySelector("[data-role='conversation-subject']").textContent = conversation.listing_title;
+        item.querySelector("[data-role='conversation-subject']").textContent =
+            conversation.context_title || conversation.listing_title || "Conversation";
         item.querySelector("[data-role='conversation-preview']").textContent =
             conversation.last_message_preview || "No messages yet.";
         appendConversationMedia(item.querySelector("[data-role='conversation-media']"), conversation);

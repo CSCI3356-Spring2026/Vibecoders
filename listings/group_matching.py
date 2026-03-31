@@ -45,6 +45,7 @@ class Preferences:
 class GroupOption:
     option_id: str
     group_size: int
+    additional_roommates_needed: int
     fit_score: int
     budget_range: BudgetRange
     label: str
@@ -204,29 +205,8 @@ def _market_temperature(listings_count: int) -> str:
     return "Deep inventory"
 
 
-def _scenario_tone(preferences: Preferences) -> str:
-    if preferences.social >= 4 and preferences.cleanliness >= 4:
-        return "high-alignment"
-    if preferences.social >= 4:
-        return "social"
-    if preferences.cleanliness >= 4 and preferences.sleep_schedule == "early":
-        return "quiet"
-    if preferences.sleep_schedule == "late":
-        return "late-night"
-    return "balanced"
-
-
 def _scenario_label(*, group_size: int, preferences: Preferences) -> str:
-    tone = _scenario_tone(preferences)
-    if tone == "high-alignment":
-        return f"{group_size}-person fit"
-    if tone == "social":
-        return f"{group_size}-person social"
-    if tone == "quiet":
-        return f"{group_size}-person quiet"
-    if tone == "late-night":
-        return f"{group_size}-person late-night"
-    return f"{group_size}-person balanced"
+    return f"{group_size} people"
 
 
 def _scenario_headline(
@@ -236,17 +216,17 @@ def _scenario_headline(
     top_localities: tuple[str, ...],
 ) -> str:
     if listings_count == 0:
-        return "No live matches yet for this setup."
+        return "No approved homes in this range yet."
 
     locality_clause = ""
     if top_localities:
         locality_clause = f" in {', '.join(top_localities)}"
 
     if median_price_per_person is None:
-        return f"{listings_count} listing{'s' if listings_count != 1 else ''}{locality_clause}"
+        return f"{listings_count} home{'s' if listings_count != 1 else ''}{locality_clause}"
 
     return (
-        f"{listings_count} listing{'s' if listings_count != 1 else ''}{locality_clause} "
+        f"{listings_count} home{'s' if listings_count != 1 else ''}{locality_clause} "
         f"around ${median_price_per_person:,.0f} per person"
     )
 
@@ -261,12 +241,12 @@ def _scenario_summary(
 ) -> str:
     if listings_count == 0:
         if preferences.location_keywords:
-            return "Adjust the area or budget."
-        return "Adjust the budget or group size."
+            return "Try widening the area or the budget."
+        return "Try widening the budget or household size."
 
-    property_clause = dominant_property_type or "shared homes"
+    property_clause = (dominant_property_type or "homes").lower()
     locality_clause = ", ".join(top_localities) if top_localities else "the current search area"
-    return f"Best current mix: {property_clause.lower()} around {locality_clause}."
+    return f"Most options are {property_clause} around {locality_clause}."
 
 
 def listing_fit_score(listing, *, group_size: int, preferences: Preferences) -> int:
@@ -344,6 +324,7 @@ def build_group_options(
             GroupOption(
                 option_id=f"group-{group_size}",
                 group_size=group_size,
+                additional_roommates_needed=max(group_size - base_unit_size, 0),
                 fit_score=_fit_score(
                     inventory_score=inventory_score,
                     price_score=price_score,

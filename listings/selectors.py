@@ -1,4 +1,4 @@
-from django.db.models import Avg, BooleanField, Count, Exists, OuterRef, Q, Value
+from django.db.models import Avg, BooleanField, Case, Count, Exists, IntegerField, OuterRef, Q, Value, When
 
 from .models import Listing, ListingFavorite, ListingReport, ListingReview
 
@@ -26,12 +26,24 @@ def listing_reviews_queryset(listing):
 
 
 def listing_reports_queryset_for_admin(*, listing=None):
-    queryset = ListingReport.objects.select_related(
-        "listing",
-        "listing__owner",
-        "reporter",
-        "reviewed_by",
-    ).prefetch_related("reporter__socialaccount_set")
+    status_priority = Case(
+        When(status=ListingReport.STATUS_OPEN, then=Value(0)),
+        When(status=ListingReport.STATUS_IN_REVIEW, then=Value(1)),
+        When(status=ListingReport.STATUS_RESOLVED, then=Value(2)),
+        default=Value(3),
+        output_field=IntegerField(),
+    )
+    queryset = (
+        ListingReport.objects.select_related(
+            "listing",
+            "listing__owner",
+            "reporter",
+            "reviewed_by",
+        )
+        .prefetch_related("reporter__socialaccount_set")
+        .annotate(status_priority=status_priority)
+        .order_by("status_priority", "-created_at")
+    )
     if listing is not None:
         queryset = queryset.filter(listing=listing)
     return queryset

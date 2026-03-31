@@ -1,6 +1,7 @@
 import logging
 import re
 from decimal import Decimal
+from urllib.parse import urlencode
 
 import requests
 from django.conf import settings
@@ -15,6 +16,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from communications.forms import ConversationMessageForm
 from communications.models import ListingConversation
+from communications.selectors import direct_conversations_by_counterparty
 from communications.services import (
     MESSAGE_SEND_RATE_LIMIT_ERROR,
     consume_message_send_rate_limit,
@@ -22,6 +24,7 @@ from communications.services import (
 )
 from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
+from users.selectors import compatible_students_for_user
 
 from .address_provider import get_geoapify_autocomplete_config, normalize_geoapify_suggestions
 from .address_signing import sign_address_selection
@@ -82,6 +85,17 @@ GROUP_MATCH_DEFAULTS = {
     "desired_group_max": 5,
     "location_keywords": "",
 }
+GROUP_MATCH_QUERY_FIELDS = (
+    "unit_size",
+    "budget_min",
+    "budget_max",
+    "cleanliness",
+    "social",
+    "sleep_schedule",
+    "desired_group_min",
+    "desired_group_max",
+    "location_keywords",
+)
 
 
 def _workspace_destination(user):
@@ -438,6 +452,51 @@ def _group_match_preferences(raw_data):
     return preferences, location_keywords
 
 
+def _group_match_option_url(*, effective_data, option_id):
+    params = {
+        field_name: str(effective_data[field_name])
+        for field_name in GROUP_MATCH_QUERY_FIELDS
+        if field_name in effective_data and effective_data[field_name] not in ("", None)
+    }
+    params["group"] = option_id
+    return f"{reverse('listings:group_match')}?{urlencode(params)}"
+
+
+def _group_match_roommate_limit(additional_roommates_needed):
+    return min(max(additional_roommates_needed, 3), 6)
+
+
+def _group_match_roommate_matches(user):
+    base_matches = compatible_students_for_user(user, limit=18)
+    conversation_map = direct_conversations_by_counterparty(user, [match["user"] for match in base_matches])
+    decorated_matches = []
+    for match in base_matches:
+        score = match["score"]
+        conversation = conversation_map.get(match["user"].id)
+        if score is None:
+            score_variant = "neutral"
+        elif score >= 75:
+            score_variant = "primary"
+        elif score >= 50:
+            score_variant = "secondary"
+        else:
+            score_variant = "neutral"
+
+        decorated_matches.append(
+            {
+                **match,
+                "score_variant": score_variant,
+                "profile_url": f"{reverse('users:public_profile', args=[match['user'].id])}",
+                "message_url": reverse("communications:detail", args=[conversation.id])
+                if conversation is not None
+                else f"{reverse('users:public_profile', args=[match['user'].id])}#message-user",
+                "message_label": "Open chat" if conversation is not None else "Message",
+            }
+        )
+
+    return decorated_matches
+
+
 def _group_match_listings_by_size(user, *, unit_size, preferences):
     minimum_group_size = max(unit_size, preferences.desired_group_min)
     maximum_group_size = max(minimum_group_size, preferences.desired_group_max)
@@ -478,42 +537,33 @@ def group_match(request):
     selected_group_option = None
     location_keywords = ()
     effective_data = initial_data
-
+    form_is_valid = not bool(request.GET)
     if request.GET:
-        if form.is_valid():
+        form_is_valid = form.is_valid()
+        if form_is_valid:
             effective_data = form.cleaned_data
-        else:
-            return render(
-                request,
-                "listings/group_match.html",
-                {
-                    "form": form,
-                    "group_options": [],
-                    "selected_group_id": "",
-                    "selected_group_option": None,
-                    "location_keywords": (),
-                    "group_match_uses_profile_defaults": False,
-                    "group_match_total_matches": 0,
-                    "group_match_sizes_with_inventory": 0,
-                },
-            )
 
-    preferences, location_keywords = _group_match_preferences(effective_data)
-    listings_by_size = _group_match_listings_by_size(
-        request.user,
-        unit_size=int(effective_data["unit_size"]),
-        preferences=preferences,
-    )
-    group_options = build_group_options(
-        base_unit_size=int(effective_data["unit_size"]),
-        preferences=preferences,
-        listings_by_size=listings_by_size,
-        max_options=6,
-    )
+    if form_is_valid:
+        preferences, location_keywords = _group_match_preferences(effective_data)
+        listings_by_size = _group_match_listings_by_size(
+            request.user,
+            unit_size=int(effective_data["unit_size"]),
+            preferences=preferences,
+        )
+        group_options = build_group_options(
+            base_unit_size=int(effective_data["unit_size"]),
+            preferences=preferences,
+            listings_by_size=listings_by_size,
+            max_options=6,
+        )
+
+    roommate_matches = _group_match_roommate_matches(request.user)
 
     listing_limit = 6
     for option in group_options:
         option.listings = _apply_listing_ui_flags(list(option.listings[:listing_limit]), request.user)
+        option.roommate_matches = roommate_matches[: _group_match_roommate_limit(option.additional_roommates_needed)]
+        option.select_url = _group_match_option_url(effective_data=effective_data, option_id=option.option_id)
 
     selected_group_id = request.GET.get("group") or (group_options[0].option_id if group_options else "")
     if selected_group_id and not any(option.option_id == selected_group_id for option in group_options):
@@ -526,7 +576,11 @@ def group_match(request):
         "selected_group_id": selected_group_id,
         "selected_group_option": selected_group_option,
         "location_keywords": location_keywords,
-        "group_match_uses_profile_defaults": not bool(request.GET) and hasattr(request.user, "student_profile"),
+        "group_match_uses_profile_defaults": not bool(request.GET) and bool(request.user.profile_completed_at),
+        "group_match_has_profile": bool(request.user.profile_completed_at),
+        "group_match_current_group_size": int(effective_data["unit_size"]),
+        "group_match_roommate_matches_total": len(roommate_matches),
+        "group_match_roommate_matches": roommate_matches[:6],
         "group_match_total_matches": sum(option.listings_count for option in group_options),
         "group_match_sizes_with_inventory": sum(1 for option in group_options if option.listings_count),
     }

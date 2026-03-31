@@ -71,6 +71,16 @@ LISTING_REPORT_STATUS_VALUES = tuple(value for value, _ in LISTING_REPORT_STATUS
 LISTING_REPORT_REASON_VALUES = tuple(value for value, _ in LISTING_REPORT_REASON_CHOICES)
 
 
+def _submission_context_changed(instance, *, identity_fields):
+    if instance._state.adding or not instance.pk:
+        return True
+
+    original_values = type(instance).objects.filter(pk=instance.pk).values(*identity_fields).first()
+    if original_values is None:
+        return True
+    return any(original_values[field_name] != getattr(instance, field_name) for field_name in identity_fields)
+
+
 class ListingQuerySet(models.QuerySet):
     def with_related(self):
         return self.select_related("owner", "reviewed_by").prefetch_related("images", "owner__socialaccount_set")
@@ -451,18 +461,19 @@ class ListingReview(models.Model):
         super().clean()
         if not self.listing_id:
             return
-        user_model = get_user_model()
-        if self.author_id and not user_model._default_manager.filter(pk=self.author_id, role="student").exists():
-            raise ValidationError({"comment": "Only student accounts can leave resident reviews."})
-        listing_owner_id = getattr(self.listing, "owner_id", None)
-        if listing_owner_id is None:
-            listing_owner_id = Listing.objects.filter(pk=self.listing_id).values_list("owner_id", flat=True).first()
-        if self.author_id and listing_owner_id == self.author_id:
-            raise ValidationError({"comment": "You cannot review your own listing."})
-        if not Listing.objects.filter(pk=self.listing_id, approval_status=Listing.APPROVAL_APPROVED).exists():
-            raise ValidationError({"comment": "Only approved listings can receive public reviews."})
-        if self.author_id and not self.listing.conversations.filter(participant_id=self.author_id).exists():
-            raise ValidationError({"comment": "Contact the lister before leaving a resident review."})
+        if _submission_context_changed(self, identity_fields=("listing_id", "author_id")):
+            user_model = get_user_model()
+            if self.author_id and not user_model._default_manager.filter(pk=self.author_id, role="student").exists():
+                raise ValidationError({"comment": "Only student accounts can leave resident reviews."})
+            listing_owner_id = getattr(self.listing, "owner_id", None)
+            if listing_owner_id is None:
+                listing_owner_id = Listing.objects.filter(pk=self.listing_id).values_list("owner_id", flat=True).first()
+            if self.author_id and listing_owner_id == self.author_id:
+                raise ValidationError({"comment": "You cannot review your own listing."})
+            if not Listing.objects.filter(pk=self.listing_id, approval_status=Listing.APPROVAL_APPROVED).exists():
+                raise ValidationError({"comment": "Only approved listings can receive public reviews."})
+            if self.author_id and not self.listing.conversations.filter(participant_id=self.author_id).exists():
+                raise ValidationError({"comment": "Contact the lister before leaving a resident review."})
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -524,24 +535,34 @@ class ListingReport(models.Model):
             models.Index(fields=["reporter", "created_at"], name="listing_report_reporter_idx"),
         ]
 
+    @property
+    def is_closed(self):
+        return self.status in {self.STATUS_RESOLVED, self.STATUS_DISMISSED}
+
     def clean(self):
         super().clean()
         if not self.listing_id:
             return
-        user_model = get_user_model()
-        if self.reporter_id and not user_model._default_manager.filter(pk=self.reporter_id, role="student").exists():
-            raise ValidationError({"details": "Only student accounts can report listings."})
-        listing_owner_id = getattr(self.listing, "owner_id", None)
-        if listing_owner_id is None:
-            listing_owner_id = Listing.objects.filter(pk=self.listing_id).values_list("owner_id", flat=True).first()
-        if self.reporter_id and listing_owner_id == self.reporter_id:
-            raise ValidationError({"details": "You cannot report your own listing."})
-        if not Listing.objects.filter(pk=self.listing_id, approval_status=Listing.APPROVAL_APPROVED).exists():
-            raise ValidationError({"details": "Only approved listings can be reported."})
+        if _submission_context_changed(self, identity_fields=("listing_id", "reporter_id")):
+            user_model = get_user_model()
+            reporter_is_student = user_model._default_manager.filter(pk=self.reporter_id, role="student").exists()
+            if self.reporter_id and not reporter_is_student:
+                raise ValidationError({"details": "Only student accounts can report listings."})
+            listing_owner_id = getattr(self.listing, "owner_id", None)
+            if listing_owner_id is None:
+                listing_owner_id = Listing.objects.filter(pk=self.listing_id).values_list("owner_id", flat=True).first()
+            if self.reporter_id and listing_owner_id == self.reporter_id:
+                raise ValidationError({"details": "You cannot report your own listing."})
+            if not Listing.objects.filter(pk=self.listing_id, approval_status=Listing.APPROVAL_APPROVED).exists():
+                raise ValidationError({"details": "Only approved listings can be reported."})
+        if self.status in {self.STATUS_RESOLVED, self.STATUS_DISMISSED} and not (self.resolution_notes or "").strip():
+            raise ValidationError({"resolution_notes": "Add resolution notes before closing a report."})
 
     def mark_status(self, *, status, reviewer, resolution_notes=""):
         self.status = status
         cleaned_notes = resolution_notes.strip()
+        if status in {self.STATUS_RESOLVED, self.STATUS_DISMISSED} and not cleaned_notes:
+            raise ValidationError({"resolution_notes": "Add resolution notes before closing a report."})
         if status == self.STATUS_OPEN:
             self.reviewed_by = None
             self.reviewed_at = None

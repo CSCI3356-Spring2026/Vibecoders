@@ -70,6 +70,8 @@ Rules:
 
 - closing a report as resolved or dismissed requires notes
 - reopening to `open` clears prior reviewer and resolution metadata
+- the queue surfaces reporter, listing owner, and prior moderation context on each report card
+- historical reports remain moderatable even if the original reporter's account role changes later
 - report updates are logged
 
 ## User Administration

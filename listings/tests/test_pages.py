@@ -15,6 +15,7 @@ from django.db import connection
 from django.test import override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
+from django.utils import timezone
 from PIL import Image
 
 from communications.models import ListingConversation, ListingMessage
@@ -2320,9 +2321,53 @@ class GroupMatchPageTests(ListingTestCase):
         self.assertIn(matching_listing.id, listing_ids)
         self.assertNotIn(pricey_listing.id, listing_ids)
         self.assertNotIn(wrong_size_listing.id, listing_ids)
-        self.assertNotContains(response, "Compatible duo")
+        self.assertContains(response, "4 people")
+        self.assertNotContains(response, "Luxury option")
+        self.assertNotContains(response, "Smaller spot")
 
-    def test_group_match_results_render_first_selected_panel_expanded(self):
+    def test_group_match_page_surfaces_compatible_roommates(self):
+        my_profile = self.user.student_profile
+        my_profile.major = "Computer Science"
+        my_profile.bio = "Clean and pretty quiet."
+        my_profile.messy_level = 4
+        my_profile.guest_level = 2
+        my_profile.bedtime = 23
+        my_profile.noise_level = 2
+        my_profile.drink = 2
+        my_profile.party = 2
+        my_profile.save()
+        self.user.profile_completed_at = timezone.now()
+        self.user.save(update_fields=["profile_completed_at"])
+        roommate = get_user_model().objects.create_user(
+            username="match",
+            email="match@bc.edu",
+            password="testpass123",
+            first_name="Riley",
+        )
+        roommate_profile = roommate.student_profile
+        roommate_profile.major = "Biology"
+        roommate_profile.bio = "Prefers quieter nights and shared routines."
+        roommate_profile.messy_level = 4
+        roommate_profile.guest_level = 2
+        roommate_profile.bedtime = 23
+        roommate_profile.noise_level = 2
+        roommate_profile.drink = 2
+        roommate_profile.party = 2
+        roommate_profile.save()
+        roommate.profile_completed_at = timezone.now()
+        roommate.save(update_fields=["profile_completed_at"])
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:group_match"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Compatible roommates")
+        self.assertContains(response, roommate.display_name)
+        self.assertContains(response, "100% match")
+        self.assertContains(response, reverse("users:public_profile", args=[roommate.pk]))
+        self.assertContains(response, "Message")
+
+    def test_group_match_results_render_single_active_plan_card(self):
         self.client.force_login(self.user)
         self.create_listing(
             title="Allston group home",
@@ -2347,7 +2392,8 @@ class GroupMatchPageTests(ListingTestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'aria-expanded="true"', count=1)
+        self.assertContains(response, "Selected Plan")
+        self.assertContains(response, "group-plan-card is-active", count=1)
 
     def test_listing_owner_cannot_favorite_their_own_listing(self):
         listing = self.create_listing()

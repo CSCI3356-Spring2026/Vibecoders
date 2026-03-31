@@ -298,6 +298,7 @@ class UserPageTests(TestCase):
         self.assertContains(response, "user-avatar-image")
         self.assertContains(response, "https://example.com/eagle-avatar.png")
         self.assertNotContains(response, ">Group match<", html=False)
+        self.assertNotContains(response, ">Browse<", html=False)
 
     def test_account_dashboard_shows_google_avatar_when_available(self):
         SocialAccount.objects.create(
@@ -327,11 +328,83 @@ class UserPageTests(TestCase):
         self.assertContains(dashboard_response, self.user.display_role)
         self.assertContains(dashboard_response, "Open document library")
         self.assertContains(dashboard_response, ">Group match<", html=False)
+        self.assertNotContains(dashboard_response, ">Browse<", html=False)
         self.assertContains(dashboard_response, "Workspace")
         self.assertNotContains(dashboard_response, "Permissions")
         self.assertNotContains(dashboard_response, "Email verification")
         self.assertNotContains(dashboard_response, "Student domains")
         self.assertNotContains(dashboard_response, "Admin access")
+
+    def test_browse_route_redirects_to_group_match_workspace(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("users:browse_roommates"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], f"{reverse('listings:group_match')}#roommate-matches")
+
+    def test_public_profile_shows_direct_message_entry_point(self):
+        target = User.objects.create_user(username="match", email="match@bc.edu", password="test", first_name="Riley")
+        self.user.profile_completed_at = timezone.now()
+        self.user.save(update_fields=["profile_completed_at"])
+        target.profile_completed_at = timezone.now()
+        target.save(update_fields=["profile_completed_at"])
+        target.student_profile.major = "Biology"
+        target.student_profile.save(update_fields=["major"])
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("users:public_profile", args=[target.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Message Riley")
+        self.assertContains(response, reverse("communications:start_direct_conversation", args=[target.id]))
+        self.assertContains(response, "Start chat")
+
+    def test_user_can_start_direct_conversation_from_public_profile(self):
+        target = User.objects.create_user(username="match", email="match@bc.edu", password="test", first_name="Riley")
+        self.user.profile_completed_at = timezone.now()
+        self.user.save(update_fields=["profile_completed_at"])
+        target.profile_completed_at = timezone.now()
+        target.save(update_fields=["profile_completed_at"])
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("communications:start_direct_conversation", args=[target.id]),
+            {"body": "Hey, want to compare housing plans?"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        conversation = ListingConversation.objects.get()
+        self.assertTrue(conversation.is_direct)
+        self.assertIsNone(conversation.listing)
+        self.assertRedirects(
+            response,
+            reverse("communications:detail", args=[conversation.id]),
+            fetch_redirect_response=False,
+        )
+
+    def test_public_profile_requires_completed_roommate_profile(self):
+        target = User.objects.create_user(username="match", email="match@bc.edu", password="test", first_name="Riley")
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("users:public_profile", args=[target.id]))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_direct_message_post_requires_completed_roommate_profile(self):
+        target = User.objects.create_user(username="match", email="match@bc.edu", password="test", first_name="Riley")
+        target.profile_completed_at = timezone.now()
+        target.save(update_fields=["profile_completed_at"])
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("communications:start_direct_conversation", args=[target.id]),
+            {"body": "Hey, want to compare housing plans?"},
+            follow=True,
+        )
+
+        self.assertEqual(ListingConversation.objects.count(), 0)
+        self.assertContains(response, "Complete your roommate profile before messaging matches.")
 
     def test_stale_legal_acceptance_logs_user_out_until_reaccepted(self):
         self.user.terms_accepted_at = timezone.now()
@@ -677,6 +750,25 @@ assert.equal(root.classList.contains("is-open"), false);
 
         self.assertContains(response, "https://example.com/student-avatar.png")
 
+    def test_messages_page_renders_direct_conversation_context(self):
+        participant = User.objects.create_user(username="student", email="student@bc.edu", password="test")
+        participant.student_profile.major = "Nursing"
+        participant.student_profile.save(update_fields=["major"])
+        conversation = ListingConversation.objects.create(
+            conversation_type=ListingConversation.CONVERSATION_TYPE_DIRECT,
+            owner=self.user,
+            participant=participant,
+        )
+        conversation.add_message(sender=participant, body="Want to search together?")
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("communications:messages"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Roommate chat")
+        self.assertContains(response, "View profile")
+        self.assertContains(response, "Direct chat")
+
     def test_opening_conversation_marks_it_read_for_current_user(self):
         listing = self.user.listings.create(
             title="My listing",
@@ -981,6 +1073,44 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertEqual(report.status, ListingReport.STATUS_RESOLVED)
         self.assertEqual(report.reviewed_by, admin)
 
+    def test_admin_reports_page_can_update_historical_report_after_reporter_role_changes(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        owner = User.objects.create_user(username="owner-three", email="owner-three@bc.edu", password="test")
+        reporter = User.objects.create_user(username="reporter-three", email="reporter-three@bc.edu", password="test")
+        listing = owner.listings.create(
+            title="Historic report listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status="approved",
+        )
+        report = ListingReport.objects.create(
+            listing=listing,
+            reporter=reporter,
+            reason=ListingReport.REASON_SAFETY,
+            details="The lockbox code is posted in the photos.",
+        )
+        reporter.set_admin_access(True)
+        reporter.save(update_fields=["role"])
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            reverse("users:admin_update_report", args=[report.id]),
+            {
+                f"report-{report.id}-status": ListingReport.STATUS_IN_REVIEW,
+                f"report-{report.id}-resolution_notes": "Escalated to the trust and safety queue.",
+                "next": reverse("users:admin_reports"),
+            },
+            follow=False,
+        )
+
+        report.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(report.status, ListingReport.STATUS_IN_REVIEW)
+        self.assertEqual(report.reviewed_by, admin)
+
     def test_admin_reports_page_requires_resolution_notes_to_close_report(self):
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
         owner = User.objects.create_user(username="owner-two", email="owner-two@bc.edu", password="test")
@@ -1013,7 +1143,7 @@ assert.equal(root.classList.contains("is-open"), false);
         )
 
         report.refresh_from_db()
-        self.assertContains(response, "Add valid resolution notes before updating the report.")
+        self.assertContains(response, "Add valid resolution notes before closing out a report.")
         self.assertEqual(report.status, ListingReport.STATUS_OPEN)
 
     def test_user_can_delete_their_account(self):

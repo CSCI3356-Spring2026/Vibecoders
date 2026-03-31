@@ -9,6 +9,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.signing import BadSignature, SignatureExpired
 from django.db import IntegrityError, transaction
 from django.test.utils import override_settings
+from django.utils import timezone
 from PIL import Image
 
 from communications.models import ListingConversation
@@ -17,6 +18,7 @@ from communications.services import (
     delete_conversation_for_user,
     send_listing_message,
     serialize_conversation_for_user,
+    start_direct_conversation,
     start_listing_conversation,
 )
 
@@ -29,6 +31,10 @@ from .base import ListingTestCase
 
 
 class ListingModelTests(ListingTestCase):
+    def _complete_roommate_profile(self, user):
+        user.profile_completed_at = timezone.now()
+        user.save(update_fields=["profile_completed_at"])
+
     def _image_upload(self, name="photo.png"):
         buffer = BytesIO()
         Image.new("RGB", (8, 8), color=(79, 70, 229)).save(buffer, format="PNG")
@@ -407,6 +413,73 @@ class ListingModelTests(ListingTestCase):
         payload = serialize_conversation_for_user(conversation, participant)
 
         self.assertEqual(payload["counterparty_avatar_url"], "https://example.com/owner-avatar.png")
+
+    def test_start_direct_conversation_creates_direct_thread(self):
+        participant = self.user.__class__.objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="test",
+        )
+        self._complete_roommate_profile(self.user)
+        self._complete_roommate_profile(participant)
+
+        conversation, message, created = start_direct_conversation(self.user, participant, "Want to compare options?")
+
+        self.assertTrue(created)
+        self.assertTrue(conversation.is_direct)
+        self.assertIsNone(conversation.listing)
+        self.assertEqual(message.sender, self.user)
+        self.assertEqual(message.body, "Want to compare options?")
+        self.assertEqual(conversation.last_message_preview, "Want to compare options?")
+
+    def test_start_direct_conversation_reuses_existing_pair(self):
+        participant = self.user.__class__.objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="test",
+        )
+        self._complete_roommate_profile(self.user)
+        self._complete_roommate_profile(participant)
+        first_conversation, _, _ = start_direct_conversation(self.user, participant, "First note")
+
+        second_conversation, _, created = start_direct_conversation(participant, self.user, "Replying back")
+
+        self.assertFalse(created)
+        self.assertEqual(first_conversation.id, second_conversation.id)
+        self.assertEqual(ListingConversation.objects.filter(conversation_type="direct").count(), 1)
+
+    def test_direct_conversation_payload_uses_roommate_context(self):
+        participant = self.user.__class__.objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="test",
+            first_name="Riley",
+        )
+        self._complete_roommate_profile(self.user)
+        self._complete_roommate_profile(participant)
+        participant.student_profile.major = "Biology"
+        participant.student_profile.save(update_fields=["major"])
+        conversation, _, _ = start_direct_conversation(self.user, participant, "Want to compare options?")
+
+        payload = serialize_conversation_for_user(conversation, self.user)
+
+        self.assertEqual(payload["conversation_type"], "direct")
+        self.assertEqual(payload["context_title"], "Roommate chat")
+        self.assertEqual(payload["context_subtitle"], "Biology")
+        self.assertEqual(payload["listing_title"], "")
+
+    def test_start_direct_conversation_requires_completed_roommate_profiles(self):
+        participant = self.user.__class__.objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="test",
+        )
+        self._complete_roommate_profile(participant)
+
+        with self.assertRaises(ValidationError) as exc:
+            start_direct_conversation(self.user, participant, "Want to compare options?")
+
+        self.assertIn("Complete your roommate profile before messaging matches.", exc.exception.message_dict["body"][0])
 
     def test_deleting_conversation_hides_it_for_one_user_only(self):
         participant = self.user.__class__.objects.create_user(

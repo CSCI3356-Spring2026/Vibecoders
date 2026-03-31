@@ -196,6 +196,10 @@
     font-weight: 600;
 }
 
+.admin-stat-grid-compact {
+    margin-bottom: 1rem;
+}
+
 .admin-table-grid th {
     color: var(--gray-500);
     font-size: 0.85rem;
@@ -339,6 +343,7 @@
 }
 
 .admin-report-card {
+    align-items: stretch;
     gap: 1.2rem;
 }
 
@@ -346,6 +351,132 @@
     display: grid;
     gap: 0.65rem;
     min-width: min(18rem, 100%);
+}
+
+.admin-report-main {
+    display: grid;
+    gap: 0.8rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.admin-report-topline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.admin-report-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.admin-report-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.28rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.admin-report-chip-reason {
+    background: rgba(var(--primary-rgb), 0.1);
+    color: var(--primary-600);
+}
+
+.admin-report-chip-status {
+    border: 1px solid transparent;
+}
+
+.admin-report-chip-status-open {
+    background: rgba(var(--accent-rgb), 0.14);
+    color: var(--accent-ink);
+}
+
+.admin-report-chip-status-in_review {
+    background: rgba(var(--primary-rgb), 0.12);
+    color: var(--primary-600);
+}
+
+.admin-report-chip-status-resolved {
+    background: rgba(var(--secondary-rgb), 0.12);
+    color: var(--secondary-600);
+}
+
+.admin-report-chip-status-dismissed {
+    background: rgba(var(--gray-300-rgb), 0.5);
+    color: var(--gray-700);
+}
+
+.admin-report-metadata {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    gap: 0.8rem;
+}
+
+.admin-report-metadata div {
+    padding: 0.8rem 0.9rem;
+    border: 1px solid rgba(var(--gray-300-rgb), 0.75);
+    border-radius: 0.8rem;
+    background: rgba(var(--white-rgb), 0.82);
+}
+
+.admin-report-metadata span {
+    display: block;
+    margin-bottom: 0.2rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gray-500);
+}
+
+.admin-report-metadata strong,
+.admin-report-metadata small {
+    display: block;
+}
+
+.admin-report-metadata strong {
+    color: var(--gray-900);
+    font-size: 0.92rem;
+}
+
+.admin-report-metadata small {
+    color: var(--gray-500);
+    font-size: 0.8rem;
+}
+
+.admin-report-note {
+    padding: 0.9rem 1rem;
+    border-radius: 0.8rem;
+    border: 1px solid rgba(var(--gray-300-rgb), 0.75);
+    background: rgba(var(--white-rgb), 0.86);
+}
+
+.admin-report-note-label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gray-500);
+}
+
+.admin-report-note p {
+    margin: 0;
+    color: var(--gray-700);
+    line-height: 1.6;
+}
+
+.admin-report-note-resolution {
+    background: rgba(var(--secondary-rgb), 0.08);
 }
 
 @media (max-width: 991.98px) {

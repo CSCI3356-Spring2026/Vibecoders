@@ -29,6 +29,34 @@ def conversation_summary_for_user(user):
     return summary
 
 
+def direct_conversation_between_users(user, other_user):
+    return (
+        accessible_conversations_for_user(user)
+        .filter(conversation_type=ListingConversation.CONVERSATION_TYPE_DIRECT)
+        .filter(Q(owner=other_user) | Q(participant=other_user))
+        .first()
+    )
+
+
+def direct_conversations_by_counterparty(user, counterparties):
+    counterparty_ids = [counterparty.id for counterparty in counterparties if getattr(counterparty, "id", None)]
+    if not counterparty_ids:
+        return {}
+
+    conversations = (
+        accessible_conversations_for_user(user)
+        .filter(conversation_type=ListingConversation.CONVERSATION_TYPE_DIRECT)
+        .filter(Q(owner_id__in=counterparty_ids) | Q(participant_id__in=counterparty_ids))
+    )
+
+    mapping = {}
+    for conversation in conversations:
+        counterparty = conversation.counterparty_for(user)
+        if counterparty is not None:
+            mapping[counterparty.id] = conversation
+    return mapping
+
+
 def user_related_conversations_queryset(user):
     return ListingConversation.objects.with_related().filter(Q(owner=user) | Q(participant=user))
 

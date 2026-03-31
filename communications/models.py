@@ -19,7 +19,13 @@ def normalize_message_body(body):
 
 class ListingConversationQuerySet(models.QuerySet):
     def with_related(self):
-        return self.select_related("listing", "owner", "participant").prefetch_related(
+        return self.select_related(
+            "listing",
+            "owner",
+            "owner__student_profile",
+            "participant",
+            "participant__student_profile",
+        ).prefetch_related(
             "listing__images",
             "owner__socialaccount_set",
             "participant__socialaccount_set",
@@ -34,7 +40,26 @@ class ListingConversationQuerySet(models.QuerySet):
 
 
 class ListingConversation(models.Model):
-    listing = models.ForeignKey("listings.Listing", related_name="conversations", on_delete=models.CASCADE)
+    CONVERSATION_TYPE_LISTING = "listing"
+    CONVERSATION_TYPE_DIRECT = "direct"
+    CONVERSATION_TYPE_CHOICES = [
+        (CONVERSATION_TYPE_LISTING, "Listing"),
+        (CONVERSATION_TYPE_DIRECT, "Direct"),
+    ]
+
+    listing = models.ForeignKey(
+        "listings.Listing",
+        related_name="conversations",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+    )
+    conversation_type = models.CharField(
+        max_length=12,
+        choices=CONVERSATION_TYPE_CHOICES,
+        default=CONVERSATION_TYPE_LISTING,
+        db_index=True,
+    )
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         related_name="owned_listing_conversations",
@@ -58,7 +83,16 @@ class ListingConversation(models.Model):
         db_table = "listings_listingconversation"
         ordering = ["-last_message_at", "-created_at"]
         constraints = [
-            models.UniqueConstraint(fields=["listing", "participant"], name="unique_listing_conversation_participant"),
+            models.UniqueConstraint(
+                fields=["listing", "participant"],
+                condition=Q(conversation_type="listing"),
+                name="unique_listing_conversation_participant",
+            ),
+            models.UniqueConstraint(
+                fields=["owner", "participant"],
+                condition=Q(conversation_type="direct"),
+                name="unique_direct_conversation_pair",
+            ),
             models.CheckConstraint(
                 condition=~Q(owner=F("participant")),
                 name="listing_conversation_owner_ne_participant",
@@ -86,10 +120,19 @@ class ListingConversation(models.Model):
 
     def clean(self):
         super().clean()
-        if self.listing_id and self.owner_id and self.listing.owner_id != self.owner_id:
+        if self.conversation_type == self.CONVERSATION_TYPE_LISTING and not self.listing_id:
+            raise ValidationError({"listing": "Listing conversations require a listing."})
+        if self.conversation_type == self.CONVERSATION_TYPE_DIRECT and self.listing_id:
+            raise ValidationError({"listing": "Direct conversations cannot reference a listing."})
+        if (
+            self.conversation_type == self.CONVERSATION_TYPE_LISTING
+            and self.listing_id
+            and self.owner_id
+            and self.listing.owner_id != self.owner_id
+        ):
             raise ValidationError({"owner": "Conversation owner must match the listing owner."})
         if self.owner_id and self.participant_id and self.owner_id == self.participant_id:
-            raise ValidationError({"participant": "Listing owners cannot open a conversation with themselves."})
+            raise ValidationError({"participant": "Users cannot open a conversation with themselves."})
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -103,11 +146,47 @@ class ListingConversation(models.Model):
         return None
 
     def counterparty_role_label_for(self, user):
+        if self.is_direct:
+            counterparty = self.counterparty_for(user)
+            if counterparty is None:
+                return ""
+            if getattr(counterparty, "is_student", False):
+                return "Roommate match"
+            return counterparty.display_role
         if user.id == self.owner_id:
             return "Interested renter"
         if user.id == self.participant_id:
             return "Listing owner"
         return ""
+
+    @property
+    def is_direct(self):
+        return self.conversation_type == self.CONVERSATION_TYPE_DIRECT
+
+    @property
+    def is_listing_context(self):
+        return self.conversation_type == self.CONVERSATION_TYPE_LISTING
+
+    def context_title_for(self, user):
+        if self.is_direct:
+            return "Roommate chat"
+        return self.listing.title
+
+    def context_subtitle_for(self, user):
+        if self.is_direct:
+            counterparty = self.counterparty_for(user)
+            if counterparty is None:
+                return ""
+            profile = getattr(counterparty, "student_profile", None)
+            if profile and profile.major:
+                return profile.major
+            return counterparty.display_role
+        return self.listing.address
+
+    def context_meta_for(self, user):
+        if self.is_direct:
+            return self.counterparty_role_label_for(user)
+        return f"${self.listing.price}/mo • {self.listing.get_status_display()}"
 
     def has_unread_for(self, user):
         if user.id == self.owner_id:
@@ -195,6 +274,8 @@ class ListingConversation(models.Model):
         return message
 
     def __str__(self):
+        if self.is_direct:
+            return f"Direct conversation between {self.owner} and {self.participant}"
         return f"Conversation about {self.listing} with {self.participant}"
 
 

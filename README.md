@@ -6,9 +6,10 @@ Padly is a student housing and subletting marketplace built by Vibecoders for th
 
 - Google OAuth sign-in with verified-email-based role assignment
 - Marketplace flows for creating, managing, browsing, and messaging about listings
+- Roommate matching with compatibility profiles and direct student-to-student chat
 - Role model for `Student`, `Realtor`, and `Admin` users
 - Real-time conversations between listing owners and interested renters
-- Admin tooling for moderation and operations
+- Admin tooling for listing approval, report moderation, and operations
 - Private user-file handling through authenticated views
 
 ## Architecture
@@ -114,8 +115,10 @@ Common environment variables:
 - `LISTING_GEOAPIFY_API_KEY`: required for verified address authoring and used to derive the default Geoapify map style URL
 - `LISTING_GEOAPIFY_AUTOCOMPLETE_URL`: optional override for the Geoapify autocomplete endpoint
 - `LISTING_GEOAPIFY_MAP_STYLE_URL`: optional MapLibre style override; if blank and `LISTING_GEOAPIFY_API_KEY` is set, Padly uses Geoapify's `positron` style automatically
+- `LISTING_MAP_SATELLITE_STYLE_URL`: optional satellite style override; defaults to the built-in satellite fallback
 - `LISTING_GEOCODING_ENABLED`: legacy geocoding helper toggle; verified address selection is now the create/edit source of truth
 - `LISTING_GEOCODER_URL` / `LISTING_GEOCODER_USER_AGENT` / `LISTING_GEOCODER_TIMEOUT_SECONDS`: legacy geocoder controls
+- `LISTING_REPORT_RATE_LIMIT` / `LISTING_REPORT_RATE_WINDOW_SECONDS`: listing-report submission burst control
 
 Listings authoring now fails closed when Geoapify autocomplete is not configured. Users must choose a verified suggestion on create, and freeform addresses are not accepted as a fallback.
 

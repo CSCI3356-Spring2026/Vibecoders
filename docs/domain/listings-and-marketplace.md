@@ -168,11 +168,17 @@ Reports let student users flag approved listings for admin review.
 - `resolved`
 - `dismissed`
 
-## Group Match
+## Group Match and Roommate Discovery
 
 Route: `/listings/group-match/`
 
-The group-match surface is a live listing-inventory planner, not direct roommate-to-roommate matching. It builds scenarios from the marketplace using:
+The group-match surface is a combined planner:
+
+- live listing-inventory scenarios for different household sizes
+- roommate compatibility results derived from completed student profiles
+- direct profile and message actions for viable matches
+
+It builds listing scenarios using:
 
 - current group size
 - budget range
@@ -181,14 +187,15 @@ The group-match surface is a live listing-inventory planner, not direct roommate
 - desired household size
 - optional location keywords
 
-The scoring model balances:
+The listing-plan scoring model balances:
 
 - inventory depth
 - per-person price fit
 - target size fit
 - bathrooms-per-person comfort signal
 
-Group match is available only to users who can browse the marketplace.
+Roommate discovery is meaningful only for completed student profiles. Users without a completed roommate
+profile can still open the planner, but direct roommate messaging is reserved for completed student profiles.
 
 ## Important Invariants
 

@@ -174,7 +174,7 @@ sequenceDiagram
 ### Report resolution
 
 1. Admin opens `/users/admin-reports/`.
-2. Open reports are prioritized first.
+2. Open reports are prioritized first and each queue card includes reporter, owner, and moderation context.
 3. Closing a report requires resolution notes.
 4. Reopening a report clears resolution metadata.
 

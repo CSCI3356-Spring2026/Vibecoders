@@ -34,6 +34,8 @@ In debug mode only, listing photos are also served from `media/listing_photos/<p
 | `/users/profile/` | `users.views.profile` | required | redirect to dashboard |
 | `/users/profile/setup/` | `users.views.profile_setup` | required | profile completion/update |
 | `/users/dashboard/` | `users.views.dashboard` | required | account workspace |
+| `/users/browse/` | `users.views.browse_roommates` | marketplace users | legacy redirect into group match |
+| `/users/profile/<user_id>/` | `users.views.public_profile` | marketplace users | public roommate profile |
 | `/users/posts/` | `users.views.posts` | required | current user's listings |
 | `/users/files/` | `users.views.files` | required | private document library |
 | `/users/files/<file_id>/preview/` | `users.views.file_preview` | required | authenticated inline preview |
@@ -80,6 +82,7 @@ In debug mode only, listing photos are also served from `media/listing_photos/<p
 | --- | --- | --- | --- |
 | `/users/messages/` | `communications.views.messages_inbox` | required | inbox |
 | `/users/messages/<conversation_id>/` | `communications.views.messages_inbox` | required | selected thread in inbox |
+| `/users/messages/start/user/<user_id>/` | `communications.views.start_direct_conversation_view` | completed student + POST | start or reuse direct roommate chat |
 | `/users/messages/<conversation_id>/reply/` | `communications.views.reply_conversation` | participant + POST | send reply |
 | `/users/messages/<conversation_id>/delete/` | `communications.views.delete_conversation` | participant + POST | soft-delete thread for current user |
 

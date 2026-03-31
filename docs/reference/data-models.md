@@ -18,14 +18,14 @@ This reference summarizes the main persisted models and the rules that matter mo
 | `Listing` | marketplace listing plus moderation state | belongs to owner; has images, favorites, reviews, reports, conversations | owner immutable; positive price; approved-only public visibility; moderation timestamps and notes tracked |
 | `ListingImage` | listing photo | belongs to `Listing` | total image cap enforced; validated as real image content; delete after commit |
 | `ListingFavorite` | saved listing | `user` to `listing` | unique per `(user, listing)`; owner cannot favorite own listing |
-| `ListingReview` | resident review | `author` to `listing` | unique per `(listing, author)`; rating 1-5; student-only; approved-listing-only; prior conversation required |
-| `ListingReport` | abuse or quality report | `reporter` to `listing` | student-only; approved-listing-only; active-report uniqueness while open or in review |
+| `ListingReview` | resident review | `author` to `listing` | unique per `(listing, author)`; rating 1-5; student-only at submission time; approved-listing-only; prior conversation required |
+| `ListingReport` | abuse or quality report | `reporter` to `listing` | student-only at submission time; approved-listing-only; active-report uniqueness while open or in review; reopening clears resolution metadata |
 
 ## Communications App
 
 | Model | Purpose | Key relations | Important rules |
 | --- | --- | --- | --- |
-| `ListingConversation` | thread about a listing | belongs to listing, owner, participant | unique per `(listing, participant)`; owner must match listing owner; owner and participant cannot be same user |
+| `ListingConversation` | thread about a listing or a roommate match | optional listing plus owner/participant | listing threads unique per `(listing, participant)`; direct threads unique per student pair; owner and participant cannot be same user |
 | `ListingMessage` | message in conversation | belongs to conversation and sender | sender must be conversation participant; body normalized and length-limited |
 
 ## Listing State and Moderation Fields
@@ -78,6 +78,11 @@ Unread and deletion are tracked separately for owner and participant:
 - `participant_deleted_at`
 
 This enables per-user soft delete without removing the thread for the other participant.
+
+Conversation context is typed:
+
+- `conversation_type = listing` for listing inquiries
+- `conversation_type = direct` for roommate-match chats
 
 ## Indexing Highlights
 

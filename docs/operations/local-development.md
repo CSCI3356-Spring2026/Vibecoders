@@ -67,7 +67,8 @@ Once a real user has logged in at least once, promote them with:
 python manage.py set_user_role user@bc.edu admin
 ```
 
-If your shell is not inheriting `DJANGO_DEBUG=true` from `.env`, set it explicitly for local command usage.
+`set_user_role` is included in the local debug-command allowlist, so it works in a typical local shell even when
+`DJANGO_DEBUG` is not exported explicitly.
 
 ## Working with Maps Locally
 

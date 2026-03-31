@@ -110,6 +110,12 @@
     color: var(--secondary-600);
 }
 
+.app-meta-chip-primary {
+    border-color: rgba(var(--primary-rgb), 0.2);
+    background: rgba(var(--primary-rgb), 0.08);
+    color: var(--primary-600);
+}
+
 .app-meta-chip-accent {
     border-color: var(--border-accent);
     background: rgba(var(--accent-rgb), 0.08);

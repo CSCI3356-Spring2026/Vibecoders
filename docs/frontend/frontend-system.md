@@ -76,7 +76,6 @@ This is the default page shell unless a template intentionally overrides it.
 | `listings-map-view.js` | MapLibre state, markers, style toggling |
 | `listings-results.js` | live card rendering for search responses |
 | `listing-detail-gallery.js` | detail-page photo gallery interaction |
-| `group-match.js` | group-match selection state and UI sync |
 | `legal-review.js` | scroll-gated legal acceptance |
 | `messages.js` plus `messages_*` modules | realtime inbox behavior |
 | `inline-confirm.js` | shared confirmation popover logic |

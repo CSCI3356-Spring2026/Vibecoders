@@ -8,7 +8,7 @@ from .services import (
     MESSAGE_SEND_RATE_LIMIT_ERROR,
     consume_message_send_rate_limit,
     mark_conversation_read,
-    send_listing_message,
+    send_conversation_message,
     user_messages_group_name,
 )
 
@@ -91,7 +91,7 @@ class MessagesConsumer(AsyncJsonWebsocketConsumer):
         conversation = ListingConversation.objects.visible_to(self.user).only("id").filter(id=conversation_id).first()
         if conversation is None:
             return False
-        send_listing_message(conversation, self.user, body)
+        send_conversation_message(conversation, self.user, body)
         return True
 
     @database_sync_to_async

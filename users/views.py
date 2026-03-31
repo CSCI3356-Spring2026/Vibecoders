@@ -17,19 +17,24 @@ from django.utils.http import content_disposition_header
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_GET, require_POST
 
-from communications.selectors import accessible_conversations_for_user, conversation_summary_for_user
+from communications.forms import ConversationMessageForm
+from communications.selectors import (
+    accessible_conversations_for_user,
+    conversation_summary_for_user,
+    direct_conversation_between_users,
+)
 from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
 from listings.selectors import with_feedback_summary
 
-from .compatibility import compute_compatibility
+from .compatibility import compatibility_highlights, compute_compatibility
 from .forms import AdminProfileForm, GoogleLoginAcceptanceForm, StudentProfileForm, UserFileUploadForm
 from .legal import (
     is_legal_review_required,
     set_pending_legal_acceptance,
 )
 from .models import AdminProfile, Role, StudentProfile, UserFile
-from .selectors import accessible_user_files_queryset, compatible_students_for_user
+from .selectors import accessible_user_files_queryset
 from .session_security import has_recent_auth
 
 FILES_PER_PAGE = 12
@@ -200,6 +205,7 @@ def _dashboard_context(user):
     for conversation in recent_conversations:
         conversation.ui_counterparty = conversation.counterparty_for(user)
         conversation.ui_has_unread = conversation.has_unread_for(user)
+        conversation.ui_context_title = conversation.context_title_for(user)
     return {
         **_workspace_summary(user),
         "recent_listings": user.listings.with_related()[:3],
@@ -394,16 +400,7 @@ def delete_account(request):
 def browse_roommates(request):
     if not request.user.can_browse_marketplace:
         raise Http404
-    my_profile = getattr(request.user, "student_profile", None)
-    matches = compatible_students_for_user(request.user)
-    return render(
-        request,
-        "users/browse_roommates.html",
-        {
-            "matches": matches,
-            "has_profile": my_profile is not None,
-        },
-    )
+    return redirect(f"{reverse('listings:group_match')}#roommate-matches")
 
 
 @login_required
@@ -412,12 +409,21 @@ def public_profile(request, user_id):
     if not request.user.can_browse_marketplace:
         raise Http404
     User = get_user_model()
-    target = get_object_or_404(User, id=user_id, role=Role.STUDENT, is_active=True)
+    target = get_object_or_404(User, id=user_id, role=Role.STUDENT, is_active=True, profile_completed_at__isnull=False)
     their_profile = getattr(target, "student_profile", None)
     if their_profile is None:
         raise Http404
     my_profile = getattr(request.user, "student_profile", None)
     score = compute_compatibility(my_profile, their_profile) if my_profile else None
+    highlights = compatibility_highlights(my_profile, their_profile)
+    can_message_user = request.user.id != target.id and request.user.can_use_roommate_matching
+    existing_direct_conversation = None
+    direct_message_form = None
+    if can_message_user:
+        existing_direct_conversation = direct_conversation_between_users(request.user, target)
+        direct_message_form = ConversationMessageForm(
+            placeholder="Introduce yourself and compare housing plans.",
+        )
     return render(
         request,
         "users/public_profile.html",
@@ -425,5 +431,9 @@ def public_profile(request, user_id):
             "target": target,
             "their_profile": their_profile,
             "score": score,
+            "compatibility_highlights": highlights,
+            "can_message_user": can_message_user,
+            "existing_direct_conversation": existing_direct_conversation,
+            "direct_message_form": direct_message_form,
         },
     )

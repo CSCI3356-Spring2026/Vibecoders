@@ -75,7 +75,7 @@
                                                     {% endif %}
                                                 </div>
                                             </div>
-                                            <div class="messages-list-subject" data-role="conversation-subject">{{ conversation.listing.title }}</div>
+                                            <div class="messages-list-subject" data-role="conversation-subject">{{ conversation.ui_context_title }}</div>
                                             <div class="messages-list-preview" data-role="conversation-preview">{{ conversation.last_message_preview|default:"No messages yet." }}</div>
                                         </div>
                                     </div>
@@ -107,31 +107,51 @@
                             </div>
                             <div class="messages-thread-toolbar-actions">
                                 <span class="app-meta-chip messages-status-chip is-connecting" data-message-connection>Connecting…</span>
-                                <a class="btn btn-outline-secondary" href="{% url 'listings:detail' selected_conversation.listing.id %}">View listing</a>
+                                {% if selected_conversation.is_direct %}
+                                    <a class="btn btn-outline-secondary" href="{% url 'users:public_profile' selected_conversation.ui_counterparty.id %}">View profile</a>
+                                {% else %}
+                                    <a class="btn btn-outline-secondary" href="{% url 'listings:detail' selected_conversation.listing.id %}">View listing</a>
+                                {% endif %}
                                 {% url 'communications:delete_conversation' selected_conversation.id as delete_conversation_url %}
                                 {% include "includes/inline_confirm.html" with trigger_label="Delete thread" prompt_text="Delete this thread?" action_url=delete_conversation_url trigger_button_class="btn btn-outline-danger" confirm_label="Confirm delete" %}
                             </div>
                         </div>
 
                         <div class="messages-thread-context">
-                            <a class="messages-thread-context-card" href="{% url 'listings:detail' selected_conversation.listing.id %}">
-                                <div class="messages-thread-context-media">
-                                    {% if selected_conversation.ui_listing_image %}
-                                        <img src="{{ selected_conversation.ui_listing_image.versioned_url }}" alt="{{ selected_conversation.listing.title }}">
-                                    {% else %}
-                                        <span>{{ selected_conversation.listing.get_property_type_display }}</span>
-                                    {% endif %}
-                                </div>
-                                <div class="messages-thread-context-copy">
-                                    <p class="messages-thread-context-kicker">Listing</p>
-                                    <h3 class="messages-thread-context-title">{{ selected_conversation.listing.title }}</h3>
-                                    <p class="messages-thread-context-address">{{ selected_conversation.listing.address }}</p>
-                                </div>
-                                <div class="messages-thread-context-meta">
-                                    <span class="messages-thread-context-price">${{ selected_conversation.listing.price|floatformat:0 }}/mo</span>
-                                    <span class="messages-thread-context-status">{{ selected_conversation.listing.get_status_display }}</span>
-                                </div>
-                            </a>
+                            {% if selected_conversation.is_direct %}
+                                <a class="messages-thread-context-card" href="{% url 'users:public_profile' selected_conversation.ui_counterparty.id %}">
+                                    <div class="messages-thread-context-media">
+                                        {% include "includes/user_avatar.html" with user_obj=selected_conversation.ui_counterparty avatar_class="messages-thread-user-avatar user-avatar user-avatar-md" %}
+                                    </div>
+                                    <div class="messages-thread-context-copy">
+                                        <p class="messages-thread-context-kicker">Profile</p>
+                                        <h3 class="messages-thread-context-title">{{ selected_conversation.ui_counterparty_name }}</h3>
+                                        <p class="messages-thread-context-address">{{ selected_conversation.ui_context_subtitle }}</p>
+                                    </div>
+                                    <div class="messages-thread-context-meta">
+                                        <span class="messages-thread-context-status">Direct chat</span>
+                                    </div>
+                                </a>
+                            {% else %}
+                                <a class="messages-thread-context-card" href="{% url 'listings:detail' selected_conversation.listing.id %}">
+                                    <div class="messages-thread-context-media">
+                                        {% if selected_conversation.ui_listing_image %}
+                                            <img src="{{ selected_conversation.ui_listing_image.versioned_url }}" alt="{{ selected_conversation.listing.title }}">
+                                        {% else %}
+                                            <span>{{ selected_conversation.listing.get_property_type_display }}</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="messages-thread-context-copy">
+                                        <p class="messages-thread-context-kicker">Listing</p>
+                                        <h3 class="messages-thread-context-title">{{ selected_conversation.listing.title }}</h3>
+                                        <p class="messages-thread-context-address">{{ selected_conversation.listing.address }}</p>
+                                    </div>
+                                    <div class="messages-thread-context-meta">
+                                        <span class="messages-thread-context-price">${{ selected_conversation.listing.price|floatformat:0 }}/mo</span>
+                                        <span class="messages-thread-context-status">{{ selected_conversation.listing.get_status_display }}</span>
+                                    </div>
+                                </a>
+                            {% endif %}
                         </div>
 
                         <div class="messages-thread-panel">

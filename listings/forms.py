@@ -474,24 +474,35 @@ class AdminListingApprovalForm(forms.Form):
         return notes
 
 
-class AdminListingReportResolutionForm(forms.ModelForm):
-    class Meta:
-        model = ListingReport
-        fields = ["status", "resolution_notes"]
-        widgets = {
-            "status": forms.Select(attrs={"class": "form-select"}),
-            "resolution_notes": forms.Textarea(
-                attrs={
-                    "rows": 3,
-                    "class": "form-control",
-                    "placeholder": "Resolution details visible to the admin team.",
-                }
-            ),
-        }
-        labels = {
-            "status": "Report status",
-            "resolution_notes": "Resolution notes",
-        }
+class AdminListingReportResolutionForm(forms.Form):
+    status = forms.ChoiceField(
+        choices=ListingReport.STATUS_CHOICES,
+        label="Report status",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    resolution_notes = forms.CharField(
+        required=False,
+        label="Resolution notes",
+        widget=forms.Textarea(
+            attrs={
+                "rows": 3,
+                "class": "form-control",
+                "placeholder": "Resolution details visible to the admin team.",
+            }
+        ),
+    )
+
+    def __init__(self, *args, instance=None, **kwargs):
+        self.instance = instance
+        initial = dict(kwargs.pop("initial", {}))
+        if instance is not None:
+            initial = {
+                "status": instance.status,
+                "resolution_notes": instance.resolution_notes,
+                **initial,
+            }
+        kwargs["initial"] = initial
+        super().__init__(*args, **kwargs)
 
     def clean_resolution_notes(self):
         notes = (self.cleaned_data.get("resolution_notes") or "").strip()
@@ -505,6 +516,7 @@ class AdminListingReportResolutionForm(forms.ModelForm):
         notes = cleaned_data.get("resolution_notes") or ""
         if status in {ListingReport.STATUS_RESOLVED, ListingReport.STATUS_DISMISSED} and not notes:
             self.add_error("resolution_notes", "Add resolution notes before closing out a report.")
+        cleaned_data["resolution_notes"] = notes
         return cleaned_data
 
 
@@ -515,26 +527,26 @@ class GroupMatchPreferencesForm(forms.Form):
     unit_size = forms.IntegerField(
         min_value=1,
         max_value=4,
-        label="People already in your group",
+        label="People already committed",
         widget=forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 4}),
     )
     budget_min = forms.DecimalField(
         min_value=0,
         max_digits=8,
         decimal_places=0,
-        label="Minimum budget per person",
+        label="Budget min / person",
         widget=forms.NumberInput(attrs={"class": "form-control", "min": 0, "step": 50}),
     )
     budget_max = forms.DecimalField(
         min_value=0,
         max_digits=8,
         decimal_places=0,
-        label="Maximum budget per person",
+        label="Budget max / person",
         widget=forms.NumberInput(attrs={"class": "form-control", "min": 0, "step": 50}),
     )
     cleanliness = forms.ChoiceField(
         choices=CLEANLINESS_CHOICES,
-        label="Cleanliness priority",
+        label="Cleanliness",
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     social = forms.ChoiceField(
@@ -550,18 +562,18 @@ class GroupMatchPreferencesForm(forms.Form):
     desired_group_min = forms.IntegerField(
         min_value=1,
         max_value=8,
-        label="Target household size (min)",
+        label="Smallest home size",
         widget=forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 8}),
     )
     desired_group_max = forms.IntegerField(
         min_value=1,
         max_value=8,
-        label="Target household size (max)",
+        label="Largest home size",
         widget=forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 8}),
     )
     location_keywords = forms.CharField(
         required=False,
-        label="Neighborhood focus",
+        label="Areas",
         widget=forms.TextInput(
             attrs={
                 "class": "form-control",

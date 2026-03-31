@@ -4,7 +4,7 @@ from django.db.models import Case, Count, IntegerField, Q, Value, When
 from listings.models import Listing, ListingReport
 from listings.selectors import with_feedback_summary
 
-from .compatibility import compute_compatibility
+from .compatibility import compatibility_highlights, compute_compatibility
 from .models import Role, UserFile
 
 
@@ -125,11 +125,13 @@ def compatible_students_for_user(user, limit=30):
     """
     user_model = get_user_model()
     candidates = (
-        user_model.objects.filter(role=Role.STUDENT, is_active=True)
+        user_model.objects.filter(role=Role.STUDENT, is_active=True, profile_completed_at__isnull=False)
         .exclude(pk=user.pk)
         .select_related("student_profile")
     )
 
+    if not getattr(user, "can_use_roommate_matching", False):
+        return []
     my_profile = getattr(user, "student_profile", None)
 
     results = []
@@ -138,7 +140,14 @@ def compatible_students_for_user(user, limit=30):
         if their_profile is None:
             continue
         score = compute_compatibility(my_profile, their_profile) if my_profile else None
-        results.append({"user": candidate, "profile": their_profile, "score": score})
+        results.append(
+            {
+                "user": candidate,
+                "profile": their_profile,
+                "score": score,
+                "highlights": compatibility_highlights(my_profile, their_profile),
+            }
+        )
 
     results.sort(key=lambda x: (x["score"] is not None, x["score"] or 0), reverse=True)
     return results[:limit]

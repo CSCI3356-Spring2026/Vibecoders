@@ -41,6 +41,7 @@ Useful computed properties include:
 
 - `can_browse_marketplace`
 - `can_start_listing_conversations`
+- `can_use_roommate_matching`
 - `has_listing_only_access`
 - `has_current_legal_acceptance`
 - `display_name`
@@ -108,6 +109,7 @@ Legal acceptance is versioned by `LEGAL_DOCUMENT_VERSION`.
 - `/users/dashboard/`
 - Shows recent listings, files, and conversations
 - Acts as the main account workspace
+- Surfaces the entry point into group match and roommate discovery
 
 ### Listing-only users
 

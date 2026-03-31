@@ -163,6 +163,10 @@ class CustomUser(AbstractUser):
         return self.is_student or self.is_bc_admin
 
     @property
+    def can_use_roommate_matching(self):
+        return self.is_student and self.profile_completed_at is not None
+
+    @property
     def has_listing_only_access(self):
         return self.is_realtor
 
