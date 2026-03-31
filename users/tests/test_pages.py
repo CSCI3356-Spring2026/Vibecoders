@@ -1074,7 +1074,7 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertEqual(report.reviewed_by, admin)
         listing.refresh_from_db()
         self.assertEqual(listing.approval_status, Listing.APPROVAL_REJECTED)
-        self.assertTrue(listing.is_hidden)
+        self.assertFalse(listing.is_hidden)
         queue_response = self.client.get(reverse("users:admin_reports"))
         self.assertNotContains(queue_response, "Reported listing")
 

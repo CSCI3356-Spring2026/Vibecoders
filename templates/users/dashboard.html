@@ -28,13 +28,13 @@
                             {% if has_listing_only_access %}
                                 <span class="app-meta-chip app-meta-chip-secondary">Listing access only</span>
                             {% else %}
-                                <span class="app-meta-chip app-meta-chip-secondary">Marketplace access</span>
+                                <span class="app-meta-chip app-meta-chip-secondary">Marketplace</span>
                             {% endif %}
                             <span class="app-meta-chip app-meta-chip-neutral">
                                 {% if unread_conversations_count %}
                                     {{ unread_conversations_count }} unread thread{{ unread_conversations_count|pluralize }}
                                 {% else %}
-                                    Inbox up to date
+                                    No unread
                                 {% endif %}
                             </span>
                         </div>
@@ -42,11 +42,11 @@
                         <div class="app-actions account-hero-actions">
                             <a class="btn btn-brand" href="{% url 'users:files' %}">Open document library</a>
                             {% if can_browse_marketplace %}
-                                <a class="btn btn-outline-secondary" href="{% url 'listings:listing_list' %}">Browse listings</a>
+                                <a class="btn btn-outline-secondary" href="{% url 'listings:listing_list' %}">Listings</a>
                             {% else %}
-                                <a class="btn btn-outline-secondary" href="{% url 'users:posts' %}">Open my listings</a>
+                                <a class="btn btn-outline-secondary" href="{% url 'users:posts' %}">My listings</a>
                             {% endif %}
-                            <a class="btn btn-outline-secondary" href="{% url 'communications:messages' %}">Open inbox</a>
+                            <a class="btn btn-outline-secondary" href="{% url 'communications:messages' %}">Inbox</a>
                             <a class="btn btn-outline-secondary" href="{% url 'listings:create_listing' %}">Create listing</a>
                         </div>
                     </div>
@@ -54,7 +54,7 @@
                     <aside class="account-library-spotlight">
                         <p class="account-library-kicker">Documents</p>
                         <h2 class="account-library-title">Document library</h2>
-                        <p class="account-library-copy">Private account files.</p>
+                        <p class="account-library-copy">Private files.</p>
 
                         <div class="account-library-metric">
                             <strong>{{ files_count }}</strong>
@@ -109,7 +109,7 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading">Workspace</h2>
-                            <p class="app-panel-copy">Main actions</p>
+                            <p class="app-panel-copy">Shortcuts</p>
                         </div>
                     </div>
 
@@ -120,7 +120,7 @@
                         </a>
                         <a class="app-compact-item" href="{% url 'users:posts' %}">
                             <span class="app-compact-title">My listings</span>
-                            <span class="app-compact-meta">Manage listings.</span>
+                            <span class="app-compact-meta">Current inventory.</span>
                         </a>
                         <a class="app-compact-item" href="{% url 'communications:messages' %}">
                             <span class="app-compact-title">Inbox</span>
@@ -128,20 +128,20 @@
                                 {% if unread_conversations_count %}
                                     {{ unread_conversations_count }} unread thread{{ unread_conversations_count|pluralize }}.
                                 {% else %}
-                                    Open conversations.
+                                    Direct and listing chats.
                                 {% endif %}
                             </span>
                         </a>
                         {% if can_browse_marketplace %}
                             <a class="app-compact-item" href="{% url 'listings:group_match' %}">
                                 <span class="app-compact-title">Group match</span>
-                                <span class="app-compact-meta">Compatible roommates and homes.</span>
+                                <span class="app-compact-meta">Roommates and homes.</span>
                             </a>
                         {% endif %}
                         {% if request.user.can_access_admin_panel %}
                             <a class="app-compact-item" href="{% url 'users:admin_dashboard' %}">
                                 <span class="app-compact-title">Admin</span>
-                                <span class="app-compact-meta">Moderation tools.</span>
+                                <span class="app-compact-meta">Moderation.</span>
                             </a>
                         {% endif %}
                     </div>
@@ -151,13 +151,13 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading">Account Safety</h2>
-                            <p class="app-panel-copy">Deletion</p>
+                            <p class="app-panel-copy">Delete account</p>
                         </div>
                     </div>
 
                     <div class="account-safety-copy">
                         <p class="app-panel-copy">
-                            Deleting your account removes your profile, listings, files, and conversations.
+                            Removes your profile, listings, files, and conversations.
                         </p>
                         <p class="app-panel-copy">Recent sign-in required.</p>
                     </div>
@@ -174,7 +174,7 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading">Recent listings</h2>
-                            <p class="app-panel-copy">Latest listings</p>
+                            <p class="app-panel-copy">Latest</p>
                         </div>
                         <a class="listing-reset-link" href="{% url 'users:posts' %}">View all</a>
                     </div>
@@ -199,7 +199,7 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading">Recent messages</h2>
-                            <p class="app-panel-copy">Latest threads</p>
+                            <p class="app-panel-copy">Latest</p>
                         </div>
                         <a class="listing-reset-link" href="{% url 'communications:messages' %}">Open inbox</a>
                     </div>
@@ -228,7 +228,7 @@
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading">Recent documents</h2>
-                            <p class="app-panel-copy">Latest files</p>
+                            <p class="app-panel-copy">Latest</p>
                         </div>
                         <a class="listing-reset-link" href="{% url 'users:files' %}">Open library</a>
                     </div>

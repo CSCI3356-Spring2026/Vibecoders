@@ -1,8 +1,8 @@
 .site-footer {
     position: relative;
     overflow: hidden;
-    margin-top: 2.5rem;
-    padding: 2rem 0 2.1rem;
+    margin-top: 2.2rem;
+    padding: 1.7rem 0 1.8rem;
     border-top: 1px solid rgba(var(--gray-700-rgb), 0.16);
     background: var(--surface-gradient-soft);
 }
@@ -14,13 +14,13 @@
 .footer-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, 0.82fr));
-    gap: 1.4rem;
+    gap: 1.1rem;
 }
 
 .footer-brand-block {
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    gap: 0.45rem;
 }
 
 .footer-brand {

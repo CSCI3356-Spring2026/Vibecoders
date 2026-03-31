@@ -369,7 +369,6 @@ class Listing(models.Model):
         self.reviewed_at = reviewed_at
         self.approved_at = None
         self.approval_notes = notes.strip()
-        self.is_hidden = True
 
 
 class ListingImage(models.Model):

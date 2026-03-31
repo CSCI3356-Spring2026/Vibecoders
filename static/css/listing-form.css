@@ -1,5 +1,5 @@
 .listing-wizard-page .container {
-    max-width: 1120px;
+    max-width: var(--app-shell-max-width);
 }
 
 .listing-wizard {

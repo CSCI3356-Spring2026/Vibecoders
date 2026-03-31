@@ -2,10 +2,15 @@
     padding: clamp(1.4rem, 3vw, 2.2rem) 0 3rem;
 }
 
+.app-page > .container {
+    max-width: var(--app-shell-max-width);
+    padding-inline: clamp(1rem, 2vw, 1.35rem);
+}
+
 .app-shell {
     display: flex;
     flex-direction: column;
-    gap: 1.1rem;
+    gap: 0.95rem;
 }
 
 .listing-panel,
@@ -24,11 +29,11 @@
 }
 
 .listing-panel {
-    padding: 1.2rem;
+    padding: 1rem;
 }
 
 .app-header-shell {
-    padding: 1.35rem 1.4rem 1.3rem;
+    padding: 1.05rem 1.15rem 1rem;
     border: 1px solid rgba(var(--gray-700-rgb), 0.16);
     border-radius: var(--radius-lg);
     background: rgba(var(--white-rgb), 0.98);
@@ -38,7 +43,7 @@
 .app-header {
     display: flex;
     flex-direction: column;
-    gap: 0.9rem;
+    gap: 0.75rem;
 }
 
 .app-header-main {
@@ -63,7 +68,7 @@
     margin: 0;
     color: var(--text-strong);
     font-family: var(--font-display);
-    font-size: clamp(1.8rem, 3vw, 2.5rem);
+    font-size: clamp(1.65rem, 2.8vw, 2.2rem);
     font-weight: 700;
     letter-spacing: -0.035em;
     line-height: 1;
@@ -71,11 +76,11 @@
 
 .app-subtitle,
 .listing-hero-subtitle {
-    margin: 0.45rem 0 0;
-    max-width: 36rem;
-    color: var(--text-default);
-    font-size: 0.88rem;
-    line-height: 1.55;
+    margin: 0.32rem 0 0;
+    max-width: 32rem;
+    color: var(--text-muted);
+    font-size: 0.84rem;
+    line-height: 1.45;
 }
 
 .app-actions {
@@ -93,13 +98,13 @@
 .app-meta-chip {
     display: inline-flex;
     align-items: center;
-    min-height: 1.85rem;
-    padding: 0.3rem 0.65rem;
+    min-height: 1.75rem;
+    padding: 0.26rem 0.58rem;
     border: 1px solid rgba(var(--gray-700-rgb), 0.16);
     border-radius: var(--radius-md);
     background: rgba(var(--white-rgb), 0.98);
     color: var(--gray-700);
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     font-weight: 600;
     letter-spacing: 0.03em;
 }
@@ -186,15 +191,15 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 1rem;
-    margin-bottom: 1rem;
-    padding-bottom: 0.75rem;
+    margin-bottom: 0.9rem;
+    padding-bottom: 0.65rem;
     border-bottom: 1px solid var(--rule-color);
 }
 
 .app-section-heading {
     margin: 0;
     color: var(--text-strong);
-    font-size: 0.98rem;
+    font-size: 0.94rem;
     font-weight: 700;
     letter-spacing: -0.02em;
 }
@@ -204,10 +209,10 @@
 }
 
 .app-panel-copy {
-    margin: 0.3rem 0 0;
+    margin: 0.2rem 0 0;
     color: var(--text-muted);
-    font-size: 0.82rem;
-    line-height: 1.45;
+    font-size: 0.79rem;
+    line-height: 1.4;
 }
 
 .app-stack {
@@ -231,6 +236,9 @@
 }
 
 .legal-shell {
+    width: 100%;
+    max-width: var(--app-reading-max-width);
+    margin: 0 auto;
     display: flex;
     flex-direction: column;
     gap: 1.25rem;

@@ -16,18 +16,18 @@
                     <div>
                         <p class="app-kicker">Group Match</p>
                         <h1 class="app-title">Match the group, then the home.</h1>
-                        <p class="app-subtitle">Choose the household size once. Padly shows compatible roommates to add and approved listings that still fit the budget.</p>
+                        <p class="app-subtitle">Pick a size and budget. We rank roommates and approved homes.</p>
                     </div>
                     <div class="app-actions">
                         <a class="btn btn-outline-secondary" href="{% url 'listings:listing_list' %}">Browse listings</a>
                     </div>
                 </div>
                 <div class="app-meta">
-                    <span class="app-meta-chip">{{ group_match_current_group_size }} already committed</span>
-                    <span class="app-meta-chip app-meta-chip-secondary">{{ group_match_roommate_matches_total }} compatible student{{ group_match_roommate_matches_total|pluralize }}</span>
-                    <span class="app-meta-chip app-meta-chip-neutral">{{ group_match_total_matches }} approved home{{ group_match_total_matches|pluralize }} in range</span>
+                    <span class="app-meta-chip">{{ group_match_current_group_size }} in group</span>
+                    <span class="app-meta-chip app-meta-chip-secondary">{{ group_match_roommate_matches_total }} student match{{ group_match_roommate_matches_total|pluralize }}</span>
+                    <span class="app-meta-chip app-meta-chip-neutral">{{ group_match_total_matches }} home{{ group_match_total_matches|pluralize }} in range</span>
                     {% if group_match_uses_profile_defaults %}
-                        <span class="app-meta-chip app-meta-chip-neutral">Using your profile defaults</span>
+                        <span class="app-meta-chip app-meta-chip-neutral">Using profile defaults</span>
                     {% endif %}
                     {% if location_keywords %}
                         <span class="app-meta-chip app-meta-chip-neutral">Areas: {{ location_keywords|join:", " }}</span>
@@ -41,7 +41,7 @@
                         <div class="app-panel-head">
                             <div>
                                 <h2 class="app-section-heading">Planner</h2>
-                                <p class="app-panel-copy">Group size, budget, and areas.</p>
+                                <p class="app-panel-copy">Size, budget, and areas.</p>
                             </div>
                         </div>
                         <form class="group-match-form" method="get">
@@ -60,7 +60,7 @@
                                 <div class="app-field-error mt-3">{{ form.non_field_errors|join:", " }}</div>
                             {% endif %}
                             <div class="group-match-actions">
-                                <button class="btn btn-brand" type="submit">Update match</button>
+                                <button class="btn btn-brand" type="submit">Apply</button>
                                 <a class="btn btn-outline-secondary" href="{% url 'listings:group_match' %}">Reset</a>
                             </div>
                         </form>
@@ -70,24 +70,24 @@
                         <div class="app-panel-head">
                             <div>
                                 <h2 class="app-section-heading">Compatibility</h2>
-                                <p class="app-panel-copy">Student profile data drives roommate scores.</p>
+                                <p class="app-panel-copy">Based on profile responses.</p>
                             </div>
                         </div>
                         {% if group_match_has_profile %}
                             <div class="app-compact-list">
                                 <div class="app-compact-item app-compact-item-static">
                                     <span class="app-compact-title">Roommate ranking</span>
-                                    <span class="app-compact-meta">Best matches are ordered by shared lifestyle preferences.</span>
+                                    <span class="app-compact-meta">Sorted by lifestyle fit.</span>
                                 </div>
                                 <a class="app-compact-item" href="{% url 'users:profile_setup' %}">
                                     <span class="app-compact-title">Update questionnaire</span>
-                                    <span class="app-compact-meta">Sharpen compatibility scores.</span>
+                                    <span class="app-compact-meta">Improve match quality.</span>
                                 </a>
                             </div>
                         {% else %}
                             <div class="app-empty">
                                 <h3 class="app-empty-title">Complete your profile</h3>
-                                <p class="app-empty-copy">Add your lifestyle preferences to unlock compatibility scores.</p>
+                                <p class="app-empty-copy">Add preferences to unlock scores.</p>
                                 <a class="btn btn-brand mt-3" href="{% url 'users:profile_setup' %}">Complete profile</a>
                             </div>
                         {% endif %}
@@ -100,7 +100,7 @@
                             <div class="app-panel-head">
                                 <div>
                                     <h2 class="app-section-heading">Choose a household size</h2>
-                                    <p class="app-panel-copy">Switch sizes to compare both roommates and homes.</p>
+                                    <p class="app-panel-copy">Compare roommate depth and housing supply.</p>
                                 </div>
                             </div>
                             <div class="group-plan-strip">
@@ -207,9 +207,9 @@
                                         <h2 class="app-section-heading">Compatible roommates</h2>
                                         <p class="app-panel-copy">
                                             {% if option.additional_roommates_needed %}
-                                                Start with these students for a {{ option.group_size }} person home.
+                                                Best matches for a {{ option.group_size }} person home.
                                             {% else %}
-                                                Your group is already full, but these are still your closest matches.
+                                                Closest profile matches.
                                             {% endif %}
                                         </p>
                                     </div>
@@ -256,12 +256,12 @@
                                 {% elif not group_match_has_profile %}
                                     <div class="app-empty">
                                         <h3 class="app-empty-title">Finish your profile first</h3>
-                                        <p class="app-empty-copy">Compatibility scores appear after you complete the lifestyle questionnaire.</p>
+                                        <p class="app-empty-copy">Compatibility scores appear after setup.</p>
                                     </div>
                                 {% else %}
                                     <div class="app-empty">
                                         <h3 class="app-empty-title">No student matches yet</h3>
-                                        <p class="app-empty-copy">Check back as more students complete their profiles.</p>
+                                        <p class="app-empty-copy">Check back soon.</p>
                                     </div>
                                 {% endif %}
                             </section>
@@ -270,7 +270,7 @@
                                 <div class="app-panel-head">
                                     <div>
                                         <h2 class="app-section-heading">Homes for this plan</h2>
-                                        <p class="app-panel-copy">Approved listings that fit the selected household size and budget.</p>
+                                        <p class="app-panel-copy">Approved homes in budget.</p>
                                     </div>
                                 </div>
                                 {% if option.listings %}
@@ -282,7 +282,7 @@
                                 {% else %}
                                     <div class="app-empty">
                                         <h3 class="app-empty-title">No approved homes match this setup.</h3>
-                                        <p class="app-empty-copy">Adjust the budget, household size, or areas.</p>
+                                        <p class="app-empty-copy">Adjust the budget, size, or area.</p>
                                     </div>
                                 {% endif %}
                             </section>
@@ -292,7 +292,7 @@
                             <div class="app-panel-head">
                                 <div>
                                     <h2 class="app-section-heading">Fix the planner</h2>
-                                    <p class="app-panel-copy">Group options will appear after the fields are valid.</p>
+                                    <p class="app-panel-copy">Group options appear after the fields are valid.</p>
                                 </div>
                             </div>
                             {% if group_match_roommate_matches %}

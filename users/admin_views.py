@@ -355,7 +355,6 @@ def admin_update_report(request, report_id):
                         "reviewed_at",
                         "approved_at",
                         "approval_notes",
-                        "is_hidden",
                     ]
                 )
             action = report.activity_action_for_status(new_status)

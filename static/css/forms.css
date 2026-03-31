@@ -3,7 +3,7 @@
     align-items: center;
     justify-content: center;
     gap: 0.35rem;
-    min-height: 2.75rem;
+    min-height: 2.55rem;
     border-radius: var(--radius-sm);
     font-size: 0.88rem;
     font-weight: 600;
@@ -16,8 +16,8 @@
 }
 
 .btn-sm {
-    min-height: 2.15rem;
-    padding: 0.35rem 0.8rem;
+    min-height: 2rem;
+    padding: 0.32rem 0.72rem;
     font-size: 0.84rem;
 }
 
@@ -98,7 +98,7 @@
 
 .form-control,
 .form-select {
-    min-height: 3rem;
+    min-height: 2.8rem;
     border-color: rgba(var(--gray-700-rgb), 0.16);
     border-radius: var(--radius-md);
     background: rgba(var(--gray-100-rgb), 0.86);

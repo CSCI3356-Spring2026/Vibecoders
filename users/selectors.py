@@ -1,8 +1,8 @@
 from django.contrib.auth import get_user_model
-from django.db.models import Case, Count, IntegerField, Prefetch, Q, Value, When
+from django.db.models import Case, Count, IntegerField, Q, Value, When
 
-from listings.models import Listing, ListingReport, ListingReportUpdate
-from listings.selectors import with_feedback_summary
+from listings.models import Listing, ListingReport
+from listings.selectors import listing_reports_queryset_for_admin, with_feedback_summary
 
 from .compatibility import compatibility_highlights, compute_compatibility
 from .models import Role, UserFile
@@ -37,28 +37,7 @@ def admin_listings_queryset(query="", selected_status="", selected_review_status
 def admin_reports_queryset(query="", selected_status="", selected_reason="", *, include_closed=False):
     status_values = {status for status, _ in ListingReport.STATUS_CHOICES}
     reason_values = {reason for reason, _ in ListingReport.REASON_CHOICES}
-    status_priority = Case(
-        When(status=ListingReport.STATUS_OPEN, then=Value(0)),
-        When(status=ListingReport.STATUS_IN_REVIEW, then=Value(1)),
-        When(status=ListingReport.STATUS_RESOLVED, then=Value(2)),
-        default=Value(3),
-        output_field=IntegerField(),
-    )
-    queryset = (
-        ListingReport.objects.select_related(
-            "listing",
-            "listing__owner",
-            "reporter",
-            "reviewed_by",
-        )
-        .prefetch_related(
-            Prefetch(
-                "updates",
-                queryset=ListingReportUpdate.objects.select_related("actor").order_by("-created_at", "-id"),
-            )
-        )
-        .annotate(status_priority=status_priority)
-    )
+    queryset = listing_reports_queryset_for_admin()
 
     if query:
         queryset = queryset.filter(

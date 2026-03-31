@@ -357,6 +357,48 @@ class ListingModelTests(ListingTestCase):
         self.assertIsNone(report.reviewed_at)
         self.assertEqual(report.resolution_notes, "")
 
+    def test_report_resolution_does_not_permanently_hide_reapproved_listing(self):
+        reviewer = self.user.__class__.objects.create_user(
+            username="report-resolution-reviewer",
+            email="report-resolution-reviewer@bc.edu",
+            password="test",
+            role="admin",
+        )
+        reporter = self.user.__class__.objects.create_user(
+            username="report-resolution-student",
+            email="report-resolution-student@bc.edu",
+            password="test",
+        )
+        listing = self.create_listing(is_hidden=False)
+        report = ListingReport.objects.create(
+            listing=listing,
+            reporter=reporter,
+            reason=ListingReport.REASON_SPAM,
+            details="Duplicate listing.",
+        )
+
+        report.mark_status(
+            status=ListingReport.STATUS_RESOLVED,
+            reviewer=reviewer,
+            resolution_notes="Removed from the marketplace while we investigate.",
+        )
+        report.save()
+        listing.close_from_report(reviewer=reviewer, notes="Removed from the marketplace while we investigate.")
+        listing.save()
+        listing.refresh_from_db()
+
+        self.assertFalse(listing.is_hidden)
+        self.assertFalse(listing.is_publicly_active)
+
+        listing.submit_for_approval()
+        listing.save()
+        listing.approve(reviewer=reviewer, notes="Approved after remediation.")
+        listing.save()
+        listing.refresh_from_db()
+
+        self.assertTrue(listing.is_approved)
+        self.assertTrue(listing.is_publicly_active)
+
     def test_start_listing_conversation_rejects_listing_only_user(self):
         listing = self.create_listing()
         realtor = self.user.__class__.objects.create_user(

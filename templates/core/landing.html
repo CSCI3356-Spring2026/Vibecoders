@@ -34,7 +34,7 @@
                         <a class="home-pill home-pill-primary" href="{% url 'users:posts' %}">My listings</a>
                         <a class="home-pill home-pill-secondary" href="{% url 'listings:create_listing' %}">Create listing</a>
                     {% else %}
-                        <a class="home-pill home-pill-primary" href="{% url 'listings:listing_list' %}">All listings</a>
+                        <a class="home-pill home-pill-primary" href="{% url 'listings:listing_list' %}">Listings</a>
                         <a class="home-pill home-pill-secondary" href="{% url 'listings:listing_list' %}?lease_type=SUBLEASE">Subleases</a>
                     {% endif %}
                 </div>
@@ -82,7 +82,7 @@
                             {% if has_listing_only_access %}
                                 Create a listing.
                             {% else %}
-                                Browse listings or create one.
+                                Browse listings.
                             {% endif %}
                         </p>
                         <div class="app-actions">
