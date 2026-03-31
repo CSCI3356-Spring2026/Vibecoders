@@ -1,6 +1,6 @@
-from django.db.models import Avg, BooleanField, Case, Count, Exists, IntegerField, OuterRef, Q, Value, When
+from django.db.models import Avg, BooleanField, Case, Count, Exists, IntegerField, OuterRef, Prefetch, Q, Value, When
 
-from .models import Listing, ListingFavorite, ListingReport, ListingReview
+from .models import Listing, ListingFavorite, ListingReport, ListingReportUpdate, ListingReview
 
 ACTIVE_REPORT_STATUSES = [ListingReport.STATUS_OPEN, ListingReport.STATUS_IN_REVIEW]
 
@@ -40,7 +40,13 @@ def listing_reports_queryset_for_admin(*, listing=None):
             "reporter",
             "reviewed_by",
         )
-        .prefetch_related("reporter__socialaccount_set")
+        .prefetch_related(
+            "reporter__socialaccount_set",
+            Prefetch(
+                "updates",
+                queryset=ListingReportUpdate.objects.select_related("actor").order_by("-created_at", "-id"),
+            ),
+        )
         .annotate(status_priority=status_priority)
         .order_by("status_priority", "-created_at")
     )

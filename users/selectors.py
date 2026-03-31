@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
-from django.db.models import Case, Count, IntegerField, Q, Value, When
+from django.db.models import Case, Count, IntegerField, Prefetch, Q, Value, When
 
-from listings.models import Listing, ListingReport
+from listings.models import Listing, ListingReport, ListingReportUpdate
 from listings.selectors import with_feedback_summary
 
 from .compatibility import compatibility_highlights, compute_compatibility
@@ -34,7 +34,7 @@ def admin_listings_queryset(query="", selected_status="", selected_review_status
     return queryset.order_by("review_priority", "-submitted_for_approval_at", "-created_at")
 
 
-def admin_reports_queryset(query="", selected_status="", selected_reason=""):
+def admin_reports_queryset(query="", selected_status="", selected_reason="", *, include_closed=False):
     status_values = {status for status, _ in ListingReport.STATUS_CHOICES}
     reason_values = {reason for reason, _ in ListingReport.REASON_CHOICES}
     status_priority = Case(
@@ -44,12 +44,21 @@ def admin_reports_queryset(query="", selected_status="", selected_reason=""):
         default=Value(3),
         output_field=IntegerField(),
     )
-    queryset = ListingReport.objects.select_related(
-        "listing",
-        "listing__owner",
-        "reporter",
-        "reviewed_by",
-    ).annotate(status_priority=status_priority)
+    queryset = (
+        ListingReport.objects.select_related(
+            "listing",
+            "listing__owner",
+            "reporter",
+            "reviewed_by",
+        )
+        .prefetch_related(
+            Prefetch(
+                "updates",
+                queryset=ListingReportUpdate.objects.select_related("actor").order_by("-created_at", "-id"),
+            )
+        )
+        .annotate(status_priority=status_priority)
+    )
 
     if query:
         queryset = queryset.filter(
@@ -58,9 +67,12 @@ def admin_reports_queryset(query="", selected_status="", selected_reason=""):
             | Q(reporter__email__icontains=query)
             | Q(reporter__username__icontains=query)
             | Q(details__icontains=query)
+            | Q(resolution_notes__icontains=query)
         )
     if selected_status in status_values:
         queryset = queryset.filter(status=selected_status)
+    elif not include_closed:
+        queryset = queryset.filter(status__in=[ListingReport.STATUS_OPEN, ListingReport.STATUS_IN_REVIEW])
     if selected_reason in reason_values:
         queryset = queryset.filter(reason=selected_reason)
 

@@ -6,6 +6,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
@@ -16,7 +17,7 @@ from communications.models import ListingConversation, ListingMessage
 from communications.selectors import user_related_conversations_queryset, user_related_messages_queryset
 from core.utils import get_page, preserved_query_suffix, safe_next_url
 from listings.forms import AdminListingApprovalForm, AdminListingReportResolutionForm
-from listings.models import Listing, ListingReport
+from listings.models import Listing, ListingReport, ListingReportUpdate
 from listings.selectors import listing_reports_queryset_for_admin, listing_reviews_queryset, with_feedback_summary
 
 from .models import Role
@@ -36,6 +37,13 @@ def _admin_report_form(report, *, data=None):
         instance=report,
         prefix=f"report-{report.id}",
     )
+
+
+def _admin_report_timeline(report, *, limit=None):
+    updates = list(report.updates.all())
+    if limit is not None:
+        updates = updates[:limit]
+    return updates
 
 
 def _admin_report_metrics(queryset):
@@ -81,7 +89,14 @@ def _admin_reports_context(
         selected_status=selected_status,
         selected_reason=selected_reason,
     )
-    report_metrics = _admin_report_metrics(reports_qs)
+    report_metrics = _admin_report_metrics(
+        admin_reports_queryset(
+            query=query,
+            selected_status=selected_status,
+            selected_reason=selected_reason,
+            include_closed=True,
+        )
+    )
     page_number = page
     if page_number is None and request is not None:
         page_number = request.GET.get("page")
@@ -91,6 +106,9 @@ def _admin_reports_context(
     for report in reports_page.object_list:
         report.ui_form = form_map.get(report.id) or _admin_report_form(report)
         report.ui_next = report_next_url
+        report.ui_updates = _admin_report_timeline(report, limit=3)
+        report.ui_update_count = len(report.updates.all())
+        report.ui_has_more_updates = report.ui_update_count > len(report.ui_updates)
 
     return {
         "reports": reports_page,
@@ -142,6 +160,9 @@ def _admin_listing_detail_context(listing, *, approval_form=None, report_forms=N
     for report in reports:
         report.ui_form = form_map.get(report.id) or _admin_report_form(report)
         report.ui_next = report_next_url
+        report.ui_updates = _admin_report_timeline(report)
+        report.ui_update_count = len(report.ui_updates)
+        report.ui_has_more_updates = False
 
     return {
         "listing": listing,
@@ -303,24 +324,48 @@ def admin_update_report(request, report_id):
             request,
             report,
             form,
-            message="Add valid resolution notes before closing out a report.",
+            message="Add a moderator note before closing out a report.",
         )
 
     try:
-        report.mark_status(
-            status=form.cleaned_data["status"],
-            reviewer=request.user,
-            resolution_notes=form.cleaned_data["resolution_notes"],
-        )
-        report.save(
-            update_fields=[
-                "status",
-                "reviewed_by",
-                "reviewed_at",
-                "resolution_notes",
-                "updated_at",
-            ]
-        )
+        previous_status = report.status
+        new_status = form.cleaned_data["status"]
+        note = form.cleaned_data["resolution_notes"]
+        with transaction.atomic():
+            report.mark_status(
+                status=new_status,
+                reviewer=request.user,
+                resolution_notes=note,
+            )
+            report.save(
+                update_fields=[
+                    "status",
+                    "reviewed_by",
+                    "reviewed_at",
+                    "resolution_notes",
+                    "updated_at",
+                ]
+            )
+            if new_status == ListingReport.STATUS_RESOLVED:
+                report.listing.close_from_report(reviewer=request.user, notes=note)
+                report.listing.save(
+                    update_fields=[
+                        "approval_status",
+                        "reviewed_by",
+                        "reviewed_at",
+                        "approved_at",
+                        "approval_notes",
+                        "is_hidden",
+                    ]
+                )
+            action = report.activity_action_for_status(new_status)
+            if previous_status == new_status:
+                if not note:
+                    action = ""
+                else:
+                    action = ListingReportUpdate.ACTION_NOTE
+            if action:
+                report.add_update(actor=request.user, note=note, action=action)
     except ValidationError as exc:
         if hasattr(exc, "message_dict"):
             for field_name, errors in exc.message_dict.items():
@@ -334,7 +379,7 @@ def admin_update_report(request, report_id):
             request,
             report,
             form,
-            message="Add valid resolution notes before closing out a report.",
+            message="Add a moderator note before closing out a report.",
         )
     logger.info(
         "listing_report_updated report_id=%s listing_id=%s reviewer_id=%s status=%s",
@@ -343,7 +388,14 @@ def admin_update_report(request, report_id):
         request.user.id,
         report.status,
     )
-    messages.success(request, "Report updated.")
+    if report.status == ListingReport.STATUS_RESOLVED:
+        messages.success(request, "Report resolved and listing removed from the marketplace.")
+    elif report.status == ListingReport.STATUS_DISMISSED:
+        messages.success(request, "Report dismissed.")
+    elif report.status == ListingReport.STATUS_IN_REVIEW:
+        messages.success(request, "Report moved to in review.")
+    else:
+        messages.success(request, "Report reopened.")
     redirect_to = safe_next_url(
         request,
         request.POST.get("next"),

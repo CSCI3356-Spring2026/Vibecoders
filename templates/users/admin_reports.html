@@ -104,10 +104,26 @@
                                                 <span class="admin-report-note-label">Reporter details</span>
                                                 <p>{{ report.details|default:"No details provided." }}</p>
                                             </div>
-                                            {% if report.resolution_notes %}
-                                                <div class="admin-report-note admin-report-note-resolution">
-                                                    <span class="admin-report-note-label">Resolution notes</span>
-                                                    <p>{{ report.resolution_notes }}</p>
+                                            {% if report.ui_updates %}
+                                                <div class="admin-report-timeline">
+                                                    <span class="admin-report-note-label">Moderation history</span>
+                                                    {% for update in report.ui_updates %}
+                                                        <div class="admin-report-update">
+                                                            <div class="admin-report-update-head">
+                                                                <strong>{{ update.get_action_display }}</strong>
+                                                                <span>{{ update.created_at|date:"M d, Y · P" }}</span>
+                                                            </div>
+                                                            <div class="admin-list-meta">
+                                                                {% if update.actor %}{{ update.actor.display_name }}{% else %}System{% endif %}
+                                                            </div>
+                                                            {% if update.note %}
+                                                                <p>{{ update.note }}</p>
+                                                            {% endif %}
+                                                        </div>
+                                                    {% endfor %}
+                                                    {% if report.ui_has_more_updates %}
+                                                        <div class="admin-list-meta">Open the listing to review the full report timeline.</div>
+                                                    {% endif %}
                                                 </div>
                                             {% endif %}
                                         </div>
@@ -116,6 +132,7 @@
                                             <input type="hidden" name="next" value="{{ report.ui_next }}">
                                             <label class="form-label fw-semibold" for="{{ report.ui_form.status.id_for_label }}">{{ report.ui_form.status.label }}</label>
                                             {{ report.ui_form.status }}
+                                            <div class="admin-form-hint"><code>Resolved</code> removes the listing from the marketplace. <code>Dismissed</code> closes the report only.</div>
                                             {% for error in report.ui_form.status.errors %}
                                                 <div class="app-field-error">{{ error }}</div>
                                             {% endfor %}
@@ -125,7 +142,7 @@
                                                 <div class="app-field-error">{{ error }}</div>
                                             {% endfor %}
                                             <div class="admin-user-actions">
-                                                <button class="btn btn-brand btn-sm" type="submit">Update report</button>
+                                                <button class="btn btn-brand btn-sm" type="submit">Save decision</button>
                                                 <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:admin_listing_detail' report.listing.id %}">Open listing</a>
                                             </div>
                                         </form>

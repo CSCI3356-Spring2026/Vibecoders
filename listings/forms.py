@@ -482,12 +482,12 @@ class AdminListingReportResolutionForm(forms.Form):
     )
     resolution_notes = forms.CharField(
         required=False,
-        label="Resolution notes",
+        label="Moderator note",
         widget=forms.Textarea(
             attrs={
                 "rows": 3,
                 "class": "form-control",
-                "placeholder": "Resolution details visible to the admin team.",
+                "placeholder": "Explain the decision or add the next moderation step.",
             }
         ),
     )
@@ -515,7 +515,7 @@ class AdminListingReportResolutionForm(forms.Form):
         status = cleaned_data.get("status")
         notes = cleaned_data.get("resolution_notes") or ""
         if status in {ListingReport.STATUS_RESOLVED, ListingReport.STATUS_DISMISSED} and not notes:
-            self.add_error("resolution_notes", "Add resolution notes before closing out a report.")
+            self.add_error("resolution_notes", "Add a moderator note before closing out a report.")
         cleaned_data["resolution_notes"] = notes
         return cleaned_data
 

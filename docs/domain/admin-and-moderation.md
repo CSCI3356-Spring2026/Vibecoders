@@ -69,8 +69,11 @@ Admins can change a report's status and add resolution notes.
 Rules:
 
 - closing a report as resolved or dismissed requires notes
+- resolving a report removes the listing from the marketplace
+- dismissing a report closes the report without removing the listing
 - reopening to `open` clears prior reviewer and resolution metadata
 - the queue surfaces reporter, listing owner, and prior moderation context on each report card
+- moderator comments are preserved as a report activity timeline instead of being overwritten by the latest update
 - historical reports remain moderatable even if the original reporter's account role changes later
 - report updates are logged
 

@@ -1072,6 +1072,49 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertEqual(update_response["Location"], reverse("users:admin_reports"))
         self.assertEqual(report.status, ListingReport.STATUS_RESOLVED)
         self.assertEqual(report.reviewed_by, admin)
+        listing.refresh_from_db()
+        self.assertEqual(listing.approval_status, Listing.APPROVAL_REJECTED)
+        self.assertTrue(listing.is_hidden)
+        queue_response = self.client.get(reverse("users:admin_reports"))
+        self.assertNotContains(queue_response, "Reported listing")
+
+    def test_admin_reports_page_dismisses_report_without_closing_listing(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        owner = User.objects.create_user(username="owner-four", email="owner-four@bc.edu", password="test")
+        reporter = User.objects.create_user(username="reporter-four", email="reporter-four@bc.edu", password="test")
+        listing = owner.listings.create(
+            title="Dismissed report listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status="approved",
+        )
+        report = ListingReport.objects.create(
+            listing=listing,
+            reporter=reporter,
+            reason=ListingReport.REASON_SPAM,
+            details="Looks like a duplicate.",
+        )
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            reverse("users:admin_update_report", args=[report.id]),
+            {
+                f"report-{report.id}-status": ListingReport.STATUS_DISMISSED,
+                f"report-{report.id}-resolution_notes": "Confirmed this listing is legitimate.",
+                "next": reverse("users:admin_reports"),
+            },
+            follow=False,
+        )
+
+        report.refresh_from_db()
+        listing.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(report.status, ListingReport.STATUS_DISMISSED)
+        self.assertEqual(listing.approval_status, Listing.APPROVAL_APPROVED)
+        self.assertFalse(listing.is_hidden)
 
     def test_admin_reports_page_can_update_historical_report_after_reporter_role_changes(self):
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
@@ -1143,8 +1186,79 @@ assert.equal(root.classList.contains("is-open"), false);
         )
 
         report.refresh_from_db()
-        self.assertContains(response, "Add valid resolution notes before closing out a report.")
+        self.assertContains(response, "Add a moderator note before closing out a report.")
         self.assertEqual(report.status, ListingReport.STATUS_OPEN)
+
+    def test_admin_reports_page_defaults_to_active_reports_only(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        owner = User.objects.create_user(username="owner-five", email="owner-five@bc.edu", password="test")
+        reporter = User.objects.create_user(username="reporter-five", email="reporter-five@bc.edu", password="test")
+        listing = owner.listings.create(
+            title="Queue visibility listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status="approved",
+        )
+        open_report = ListingReport.objects.create(
+            listing=listing,
+            reporter=reporter,
+            reason=ListingReport.REASON_SPAM,
+            details="Open report.",
+        )
+        dismissed_report = ListingReport.objects.create(
+            listing=listing,
+            reporter=User.objects.create_user(username="reporter-six", email="reporter-six@bc.edu", password="test"),
+            reason=ListingReport.REASON_SAFETY,
+            details="Closed report.",
+            status=ListingReport.STATUS_DISMISSED,
+            resolution_notes="Handled.",
+            reviewed_by=admin,
+            reviewed_at=timezone.now(),
+        )
+        self.client.force_login(admin)
+
+        response = self.client.get(reverse("users:admin_reports"))
+
+        self.assertContains(response, open_report.details)
+        self.assertNotContains(response, dismissed_report.details)
+
+    def test_admin_reports_page_shows_report_update_history(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        owner = User.objects.create_user(username="owner-six", email="owner-six@bc.edu", password="test")
+        reporter = User.objects.create_user(username="reporter-seven", email="reporter-seven@bc.edu", password="test")
+        listing = owner.listings.create(
+            title="Timeline listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status="approved",
+        )
+        report = ListingReport.objects.create(
+            listing=listing,
+            reporter=reporter,
+            reason=ListingReport.REASON_SAFETY,
+            details="Initial report.",
+        )
+        report.mark_status(
+            status=ListingReport.STATUS_IN_REVIEW,
+            reviewer=admin,
+            resolution_notes="Escalated to campus safety.",
+        )
+        report.save()
+        report.add_update(actor=admin, note="Escalated to campus safety.")
+        report.add_update(actor=admin, note="Waiting on follow-up from the lister.")
+        self.client.force_login(admin)
+
+        response = self.client.get(reverse("users:admin_listing_detail", args=[listing.id]))
+
+        self.assertContains(response, "Moderation history")
+        self.assertContains(response, "Escalated to campus safety.")
+        self.assertContains(response, "Waiting on follow-up from the lister.")
 
     def test_user_can_delete_their_account(self):
         self.client.force_login(self.user)

@@ -20,6 +20,7 @@ This reference summarizes the main persisted models and the rules that matter mo
 | `ListingFavorite` | saved listing | `user` to `listing` | unique per `(user, listing)`; owner cannot favorite own listing |
 | `ListingReview` | resident review | `author` to `listing` | unique per `(listing, author)`; rating 1-5; student-only at submission time; approved-listing-only; prior conversation required |
 | `ListingReport` | abuse or quality report | `reporter` to `listing` | student-only at submission time; approved-listing-only; active-report uniqueness while open or in review; reopening clears resolution metadata |
+| `ListingReportUpdate` | moderator activity log entry for a report | belongs to `ListingReport`, optional actor | preserves comments and status decisions over time; supports reopen, in-review, dismiss, and listing-closed actions |
 
 ## Communications App
 
