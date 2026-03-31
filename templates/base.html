@@ -65,7 +65,16 @@
                                         <a class="nav-button" href="{% url 'users:posts' %}">My Listings</a>
                                     {% endif %}
                                     {% if request.user.is_authenticated %}
-                                        <a class="nav-button" href="{% url 'communications:messages' %}">Messages</a>
+                                        <a class="nav-button nav-button-with-badge" href="{% url 'communications:messages' %}">
+                                            <span>Messages</span>
+                                            <span
+                                                class="nav-badge{% if not global_unread_conversations_count %} is-hidden{% endif %}"
+                                                data-nav-unread-count
+                                                {% if not global_unread_conversations_count %}hidden{% endif %}
+                                            >
+                                                {{ global_unread_conversations_count }}
+                                            </span>
+                                        </a>
                                     {% endif %}
                                     <a class="nav-button nav-button-primary" href="{% url 'listings:create_listing' %}">Create Listing</a>
                                 {% endblock %}

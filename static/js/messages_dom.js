@@ -9,6 +9,7 @@ export function createMessagesUi(root) {
     const errorContainer = root.querySelector("[data-message-errors]");
     const totalCountChips = root.querySelectorAll("[data-total-conversations]");
     const unreadCountChip = root.querySelector("[data-unread-count]");
+    const navUnreadBadge = document.querySelector("[data-nav-unread-count]");
     const connectionChips = root.querySelectorAll("[data-message-connection]");
     const deliveryState = root.querySelector("[data-message-delivery-state]");
     const threadMessageCount = root.querySelector("[data-thread-message-count]");
@@ -80,6 +81,12 @@ export function createMessagesUi(root) {
     const renderUnreadCount = () => {
         if (unreadCountChip) {
             unreadCountChip.textContent = `${Math.max(0, unreadConversations)} unread`;
+        }
+        if (navUnreadBadge) {
+            const nextUnreadConversations = Math.max(0, unreadConversations);
+            navUnreadBadge.textContent = String(nextUnreadConversations);
+            navUnreadBadge.hidden = nextUnreadConversations === 0;
+            navUnreadBadge.classList.toggle("is-hidden", nextUnreadConversations === 0);
         }
     };
 
