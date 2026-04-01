@@ -19,7 +19,7 @@
             <span
                 class="nav-badge{% if not global_unread_conversations_count %} is-hidden{% endif %}"
                 data-nav-unread-count
-                {% if not global_unread_conversations_count %}hidden{% endif %}
+                {% if not global_unread_conversations_count %}aria-hidden="true"{% endif %}
             >
                 {{ global_unread_conversations_count }}
             </span>

@@ -11,6 +11,7 @@ Padly is a student housing and subletting marketplace built by Vibecoders for th
 - Real-time conversations between listing owners and interested renters
 - Admin tooling for listing approval, report moderation, and operations
 - Private user-file handling through authenticated views
+- Embedded legal-review flow for versioned Terms and Privacy acceptance
 
 ## Architecture
 
@@ -123,6 +124,8 @@ Common environment variables:
 - `LISTING_REPORT_RATE_LIMIT` / `LISTING_REPORT_RATE_WINDOW_SECONDS`: listing-report submission burst control
 
 Listings authoring now fails closed when Geoapify autocomplete is not configured. Users must choose a verified suggestion on create, and freeform addresses are not accepted as a fallback.
+
+Users with stale legal acceptance are routed through the embedded review flow on the login page, where Privacy Policy is reviewed first and Terms of Service second before Google sign-in can continue.
 
 Production-only requirements:
 

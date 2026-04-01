@@ -58,11 +58,12 @@ Useful computed properties include:
 ### Flow summary
 
 1. The user lands on the custom login page.
-2. If the current legal version has not been reviewed, the page embeds the Terms of Service and Privacy Policy review surfaces.
-3. The user must scroll both documents before the acceptance checkboxes unlock.
-4. A pending legal acceptance payload is stored in session state.
-5. Allauth completes Google login and the adapter validates verified email identity.
-6. The pending legal acceptance is persisted to the user record.
+2. If the current legal version has not been reviewed, the page switches into a stepped legal-review flow.
+3. Privacy Policy is reviewed first, then Terms of Service.
+4. The user must scroll each document before its acknowledgement unlocks.
+5. A pending legal acceptance payload is stored in session state.
+6. Allauth completes Google login and the adapter validates verified email identity.
+7. The pending legal acceptance is persisted to the user record.
 
 ## Legal Acceptance
 
@@ -107,8 +108,9 @@ Legal acceptance is versioned by `LEGAL_DOCUMENT_VERSION`.
 ### User dashboard
 
 - `/users/dashboard/`
-- Shows recent listings, files, and conversations
 - Acts as the main account workspace
+- Prioritizes document library, inbox, listings, and group match actions
+- Shows recent listings and recent messages in one activity surface
 - Surfaces the primary entry point into group match and roommate discovery
 
 ### Listing-only users

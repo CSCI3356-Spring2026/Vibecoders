@@ -148,11 +148,22 @@
         <main class="page-wrap">
             {% block global_messages %}
                 {% if messages %}
-                    <div class="container pt-3 app-global-messages">
+                    <div class="app-notification-stack" data-app-notification-stack aria-live="polite" aria-atomic="true">
                         {% for message in messages %}
-                            <div class="alert {% if message.tags == 'error' %}alert-danger{% else %}alert-{{ message.tags|default:'info' }}{% endif %} mb-3" role="alert">
-                                {{ message }}
-                            </div>
+                            <article
+                                class="app-notification{% if message.tags == 'error' %} is-error{% elif message.tags == 'success' %} is-success{% elif message.tags == 'warning' %} is-warning{% else %} is-info{% endif %}"
+                                role="status"
+                                data-app-notification
+                                {% if message.tags == 'success' or message.tags == 'info' %}data-auto-dismiss="4800"{% endif %}
+                            >
+                                <div class="app-notification-body">
+                                    <span class="app-notification-badge" aria-hidden="true"></span>
+                                    <div class="app-notification-copy">{{ message }}</div>
+                                </div>
+                                <button class="app-notification-dismiss" type="button" aria-label="Dismiss notification" data-app-notification-dismiss>
+                                    <span aria-hidden="true">&times;</span>
+                                </button>
+                            </article>
                         {% endfor %}
                     </div>
                 {% endif %}
@@ -211,6 +222,7 @@
         crossorigin="anonymous"
     ></script>
     <script src="{% static 'js/inline-confirm.js' %}"></script>
+    <script src="{% static 'js/app-notifications.js' %}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

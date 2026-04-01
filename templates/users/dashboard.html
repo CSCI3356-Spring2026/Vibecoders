@@ -12,240 +12,235 @@
     <div class="container">
         <div class="app-shell">
             <section class="app-header-shell account-hero-shell">
-                <div class="account-hero-grid">
-                    <div class="account-hero-main">
-                        <div class="identity-row profile-hero-row">
-                            {% include "includes/user_avatar.html" with user_obj=request.user avatar_class="profile-hero-avatar user-avatar user-avatar-xl" %}
-                            <div class="identity-copy">
-                                <p class="app-kicker">Account</p>
-                                <h1 class="app-title">{{ request.user.display_name }}</h1>
-                                <p class="app-subtitle">{{ request.user.email|default:"No email on file" }}</p>
-                            </div>
-                        </div>
-
-                        <div class="app-meta">
-                            <span class="app-meta-chip">{{ request.user.display_role }}</span>
-                            {% if has_listing_only_access %}
-                                <span class="app-meta-chip app-meta-chip-secondary">Listing access only</span>
-                            {% else %}
-                                <span class="app-meta-chip app-meta-chip-secondary">Marketplace</span>
-                            {% endif %}
-                            <span class="app-meta-chip app-meta-chip-neutral">
-                                {% if unread_conversations_count %}
-                                    {{ unread_conversations_count }} unread thread{{ unread_conversations_count|pluralize }}
-                                {% else %}
-                                    No unread
-                                {% endif %}
-                            </span>
-                        </div>
-
-                        <div class="app-actions account-hero-actions">
-                            <a class="btn btn-brand" href="{% url 'users:files' %}">Open document library</a>
-                            {% if can_browse_marketplace %}
-                                <a class="btn btn-outline-secondary" href="{% url 'listings:listing_list' %}">Listings</a>
-                            {% else %}
-                                <a class="btn btn-outline-secondary" href="{% url 'users:posts' %}">My listings</a>
-                            {% endif %}
-                            <a class="btn btn-outline-secondary" href="{% url 'communications:messages' %}">Inbox</a>
-                            <a class="btn btn-outline-secondary" href="{% url 'listings:create_listing' %}">Create listing</a>
+                <div class="account-hero-main">
+                    <div class="identity-row profile-hero-row">
+                        {% include "includes/user_avatar.html" with user_obj=request.user avatar_class="profile-hero-avatar user-avatar user-avatar-xl" %}
+                        <div class="identity-copy">
+                            <p class="app-kicker">Account</p>
+                            <h1 class="app-title">{{ request.user.display_name }}</h1>
+                            <p class="app-subtitle">{{ request.user.email|default:"No email on file" }}</p>
                         </div>
                     </div>
 
-                    <aside class="account-library-spotlight">
-                        <p class="account-library-kicker">Documents</p>
-                        <h2 class="account-library-title">Document library</h2>
-                        <p class="account-library-copy">Private files.</p>
+                    <div class="app-meta">
+                        <span class="app-meta-chip">{{ request.user.display_role }}</span>
+                        {% if has_listing_only_access %}
+                            <span class="app-meta-chip app-meta-chip-secondary">Listing access only</span>
+                        {% else %}
+                            <span class="app-meta-chip app-meta-chip-secondary">Marketplace</span>
+                        {% endif %}
+                        <span class="app-meta-chip app-meta-chip-neutral">
+                            {% if unread_conversations_count %}
+                                {{ unread_conversations_count }} unread thread{{ unread_conversations_count|pluralize }}
+                            {% else %}
+                                No unread
+                            {% endif %}
+                        </span>
+                    </div>
 
-                        <div class="account-library-metric">
-                            <strong>{{ files_count }}</strong>
-                            <span>file{{ files_count|pluralize }} stored</span>
+                    <div class="app-actions account-hero-actions">
+                        <a class="btn btn-brand" href="{% url 'users:files' %}">Open document library</a>
+                        <a class="btn btn-outline-secondary" href="{% url 'communications:messages' %}">Inbox</a>
+                        <a class="btn btn-outline-secondary" href="{% url 'users:posts' %}">My listings</a>
+                        <a class="btn btn-outline-secondary" href="{% url 'users:profile_setup' %}">Edit profile</a>
+                    </div>
+                </div>
+            </section>
+
+            <div class="account-summary-grid">
+                <div class="account-summary-card">
+                    <span class="account-summary-label">Listings</span>
+                    <strong class="account-summary-value">{{ listings_count }}</strong>
+                </div>
+                <div class="account-summary-card">
+                    <span class="account-summary-label">Conversations</span>
+                    <strong class="account-summary-value">{{ conversations_count }}</strong>
+                </div>
+                <div class="account-summary-card">
+                    <span class="account-summary-label">Unread</span>
+                    <strong class="account-summary-value">{{ unread_conversations_count }}</strong>
+                </div>
+                <div class="account-summary-card">
+                    <span class="account-summary-label">Documents</span>
+                    <strong class="account-summary-value">{{ files_count }}</strong>
+                </div>
+            </div>
+
+            <div class="account-dashboard-layout">
+                <div class="account-dashboard-main">
+                    <section class="listing-panel account-workspace-panel">
+                        <div class="app-panel-head">
+                            <div>
+                                <h2 class="app-section-heading">Workspace</h2>
+                            </div>
+                        </div>
+
+                        <div class="account-workspace-grid">
+                            <a class="account-workspace-link" href="{% url 'users:profile_setup' %}">
+                                <span class="account-workspace-title">Profile</span>
+                                <span class="account-workspace-meta">Edit details</span>
+                            </a>
+                            <a class="account-workspace-link" href="{% url 'users:posts' %}">
+                                <span class="account-workspace-title">My listings</span>
+                                <span class="account-workspace-meta">Inventory and status</span>
+                            </a>
+                            <a class="account-workspace-link" href="{% url 'communications:messages' %}">
+                                <span class="account-workspace-title">Inbox</span>
+                                <span class="account-workspace-meta">
+                                    {% if unread_conversations_count %}
+                                        {{ unread_conversations_count }} unread thread{{ unread_conversations_count|pluralize }}
+                                    {% else %}
+                                        Direct and listing chats
+                                    {% endif %}
+                                </span>
+                            </a>
+                            <a class="account-workspace-link" href="{% url 'listings:create_listing' %}">
+                                <span class="account-workspace-title">Create listing</span>
+                                <span class="account-workspace-meta">Post a new home</span>
+                            </a>
+                            {% if can_browse_marketplace %}
+                                <a class="account-workspace-link" href="{% url 'listings:group_match' %}">
+                                    <span class="account-workspace-title">Group match</span>
+                                    <span class="account-workspace-meta">Roommates and homes</span>
+                                </a>
+                            {% endif %}
+                            {% if request.user.can_access_admin_panel %}
+                                <a class="account-workspace-link" href="{% url 'users:admin_dashboard' %}">
+                                    <span class="account-workspace-title">Admin</span>
+                                    <span class="account-workspace-meta">Moderation and review</span>
+                                </a>
+                            {% endif %}
+                        </div>
+                    </section>
+
+                    <section class="listing-panel account-activity-panel">
+                        <div class="app-panel-head">
+                            <div>
+                                <h2 class="app-section-heading">Recent activity</h2>
+                            </div>
+                        </div>
+
+                        <div class="account-activity-grid">
+                            <section class="account-activity-column">
+                                <div class="account-activity-head">
+                                    <h3 class="account-activity-title">Recent listings</h3>
+                                    <a class="listing-reset-link" href="{% url 'users:posts' %}">View all</a>
+                                </div>
+
+                                {% if recent_listings %}
+                                    <div class="app-compact-list">
+                                        {% for listing in recent_listings %}
+                                            <a class="app-compact-item" href="{% url 'listings:detail' listing.pk %}">
+                                                <span class="app-compact-title">{{ listing.title }}</span>
+                                                <span class="app-compact-meta">
+                                                    ${{ listing.price|floatformat:0 }}/month • {{ listing.get_status_display }}
+                                                </span>
+                                            </a>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <p class="app-panel-copy mb-0">No listings.</p>
+                                {% endif %}
+                            </section>
+
+                            <section class="account-activity-column">
+                                <div class="account-activity-head">
+                                    <h3 class="account-activity-title">Recent messages</h3>
+                                    <a class="listing-reset-link" href="{% url 'communications:messages' %}">Open inbox</a>
+                                </div>
+
+                                {% if recent_conversations %}
+                                    <div class="app-compact-list">
+                                        {% for conversation in recent_conversations %}
+                                            <a class="app-compact-item" href="{% url 'communications:detail' conversation.id %}">
+                                                <span class="app-compact-title">{{ conversation.ui_context_title }}</span>
+                                                <span class="app-compact-meta">
+                                                    {{ conversation.ui_counterparty.get_full_name|default:conversation.ui_counterparty.username }}
+                                                    {% if conversation.ui_has_unread %}• Unread{% endif %}
+                                                </span>
+                                                <span class="app-compact-meta">
+                                                    {{ conversation.last_message_preview|default:"No messages yet." }}
+                                                </span>
+                                            </a>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <p class="app-panel-copy mb-0">No messages.</p>
+                                {% endif %}
+                            </section>
+                        </div>
+                    </section>
+                </div>
+
+                <aside class="account-dashboard-side">
+                    <section class="listing-panel account-library-panel">
+                        <div class="app-panel-head">
+                            <div>
+                                <h2 class="app-section-heading">Document library</h2>
+                            </div>
+                            <a class="listing-reset-link" href="{% url 'users:files' %}">Open library</a>
+                        </div>
+
+                        <div class="account-library-metric-row">
+                            <div class="account-library-metric-card">
+                                <strong>{{ files_count }}</strong>
+                                <span>file{{ files_count|pluralize }}</span>
+                            </div>
+                            <div class="account-library-metric-card">
+                                <strong>{% if recent_files %}Active{% else %}Empty{% endif %}</strong>
+                                <span>library status</span>
+                            </div>
                         </div>
 
                         {% if recent_files %}
-                            <div class="account-library-latest">
-                                <span class="account-library-latest-label">Latest upload</span>
-                                <span class="account-library-latest-title">{{ recent_files.0.display_title }}</span>
-                                <span class="account-library-latest-meta">Uploaded {{ recent_files.0.uploaded_at|date:"M d, Y" }}</span>
+                            <div class="account-library-current">
+                                <span class="account-library-current-label">Latest file</span>
+                                <strong class="account-library-current-title">{{ recent_files.0.display_title }}</strong>
+                                <span class="account-library-current-meta">Uploaded {{ recent_files.0.uploaded_at|date:"M d, Y" }}</span>
+                            </div>
+
+                            <div class="app-compact-list account-library-list">
+                                {% for item in recent_files %}
+                                    <a class="app-compact-item" href="{% url 'users:files' %}?file={{ item.id }}">
+                                        <span class="app-compact-title">{{ item.display_title }}</span>
+                                        <span class="app-compact-meta">Uploaded {{ item.uploaded_at|date:"M d, Y" }}</span>
+                                    </a>
+                                {% endfor %}
                             </div>
                         {% else %}
-                            <div class="account-library-latest is-empty">
-                                <span class="account-library-latest-label">Library status</span>
-                                <span class="account-library-latest-title">No files uploaded yet</span>
-                                <span class="account-library-latest-meta">Ready when needed.</span>
+                            <div class="account-library-current is-empty">
+                                <span class="account-library-current-label">Library status</span>
+                                <strong class="account-library-current-title">No files uploaded yet</strong>
+                                <span class="account-library-current-meta">Ready when needed.</span>
                             </div>
                         {% endif %}
 
                         <div class="account-library-actions">
-                            <a class="btn btn-brand w-100" href="{% url 'users:files' %}">Open library</a>
+                            <a class="btn btn-brand w-100" href="{% url 'users:files' %}">Open document library</a>
                             {% if recent_files %}
                                 <a class="btn btn-outline-secondary w-100" href="{% url 'users:files' %}?file={{ recent_files.0.id }}">Open latest file</a>
                             {% endif %}
                         </div>
-                    </aside>
-                </div>
-            </section>
+                    </section>
 
-            <div class="app-stat-grid account-stat-grid">
-                <div class="app-stat-card is-primary">
-                    <span class="app-stat-label">Listings</span>
-                    <span class="app-stat-value">{{ listings_count }}</span>
-                </div>
-                <div class="app-stat-card is-secondary">
-                    <span class="app-stat-label">Conversations</span>
-                    <span class="app-stat-value">{{ conversations_count }}</span>
-                </div>
-                <div class="app-stat-card is-accent">
-                    <span class="app-stat-label">Unread</span>
-                    <span class="app-stat-value">{{ unread_conversations_count }}</span>
-                </div>
-                <div class="app-stat-card is-neutral">
-                    <span class="app-stat-label">Documents</span>
-                    <span class="app-stat-value">{{ files_count }}</span>
-                </div>
-            </div>
-
-            <div class="account-dashboard-grid">
-                <div class="listing-panel">
-                    <div class="app-panel-head">
-                        <div>
-                            <h2 class="app-section-heading">Workspace</h2>
-                            <p class="app-panel-copy">Shortcuts</p>
+                    <section class="listing-panel account-safety-panel">
+                        <div class="app-panel-head">
+                            <div>
+                                <h2 class="app-section-heading">Account safety</h2>
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="app-compact-list">
-                        <a class="app-compact-item" href="{% url 'users:profile_setup' %}">
-                            <span class="app-compact-title">Profile</span>
-                            <span class="app-compact-meta">Edit details.</span>
-                        </a>
-                        <a class="app-compact-item" href="{% url 'users:posts' %}">
-                            <span class="app-compact-title">My listings</span>
-                            <span class="app-compact-meta">Current inventory.</span>
-                        </a>
-                        <a class="app-compact-item" href="{% url 'communications:messages' %}">
-                            <span class="app-compact-title">Inbox</span>
-                            <span class="app-compact-meta">
-                                {% if unread_conversations_count %}
-                                    {{ unread_conversations_count }} unread thread{{ unread_conversations_count|pluralize }}.
-                                {% else %}
-                                    Direct and listing chats.
-                                {% endif %}
-                            </span>
-                        </a>
-                        {% if can_browse_marketplace %}
-                            <a class="app-compact-item" href="{% url 'listings:group_match' %}">
-                                <span class="app-compact-title">Group match</span>
-                                <span class="app-compact-meta">Roommates and homes.</span>
-                            </a>
-                        {% endif %}
-                        {% if request.user.can_access_admin_panel %}
-                            <a class="app-compact-item" href="{% url 'users:admin_dashboard' %}">
-                                <span class="app-compact-title">Admin</span>
-                                <span class="app-compact-meta">Moderation.</span>
-                            </a>
-                        {% endif %}
-                    </div>
-                </div>
-
-                <div class="listing-panel account-safety-panel">
-                    <div class="app-panel-head">
-                        <div>
-                            <h2 class="app-section-heading">Account Safety</h2>
-                            <p class="app-panel-copy">Delete account</p>
+                        <div class="account-safety-copy">
+                            <p class="app-panel-copy">Deleting your account removes listings, files, and conversations.</p>
+                            <p class="app-panel-copy">Recent sign-in required.</p>
                         </div>
-                    </div>
 
-                    <div class="account-safety-copy">
-                        <p class="app-panel-copy">
-                            Removes your profile, listings, files, and conversations.
-                        </p>
-                        <p class="app-panel-copy">Recent sign-in required.</p>
-                    </div>
-
-                    <div class="app-actions account-safety-actions">
-                        {% url 'users:delete_account' as delete_account_url %}
-                        {% include "includes/inline_confirm.html" with trigger_label="Delete account" prompt_text="Delete your account?" action_url=delete_account_url confirm_label="Confirm delete" %}
-                    </div>
-                </div>
-            </div>
-
-            <div class="app-card-grid app-card-grid-three">
-                <div class="listing-panel">
-                    <div class="app-panel-head">
-                        <div>
-                            <h2 class="app-section-heading">Recent listings</h2>
-                            <p class="app-panel-copy">Latest</p>
+                        <div class="app-actions account-safety-actions">
+                            {% url 'users:delete_account' as delete_account_url %}
+                            {% include "includes/inline_confirm.html" with trigger_label="Delete account" prompt_text="Delete your account?" action_url=delete_account_url confirm_label="Confirm delete" %}
                         </div>
-                        <a class="listing-reset-link" href="{% url 'users:posts' %}">View all</a>
-                    </div>
-
-                    {% if recent_listings %}
-                        <div class="app-compact-list">
-                            {% for listing in recent_listings %}
-                                <a class="app-compact-item" href="{% url 'listings:detail' listing.pk %}">
-                                    <span class="app-compact-title">{{ listing.title }}</span>
-                                    <span class="app-compact-meta">
-                                        ${{ listing.price|floatformat:0 }}/month • {{ listing.get_status_display }}
-                                    </span>
-                                </a>
-                            {% endfor %}
-                        </div>
-                    {% else %}
-                        <p class="app-panel-copy mb-0">No listings.</p>
-                    {% endif %}
-                </div>
-
-                <div class="listing-panel">
-                    <div class="app-panel-head">
-                        <div>
-                            <h2 class="app-section-heading">Recent messages</h2>
-                            <p class="app-panel-copy">Latest</p>
-                        </div>
-                        <a class="listing-reset-link" href="{% url 'communications:messages' %}">Open inbox</a>
-                    </div>
-
-                    {% if recent_conversations %}
-                        <div class="app-compact-list">
-                            {% for conversation in recent_conversations %}
-                                <a class="app-compact-item" href="{% url 'communications:detail' conversation.id %}">
-                                    <span class="app-compact-title">{{ conversation.ui_context_title }}</span>
-                                    <span class="app-compact-meta">
-                                        {{ conversation.ui_counterparty.get_full_name|default:conversation.ui_counterparty.username }}
-                                        {% if conversation.ui_has_unread %}• Unread{% endif %}
-                                    </span>
-                                    <span class="app-compact-meta">
-                                        {{ conversation.last_message_preview|default:"No messages yet." }}
-                                    </span>
-                                </a>
-                            {% endfor %}
-                        </div>
-                    {% else %}
-                        <p class="app-panel-copy mb-0">No messages.</p>
-                    {% endif %}
-                </div>
-
-                <div class="listing-panel">
-                    <div class="app-panel-head">
-                        <div>
-                            <h2 class="app-section-heading">Recent documents</h2>
-                            <p class="app-panel-copy">Latest</p>
-                        </div>
-                        <a class="listing-reset-link" href="{% url 'users:files' %}">Open library</a>
-                    </div>
-
-                    {% if recent_files %}
-                        <div class="app-compact-list">
-                            {% for item in recent_files %}
-                                <a class="app-compact-item" href="{% url 'users:files' %}?file={{ item.id }}">
-                                    <span class="app-compact-title">{{ item.display_title }}</span>
-                                    <span class="app-compact-meta">Uploaded {{ item.uploaded_at|date:"M d, Y" }}</span>
-                                </a>
-                            {% endfor %}
-                        </div>
-                    {% else %}
-                        <p class="app-panel-copy mb-0">No files.</p>
-                    {% endif %}
-                </div>
+                    </section>
+                </aside>
             </div>
         </div>
     </div>

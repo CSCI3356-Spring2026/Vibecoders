@@ -116,6 +116,13 @@ Client-side behavior:
 - `static/js/listings-map-view.js` manages MapLibre state
 - `static/js/listings-results.js` renders live-search cards
 
+Current desktop layout:
+
+- filter controls live above the left results column instead of spanning the whole page
+- results stay on the left in a dense stacked-card rail
+- the map occupies the right column and extends higher than the results list
+- the map can toggle between default and satellite styles
+
 ### Important visibility rules
 
 - The current `/listings/`, `/listings/search/`, and listing-detail HTTP surfaces are login-gated even though selector helpers can still produce anonymous/public querysets for shared internal use such as the landing page.
@@ -174,6 +181,7 @@ Reports let student users flag approved listings for admin review.
 - `dismissed` closes the report without changing the listing's approved status
 - reopening to `open` clears prior reviewer and resolution metadata
 - moderator notes and decisions are preserved as a timeline of `ListingReportUpdate` records instead of a single overwritten field
+- the admin queue defaults to active reports, while closed history remains visible on listing-level moderation detail
 
 ## Group Match and Roommate Discovery
 

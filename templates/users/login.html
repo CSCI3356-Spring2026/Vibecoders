@@ -9,33 +9,37 @@
     {% endif %}
 {% endblock %}
 
-{% block auth_layout_class %}{% if legal_review_required %} auth-layout-review{% endif %}{% endblock %}
+{% block auth_layout_class %} auth-layout-login{% if legal_review_required %} auth-layout-review{% endif %}{% endblock %}
 
-{% block auth_stage_class %}{% if legal_review_required %} auth-stage-review{% endif %}{% endblock %}
+{% block auth_stage_class %} auth-stage-login{% if legal_review_required %} auth-stage-review{% endif %}{% endblock %}
 
-{% block auth_panel_class %}{% if legal_review_required %} auth-panel-review{% endif %}{% endblock %}
+{% block auth_panel_class %} auth-panel-login{% if legal_review_required %} auth-panel-review{% endif %}{% endblock %}
 
 {% block auth_stage %}
     {% if legal_review_required %}
         <p class="auth-kicker">Current Legal Review</p>
         <h1 class="auth-stage-title">Review before continuing.</h1>
         <p class="auth-stage-copy">
-            Scroll each document to the end, unlock both acknowledgements, then continue with Google.
+            Read the privacy policy first, then the Terms of Service.
         </p>
     {% else %}
-        {{ block.super }}
+        <p class="auth-kicker">Boston College Housing</p>
+        <h1 class="auth-stage-title">Continue with Google.</h1>
+        <p class="auth-stage-copy">
+            Use your BC or listing account to access messages, listings, and documents.
+        </p>
     {% endif %}
 {% endblock %}
 
 {% block auth_panel %}
     <div class="auth-minimal{% if legal_review_required %} is-review-required{% endif %}">
         <div class="auth-minimal-head">
-            <p class="auth-eyebrow">{% if legal_review_required %}Current documents{% else %}Account access{% endif %}</p>
-            <h1 class="auth-title">{% if legal_review_required %}Terms and Privacy{% else %}Sign in with Google{% endif %}</h1>
+            <p class="auth-eyebrow">{% if legal_review_required %}Legal acceptance{% else %}Account access{% endif %}</p>
+            <h1 class="auth-title">{% if legal_review_required %}Review before continuing{% else %}Continue with Google{% endif %}</h1>
             {% if legal_review_required %}
-                <p class="auth-copy">Review both documents below, then acknowledge them to continue.</p>
+                <p class="auth-copy">One document at a time. Each acknowledgement unlocks after you scroll to the end.</p>
             {% else %}
-                <p class="auth-copy">Use the Google account tied to your BC or listing profile.</p>
+                <p class="auth-copy">One Google account for your listings, inbox, and document library.</p>
             {% endif %}
         </div>
         <form method="post" action="{% url 'users:login' %}" class="auth-acceptance-form{% if legal_review_required %} is-review-required{% endif %}" {% if legal_review_required %}data-legal-review-form{% endif %}>
@@ -51,31 +55,28 @@
             {% endif %}
 
             {% if legal_review_required %}
-                <div class="auth-legal-grid">
-                    <section
-                        class="auth-legal-card"
-                        data-legal-review-card
-                        data-review-key="terms"
-                        data-review-complete-label="Terms reviewed."
-                    >
-                        <div class="auth-legal-card-head">
-                            <div>
-                                <h2 class="auth-legal-title">Terms of Service</h2>
-                                <p class="auth-legal-copy">Scroll to the end to unlock acknowledgement.</p>
-                            </div>
-                            <a class="auth-legal-link" href="{% url 'core:terms' %}" target="_blank" rel="noopener noreferrer">Open full page</a>
-                        </div>
-                        <div class="auth-legal-pane" data-legal-review-pane tabindex="0">
-                            {% include "core/includes/terms_sections.html" %}
-                        </div>
-                        {{ login_form.reviewed_terms }}
-                        <p class="auth-legal-status" data-legal-review-status>Scroll to the end to unlock acknowledgement.</p>
-                        <label class="auth-check-option" for="{{ login_form.accept_terms.id_for_label }}">
-                            {{ login_form.accept_terms }}
-                            <span>I agree to the Terms of Service.</span>
-                        </label>
-                        {{ login_form.accept_terms.errors }}
-                    </section>
+                <div class="auth-review-flow" data-legal-review-flow>
+                    <div class="auth-review-stepper" data-legal-review-stepper>
+                        <button
+                            class="auth-review-step"
+                            type="button"
+                            data-legal-review-step-trigger
+                            data-step-target="privacy"
+                        >
+                            <span class="auth-review-step-index">1</span>
+                            <span class="auth-review-step-copy">Privacy policy</span>
+                        </button>
+                        <button
+                            class="auth-review-step"
+                            type="button"
+                            data-legal-review-step-trigger
+                            data-step-target="terms"
+                            disabled
+                        >
+                            <span class="auth-review-step-index">2</span>
+                            <span class="auth-review-step-copy">Terms of Service</span>
+                        </button>
+                    </div>
 
                     <section
                         class="auth-legal-card"
@@ -100,6 +101,38 @@
                             <span>I acknowledge the Privacy Policy.</span>
                         </label>
                         {{ login_form.accept_privacy.errors }}
+                        <div class="auth-review-actions">
+                            <button class="btn btn-outline-secondary" type="button" data-legal-review-next disabled>Continue to Terms</button>
+                        </div>
+                    </section>
+
+                    <section
+                        class="auth-legal-card"
+                        data-legal-review-card
+                        data-review-key="terms"
+                        data-review-complete-label="Terms reviewed."
+                        hidden
+                    >
+                        <div class="auth-legal-card-head">
+                            <div>
+                                <h2 class="auth-legal-title">Terms of Service</h2>
+                                <p class="auth-legal-copy">Scroll to the end to unlock acknowledgement.</p>
+                            </div>
+                            <a class="auth-legal-link" href="{% url 'core:terms' %}" target="_blank" rel="noopener noreferrer">Open full page</a>
+                        </div>
+                        <div class="auth-legal-pane" data-legal-review-pane tabindex="0">
+                            {% include "core/includes/terms_sections.html" %}
+                        </div>
+                        {{ login_form.reviewed_terms }}
+                        <p class="auth-legal-status" data-legal-review-status>Scroll to the end to unlock acknowledgement.</p>
+                        <label class="auth-check-option" for="{{ login_form.accept_terms.id_for_label }}">
+                            {{ login_form.accept_terms }}
+                            <span>I agree to the Terms of Service.</span>
+                        </label>
+                        {{ login_form.accept_terms.errors }}
+                        <div class="auth-review-actions">
+                            <button class="btn btn-outline-secondary" type="button" data-legal-review-prev>Back</button>
+                        </div>
                     </section>
                 </div>
             {% endif %}

@@ -30,7 +30,7 @@ In debug mode only, listing photos are also served from `media/listing_photos/<p
 
 | Route | View | Auth | Purpose |
 | --- | --- | --- | --- |
-| `/users/login/` | `users.views.login_page` | anonymous | custom login and legal review page |
+| `/users/login/` | `users.views.login_page` | anonymous | custom login page with embedded stepped legal review when required |
 | `/users/profile/` | `users.views.profile` | required | redirect to dashboard |
 | `/users/profile/setup/` | `users.views.profile_setup` | required | profile completion/update |
 | `/users/dashboard/` | `users.views.dashboard` | required | account workspace |
@@ -53,7 +53,7 @@ In debug mode only, listing photos are also served from `media/listing_photos/<p
 | `/users/admin-listings/<listing_id>/review/` | `users.admin_views.admin_review_listing` | admin + POST | approve or reject listing |
 | `/users/admin-listings/<listing_id>/delete/` | `users.admin_views.admin_delete_listing` | admin + POST | delete listing |
 | `/users/admin-reports/` | `users.admin_views.admin_reports` | admin | listing reports queue |
-| `/users/admin-reports/<report_id>/status/` | `users.admin_views.admin_update_report` | admin + POST | update report status |
+| `/users/admin-reports/<report_id>/status/` | `users.admin_views.admin_update_report` | admin + POST | update report status and append moderation history |
 | `/users/admin-users/` | `users.admin_views.admin_users` | admin | user administration |
 | `/users/admin-users/<user_id>/` | `users.admin_views.admin_user_detail` | admin | user detail |
 | `/users/admin-users/<user_id>/role/` | `users.admin_views.admin_set_role` | admin + POST | grant or restore admin role |

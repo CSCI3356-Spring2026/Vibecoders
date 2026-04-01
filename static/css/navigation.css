@@ -167,14 +167,19 @@
 }
 
 .nav-button-with-badge {
-    gap: 0.45rem;
+    position: relative;
+    gap: 0;
+    padding-right: 2.15rem;
 }
 
 .nav-badge {
+    position: absolute;
+    top: 50%;
+    right: 0.65rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 1.25rem;
+    min-width: 1.35rem;
     height: 1.25rem;
     padding: 0 0.35rem;
     border-radius: 999px;
@@ -183,10 +188,12 @@
     font-size: 0.7rem;
     font-weight: 700;
     line-height: 1;
+    transform: translateY(-50%);
+    pointer-events: none;
 }
 
 .nav-badge.is-hidden {
-    display: none;
+    visibility: hidden;
 }
 
 .nav-button:hover {

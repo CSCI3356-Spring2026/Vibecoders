@@ -106,9 +106,9 @@ class UserPageTests(TestCase):
 
         self.assertContains(response, 'class="auth-acceptance-form"')
         self.assertContains(response, "Continue with Google")
-        self.assertContains(response, "marketplace access")
+        self.assertContains(response, "One Google account for your listings, inbox, and document library.")
         self.assertContains(response, "Boston College Housing")
-        self.assertContains(response, "Use the Google account tied to your BC or listing profile.")
+        self.assertContains(response, 'class="auth-layout auth-layout-login"')
         self.assertNotContains(response, '<header class="site-header">')
         self.assertNotContains(response, "Guest User")
 
@@ -117,7 +117,7 @@ class UserPageTests(TestCase):
 
         self.assertContains(response, 'class="auth-acceptance-form"')
         self.assertContains(response, "Continue with Google")
-        self.assertContains(response, "Sign in with Google.")
+        self.assertContains(response, "Continue with Google.")
         self.assertNotContains(response, '<header class="site-header">')
         self.assertNotContains(response, "If you have not created an account yet")
 
@@ -133,6 +133,8 @@ class UserPageTests(TestCase):
         self.assertContains(response, 'name="accept_terms"')
         self.assertContains(response, 'name="accept_privacy"')
         self.assertContains(response, "Scroll to the end to unlock acknowledgement.")
+        self.assertContains(response, "auth-review-stepper")
+        self.assertContains(response, "Continue to Terms")
         self.assertContains(response, "auth-layout-review")
         self.assertContains(response, "auth-panel-review")
 
@@ -256,7 +258,7 @@ class UserPageTests(TestCase):
 
         self.assertContains(response, "data-nav-unread-count")
         self.assertContains(response, 'class="nav-badge is-hidden"')
-        self.assertContains(response, "hidden")
+        self.assertContains(response, 'aria-hidden="true"')
 
     def test_authenticated_header_shows_unread_messages_badge(self):
         listing = self.user.listings.create(
