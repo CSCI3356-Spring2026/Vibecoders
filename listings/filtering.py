@@ -1,23 +1,12 @@
-from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.db.models import Q
-from django.utils import timezone
+from django.utils.dateparse import parse_date
 
-MAX_PRICE_FILTERS = [
-    ("", "Any budget"),
-    ("1000", "$500 - $1,000"),
-    ("1500", "$1,000 - $1,500"),
-    ("2000", "$1,500 - $2,000"),
-    ("2500", "$2,000 - $2,500"),
-]
-
-MOVE_IN_FILTERS = [
-    ("", "Anytime"),
-    ("30", "Next 30 days"),
-    ("60", "Next 60 days"),
-    ("120", "Next 120 days"),
-]
+PRICE_FILTER_MIN = Decimal("0")
+PRICE_FILTER_MAX = Decimal("25000")
+BEDROOMS_FILTER_MIN = 1
+DISTANCE_FILTER_MIN = Decimal("0")
 
 
 def parse_viewport_bounds(params):
@@ -42,6 +31,46 @@ def parse_viewport_bounds(params):
     return bounds
 
 
+def parse_price_filter(raw_value):
+    value = (raw_value or "").strip()
+    if not value:
+        return None, ""
+
+    try:
+        parsed = Decimal(value)
+    except InvalidOperation:
+        return None, ""
+
+    if parsed < PRICE_FILTER_MIN or parsed > PRICE_FILTER_MAX:
+        return None, ""
+    return parsed, value
+
+
+def parse_date_filter(raw_value):
+    value = (raw_value or "").strip()
+    if not value:
+        return None, ""
+
+    parsed = parse_date(value)
+    if parsed is None:
+        return None, ""
+    return parsed, value
+
+
+def parse_integer_filter(raw_value, *, minimum=None):
+    value = (raw_value or "").strip()
+    if not value:
+        return None, ""
+
+    if not value.isdigit():
+        return None, ""
+
+    parsed = int(value)
+    if minimum is not None and parsed < minimum:
+        return None, ""
+    return parsed, value
+
+
 def apply_listing_filters(queryset, params, *, viewport_required=False):
     query = params.get("q", "").strip()
     if query:
@@ -49,26 +78,52 @@ def apply_listing_filters(queryset, params, *, viewport_required=False):
             Q(title__icontains=query) | Q(address__icontains=query) | Q(description__icontains=query)
         )
 
-    max_price = params.get("max_price", "").strip()
-    if max_price:
-        try:
-            max_price_value = Decimal(max_price)
-        except InvalidOperation:
-            max_price = ""
-        else:
-            if max_price_value > 0:
-                queryset = queryset.filter(price__lte=max_price_value)
-            else:
-                max_price = ""
+    min_price_value, min_price = parse_price_filter(params.get("min_price", ""))
+    if min_price_value is not None:
+        queryset = queryset.filter(price__gte=min_price_value)
+
+    max_price_value, max_price = parse_price_filter(params.get("max_price", ""))
+    if max_price_value is not None:
+        queryset = queryset.filter(price__lte=max_price_value)
+
+    min_bedrooms_value, min_bedrooms = parse_integer_filter(params.get("min_bedrooms", ""), minimum=BEDROOMS_FILTER_MIN)
+    if min_bedrooms_value is not None:
+        queryset = queryset.filter(rooms__gte=min_bedrooms_value)
 
     lease_type = params.get("lease_type", "").strip()
     if lease_type:
         queryset = queryset.filter(lease_type=lease_type)
 
-    available_by = params.get("available_by", "").strip()
-    if available_by.isdigit():
-        move_in_deadline = timezone.localdate() + timedelta(days=int(available_by))
-        queryset = queryset.filter(start_date__lte=move_in_deadline)
+    max_distance_value, max_distance = parse_price_filter(params.get("max_distance", ""))
+    if max_distance_value is not None and max_distance_value >= DISTANCE_FILTER_MIN:
+        queryset = queryset.filter(distance_to_campus__isnull=False, distance_to_campus__lte=max_distance_value)
+
+    availability_start_value, availability_start = parse_date_filter(params.get("availability_start", ""))
+    availability_end_value, availability_end = parse_date_filter(params.get("availability_end", ""))
+    if availability_start_value is not None:
+        queryset = queryset.filter(end_date__gte=availability_start_value)
+    if availability_end_value is not None:
+        queryset = queryset.filter(start_date__lte=availability_end_value)
+
+    has_parking = params.get("has_parking", "").strip().lower()
+    has_parking_enabled = has_parking in {"1", "true", "yes", "on"}
+    if has_parking_enabled:
+        queryset = queryset.filter(has_parking=True)
+
+    is_furnished = params.get("is_furnished", "").strip().lower()
+    is_furnished_enabled = is_furnished in {"1", "true", "yes", "on"}
+    if is_furnished_enabled:
+        queryset = queryset.filter(is_furnished=True)
+
+    allows_pets = params.get("allows_pets", "").strip().lower()
+    allows_pets_enabled = allows_pets in {"1", "true", "yes", "on"}
+    if allows_pets_enabled:
+        queryset = queryset.exclude(pet_policy__exact="")
+
+    has_yard = params.get("has_yard", "").strip().lower()
+    has_yard_enabled = has_yard in {"1", "true", "yes", "on"}
+    if has_yard_enabled:
+        queryset = queryset.filter(has_yard=True)
 
     saved = params.get("saved", "").strip().lower()
     saved_enabled = saved in {"1", "true", "yes", "on"}
@@ -88,8 +143,16 @@ def apply_listing_filters(queryset, params, *, viewport_required=False):
 
     return queryset, {
         "q": query,
+        "min_price": min_price,
         "max_price": max_price,
+        "min_bedrooms": min_bedrooms,
         "lease_type": lease_type,
-        "available_by": available_by,
+        "max_distance": max_distance,
+        "availability_start": availability_start,
+        "availability_end": availability_end,
+        "has_parking": "1" if has_parking_enabled else "",
+        "is_furnished": "1" if is_furnished_enabled else "",
+        "allows_pets": "1" if allows_pets_enabled else "",
+        "has_yard": "1" if has_yard_enabled else "",
         "saved": "1" if saved_enabled else "",
     }

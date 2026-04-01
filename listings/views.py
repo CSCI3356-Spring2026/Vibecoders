@@ -25,7 +25,7 @@ from core.utils import get_page, preserved_query_suffix, safe_next_url
 
 from .address_provider import get_geoapify_autocomplete_config, normalize_geoapify_suggestions
 from .address_signing import sign_address_selection
-from .filtering import MAX_PRICE_FILTERS, MOVE_IN_FILTERS, apply_listing_filters
+from .filtering import BEDROOMS_FILTER_MIN, PRICE_FILTER_MAX, PRICE_FILTER_MIN, apply_listing_filters
 from .form_services import handle_listing_form_submission, validation_message
 from .forms import GroupMatchPreferencesForm, ListingForm, ListingReportForm, ListingReviewForm
 from .geocoding import BOSTON_COLLEGE_LATITUDE, BOSTON_COLLEGE_LONGITUDE
@@ -259,9 +259,10 @@ def listing_list(request):
         "listings_total": listings_page.paginator.count,
         "pagination_query": preserved_query_suffix(request.GET, "page"),
         "active_filters": active_filters,
-        "max_price_filters": MAX_PRICE_FILTERS,
+        "bedrooms_filter_min": BEDROOMS_FILTER_MIN,
+        "price_filter_min": PRICE_FILTER_MIN,
+        "price_filter_max": PRICE_FILTER_MAX,
         "lease_type_filters": Listing.LEASE_TYPES,
-        "move_in_filters": MOVE_IN_FILTERS,
         "has_listing_only_access": request.user.has_listing_only_access,
         "listing_maps_enabled": map_enabled,
         "listing_maps_unavailable": map_requested and not map_enabled,

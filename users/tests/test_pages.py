@@ -249,6 +249,41 @@ class UserPageTests(TestCase):
         self.assertContains(response, "Log out")
         self.assertContains(response, "/accounts/logout/")
 
+    def test_authenticated_header_hides_messages_badge_when_no_unread_threads(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get("/")
+
+        self.assertContains(response, "data-nav-unread-count")
+        self.assertContains(response, 'class="nav-badge is-hidden"')
+        self.assertContains(response, "hidden")
+
+    def test_authenticated_header_shows_unread_messages_badge(self):
+        listing = self.user.listings.create(
+            title="Unread listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status="approved",
+        )
+        participant = User.objects.create_user(username="reader", email="reader@bc.edu", password="test")
+        conversation = ListingConversation.objects.create(
+            listing=listing,
+            owner=self.user,
+            participant=participant,
+        )
+        conversation.add_message(sender=participant, body="Unread note.")
+        self.client.force_login(self.user)
+
+        response = self.client.get("/")
+
+        self.assertContains(response, "data-nav-unread-count")
+        self.assertContains(response, "data-nav-unread-count")
+        self.assertContains(response, "1")
+        self.assertNotContains(response, 'class="nav-badge is-hidden"')
+
     def test_authenticated_header_shows_google_avatar_when_available(self):
         SocialAccount.objects.create(
             user=self.user,
