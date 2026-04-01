@@ -1,6 +1,7 @@
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 
@@ -27,7 +28,10 @@ def get_or_create_listing_conversation(listing, participant):
         conversation, created = ListingConversation.objects.get_or_create(
             listing=listing,
             participant=participant,
-            defaults={"owner": listing.owner},
+            defaults={
+                "owner": listing.owner,
+                "conversation_type": ListingConversation.CONVERSATION_TYPE_LISTING,
+            },
         )
     except IntegrityError:
         conversation = ListingConversation.objects.get(listing=listing, participant=participant)
@@ -35,6 +39,34 @@ def get_or_create_listing_conversation(listing, participant):
     if conversation.owner_id != listing.owner_id:
         conversation.owner = listing.owner
         conversation.save(update_fields=["owner"])
+    if conversation.conversation_type != ListingConversation.CONVERSATION_TYPE_LISTING:
+        conversation.conversation_type = ListingConversation.CONVERSATION_TYPE_LISTING
+        conversation.save(update_fields=["conversation_type"])
+    return conversation, created
+
+
+def _sorted_direct_participants(user_a, user_b):
+    if user_a.id <= user_b.id:
+        return user_a, user_b
+    return user_b, user_a
+
+
+def get_or_create_direct_conversation(user_a, user_b):
+    owner, participant = _sorted_direct_participants(user_a, user_b)
+    try:
+        conversation, created = ListingConversation.objects.get_or_create(
+            conversation_type=ListingConversation.CONVERSATION_TYPE_DIRECT,
+            owner=owner,
+            participant=participant,
+            defaults={"listing": None},
+        )
+    except IntegrityError:
+        conversation = ListingConversation.objects.get(
+            conversation_type=ListingConversation.CONVERSATION_TYPE_DIRECT,
+            owner=owner,
+            participant=participant,
+        )
+        created = False
     return conversation, created
 
 
@@ -47,6 +79,20 @@ def _validate_listing_conversation_participant(listing, participant):
         raise ValidationError({"body": "You cannot message yourself about your own listing."})
     if not getattr(participant, "can_start_listing_conversations", False):
         raise ValidationError({"body": "Verified student access is required to message about listings."})
+
+
+def _validate_direct_conversation_participants(sender, recipient):
+    user_model = get_user_model()
+    if not getattr(sender, "is_authenticated", False) or not getattr(sender, "is_active", False):
+        raise ValidationError({"body": "Active account access is required to start a conversation."})
+    if not user_model._default_manager.filter(pk=recipient.pk, is_active=True).exists():
+        raise ValidationError({"body": "This user is no longer available for messages."})
+    if sender.id == recipient.id:
+        raise ValidationError({"body": "You cannot message yourself."})
+    if not getattr(sender, "can_use_roommate_matching", False):
+        raise ValidationError({"body": "Complete your roommate profile before messaging matches."})
+    if not getattr(recipient, "can_use_roommate_matching", False):
+        raise ValidationError({"body": "This user is not currently available for roommate messages."})
 
 
 def _listing_image_url(conversation):
@@ -86,12 +132,16 @@ def serialize_conversation_for_user(conversation, user):
         raise ValidationError("Conversation access denied.")
     return {
         "id": conversation.id,
+        "conversation_type": conversation.conversation_type,
         "listing_id": conversation.listing_id,
-        "listing_title": conversation.listing.title,
-        "listing_address": conversation.listing.address,
-        "listing_price": str(conversation.listing.price),
-        "listing_status": conversation.listing.get_status_display(),
-        "listing_image_url": _listing_image_url(conversation),
+        "listing_title": conversation.listing.title if conversation.listing_id else "",
+        "listing_address": conversation.listing.address if conversation.listing_id else "",
+        "listing_price": str(conversation.listing.price) if conversation.listing_id else "",
+        "listing_status": conversation.listing.get_status_display() if conversation.listing_id else "",
+        "listing_image_url": _listing_image_url(conversation) if conversation.listing_id else "",
+        "context_title": conversation.context_title_for(user),
+        "context_subtitle": conversation.context_subtitle_for(user),
+        "context_meta": conversation.context_meta_for(user),
         "counterparty_name": counterparty.display_name,
         "counterparty_avatar_url": _profile_image_url(counterparty),
         "counterparty_role_label": conversation.counterparty_role_label_for(user),
@@ -215,7 +265,7 @@ def _send_listing_message_locked(conversation, sender, body, *, conversation_cre
     return message
 
 
-def send_listing_message(conversation, sender, body, *, conversation_created=False):
+def send_conversation_message(conversation, sender, body, *, conversation_created=False):
     with transaction.atomic():
         locked_conversation = ListingConversation.objects.with_related().select_for_update().get(pk=conversation.pk)
         message = _send_listing_message_locked(
@@ -227,6 +277,15 @@ def send_listing_message(conversation, sender, body, *, conversation_created=Fal
     return message
 
 
+def send_listing_message(conversation, sender, body, *, conversation_created=False):
+    return send_conversation_message(
+        conversation,
+        sender,
+        body,
+        conversation_created=conversation_created,
+    )
+
+
 def start_listing_conversation(listing, participant, body):
     _validate_listing_conversation_participant(listing, participant)
     with transaction.atomic():
@@ -235,6 +294,20 @@ def start_listing_conversation(listing, participant, body):
         message = _send_listing_message_locked(
             locked_conversation,
             participant,
+            body,
+            conversation_created=created,
+        )
+    return locked_conversation, message, created
+
+
+def start_direct_conversation(sender, recipient, body):
+    _validate_direct_conversation_participants(sender, recipient)
+    with transaction.atomic():
+        conversation, created = get_or_create_direct_conversation(sender, recipient)
+        locked_conversation = ListingConversation.objects.with_related().select_for_update().get(pk=conversation.pk)
+        message = _send_listing_message_locked(
+            locked_conversation,
+            sender,
             body,
             conversation_created=created,
         )

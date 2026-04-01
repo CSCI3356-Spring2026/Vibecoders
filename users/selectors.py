@@ -2,9 +2,9 @@ from django.contrib.auth import get_user_model
 from django.db.models import Case, Count, IntegerField, Q, Value, When
 
 from listings.models import Listing, ListingReport
-from listings.selectors import with_feedback_summary
+from listings.selectors import listing_reports_queryset_for_admin, with_feedback_summary
 
-from .compatibility import compute_compatibility
+from .compatibility import compatibility_highlights, compute_compatibility
 from .models import Role, UserFile
 
 
@@ -34,22 +34,10 @@ def admin_listings_queryset(query="", selected_status="", selected_review_status
     return queryset.order_by("review_priority", "-submitted_for_approval_at", "-created_at")
 
 
-def admin_reports_queryset(query="", selected_status="", selected_reason=""):
+def admin_reports_queryset(query="", selected_status="", selected_reason="", *, include_closed=False):
     status_values = {status for status, _ in ListingReport.STATUS_CHOICES}
     reason_values = {reason for reason, _ in ListingReport.REASON_CHOICES}
-    status_priority = Case(
-        When(status=ListingReport.STATUS_OPEN, then=Value(0)),
-        When(status=ListingReport.STATUS_IN_REVIEW, then=Value(1)),
-        When(status=ListingReport.STATUS_RESOLVED, then=Value(2)),
-        default=Value(3),
-        output_field=IntegerField(),
-    )
-    queryset = ListingReport.objects.select_related(
-        "listing",
-        "listing__owner",
-        "reporter",
-        "reviewed_by",
-    ).annotate(status_priority=status_priority)
+    queryset = listing_reports_queryset_for_admin()
 
     if query:
         queryset = queryset.filter(
@@ -58,9 +46,12 @@ def admin_reports_queryset(query="", selected_status="", selected_reason=""):
             | Q(reporter__email__icontains=query)
             | Q(reporter__username__icontains=query)
             | Q(details__icontains=query)
+            | Q(resolution_notes__icontains=query)
         )
     if selected_status in status_values:
         queryset = queryset.filter(status=selected_status)
+    elif not include_closed:
+        queryset = queryset.filter(status__in=[ListingReport.STATUS_OPEN, ListingReport.STATUS_IN_REVIEW])
     if selected_reason in reason_values:
         queryset = queryset.filter(reason=selected_reason)
 
@@ -125,11 +116,13 @@ def compatible_students_for_user(user, limit=30):
     """
     user_model = get_user_model()
     candidates = (
-        user_model.objects.filter(role=Role.STUDENT, is_active=True)
+        user_model.objects.filter(role=Role.STUDENT, is_active=True, profile_completed_at__isnull=False)
         .exclude(pk=user.pk)
         .select_related("student_profile")
     )
 
+    if not getattr(user, "can_use_roommate_matching", False):
+        return []
     my_profile = getattr(user, "student_profile", None)
 
     results = []
@@ -138,7 +131,14 @@ def compatible_students_for_user(user, limit=30):
         if their_profile is None:
             continue
         score = compute_compatibility(my_profile, their_profile) if my_profile else None
-        results.append({"user": candidate, "profile": their_profile, "score": score})
+        results.append(
+            {
+                "user": candidate,
+                "profile": their_profile,
+                "score": score,
+                "highlights": compatibility_highlights(my_profile, their_profile),
+            }
+        )
 
     results.sort(key=lambda x: (x["score"] is not None, x["score"] or 0), reverse=True)
     return results[:limit]

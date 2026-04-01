@@ -58,6 +58,13 @@ document.addEventListener("DOMContentLoaded", () => {
         if (nextButton instanceof HTMLElement) {
             event.preventDefault();
             updateGallery(gallery, Number(gallery.dataset.activeIndex || 0) + 1);
+            return;
+        }
+
+        const activeImage = event.target.closest("[data-listing-gallery-active-image]");
+        if (activeImage instanceof HTMLElement) {
+            event.preventDefault();
+            updateGallery(gallery, Number(gallery.dataset.activeIndex || 0) + 1);
         }
     });
 

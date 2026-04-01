@@ -60,7 +60,7 @@ flowchart LR
 | --- | --- | --- |
 | `core` | Landing page, legal pages, shared utilities, branding context, cache-backed rate limits | Does not own domain data beyond shared helpers |
 | `users` | Custom user model, profile flows, dashboard, document library, legal acceptance, admin workspace | Owns auth policy and private user file handling |
-| `listings` | Listings, images, filters, favorites, reviews, reports, moderation state, address verification, group match | Owns marketplace rules and listing lifecycle |
+| `listings` | Listings, images, filters, favorites, reviews, reports, moderation state, address verification, group match | Owns marketplace rules, moderation transitions, and listing lifecycle |
 | `communications` | Listing conversations, messages, inbox selectors, realtime publishing, websocket consumer | Owns conversation state and websocket event flow |
 
 ## External Integrations
@@ -80,7 +80,7 @@ flowchart LR
 | Landing and legal pages | `/`, `/terms/`, `/privacy/` | `core` |
 | Login and account workspace | `/users/login/`, `/users/dashboard/`, `/users/profile/setup/` | `users` |
 | Marketplace and listing authoring | `/listings/`, `/listings/create/`, `/listings/<id>/` | `listings` |
-| Group match | `/listings/group-match/` | `listings` |
+| Group match and roommate discovery | `/listings/group-match/` | `listings` |
 | Inbox and threads | `/users/messages/` and `/ws/messages/` | `communications` |
 | Admin workspace | `/users/admin-*` | `users` + `listings` |
 
@@ -90,6 +90,7 @@ flowchart LR
 - Legal acceptance is versioned and enforced before login can complete.
 - Profile completion can be enforced before normal app use.
 - Public listings are approved-only, available-only, not hidden, and not expired.
+- Resolving a legitimate listing report removes that listing from the public marketplace until it is corrected and reapproved.
 - Listing authoring requires a provider-verified address selection when Geoapify is configured.
 - Private user uploads are never served from raw `/media/` routes.
 - Conversations are unique per `(listing, participant)` and only participants can send messages.

@@ -20,12 +20,14 @@ Padly is primarily a server-rendered Django application with targeted JavaScript
 `templates/base.html` provides:
 
 - brand header
+- shared centered desktop nav plus mobile offcanvas drawer
 - role-aware nav actions
 - authenticated account menu
-- flash message region
+- compact notification stack for Django messages
 - footer with legal links
 
 This is the default page shell unless a template intentionally overrides it.
+Shared nav link markup is centralized in `templates/includes/site_nav_links.html`.
 
 ## Design System
 
@@ -76,8 +78,8 @@ This is the default page shell unless a template intentionally overrides it.
 | `listings-map-view.js` | MapLibre state, markers, style toggling |
 | `listings-results.js` | live card rendering for search responses |
 | `listing-detail-gallery.js` | detail-page photo gallery interaction |
-| `group-match.js` | group-match selection state and UI sync |
 | `legal-review.js` | scroll-gated legal acceptance |
+| `app-notifications.js` | auto-dismiss and dismissal behavior for the notification stack |
 | `messages.js` plus `messages_*` modules | realtime inbox behavior |
 | `inline-confirm.js` | shared confirmation popover logic |
 
@@ -102,17 +104,27 @@ If markup class names or data attributes change, update the matching JS and CSS 
 - results on the left
 - map on the right
 - fixed shared navbar position consistent with the rest of the site
+- desktop results pane scrolls independently inside the fixed-height workspace
+- listing result cards reuse the same stacked media-first card language as landing cards instead of a split side-by-side treatment
 - map style toggle when satellite mode is available
 
 ### Listing detail
 
 - photo gallery is the visual focal point
 - facts and contact actions are structured rather than prose-heavy
+- pricing, facts, and owner actions are grouped into a single clear intro band instead of stacked micro-cards
 
 ### Dashboard and admin
 
 - account/workspace framing rather than marketing copy
 - action surfaces prioritized over entitlement jargon
+
+### Login and legal review
+
+- the standard login view is intentionally minimal and centered on the Google action
+- stale-legal users move through a stepped review flow
+- privacy policy is reviewed first, then Terms of Service
+- acknowledgement only unlocks after each document has been scrolled
 
 ## Frontend Rules Worth Preserving
 
@@ -120,3 +132,4 @@ If markup class names or data attributes change, update the matching JS and CSS 
 - Prefer clear layouts and concise copy over decorative flourishes.
 - Avoid duplicating large shell markup when template inheritance can do the job.
 - Reuse shared tokens instead of hardcoding one-off colors or radii.
+- Prefer compact notifications over full-width page banners for routine success and error feedback.

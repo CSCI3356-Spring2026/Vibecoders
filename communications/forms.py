@@ -19,3 +19,8 @@ class ConversationMessageForm(forms.ModelForm):
     class Meta:
         model = ListingMessage
         fields = ["body"]
+
+    def __init__(self, *args, placeholder=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if placeholder:
+            self.fields["body"].widget.attrs["placeholder"] = placeholder

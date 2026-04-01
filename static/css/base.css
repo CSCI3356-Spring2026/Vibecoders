@@ -49,20 +49,24 @@
     --accent-ink: var(--accent-500);
     --surface-elevated: rgba(var(--white-rgb), 1);
     --surface-gradient: rgba(var(--white-rgb), 1);
-    --surface-gradient-soft: #fafbfc;
+    --surface-gradient-soft: #f7f8fa;
     --surface-gradient-strong: rgba(var(--white-rgb), 1);
     --surface-gradient-secondary: rgba(var(--secondary-rgb), 0.08);
     --surface-gradient-accent: rgba(var(--accent-rgb), 0.1);
-    --shadow-sm: 0 1px 3px rgba(var(--gray-900-rgb), 0.05);
-    --shadow-md: 0 8px 18px rgba(var(--gray-900-rgb), 0.06);
-    --shadow-lg: 0 14px 30px rgba(var(--gray-900-rgb), 0.08);
-    --radius-sm: 0.28rem;
-    --radius-md: 0.42rem;
-    --radius-lg: 0.58rem;
+    --shadow-sm: 0 1px 2px rgba(var(--gray-900-rgb), 0.035);
+    --shadow-md: 0 4px 12px rgba(var(--gray-900-rgb), 0.05);
+    --shadow-lg: 0 10px 22px rgba(var(--gray-900-rgb), 0.065);
+    --radius-sm: 0.22rem;
+    --radius-md: 0.34rem;
+    --radius-lg: 0.48rem;
     --link-color: var(--secondary-600);
     --link-hover-color: #0f4f9f;
     --focus-ring-color: rgba(var(--secondary-rgb), 0.16);
     --rule-color: rgba(var(--gray-700-rgb), 0.14);
+    --site-frame-max-width: 1600px;
+    --site-frame-gutter: clamp(2.5rem, 4vw, 4rem);
+    --app-shell-max-width: var(--site-frame-max-width);
+    --app-reading-max-width: 980px;
     --bs-font-sans-serif: "Instrument Sans", sans-serif;
     --bs-body-font-family: "Instrument Sans", sans-serif;
     --bs-body-color: var(--text-default);
@@ -95,6 +99,12 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+}
+
+.container {
+    width: min(calc(100% - var(--site-frame-gutter)), var(--site-frame-max-width));
+    max-width: none;
+    padding-inline: 0;
 }
 
 body,
@@ -158,6 +168,101 @@ img {
     z-index: 3;
 }
 
+.app-notification-stack {
+    position: fixed;
+    top: 5.4rem;
+    right: max(1rem, calc((100vw - var(--app-shell-max-width)) / 2 + 1rem));
+    z-index: 1080;
+    display: grid;
+    gap: 0.7rem;
+    width: min(24rem, calc(100vw - 2rem));
+    pointer-events: none;
+}
+
+.app-notification {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.9rem;
+    padding: 0.9rem 0.95rem;
+    border: 1px solid rgba(var(--gray-700-rgb), 0.1);
+    border-radius: var(--radius-md);
+    background: rgba(var(--white-rgb), 0.96);
+    box-shadow: 0 18px 36px rgba(var(--gray-900-rgb), 0.12);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    pointer-events: auto;
+    animation: app-notification-enter 180ms ease-out;
+}
+
+.app-notification.is-closing {
+    opacity: 0;
+    transform: translateY(-0.4rem);
+    transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.app-notification-body {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    min-width: 0;
+}
+
+.app-notification-badge {
+    display: inline-flex;
+    width: 0.65rem;
+    height: 0.65rem;
+    margin-top: 0.35rem;
+    border-radius: 999px;
+    background: rgba(var(--secondary-rgb), 0.72);
+    flex-shrink: 0;
+}
+
+.app-notification-copy {
+    color: var(--gray-900);
+    font-size: 0.85rem;
+    font-weight: 500;
+    line-height: 1.5;
+}
+
+.app-notification-dismiss {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    margin: -0.2rem -0.2rem 0 0;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--gray-500);
+    font-size: 1.1rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.app-notification-dismiss:hover,
+.app-notification-dismiss:focus-visible {
+    background: rgba(var(--gray-100-rgb), 0.85);
+    color: var(--gray-900);
+}
+
+.app-notification.is-success .app-notification-badge {
+    background: rgba(22, 163, 74, 0.85);
+}
+
+.app-notification.is-info .app-notification-badge {
+    background: rgba(var(--secondary-rgb), 0.8);
+}
+
+.app-notification.is-warning .app-notification-badge {
+    background: rgba(var(--accent-rgb), 0.9);
+}
+
+.app-notification.is-error .app-notification-badge {
+    background: rgba(var(--danger-rgb), 0.88);
+}
+
 .alert {
     margin: 0;
     border: 1px solid rgba(var(--gray-700-rgb), 0.18);
@@ -200,4 +305,25 @@ img {
     font-family: var(--font-accent);
     font-style: normal;
     font-weight: 500;
+}
+
+@media (max-width: 767px) {
+    .app-notification-stack {
+        top: 4.9rem;
+        right: 1rem;
+        left: 1rem;
+        width: auto;
+    }
+}
+
+@keyframes app-notification-enter {
+    from {
+        opacity: 0;
+        transform: translateY(-0.45rem);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }

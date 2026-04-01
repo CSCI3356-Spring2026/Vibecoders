@@ -62,6 +62,8 @@ This document lists the environment variables used by Padly's runtime configurat
 | `LISTING_GEOAPIFY_AUTOCOMPLETE_URL` | `https://api.geoapify.com/v1/geocode/autocomplete` | Geoapify autocomplete endpoint |
 | `LISTING_ADDRESS_AUTOCOMPLETE_RATE_LIMIT` | `30` | request cap per window |
 | `LISTING_ADDRESS_AUTOCOMPLETE_RATE_WINDOW_SECONDS` | `60` | address-lookup window |
+| `LISTING_REPORT_RATE_LIMIT` | `10` | report submissions per user per window |
+| `LISTING_REPORT_RATE_WINDOW_SECONDS` | `3600` | listing-report rate-limit window |
 | `LISTING_GEOCODING_ENABLED` | `true` outside tests | legacy geocoder toggle |
 | `LISTING_GEOCODER_URL` | `https://photon.komoot.io/api/` | legacy geocoder endpoint |
 | `LISTING_GEOCODER_USER_AGENT` | `<SITE_PRODUCT_NAME>/1.0` | user agent for legacy geocoder |
@@ -96,3 +98,4 @@ This document lists the environment variables used by Padly's runtime configurat
 - `.env` is loaded automatically by `python-dotenv`.
 - Production fails closed when required secrets or host/channel settings are missing.
 - Tests force some settings off or to deterministic values to avoid environment leakage.
+- Test runs also force Django's MD5 password hasher so the full suite stays fast enough to run routinely in local development and CI.

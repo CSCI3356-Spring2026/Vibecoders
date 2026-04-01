@@ -1,10 +1,12 @@
 import logging
 from functools import wraps
+from urllib.parse import parse_qs, urlsplit
 
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
-from django.db.models import Count
+from django.core.exceptions import ValidationError
+from django.db.models import Count, Q
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -15,6 +17,7 @@ from communications.selectors import user_related_conversations_queryset, user_r
 from core.utils import get_page, preserved_query_suffix, safe_next_url
 from listings.forms import AdminListingApprovalForm, AdminListingReportResolutionForm
 from listings.models import Listing, ListingReport
+from listings.report_services import update_listing_report
 from listings.selectors import listing_reports_queryset_for_admin, listing_reviews_queryset, with_feedback_summary
 
 from .models import Role
@@ -28,14 +31,138 @@ ADMIN_USER_DETAIL_PREVIEW_LIMIT = 15
 logger = logging.getLogger(__name__)
 
 
-def _admin_listing_detail_context(listing, *, approval_form=None):
+def _admin_report_form(report, *, data=None):
+    return AdminListingReportResolutionForm(
+        data=data,
+        instance=report,
+        prefix=f"report-{report.id}",
+    )
+
+
+def _admin_report_timeline(report, *, limit=None):
+    updates = list(report.updates.all())
+    if limit is not None:
+        updates = updates[:limit]
+    return updates
+
+
+def _admin_report_metrics(queryset):
+    return queryset.aggregate(
+        open_reports=Count("id", filter=Q(status=ListingReport.STATUS_OPEN)),
+        in_review_reports=Count("id", filter=Q(status=ListingReport.STATUS_IN_REVIEW)),
+        closed_reports=Count(
+            "id",
+            filter=Q(status__in=[ListingReport.STATUS_RESOLVED, ListingReport.STATUS_DISMISSED]),
+        ),
+        affected_listings=Count("listing_id", distinct=True),
+    )
+
+
+def _admin_report_filter_state(*, request=None, next_url=None):
+    if request is not None and request.method == "GET":
+        data = request.GET
+        page = request.GET.get("page")
+    else:
+        parsed = parse_qs(urlsplit(next_url or "").query)
+        data = {key: values[0] for key, values in parsed.items() if values}
+        page = data.get("page")
+    return {
+        "query": (data.get("q") or "").strip(),
+        "selected_status": (data.get("status") or "").strip(),
+        "selected_reason": (data.get("reason") or "").strip(),
+        "page": page,
+    }
+
+
+def _admin_reports_context(
+    *,
+    request=None,
+    page=None,
+    query="",
+    selected_status="",
+    selected_reason="",
+    report_forms=None,
+    next_url=None,
+):
+    reports_qs = admin_reports_queryset(
+        query=query,
+        selected_status=selected_status,
+        selected_reason=selected_reason,
+    )
+    report_metrics = _admin_report_metrics(
+        admin_reports_queryset(
+            query=query,
+            selected_status=selected_status,
+            selected_reason=selected_reason,
+            include_closed=True,
+        )
+    )
+    page_number = page
+    if page_number is None and request is not None:
+        page_number = request.GET.get("page")
+    reports_page = get_page(reports_qs, page_number, ADMIN_REPORTS_PER_PAGE)
+    form_map = report_forms or {}
+    report_next_url = next_url or (request.get_full_path() if request is not None else reverse("users:admin_reports"))
+    for report in reports_page.object_list:
+        report.ui_form = form_map.get(report.id) or _admin_report_form(report)
+        report.ui_next = report_next_url
+        report.ui_updates = _admin_report_timeline(report, limit=3)
+        report.ui_update_count = len(report.updates.all())
+        report.ui_has_more_updates = report.ui_update_count > len(report.ui_updates)
+
+    return {
+        "reports": reports_page,
+        "reports_total": reports_page.paginator.count,
+        "pagination_query": preserved_query_suffix(request.GET, "page") if request is not None else "",
+        "query": query,
+        "selected_status": selected_status,
+        "selected_reason": selected_reason,
+        "status_options": ListingReport.STATUS_CHOICES,
+        "reason_options": ListingReport.REASON_CHOICES,
+        **report_metrics,
+    }
+
+
+def _render_invalid_report_update(request, report, form, *, message):
+    messages.error(request, message)
+    next_url = safe_next_url(
+        request,
+        request.POST.get("next"),
+        reverse("users:admin_reports"),
+    )
+    next_path = urlsplit(next_url).path
+    listing_detail_path = reverse("users:admin_listing_detail", args=[report.listing_id])
+    if next_path == listing_detail_path:
+        listing = get_object_or_404(with_feedback_summary(Listing.objects.with_related()), id=report.listing_id)
+        return render(
+            request,
+            "users/admin_listing_detail.html",
+            _admin_listing_detail_context(listing, report_forms={report.id: form}, next_url=next_url),
+        )
+
+    filter_state = _admin_report_filter_state(next_url=next_url)
+    context = _admin_reports_context(
+        page=filter_state["page"],
+        query=filter_state["query"],
+        selected_status=filter_state["selected_status"],
+        selected_reason=filter_state["selected_reason"],
+        report_forms={report.id: form},
+        next_url=next_url,
+    )
+    return render(request, "users/admin_reports.html", context)
+
+
+def _admin_listing_detail_context(listing, *, approval_form=None, report_forms=None, next_url=None):
     reports = list(listing_reports_queryset_for_admin(listing=listing))
     reviews = list(listing_reviews_queryset(listing))
+    form_map = report_forms or {}
+    report_next_url = next_url or reverse("users:admin_listing_detail", args=[listing.id])
     for report in reports:
-        report.ui_form = AdminListingReportResolutionForm(
-            instance=report,
-            prefix=f"report-{report.id}",
-        )
+        report.ui_form = form_map.get(report.id) or _admin_report_form(report)
+        report.ui_next = report_next_url
+        report.ui_updates = _admin_report_timeline(report)
+        report.ui_update_count = len(report.ui_updates)
+        report.ui_has_more_updates = False
 
     return {
         "listing": listing,
@@ -177,28 +304,13 @@ def admin_delete_listing(request, listing_id):
 
 @admin_required_view
 def admin_reports(request):
-    query = request.GET.get("q", "").strip()
-    selected_status = request.GET.get("status", "").strip()
-    selected_reason = request.GET.get("reason", "").strip()
-    reports_qs = admin_reports_queryset(
-        query=query,
-        selected_status=selected_status,
-        selected_reason=selected_reason,
+    filter_state = _admin_report_filter_state(request=request)
+    context = _admin_reports_context(
+        request=request,
+        query=filter_state["query"],
+        selected_status=filter_state["selected_status"],
+        selected_reason=filter_state["selected_reason"],
     )
-    reports_page = get_page(reports_qs, request.GET.get("page"), ADMIN_REPORTS_PER_PAGE)
-    for report in reports_page.object_list:
-        report.ui_form = AdminListingReportResolutionForm(instance=report, prefix=f"report-{report.id}")
-
-    context = {
-        "reports": reports_page,
-        "reports_total": reports_page.paginator.count,
-        "pagination_query": preserved_query_suffix(request.GET, "page"),
-        "query": query,
-        "selected_status": selected_status,
-        "selected_reason": selected_reason,
-        "status_options": ListingReport.STATUS_CHOICES,
-        "reason_options": ListingReport.REASON_CHOICES,
-    }
     return render(request, "users/admin_reports.html", context)
 
 
@@ -206,34 +318,52 @@ def admin_reports(request):
 @require_POST
 def admin_update_report(request, report_id):
     report = get_object_or_404(ListingReport.objects.select_related("listing"), id=report_id)
-    form = AdminListingReportResolutionForm(request.POST, instance=report, prefix=f"report-{report.id}")
+    form = _admin_report_form(report, data=request.POST)
     if not form.is_valid():
-        messages.error(request, "Add valid resolution notes before updating the report.")
-        return redirect("users:admin_reports")
+        return _render_invalid_report_update(
+            request,
+            report,
+            form,
+            message="Add a moderator note before closing out a report.",
+        )
 
-    updated_report = form.save(commit=False)
-    updated_report.mark_status(
-        status=updated_report.status,
-        reviewer=request.user,
-        resolution_notes=updated_report.resolution_notes,
-    )
-    updated_report.save(
-        update_fields=[
-            "status",
-            "reviewed_by",
-            "reviewed_at",
-            "resolution_notes",
-            "updated_at",
-        ]
-    )
+    try:
+        listing_closed = update_listing_report(
+            report,
+            status=form.cleaned_data["status"],
+            reviewer=request.user,
+            resolution_notes=form.cleaned_data["resolution_notes"],
+        )
+    except ValidationError as exc:
+        if hasattr(exc, "message_dict"):
+            for field_name, errors in exc.message_dict.items():
+                target_field = field_name if field_name in form.fields else "resolution_notes"
+                for error in errors:
+                    form.add_error(target_field, error)
+        else:
+            for error in exc.messages:
+                form.add_error("resolution_notes", error)
+        return _render_invalid_report_update(
+            request,
+            report,
+            form,
+            message="Add a moderator note before closing out a report.",
+        )
     logger.info(
         "listing_report_updated report_id=%s listing_id=%s reviewer_id=%s status=%s",
-        updated_report.id,
-        updated_report.listing_id,
+        report.id,
+        report.listing_id,
         request.user.id,
-        updated_report.status,
+        report.status,
     )
-    messages.success(request, "Report updated.")
+    if listing_closed:
+        messages.success(request, "Report resolved and listing removed from the marketplace.")
+    elif report.status == ListingReport.STATUS_DISMISSED:
+        messages.success(request, "Report dismissed.")
+    elif report.status == ListingReport.STATUS_IN_REVIEW:
+        messages.success(request, "Report moved to in review.")
+    else:
+        messages.success(request, "Report reopened.")
     redirect_to = safe_next_url(
         request,
         request.POST.get("next"),

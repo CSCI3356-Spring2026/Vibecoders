@@ -19,7 +19,12 @@
                         </div>
                     </div>
                     <div class="app-actions">
-                        <a class="btn btn-brand" href="{% url 'listings:listing_list' %}">Browse listings to message</a>
+                        {% if existing_direct_conversation %}
+                            <a class="btn btn-brand" href="{% url 'communications:detail' existing_direct_conversation.id %}">Open chat</a>
+                        {% elif can_message_user %}
+                            <a class="btn btn-brand" href="#message-user">Message</a>
+                        {% endif %}
+                        <a class="btn btn-outline-secondary" href="{% url 'listings:listing_list' %}">Browse listings</a>
                     </div>
                 </div>
             </div>
@@ -37,92 +42,118 @@
                 {% if their_profile.gender %}
                     <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_gender_display }}</span>
                 {% endif %}
+                {% for highlight in compatibility_highlights %}
+                    <span class="app-meta-chip app-meta-chip-neutral">{{ highlight }}</span>
+                {% endfor %}
             </div>
 
             {% if their_profile.bio %}
-                <div class="app-panel mb-4">
+                <div class="listing-panel mb-4">
                     <div class="app-panel-head">
                         <h2 class="app-section-heading">About</h2>
                     </div>
-                    <div class="app-panel-body">
-                        <p>{{ their_profile.bio }}</p>
-                    </div>
+                    <p class="mb-0">{{ their_profile.bio }}</p>
                 </div>
             {% endif %}
 
-            <div class="app-panel mb-4">
+            {% if can_message_user %}
+                <div class="listing-panel mb-4" id="message-user">
+                    <div class="app-panel-head">
+                        <div>
+                            <h2 class="app-section-heading">Message {{ target.display_name }}</h2>
+                            <p class="app-panel-copy">Start a direct housing conversation.</p>
+                        </div>
+                        {% if existing_direct_conversation %}
+                            <a class="btn btn-outline-secondary" href="{% url 'communications:detail' existing_direct_conversation.id %}">Open chat</a>
+                        {% endif %}
+                    </div>
+                    {% if existing_direct_conversation %}
+                        <p class="app-panel-copy mb-0">You already have a conversation. Open the thread to continue.</p>
+                    {% else %}
+                        <form method="post" action="{% url 'communications:start_direct_conversation' target.id %}">
+                            {% csrf_token %}
+                            {{ direct_message_form.body }}
+                            <div class="app-actions mt-3">
+                                <button class="btn btn-brand" type="submit">Start chat</button>
+                            </div>
+                        </form>
+                    {% endif %}
+                </div>
+            {% endif %}
+
+            <div class="listing-panel mb-4">
                 <div class="app-panel-head">
                     <h2 class="app-section-heading">Lifestyle</h2>
                 </div>
-                <div class="app-panel-body">
-                    <div class="app-compact-list">
+                <div class="app-compact-list">
 
-                        {% if their_profile.messy_level %}
-                            <div class="app-compact-item app-compact-item-static">
-                                <span class="workspace-item-label">Cleanliness</span>
-                                <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_messy_level_display }}</span>
-                            </div>
-                        {% endif %}
-
-                        {% if their_profile.noise_level %}
-                            <div class="app-compact-item app-compact-item-static">
-                                <span class="workspace-item-label">Noise level</span>
-                                <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_noise_level_display }}</span>
-                            </div>
-                        {% endif %}
-
-                        {% if their_profile.guest_level %}
-                            <div class="app-compact-item app-compact-item-static">
-                                <span class="workspace-item-label">Guests</span>
-                                <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_guest_level_display }}</span>
-                            </div>
-                        {% endif %}
-
-                        {% if their_profile.bedtime is not None %}
-                            <div class="app-compact-item app-compact-item-static">
-                                <span class="workspace-item-label">Bedtime</span>
-                                <span class="app-meta-chip app-meta-chip-neutral">
-                                    {% if their_profile.bedtime < 12 %}
-                                        {{ their_profile.bedtime }}:00 AM
-                                    {% elif their_profile.bedtime == 12 %}
-                                        12:00 PM
-                                    {% else %}
-                                        {{ their_profile.bedtime|add:"-12" }}:00 PM
-                                    {% endif %}
-                                </span>
-                            </div>
-                        {% endif %}
-
-                        {% if their_profile.drink %}
-                            <div class="app-compact-item app-compact-item-static">
-                                <span class="workspace-item-label">Drinking</span>
-                                <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_drink_display }}</span>
-                            </div>
-                        {% endif %}
-
-                        {% if their_profile.party %}
-                            <div class="app-compact-item app-compact-item-static">
-                                <span class="workspace-item-label">Parties</span>
-                                <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_party_display }}</span>
-                            </div>
-                        {% endif %}
-
+                    {% if their_profile.messy_level %}
                         <div class="app-compact-item app-compact-item-static">
-                            <span class="workspace-item-label">Smoking</span>
-                            <span class="app-meta-chip app-meta-chip-neutral">{% if their_profile.smoke %}Yes{% else %}No{% endif %}</span>
+                            <span class="workspace-item-label">Cleanliness</span>
+                            <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_messy_level_display }}</span>
                         </div>
+                    {% endif %}
 
+                    {% if their_profile.noise_level %}
                         <div class="app-compact-item app-compact-item-static">
-                            <span class="workspace-item-label">Pets</span>
-                            <span class="app-meta-chip app-meta-chip-neutral">{% if their_profile.pets %}Has/wants pets{% else %}No pets{% endif %}</span>
+                            <span class="workspace-item-label">Noise level</span>
+                            <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_noise_level_display }}</span>
                         </div>
+                    {% endif %}
 
+                    {% if their_profile.guest_level %}
+                        <div class="app-compact-item app-compact-item-static">
+                            <span class="workspace-item-label">Guests</span>
+                            <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_guest_level_display }}</span>
+                        </div>
+                    {% endif %}
+
+                    {% if their_profile.bedtime is not None %}
+                        <div class="app-compact-item app-compact-item-static">
+                            <span class="workspace-item-label">Bedtime</span>
+                            <span class="app-meta-chip app-meta-chip-neutral">
+                                {% if their_profile.bedtime < 12 %}
+                                    {{ their_profile.bedtime }}:00 AM
+                                {% elif their_profile.bedtime == 12 %}
+                                    12:00 PM
+                                {% else %}
+                                    {{ their_profile.bedtime|add:"-12" }}:00 PM
+                                {% endif %}
+                            </span>
+                        </div>
+                    {% endif %}
+
+                    {% if their_profile.drink %}
+                        <div class="app-compact-item app-compact-item-static">
+                            <span class="workspace-item-label">Drinking</span>
+                            <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_drink_display }}</span>
+                        </div>
+                    {% endif %}
+
+                    {% if their_profile.party %}
+                        <div class="app-compact-item app-compact-item-static">
+                            <span class="workspace-item-label">Parties</span>
+                            <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_party_display }}</span>
+                        </div>
+                    {% endif %}
+
+                    <div class="app-compact-item app-compact-item-static">
+                        <span class="workspace-item-label">Smoking</span>
+                        <span class="app-meta-chip app-meta-chip-neutral">{% if their_profile.smoke %}Yes{% else %}No{% endif %}</span>
                     </div>
+
+                    <div class="app-compact-item app-compact-item-static">
+                        <span class="workspace-item-label">Pets</span>
+                        <span class="app-meta-chip app-meta-chip-neutral">{% if their_profile.pets %}Has/wants pets{% else %}No pets{% endif %}</span>
+                    </div>
+
                 </div>
             </div>
 
             <div class="mb-3">
-                <a href="{% url 'users:browse_roommates' %}" class="btn btn-outline-secondary btn-sm">Back to Browse</a>
+                <a href="{% url 'listings:group_match' %}#roommate-matches" class="btn btn-outline-secondary btn-sm">
+                    Back to group match
+                </a>
             </div>
         </div>
     </div>

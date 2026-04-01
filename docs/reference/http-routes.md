@@ -30,10 +30,12 @@ In debug mode only, listing photos are also served from `media/listing_photos/<p
 
 | Route | View | Auth | Purpose |
 | --- | --- | --- | --- |
-| `/users/login/` | `users.views.login_page` | anonymous | custom login and legal review page |
+| `/users/login/` | `users.views.login_page` | anonymous | custom login page with embedded stepped legal review when required |
 | `/users/profile/` | `users.views.profile` | required | redirect to dashboard |
 | `/users/profile/setup/` | `users.views.profile_setup` | required | profile completion/update |
 | `/users/dashboard/` | `users.views.dashboard` | required | account workspace |
+| `/users/browse/` | `users.views.browse_roommates` | marketplace users | legacy redirect into `/listings/group-match/#roommate-matches` |
+| `/users/profile/<user_id>/` | `users.views.public_profile` | marketplace users | public roommate profile |
 | `/users/posts/` | `users.views.posts` | required | current user's listings |
 | `/users/files/` | `users.views.files` | required | private document library |
 | `/users/files/<file_id>/preview/` | `users.views.file_preview` | required | authenticated inline preview |
@@ -51,7 +53,7 @@ In debug mode only, listing photos are also served from `media/listing_photos/<p
 | `/users/admin-listings/<listing_id>/review/` | `users.admin_views.admin_review_listing` | admin + POST | approve or reject listing |
 | `/users/admin-listings/<listing_id>/delete/` | `users.admin_views.admin_delete_listing` | admin + POST | delete listing |
 | `/users/admin-reports/` | `users.admin_views.admin_reports` | admin | listing reports queue |
-| `/users/admin-reports/<report_id>/status/` | `users.admin_views.admin_update_report` | admin + POST | update report status |
+| `/users/admin-reports/<report_id>/status/` | `users.admin_views.admin_update_report` | admin + POST | update report status and append moderation history |
 | `/users/admin-users/` | `users.admin_views.admin_users` | admin | user administration |
 | `/users/admin-users/<user_id>/` | `users.admin_views.admin_user_detail` | admin | user detail |
 | `/users/admin-users/<user_id>/role/` | `users.admin_views.admin_set_role` | admin + POST | grant or restore admin role |
@@ -63,7 +65,7 @@ In debug mode only, listing photos are also served from `media/listing_photos/<p
 | --- | --- | --- | --- |
 | `/listings/` | `listings.views.listing_list` | required | marketplace list/map view or listing-only inventory |
 | `/listings/search/` | `listings.views.listing_search` | required | JSON live-search endpoint |
-| `/listings/address-suggestions/` | `listings.views.address_suggestions` | optional auth check in view | JSON address autocomplete endpoint |
+| `/listings/address-suggestions/` | `listings.views.address_suggestions` | authenticated in practice | JSON address autocomplete endpoint; returns JSON `401` instead of redirecting to HTML login when signed out |
 | `/listings/group-match/` | `listings.views.group_match` | marketplace users | group matching planner |
 | `/listings/<pk>/` | `listings.views.listing_detail` | required | listing detail |
 | `/listings/<pk>/review/` | `listings.views.submit_listing_review` | eligible student + POST | submit or update review |
@@ -80,6 +82,7 @@ In debug mode only, listing photos are also served from `media/listing_photos/<p
 | --- | --- | --- | --- |
 | `/users/messages/` | `communications.views.messages_inbox` | required | inbox |
 | `/users/messages/<conversation_id>/` | `communications.views.messages_inbox` | required | selected thread in inbox |
+| `/users/messages/start/user/<user_id>/` | `communications.views.start_direct_conversation_view` | completed student + POST | start or reuse direct roommate chat |
 | `/users/messages/<conversation_id>/reply/` | `communications.views.reply_conversation` | participant + POST | send reply |
 | `/users/messages/<conversation_id>/delete/` | `communications.views.delete_conversation` | participant + POST | soft-delete thread for current user |
 

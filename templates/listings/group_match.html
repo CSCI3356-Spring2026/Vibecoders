@@ -7,10 +7,6 @@
     <link rel="stylesheet" href="{% static 'css/group-match.css' %}">
 {% endblock %}
 
-{% block extra_js %}
-    <script type="module" src="{% static 'js/group-match.js' %}"></script>
-{% endblock %}
-
 {% block content %}
 <section class="app-page group-match-page">
     <div class="container">
@@ -19,45 +15,33 @@
                 <div class="app-header-main">
                     <div>
                         <p class="app-kicker">Group Match</p>
-                        <h1 class="app-title">Compare group sizes against current listings.</h1>
-                        <p class="app-subtitle">Budget, size, and live inventory.</p>
+                        <h1 class="app-title">Match the group, then the home.</h1>
+                        <p class="app-subtitle">Pick a size and budget. We rank roommates and approved homes.</p>
                     </div>
                     <div class="app-actions">
                         <a class="btn btn-outline-secondary" href="{% url 'listings:listing_list' %}">Browse listings</a>
                     </div>
                 </div>
                 <div class="app-meta">
+                    <span class="app-meta-chip">{{ group_match_current_group_size }} in group</span>
+                    <span class="app-meta-chip app-meta-chip-secondary">{{ group_match_roommate_matches_total }} student match{{ group_match_roommate_matches_total|pluralize }}</span>
+                    <span class="app-meta-chip app-meta-chip-neutral">{{ group_match_total_matches }} home{{ group_match_total_matches|pluralize }} in range</span>
                     {% if group_match_uses_profile_defaults %}
-                        <span class="app-meta-chip app-meta-chip-secondary">Using your profile defaults for vibe and sleep schedule</span>
+                        <span class="app-meta-chip app-meta-chip-neutral">Using profile defaults</span>
                     {% endif %}
                     {% if location_keywords %}
-                        <span class="app-meta-chip app-meta-chip-neutral">Focus: {{ location_keywords|join:", " }}</span>
+                        <span class="app-meta-chip app-meta-chip-neutral">Areas: {{ location_keywords|join:", " }}</span>
                     {% endif %}
-                </div>
-            </div>
-
-            <div class="app-stat-grid group-match-summary-grid">
-                <div class="app-stat-card is-primary">
-                    <span class="app-stat-label">Scenarios</span>
-                    <span class="app-stat-value">{{ group_options|length }}</span>
-                </div>
-                <div class="app-stat-card is-secondary">
-                    <span class="app-stat-label">Live matches</span>
-                    <span class="app-stat-value">{{ group_match_total_matches }}</span>
-                </div>
-                <div class="app-stat-card is-accent">
-                    <span class="app-stat-label">Sizes with inventory</span>
-                    <span class="app-stat-value">{{ group_match_sizes_with_inventory }}</span>
                 </div>
             </div>
 
             <div class="app-layout group-match-layout">
-                <aside class="app-sidebar group-match-planner">
+                <aside class="app-sidebar group-match-sidebar">
                     <div class="listing-panel group-match-form-card">
                         <div class="app-panel-head">
                             <div>
-                                <h2 class="app-section-heading">Planner inputs</h2>
-                                <p class="app-panel-copy">Budget, size, and preferences.</p>
+                                <h2 class="app-section-heading">Planner</h2>
+                                <p class="app-panel-copy">Size, budget, and areas.</p>
                             </div>
                         </div>
                         <form class="group-match-form" method="get">
@@ -65,222 +49,230 @@
                                 {% include "listings/includes/form_field.html" with field=form.unit_size wrapper_class="col-12" %}
                                 {% include "listings/includes/form_field.html" with field=form.budget_min wrapper_class="col-md-6" %}
                                 {% include "listings/includes/form_field.html" with field=form.budget_max wrapper_class="col-md-6" %}
-                                {% include "listings/includes/form_field.html" with field=form.cleanliness wrapper_class="col-md-6" %}
-                                {% include "listings/includes/form_field.html" with field=form.social wrapper_class="col-md-6" %}
-                                {% include "listings/includes/form_field.html" with field=form.sleep_schedule wrapper_class="col-md-6" %}
                                 {% include "listings/includes/form_field.html" with field=form.desired_group_min wrapper_class="col-md-6" %}
                                 {% include "listings/includes/form_field.html" with field=form.desired_group_max wrapper_class="col-md-6" %}
                                 {% include "listings/includes/form_field.html" with field=form.location_keywords wrapper_class="col-12" %}
+                                {% include "listings/includes/form_field.html" with field=form.cleanliness wrapper_class="col-md-6" %}
+                                {% include "listings/includes/form_field.html" with field=form.social wrapper_class="col-md-6" %}
+                                {% include "listings/includes/form_field.html" with field=form.sleep_schedule wrapper_class="col-12" %}
                             </div>
                             {% if form.non_field_errors %}
                                 <div class="app-field-error mt-3">{{ form.non_field_errors|join:", " }}</div>
                             {% endif %}
                             <div class="group-match-actions">
-                                <button class="btn btn-brand" type="submit">Refresh plans</button>
+                                <button class="btn btn-brand" type="submit">Apply</button>
                                 <a class="btn btn-outline-secondary" href="{% url 'listings:group_match' %}">Reset</a>
                             </div>
                         </form>
                     </div>
 
-                    <div class="listing-panel group-match-method-card">
+                    <div class="listing-panel group-match-profile-card">
                         <div class="app-panel-head">
                             <div>
-                                <h2 class="app-section-heading">Scoring</h2>
-                                <p class="app-panel-copy">How plans are ranked.</p>
+                                <h2 class="app-section-heading">Compatibility</h2>
+                                <p class="app-panel-copy">Based on profile responses.</p>
                             </div>
                         </div>
-                        <div class="group-match-method-list">
-                            <div class="group-match-method-item">
-                                <span class="group-match-method-index">01</span>
-                                <p>Price fit compares per-person rent to your budget.</p>
+                        {% if group_match_has_profile %}
+                            <div class="app-compact-list">
+                                <div class="app-compact-item app-compact-item-static">
+                                    <span class="app-compact-title">Roommate ranking</span>
+                                    <span class="app-compact-meta">Sorted by lifestyle fit.</span>
+                                </div>
+                                <a class="app-compact-item" href="{% url 'users:profile_setup' %}">
+                                    <span class="app-compact-title">Update questionnaire</span>
+                                    <span class="app-compact-meta">Improve match quality.</span>
+                                </a>
                             </div>
-                            <div class="group-match-method-item">
-                                <span class="group-match-method-index">02</span>
-                                <p>Inventory rewards group sizes with real options.</p>
+                        {% else %}
+                            <div class="app-empty">
+                                <h3 class="app-empty-title">Complete your profile</h3>
+                                <p class="app-empty-copy">Add preferences to unlock scores.</p>
+                                <a class="btn btn-brand mt-3" href="{% url 'users:profile_setup' %}">Complete profile</a>
                             </div>
-                            <div class="group-match-method-item">
-                                <span class="group-match-method-index">03</span>
-                                <p>Comfort weighs bathroom balance and profile preferences.</p>
-                            </div>
-                        </div>
+                        {% endif %}
                     </div>
                 </aside>
 
-                <div class="app-main group-match-results">
+                <div class="app-main group-match-main">
                     {% if group_options %}
-                        <section
-                            class="listing-panel group-match-spotlight"
-                            data-group-spotlight
-                            data-empty-text="Select a plan to inspect the reasoning."
-                        >
-                            {% if selected_group_option %}
-                                <div class="group-match-spotlight-copy">
-                                    <p class="group-match-spotlight-kicker">Selected plan</p>
-                                    <h2 class="group-match-spotlight-title" data-group-spotlight-title>{{ selected_group_option.label }}</h2>
-                                    <p class="group-match-spotlight-headline" data-group-spotlight-headline>{{ selected_group_option.headline }}</p>
-                                    <p class="group-match-spotlight-summary" data-group-spotlight-summary>{{ selected_group_option.summary }}</p>
-                                </div>
-                                <div class="group-match-spotlight-stats">
-                                    <div class="group-match-spotlight-metric">
-                                        <span>Fit score</span>
-                                        <strong data-group-spotlight-fit>{{ selected_group_option.fit_score }}</strong>
-                                    </div>
-                                    <div class="group-match-spotlight-metric">
-                                        <span>Listings</span>
-                                        <strong data-group-spotlight-listings>{{ selected_group_option.listings_count }}</strong>
-                                    </div>
-                                    <div class="group-match-spotlight-metric">
-                                        <span>Median / person</span>
-                                        <strong data-group-spotlight-price>
-                                            {% if selected_group_option.median_price_per_person %}
-                                                ${{ selected_group_option.median_price_per_person|floatformat:0 }}
-                                            {% else %}
-                                                --
-                                            {% endif %}
-                                        </strong>
-                                    </div>
-                                    <div class="group-match-spotlight-metric">
-                                        <span>Inventory</span>
-                                        <strong data-group-spotlight-market>{{ selected_group_option.market_temperature }}</strong>
-                                    </div>
-                                </div>
-                            {% endif %}
-                        </section>
-
                         <section class="listing-panel group-match-plan-section">
                             <div class="app-panel-head">
                                 <div>
-                                    <h2 class="app-section-heading">Plans</h2>
-                                    <p class="app-panel-copy">Choose a group size.</p>
+                                    <h2 class="app-section-heading">Choose a household size</h2>
+                                    <p class="app-panel-copy">Compare roommate depth and housing supply.</p>
                                 </div>
                             </div>
-                            <div class="group-match-plan-grid" data-group-options>
+                            <div class="group-plan-strip">
                                 {% for option in group_options %}
-                                    <button
-                                        class="group-plan-card{% if option.option_id == selected_group_id %} is-active is-expanded{% endif %}"
-                                        type="button"
-                                        data-group-option
-                                        data-group-id="{{ option.option_id }}"
-                                        data-group-label="{{ option.label }}"
-                                        data-group-headline="{{ option.headline }}"
-                                        data-group-summary="{{ option.summary }}"
-                                        data-group-fit="{{ option.fit_score }}"
-                                        data-group-listings="{{ option.listings_count }}"
-                                        data-group-price="{% if option.median_price_per_person %}${{ option.median_price_per_person|floatformat:0 }}{% else %}--{% endif %}"
-                                        data-group-market="{{ option.market_temperature }}"
-                                        aria-expanded="{% if option.option_id == selected_group_id %}true{% else %}false{% endif %}"
-                                        aria-controls="group-listings-{{ option.option_id }}"
+                                    <a
+                                        class="group-plan-card{% if option.option_id == selected_group_id %} is-active{% endif %}"
+                                        href="{{ option.select_url }}"
                                     >
                                         <div class="group-plan-card-head">
                                             <span class="group-plan-card-title">{{ option.label }}</span>
                                             <span class="group-plan-card-fit">{{ option.fit_score }}</span>
                                         </div>
-                                        <p class="group-plan-card-headline">{{ option.headline }}</p>
+                                        <p class="group-plan-card-headline">
+                                            {% if option.additional_roommates_needed %}
+                                                Need {{ option.additional_roommates_needed }} more roommate{{ option.additional_roommates_needed|pluralize }}
+                                            {% else %}
+                                                Group already full
+                                            {% endif %}
+                                        </p>
                                         <div class="group-plan-card-meta">
-                                            <span>{{ option.group_size }} people</span>
-                                            <span>{{ option.listings_count }} live match{{ option.listings_count|pluralize }}</span>
+                                            <span>{{ option.listings_count }} home{{ option.listings_count|pluralize }}</span>
+                                            <span>
+                                                {% if option.median_price_per_person %}
+                                                    ${{ option.median_price_per_person|floatformat:0 }}/person
+                                                {% else %}
+                                                    No price signal
+                                                {% endif %}
+                                            </span>
                                             <span>{{ option.market_temperature }}</span>
                                         </div>
-                                        <div class="group-plan-card-bars" aria-hidden="true">
-                                            <span style="width: {{ option.price_score }}%"></span>
-                                            <span style="width: {{ option.inventory_score }}%"></span>
-                                            <span style="width: {{ option.comfort_score }}%"></span>
-                                        </div>
-                                    </button>
+                                    </a>
                                 {% endfor %}
                             </div>
                         </section>
 
-                        <section class="listing-panel group-match-comparison">
-                            <div class="app-panel-head">
-                                <div>
-                                    <h2 class="app-section-heading">Plan comparison</h2>
-                                    <p class="app-panel-copy">Compare each option.</p>
-                                </div>
-                            </div>
-                            <div class="table-responsive">
-                                <table class="table group-compare-table">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col">Plan</th>
-                                            <th scope="col">Size</th>
-                                            <th scope="col">Fit</th>
-                                            <th scope="col">Median / person</th>
-                                            <th scope="col">Listings</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for option in group_options %}
-                                            <tr data-group-row data-group-id="{{ option.option_id }}"{% if option.option_id == selected_group_id %} class="is-active"{% endif %}>
-                                                <td>{{ option.label }}</td>
-                                                <td>{{ option.group_size }}</td>
-                                                <td>{{ option.fit_score }}</td>
-                                                <td>
-                                                    {% if option.median_price_per_person %}
-                                                        ${{ option.median_price_per_person|floatformat:0 }}
-                                                    {% else %}
-                                                        --
-                                                    {% endif %}
-                                                </td>
-                                                <td>{{ option.listings_count }}</td>
-                                            </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </section>
-
-                        {% for option in group_options %}
-                            <section
-                                id="group-listings-{{ option.option_id }}"
-                                class="listing-panel group-plan-detail"
-                                data-group-listings-panel
-                                data-group-id="{{ option.option_id }}"
-                                {% if option.option_id != selected_group_id %}hidden{% endif %}
-                            >
-                                <div class="group-plan-detail-head">
+                        {% with option=selected_group_option %}
+                            <section class="listing-panel group-match-selected">
+                                <div class="group-match-selected-head">
                                     <div>
-                                        <p class="group-match-method-kicker">Selected plan</p>
-                                        <h2 class="app-section-heading">{{ option.label }}</h2>
-                                        <p class="app-panel-copy">{{ option.summary }}</p>
+                                        <p class="app-kicker">Selected Plan</p>
+                                        <h2 class="group-match-selected-title">{{ option.label }}</h2>
+                                        <p class="group-match-selected-headline">{{ option.headline }}</p>
+                                        <p class="group-match-selected-summary">{{ option.summary }}</p>
                                     </div>
-                                    <div class="group-plan-detail-meta">
-                                        <span class="app-meta-chip app-meta-chip-primary">{{ option.group_size }} people</span>
-                                        <span class="app-meta-chip app-meta-chip-secondary">{{ option.market_temperature }}</span>
-                                        {% if option.dominant_property_type %}
-                                            <span class="app-meta-chip app-meta-chip-neutral">{{ option.dominant_property_type }}</span>
+                                    <div class="app-meta">
+                                        {% if option.additional_roommates_needed %}
+                                            <span class="app-meta-chip app-meta-chip-primary">Add {{ option.additional_roommates_needed }} roommate{{ option.additional_roommates_needed|pluralize }}</span>
+                                        {% else %}
+                                            <span class="app-meta-chip app-meta-chip-primary">No extra roommates needed</span>
                                         {% endif %}
                                         {% if option.top_localities %}
                                             <span class="app-meta-chip app-meta-chip-neutral">{{ option.top_localities|join:", " }}</span>
                                         {% endif %}
+                                        {% if option.dominant_property_type %}
+                                            <span class="app-meta-chip app-meta-chip-neutral">{{ option.dominant_property_type }}</span>
+                                        {% endif %}
                                     </div>
                                 </div>
 
-                                <div class="group-plan-signal-grid">
-                                    <div class="group-plan-signal">
-                                        <span>Price fit</span>
-                                        <strong>{{ option.price_score }}</strong>
+                                <div class="app-stat-grid group-match-selected-stats">
+                                    <div class="app-stat-card is-primary">
+                                        <span class="app-stat-label">Group size</span>
+                                        <span class="app-stat-value">{{ option.group_size }}</span>
                                     </div>
-                                    <div class="group-plan-signal">
-                                        <span>Inventory depth</span>
-                                        <strong>{{ option.inventory_score }}</strong>
+                                    <div class="app-stat-card is-secondary">
+                                        <span class="app-stat-label">Roommates to add</span>
+                                        <span class="app-stat-value">{{ option.additional_roommates_needed }}</span>
                                     </div>
-                                    <div class="group-plan-signal">
-                                        <span>Comfort fit</span>
-                                        <strong>{{ option.comfort_score }}</strong>
+                                    <div class="app-stat-card is-accent">
+                                        <span class="app-stat-label">Homes</span>
+                                        <span class="app-stat-value">{{ option.listings_count }}</span>
                                     </div>
-                                    <div class="group-plan-signal">
-                                        <span>Median / person</span>
-                                        <strong>
+                                    <div class="app-stat-card is-neutral">
+                                        <span class="app-stat-label">Median / person</span>
+                                        <span class="app-stat-value">
                                             {% if option.median_price_per_person %}
                                                 ${{ option.median_price_per_person|floatformat:0 }}
                                             {% else %}
                                                 --
                                             {% endif %}
-                                        </strong>
+                                        </span>
                                     </div>
                                 </div>
 
+                                <div class="group-match-score-strip">
+                                    <div class="group-plan-signal">
+                                        <span>Price fit</span>
+                                        <strong>{{ option.price_score }}</strong>
+                                    </div>
+                                    <div class="group-plan-signal">
+                                        <span>Inventory</span>
+                                        <strong>{{ option.inventory_score }}</strong>
+                                    </div>
+                                    <div class="group-plan-signal">
+                                        <span>Comfort</span>
+                                        <strong>{{ option.comfort_score }}</strong>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section class="listing-panel group-match-roommates" id="roommate-matches">
+                                <div class="app-panel-head">
+                                    <div>
+                                        <h2 class="app-section-heading">Compatible roommates</h2>
+                                        <p class="app-panel-copy">
+                                            {% if option.additional_roommates_needed %}
+                                                Best matches for a {{ option.group_size }} person home.
+                                            {% else %}
+                                                Closest profile matches.
+                                            {% endif %}
+                                        </p>
+                                    </div>
+                                </div>
+                                {% if option.roommate_matches %}
+                                    <div class="group-roommate-grid">
+                                        {% for match in option.roommate_matches %}
+                                            <div class="group-roommate-card">
+                                                <div class="group-roommate-card-top">
+                                                    <div class="identity-row">
+                                                        {% include "includes/user_avatar.html" with user_obj=match.user avatar_class="user-avatar user-avatar-md" %}
+                                                        <div class="identity-copy">
+                                                            <span class="group-roommate-name">{{ match.user.display_name }}</span>
+                                                            {% if match.profile.major %}
+                                                                <span class="group-roommate-meta">{{ match.profile.major }}</span>
+                                                            {% endif %}
+                                                        </div>
+                                                    </div>
+                                                    <span class="app-meta-chip {% if match.score_variant == 'primary' %}app-meta-chip-primary{% elif match.score_variant == 'secondary' %}app-meta-chip-secondary{% else %}app-meta-chip-neutral{% endif %}">
+                                                        {% if match.score is not None %}
+                                                            {{ match.score }}% match
+                                                        {% else %}
+                                                            No score yet
+                                                        {% endif %}
+                                                    </span>
+                                                </div>
+                                                {% if match.profile.bio %}
+                                                    <p class="group-roommate-bio">{{ match.profile.bio|truncatechars:120 }}</p>
+                                                {% endif %}
+                                                {% if match.highlights %}
+                                                    <div class="group-roommate-traits">
+                                                        {% for highlight in match.highlights %}
+                                                            <span>{{ highlight }}</span>
+                                                        {% endfor %}
+                                                    </div>
+                                                {% endif %}
+                                                <div class="group-roommate-actions">
+                                                    <a class="btn btn-outline-secondary btn-sm" href="{{ match.profile_url }}">View profile</a>
+                                                    <a class="btn btn-brand btn-sm" href="{{ match.message_url }}">{{ match.message_label }}</a>
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% elif not group_match_has_profile %}
+                                    <div class="app-empty">
+                                        <h3 class="app-empty-title">Finish your profile first</h3>
+                                        <p class="app-empty-copy">Compatibility scores appear after setup.</p>
+                                    </div>
+                                {% else %}
+                                    <div class="app-empty">
+                                        <h3 class="app-empty-title">No student matches yet</h3>
+                                        <p class="app-empty-copy">Check back soon.</p>
+                                    </div>
+                                {% endif %}
+                            </section>
+
+                            <section class="listing-panel group-match-homes">
+                                <div class="app-panel-head">
+                                    <div>
+                                        <h2 class="app-section-heading">Homes for this plan</h2>
+                                        <p class="app-panel-copy">Approved homes in budget.</p>
+                                    </div>
+                                </div>
                                 {% if option.listings %}
                                     <div class="group-listings-grid">
                                         {% for listing in option.listings %}
@@ -289,18 +281,61 @@
                                     </div>
                                 {% else %}
                                     <div class="app-empty">
-                                        <h3 class="app-empty-title">No current inventory for this plan.</h3>
-                                        <p class="app-empty-copy">Change the budget, size, or area.</p>
+                                        <h3 class="app-empty-title">No approved homes match this setup.</h3>
+                                        <p class="app-empty-copy">Adjust the budget, size, or area.</p>
                                     </div>
                                 {% endif %}
                             </section>
-                        {% endfor %}
+                        {% endwith %}
                     {% else %}
-                        <div class="listing-panel group-match-empty">
-                            <p class="group-match-method-kicker">No live plan yet</p>
-                            <h2 class="app-section-heading">Adjust the planner.</h2>
-                            <p class="app-panel-copy">Group options appear here.</p>
-                        </div>
+                        <section class="listing-panel group-match-empty">
+                            <div class="app-panel-head">
+                                <div>
+                                    <h2 class="app-section-heading">Fix the planner</h2>
+                                    <p class="app-panel-copy">Group options appear after the fields are valid.</p>
+                                </div>
+                            </div>
+                            {% if group_match_roommate_matches %}
+                                <div class="group-roommate-grid" id="roommate-matches">
+                                    {% for match in group_match_roommate_matches %}
+                                        <div class="group-roommate-card">
+                                            <div class="group-roommate-card-top">
+                                                <div class="identity-row">
+                                                    {% include "includes/user_avatar.html" with user_obj=match.user avatar_class="user-avatar user-avatar-md" %}
+                                                    <div class="identity-copy">
+                                                        <span class="group-roommate-name">{{ match.user.display_name }}</span>
+                                                        {% if match.profile.major %}
+                                                            <span class="group-roommate-meta">{{ match.profile.major }}</span>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                                <span class="app-meta-chip {% if match.score_variant == 'primary' %}app-meta-chip-primary{% elif match.score_variant == 'secondary' %}app-meta-chip-secondary{% else %}app-meta-chip-neutral{% endif %}">
+                                                    {% if match.score is not None %}
+                                                        {{ match.score }}% match
+                                                    {% else %}
+                                                        No score yet
+                                                    {% endif %}
+                                                </span>
+                                            </div>
+                                            {% if match.profile.bio %}
+                                                <p class="group-roommate-bio">{{ match.profile.bio|truncatechars:120 }}</p>
+                                            {% endif %}
+                                            {% if match.highlights %}
+                                                <div class="group-roommate-traits">
+                                                    {% for highlight in match.highlights %}
+                                                        <span>{{ highlight }}</span>
+                                                    {% endfor %}
+                                                </div>
+                                            {% endif %}
+                                            <div class="group-roommate-actions">
+                                                <a class="btn btn-outline-secondary btn-sm" href="{{ match.profile_url }}">View profile</a>
+                                                <a class="btn btn-brand btn-sm" href="{{ match.message_url }}">{{ match.message_label }}</a>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </section>
                     {% endif %}
                 </div>
             </div>

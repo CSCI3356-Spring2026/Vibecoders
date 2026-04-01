@@ -4,17 +4,29 @@ from channels.db import database_sync_to_async
 from channels.testing import WebsocketCommunicator
 from django.core.cache import cache
 from django.test import TransactionTestCase, override_settings
+from django.utils import timezone
 
 from communications.consumers import MessagesConsumer
 from communications.models import ListingConversation
+from communications.services import start_direct_conversation
 
 from .helpers import User
 
 
 class MessagesRealtimeTests(TransactionTestCase):
     def setUp(self):
-        self.owner = User.objects.create_user(username="owner", email="owner@bc.edu", password="test")
-        self.participant = User.objects.create_user(username="student", email="student@bc.edu", password="test")
+        self.owner = User.objects.create_user(
+            username="owner",
+            email="owner@bc.edu",
+            password="test",
+            profile_completed_at=timezone.now(),
+        )
+        self.participant = User.objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="test",
+            profile_completed_at=timezone.now(),
+        )
         self.outsider = User.objects.create_user(username="outsider", email="outsider@bc.edu", password="test")
         SocialAccount.objects.create(
             user=self.owner,
@@ -109,6 +121,40 @@ class MessagesRealtimeTests(TransactionTestCase):
             self.assertEqual(owner_payload["summary"]["unread_delta"], 1)
             self.assertEqual(participant_payload["summary"]["conversation_delta"], 0)
             self.assertEqual(participant_payload["summary"]["unread_delta"], 0)
+
+            await owner_socket.disconnect()
+            await participant_socket.disconnect()
+
+        async_to_sync(scenario)()
+
+    def test_direct_conversation_realtime_payload_uses_direct_context(self):
+        self.direct_conversation, _, _ = start_direct_conversation(self.owner, self.participant, "Want to compare?")
+
+        async def scenario():
+            owner_socket = WebsocketCommunicator(MessagesConsumer.as_asgi(), "/ws/messages/")
+            owner_socket.scope["user"] = self.owner
+            participant_socket = WebsocketCommunicator(MessagesConsumer.as_asgi(), "/ws/messages/")
+            participant_socket.scope["user"] = self.participant
+
+            owner_connected, _ = await owner_socket.connect()
+            participant_connected, _ = await participant_socket.connect()
+            self.assertTrue(owner_connected)
+            self.assertTrue(participant_connected)
+
+            await participant_socket.send_json_to(
+                {
+                    "action": "send_message",
+                    "conversation_id": self.direct_conversation.id,
+                    "body": "Yes, let's compare budgets.",
+                }
+            )
+
+            owner_payload = await owner_socket.receive_json_from()
+
+            self.assertEqual(owner_payload["type"], "message.created")
+            self.assertEqual(owner_payload["conversation"]["conversation_type"], "direct")
+            self.assertEqual(owner_payload["conversation"]["context_title"], "Roommate chat")
+            self.assertEqual(owner_payload["message"]["body"], "Yes, let's compare budgets.")
 
             await owner_socket.disconnect()
             await participant_socket.disconnect()

@@ -38,6 +38,11 @@
     object-fit: cover;
 }
 
+.messages-thread-context-media .user-avatar {
+    --avatar-size: 2.6rem;
+    border-radius: var(--radius-sm);
+}
+
 .messages-thread-context-copy {
     min-width: 0;
 }

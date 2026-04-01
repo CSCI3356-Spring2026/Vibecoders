@@ -116,6 +116,13 @@ Client-side behavior:
 - `static/js/listings-map-view.js` manages MapLibre state
 - `static/js/listings-results.js` renders live-search cards
 
+Current desktop layout:
+
+- filter controls live above the left results column instead of spanning the whole page
+- results stay on the left in a dense stacked-card rail
+- the map occupies the right column and extends higher than the results list
+- the map can toggle between default and satellite styles
+
 ### Important visibility rules
 
 - The current `/listings/`, `/listings/search/`, and listing-detail HTTP surfaces are login-gated even though selector helpers can still produce anonymous/public querysets for shared internal use such as the landing page.
@@ -168,11 +175,27 @@ Reports let student users flag approved listings for admin review.
 - `resolved`
 - `dismissed`
 
-## Group Match
+### Report moderation behavior
+
+- `resolved` closes the report and removes the listing from the public marketplace by moving the listing back to rejected moderation state
+- `dismissed` closes the report without changing the listing's approved status
+- reopening to `open` clears prior reviewer and resolution metadata
+- moderator notes and decisions are preserved as a timeline of `ListingReportUpdate` records instead of a single overwritten field
+- the admin queue defaults to active reports, while closed history remains visible on listing-level moderation detail
+
+## Group Match and Roommate Discovery
 
 Route: `/listings/group-match/`
 
-The group-match surface is a live listing-inventory planner, not direct roommate-to-roommate matching. It builds scenarios from the marketplace using:
+The group-match surface is a combined planner:
+
+- live listing-inventory scenarios for different household sizes
+- roommate compatibility results derived from completed student profiles
+- direct profile and message actions for viable matches
+
+Legacy roommate browse now redirects into this surface from `/users/browse/`, while the main product entry point lives on the account dashboard.
+
+It builds listing scenarios using:
 
 - current group size
 - budget range
@@ -181,14 +204,15 @@ The group-match surface is a live listing-inventory planner, not direct roommate
 - desired household size
 - optional location keywords
 
-The scoring model balances:
+The listing-plan scoring model balances:
 
 - inventory depth
 - per-person price fit
 - target size fit
 - bathrooms-per-person comfort signal
 
-Group match is available only to users who can browse the marketplace.
+Roommate discovery is meaningful only for completed student profiles. Users without a completed roommate
+profile can still open the planner, but direct roommate messaging is reserved for completed student profiles.
 
 ## Important Invariants
 

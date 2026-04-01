@@ -1,13 +1,11 @@
 import logging
 import re
-from decimal import Decimal
 
 import requests
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.db.models import DecimalField, ExpressionWrapper, F, Q
 from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -29,11 +27,15 @@ from .filtering import BEDROOMS_FILTER_MIN, PRICE_FILTER_MAX, PRICE_FILTER_MIN, 
 from .form_services import handle_listing_form_submission, validation_message
 from .forms import GroupMatchPreferencesForm, ListingForm, ListingReportForm, ListingReviewForm
 from .geocoding import BOSTON_COLLEGE_LATITUDE, BOSTON_COLLEGE_LONGITUDE
-from .group_matching import (
-    BudgetRange,
-    Preferences,
-    build_group_options,
+from .group_match_service import (
+    group_match_initial_data,
+    group_match_listings_by_size,
+    group_match_option_url,
+    group_match_preferences,
+    group_match_roommate_limit,
+    group_match_roommate_matches,
 )
+from .group_matching import build_group_options
 from .models import Listing, ListingFavorite, ListingReport, ListingReview
 from .search_payloads import listing_card_payload, listing_marker_payload
 from .selectors import (
@@ -70,18 +72,6 @@ ADDRESS_PICKER_BLOCKED_STATUS = (
     "autocomplete is configured."
 )
 LISTING_REPORT_RATE_LIMIT_ERROR = "Too many listing reports were sent in a short time. Wait a bit and try again."
-
-GROUP_MATCH_DEFAULTS = {
-    "unit_size": 1,
-    "budget_min": 1000,
-    "budget_max": 1600,
-    "cleanliness": 4,
-    "social": 3,
-    "sleep_schedule": "balanced",
-    "desired_group_min": 3,
-    "desired_group_max": 5,
-    "location_keywords": "",
-}
 
 
 def _workspace_destination(user):
@@ -285,13 +275,6 @@ def listing_list(request):
     return render(request, "listings/listing_list.html", context)
 
 
-def _parse_location_keywords(raw_keywords: str) -> tuple[str, ...]:
-    if not raw_keywords:
-        return ()
-    parts = [keyword.strip() for keyword in raw_keywords.split(",")]
-    return tuple(keyword for keyword in parts if keyword)
-
-
 def _can_favorite_listing(user, listing):
     return (
         getattr(user, "is_authenticated", False)
@@ -372,148 +355,46 @@ def _listing_highlight_items(listing):
     return items
 
 
-def _clamp(value, minimum, maximum):
-    return max(minimum, min(value, maximum))
-
-
-def _group_match_sleep_schedule_from_bedtime(bedtime):
-    if bedtime is None:
-        return GROUP_MATCH_DEFAULTS["sleep_schedule"]
-    if bedtime >= 23 or bedtime <= 2:
-        return "late"
-    if 20 <= bedtime <= 22:
-        return "early"
-    return "balanced"
-
-
-def _group_match_social_from_profile(profile):
-    values = [
-        value
-        for value in (
-            profile.guest_level,
-            profile.drink,
-            profile.party,
-            profile.noise_level,
-        )
-        if value is not None
-    ]
-    if not values:
-        return GROUP_MATCH_DEFAULTS["social"]
-    return _clamp(round(sum(values) / len(values)), 1, 5)
-
-
-def _group_match_size_defaults(social_preference):
-    if social_preference >= 4:
-        return 4, 6
-    if social_preference <= 2:
-        return 2, 4
-    return 3, 5
-
-
-def _group_match_initial_data(user):
-    defaults = GROUP_MATCH_DEFAULTS.copy()
-    profile = getattr(user, "student_profile", None)
-    if profile is None:
-        return defaults
-
-    if profile.messy_level is not None:
-        defaults["cleanliness"] = profile.messy_level
-    defaults["social"] = _group_match_social_from_profile(profile)
-    defaults["sleep_schedule"] = _group_match_sleep_schedule_from_bedtime(profile.bedtime)
-    defaults["desired_group_min"], defaults["desired_group_max"] = _group_match_size_defaults(defaults["social"])
-    return defaults
-
-
-def _group_match_preferences(raw_data):
-    location_keywords = _parse_location_keywords(raw_data.get("location_keywords", ""))
-    preferences = Preferences(
-        budget=BudgetRange(Decimal(str(raw_data["budget_min"])), Decimal(str(raw_data["budget_max"]))),
-        cleanliness=int(raw_data["cleanliness"]),
-        social=int(raw_data["social"]),
-        sleep_schedule=raw_data["sleep_schedule"],
-        desired_group_min=int(raw_data["desired_group_min"]),
-        desired_group_max=int(raw_data["desired_group_max"]),
-        location_keywords=location_keywords,
-    )
-    return preferences, location_keywords
-
-
-def _group_match_listings_by_size(user, *, unit_size, preferences):
-    minimum_group_size = max(unit_size, preferences.desired_group_min)
-    maximum_group_size = max(minimum_group_size, preferences.desired_group_max)
-    target_sizes = tuple(range(minimum_group_size, maximum_group_size + 1))
-
-    price_per_person = ExpressionWrapper(
-        F("price") / F("rooms"),
-        output_field=DecimalField(max_digits=10, decimal_places=2),
-    )
-    queryset = with_favorite_state(marketplace_listings_for_user(user), user).filter(rooms__in=target_sizes)
-    queryset = queryset.annotate(price_per_person=price_per_person).filter(
-        price_per_person__gte=preferences.budget.minimum,
-        price_per_person__lte=preferences.budget.maximum,
-    )
-
-    if preferences.location_keywords:
-        location_query = Q()
-        for keyword in preferences.location_keywords:
-            location_query |= Q(address__icontains=keyword) | Q(title__icontains=keyword)
-        queryset = queryset.filter(location_query)
-
-    listings_by_size = {group_size: [] for group_size in target_sizes}
-    for listing in queryset:
-        listings_by_size.setdefault(listing.rooms, []).append(listing)
-    return listings_by_size
-
-
 @login_required
 @require_GET
 def group_match(request):
     if not request.user.can_browse_marketplace:
         return HttpResponseForbidden("Verified student access is required to use group matching.")
 
-    initial_data = _group_match_initial_data(request.user)
+    initial_data = group_match_initial_data(request.user)
     form = GroupMatchPreferencesForm(request.GET or None, initial=initial_data)
     group_options = []
     selected_group_id = ""
     selected_group_option = None
     location_keywords = ()
     effective_data = initial_data
-
+    form_is_valid = not bool(request.GET)
     if request.GET:
-        if form.is_valid():
+        form_is_valid = form.is_valid()
+        if form_is_valid:
             effective_data = form.cleaned_data
-        else:
-            return render(
-                request,
-                "listings/group_match.html",
-                {
-                    "form": form,
-                    "group_options": [],
-                    "selected_group_id": "",
-                    "selected_group_option": None,
-                    "location_keywords": (),
-                    "group_match_uses_profile_defaults": False,
-                    "group_match_total_matches": 0,
-                    "group_match_sizes_with_inventory": 0,
-                },
-            )
 
-    preferences, location_keywords = _group_match_preferences(effective_data)
-    listings_by_size = _group_match_listings_by_size(
-        request.user,
-        unit_size=int(effective_data["unit_size"]),
-        preferences=preferences,
-    )
-    group_options = build_group_options(
-        base_unit_size=int(effective_data["unit_size"]),
-        preferences=preferences,
-        listings_by_size=listings_by_size,
-        max_options=6,
-    )
+    if form_is_valid:
+        preferences, location_keywords = group_match_preferences(effective_data)
+        listings_by_size = group_match_listings_by_size(
+            request.user,
+            unit_size=int(effective_data["unit_size"]),
+            preferences=preferences,
+        )
+        group_options = build_group_options(
+            base_unit_size=int(effective_data["unit_size"]),
+            preferences=preferences,
+            listings_by_size=listings_by_size,
+            max_options=6,
+        )
+
+    roommate_matches = group_match_roommate_matches(request.user)
 
     listing_limit = 6
     for option in group_options:
         option.listings = _apply_listing_ui_flags(list(option.listings[:listing_limit]), request.user)
+        option.roommate_matches = roommate_matches[: group_match_roommate_limit(option.additional_roommates_needed)]
+        option.select_url = group_match_option_url(effective_data=effective_data, option_id=option.option_id)
 
     selected_group_id = request.GET.get("group") or (group_options[0].option_id if group_options else "")
     if selected_group_id and not any(option.option_id == selected_group_id for option in group_options):
@@ -526,7 +407,11 @@ def group_match(request):
         "selected_group_id": selected_group_id,
         "selected_group_option": selected_group_option,
         "location_keywords": location_keywords,
-        "group_match_uses_profile_defaults": not bool(request.GET) and hasattr(request.user, "student_profile"),
+        "group_match_uses_profile_defaults": not bool(request.GET) and bool(request.user.profile_completed_at),
+        "group_match_has_profile": bool(request.user.profile_completed_at),
+        "group_match_current_group_size": int(effective_data["unit_size"]),
+        "group_match_roommate_matches_total": len(roommate_matches),
+        "group_match_roommate_matches": roommate_matches[:6],
         "group_match_total_matches": sum(option.listings_count for option in group_options),
         "group_match_sizes_with_inventory": sum(1 for option in group_options if option.listings_count),
     }

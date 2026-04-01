@@ -3,7 +3,11 @@ import { createListingsResults } from "./listings-results.js";
 
 const LIVE_SEARCH_ERROR_MESSAGE = "Live search is temporarily unavailable. Showing the current listings.";
 const SEARCH_DEBOUNCE_MS = 260;
-
+const currencyFormatter = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+});
 function readJsonScript(id, fallback) {
     const node = document.getElementById(id);
     if (!node?.textContent) {
@@ -38,6 +42,203 @@ function buildSearchParams(form, bounds) {
 function currentQuery(form) {
     const query = form?.elements.namedItem("q");
     return query?.value?.trim() || "";
+}
+
+function getFormControl(form, name) {
+    if (!form?.elements) {
+        return null;
+    }
+
+    const control = form.elements.namedItem(name);
+    if (!control) {
+        return null;
+    }
+
+    if (typeof RadioNodeList !== "undefined" && control instanceof RadioNodeList) {
+        return control[0] ?? null;
+    }
+
+    return control;
+}
+
+function parseNumericValue(rawValue) {
+    const normalizedValue = String(rawValue ?? "").trim();
+    if (!normalizedValue) {
+        return null;
+    }
+
+    const parsed = Number(normalizedValue);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatMoney(value) {
+    return currencyFormatter.format(value);
+}
+
+function createListingsFilterToolbar(root, form) {
+    const filterMenus = Array.from(root.querySelectorAll("[data-listings-filter-menu]"));
+    if (!filterMenus.length) {
+        return null;
+    }
+
+    const menusByName = Object.fromEntries(
+        filterMenus
+            .map((menu) => [menu.dataset.filterName || "", menu])
+            .filter(([name]) => Boolean(name)),
+    );
+    const summaryNodes = Object.fromEntries(
+        Array.from(root.querySelectorAll("[data-listings-filter-summary]")).map((node) => [node.dataset.listingsFilterSummary, node]),
+    );
+
+    const minPriceField = getFormControl(form, "min_price");
+    const maxPriceField = getFormControl(form, "max_price");
+    const minBedroomsControl = getFormControl(form, "min_bedrooms");
+    const minBathroomsControl = getFormControl(form, "min_bathrooms");
+    const leaseControl = getFormControl(form, "lease_type");
+    const queryControl = getFormControl(form, "q");
+    const maxDistanceControl = getFormControl(form, "max_distance");
+    const availabilityStartControl = getFormControl(form, "availability_start");
+    const availabilityEndControl = getFormControl(form, "availability_end");
+    const savedControl = getFormControl(form, "saved");
+    const featureControls = [
+        getFormControl(form, "has_parking"),
+        getFormControl(form, "is_furnished"),
+        getFormControl(form, "allows_pets"),
+        getFormControl(form, "has_yard"),
+    ].filter(Boolean);
+
+    const closeMenus = (exceptMenu = null) => {
+        filterMenus.forEach((menu) => {
+            if (menu !== exceptMenu) {
+                menu.open = false;
+            }
+        });
+    };
+
+    const normalizePriceBounds = (changedName = "") => {
+        const minPrice = parseNumericValue(minPriceField?.value);
+        const maxPrice = parseNumericValue(maxPriceField?.value);
+
+        if (minPrice === null || maxPrice === null || minPrice <= maxPrice) {
+            return;
+        }
+
+        if (changedName === "max_price") {
+            if (minPriceField) {
+                minPriceField.value = maxPriceField?.value || "";
+            }
+            return;
+        }
+
+        if (maxPriceField) {
+            maxPriceField.value = minPriceField?.value || "";
+        }
+    };
+
+    const selectedOptionText = (control) => control?.options?.[control.selectedIndex]?.textContent?.trim() || "";
+    const checkedFeatures = () =>
+        featureControls.filter((control) => control.checked).map((control) => control.parentElement?.textContent?.trim() || "");
+
+    const syncSummaries = () => {
+        const minPrice = parseNumericValue(minPriceField?.value);
+        const maxPrice = parseNumericValue(maxPriceField?.value);
+        const priceSummary =
+            minPrice !== null && maxPrice !== null
+                ? `${formatMoney(minPrice)} - ${formatMoney(maxPrice)}`
+                : minPrice !== null
+                  ? `${formatMoney(minPrice)}+`
+                  : maxPrice !== null
+                    ? `Up to ${formatMoney(maxPrice)}`
+                    : "Any price";
+        if (summaryNodes.price) {
+            summaryNodes.price.textContent = priceSummary;
+        }
+        menusByName.price?.classList.toggle("is-active", minPrice !== null || maxPrice !== null);
+
+        const bedsActive = Boolean(minBedroomsControl?.value);
+        if (summaryNodes.beds) {
+            summaryNodes.beds.textContent = bedsActive ? selectedOptionText(minBedroomsControl) : "Any beds";
+        }
+        menusByName.beds?.classList.toggle("is-active", bedsActive);
+
+        const bathsActive = Boolean(minBathroomsControl?.value);
+        if (summaryNodes.baths) {
+            summaryNodes.baths.textContent = bathsActive ? selectedOptionText(minBathroomsControl) : "Any baths";
+        }
+        menusByName.baths?.classList.toggle("is-active", bathsActive);
+
+        const leaseActive = Boolean(leaseControl?.value);
+        if (summaryNodes.lease) {
+            summaryNodes.lease.textContent = leaseActive ? selectedOptionText(leaseControl) : "Any type";
+        }
+        menusByName.lease?.classList.toggle("is-active", leaseActive);
+
+        const startDate = availabilityStartControl?.value || "";
+        const endDate = availabilityEndControl?.value || "";
+        const savedActive = Boolean(savedControl?.value);
+        const features = checkedFeatures();
+        let extraFilterCount = 0;
+        if (queryControl?.value?.trim()) {
+            extraFilterCount += 1;
+        }
+        if (maxDistanceControl?.value) {
+            extraFilterCount += 1;
+        }
+        if (startDate || endDate) {
+            extraFilterCount += 1;
+        }
+        if (savedActive) {
+            extraFilterCount += 1;
+        }
+        if (features.length > 0) {
+            extraFilterCount += 1;
+        }
+
+        if (summaryNodes.filters) {
+            summaryNodes.filters.textContent = extraFilterCount ? `${extraFilterCount} active` : "More";
+        }
+        menusByName.filters?.classList.toggle("is-active", extraFilterCount > 0);
+    };
+
+    filterMenus.forEach((menu) => {
+        menu.addEventListener("toggle", () => {
+            if (menu.open) {
+                closeMenus(menu);
+            }
+        });
+    });
+
+    document.addEventListener("click", (event) => {
+        if (!root.contains(event.target) || !event.target.closest("[data-listings-filter-menu]")) {
+            closeMenus();
+        }
+    });
+
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") {
+            closeMenus();
+        }
+    });
+
+    syncSummaries();
+
+    return {
+        sync() {
+            normalizePriceBounds();
+            syncSummaries();
+        },
+        handleChange(event) {
+            normalizePriceBounds(event.target?.name || "");
+            const menu = event.target.closest("[data-listings-filter-menu]");
+            if (menu && event.target.tagName === "SELECT") {
+                menu.open = false;
+            }
+            syncSummaries();
+        },
+        handleInput() {
+            syncSummaries();
+        },
+    };
 }
 
 export function bootstrapListingsPage() {
@@ -78,6 +279,7 @@ export function bootstrapListingsPage() {
     }
 
     const resultsView = createListingsResults(resultsRoot);
+    const filterToolbar = createListingsFilterToolbar(root, form);
     const state = {
         latestRequestId: 0,
         requestTimer: null,
@@ -176,15 +378,18 @@ export function bootstrapListingsPage() {
     root.dataset.selectedListingId = state.selectedListingId;
     resultsView?.setSelectedListing(state.selectedListingId);
     syncStyleToggleState(mapView.getStyleMode());
+    filterToolbar?.sync();
 
     form.addEventListener("submit", (event) => {
         event.preventDefault();
         scheduleSearch(0);
     });
-    form.addEventListener("input", () => {
+    form.addEventListener("input", (event) => {
+        filterToolbar?.handleInput(event);
         scheduleSearch();
     });
-    form.addEventListener("change", () => {
+    form.addEventListener("change", (event) => {
+        filterToolbar?.handleChange(event);
         scheduleSearch();
     });
 

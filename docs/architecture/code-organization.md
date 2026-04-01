@@ -41,7 +41,9 @@ Put reusable access rules or annotated query behavior there instead of rebuildin
 Examples:
 
 - `listings/form_services.py` handles multi-step listing save and image work
+- `listings/report_services.py` handles report status transitions and related listing-closure behavior
 - `communications/services.py` owns conversation creation, reply delivery, unread state, and websocket publishing
+- `listings/group_match_service.py` owns planner scenario-building and roommate-match decoration
 
 When multiple rows change together or post-commit effects matter, the logic belongs in a service or focused helper.
 
@@ -73,8 +75,9 @@ The frontend is primarily server-rendered. JavaScript is used for progressive en
 | Login and identity policy | `users/adapters.py`, `users/legal.py`, `users/middleware.py`, `users/session_security.py` |
 | Marketplace visibility | `listings/selectors.py`, `listings/models.py`, `listings/filtering.py` |
 | Listing authoring | `listings/forms.py`, `listings/form_services.py`, `static/js/listing-form.js`, `static/js/listings-address-picker.js` |
+| Group match | `listings/group_match_service.py`, `listings/group_matching.py`, `listings/forms.py`, `templates/listings/group_match.html` |
 | Messaging behavior | `communications/services.py`, `communications/selectors.py`, `communications/consumers.py` |
-| Admin moderation | `users/admin_views.py`, `users/selectors.py`, `listings/forms.py` |
+| Admin moderation | `users/admin_views.py`, `users/selectors.py`, `listings/forms.py`, `listings/report_services.py` |
 | Private file handling | `users/models.py`, `users/views.py`, `users/validators.py`, `users/tests/test_files.py` |
 
 ## Patterns to Preserve

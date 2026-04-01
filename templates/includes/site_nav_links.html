@@ -1,0 +1,29 @@
+<a class="{{ link_class|default:'nav-button' }}" href="{% url 'core:landing' %}">Home</a>
+{% if request.user.is_authenticated %}
+    {% if request.user.can_browse_marketplace or request.user.is_bc_admin %}
+        <a class="{{ link_class|default:'nav-button' }}" href="{% url 'listings:listing_list' %}">Listings</a>
+    {% elif request.user.has_listing_only_access %}
+        <a class="{{ link_class|default:'nav-button' }}" href="{% url 'users:posts' %}">My Listings</a>
+    {% endif %}
+{% endif %}
+{% if request.user.is_authenticated and not request.user.has_listing_only_access %}
+    <a class="{{ link_class|default:'nav-button' }}" href="{% url 'users:posts' %}">My Listings</a>
+{% endif %}
+{% if request.user.is_authenticated %}
+    <a
+        class="{{ link_class|default:'nav-button' }}{% if show_unread_badge %} nav-button-with-badge{% endif %}"
+        href="{% url 'communications:messages' %}"
+    >
+        <span>Messages</span>
+        {% if show_unread_badge %}
+            <span
+                class="nav-badge{% if not global_unread_conversations_count %} is-hidden{% endif %}"
+                data-nav-unread-count
+                {% if not global_unread_conversations_count %}aria-hidden="true"{% endif %}
+            >
+                {{ global_unread_conversations_count }}
+            </span>
+        {% endif %}
+    </a>
+{% endif %}
+<a class="{{ primary_link_class|default:'nav-button nav-button-primary' }}" href="{% url 'listings:create_listing' %}">Create Listing</a>

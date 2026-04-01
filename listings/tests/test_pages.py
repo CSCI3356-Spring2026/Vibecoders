@@ -15,6 +15,7 @@ from django.db import connection
 from django.test import override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
+from django.utils import timezone
 from PIL import Image
 
 from communications.models import ListingConversation, ListingMessage
@@ -367,6 +368,18 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, '<option value="">All listings</option>', html=False)
         self.assertContains(response, '<option value="1" selected>Saved only</option>', html=False)
 
+    def test_listing_list_bathrooms_filter_limits_results(self):
+        matching_listing = self.create_listing(title="Two bath", bathrooms="2.0")
+        other_listing = self.create_listing(title="One bath", address="200 Comm Ave", bathrooms="1.0")
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"), {"min_bathrooms": "2"})
+
+        listings_page = response.context["listings"]
+        listing_ids = [item.id for item in listings_page.object_list]
+        self.assertIn(matching_listing.id, listing_ids)
+        self.assertNotIn(other_listing.id, listing_ids)
+
     def test_listing_page_renders_map_first_layout_hooks(self):
         self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
         self.client.force_login(self.user)
@@ -384,6 +397,9 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, "data-listings-workspace")
         self.assertContains(response, "data-listings-filters")
         self.assertContains(response, "data-listings-filter-form")
+        self.assertContains(response, "data-listings-filter-menu")
+        self.assertContains(response, 'data-filter-name="baths"')
+        self.assertContains(response, 'data-filter-name="filters"')
         self.assertContains(response, "data-listings-browser-shell")
         self.assertContains(response, "data-listings-results-pane")
         self.assertContains(response, "data-listings-map-pane")
@@ -392,9 +408,9 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, "data-listings-map")
         self.assertContains(response, "data-listings-results")
         self.assertContains(response, "data-listings-live-error")
-        self.assertLess(browser_index, filters_index)
-        self.assertLess(workspace_index, filters_index)
-        self.assertLess(filters_index, results_index)
+        self.assertLess(browser_index, results_index)
+        self.assertLess(workspace_index, results_index)
+        self.assertLess(results_index, filters_index)
         self.assertLess(filters_index, map_index)
         self.assertLess(results_index, map_index)
 
@@ -1216,7 +1232,7 @@ assert.equal(view.getStyleMode(), "satellite");
         self.assertNotContains(response, "No yard")
         self.assertNotContains(response, "Too far")
 
-    def test_listing_page_renders_price_and_availability_range_inputs(self):
+    def test_listing_page_renders_price_and_availability_dropdown_inputs(self):
         self.create_listing(title="Filter form listing")
         self.client.force_login(self.user)
 
@@ -1232,8 +1248,8 @@ assert.equal(view.getStyleMode(), "satellite");
 
         self.assertContains(response, 'name="min_price"')
         self.assertContains(response, 'name="max_price"')
-        self.assertContains(response, 'min="0"')
-        self.assertContains(response, 'max="25000"')
+        self.assertContains(response, ">No min</option>", html=False)
+        self.assertContains(response, ">No max</option>", html=False)
         self.assertContains(response, 'name="availability_start"')
         self.assertContains(response, 'value="2026-09-01"')
         self.assertContains(response, 'name="availability_end"')
@@ -1247,6 +1263,7 @@ assert.equal(view.getStyleMode(), "satellite");
             reverse("listings:listing_list"),
             {
                 "min_bedrooms": "2",
+                "min_bathrooms": "1.5",
                 "has_parking": "1",
                 "is_furnished": "1",
                 "allows_pets": "1",
@@ -1256,17 +1273,19 @@ assert.equal(view.getStyleMode(), "satellite");
         )
 
         self.assertContains(response, 'name="min_bedrooms"')
+        self.assertContains(response, 'name="min_bathrooms"')
         self.assertContains(response, 'name="has_parking"')
         self.assertContains(response, 'name="is_furnished"')
         self.assertContains(response, 'name="allows_pets"')
         self.assertContains(response, 'name="has_yard"')
         self.assertContains(response, 'name="max_distance"')
         self.assertContains(response, 'value="2"')
+        self.assertContains(response, 'value="1.5" selected', html=False)
         self.assertContains(response, 'value="1.5"')
-        self.assertContains(response, "Has parking")
-        self.assertContains(response, "Is furnished")
-        self.assertContains(response, "Allows pets")
-        self.assertContains(response, "Has a yard")
+        self.assertContains(response, "Parking")
+        self.assertContains(response, "Furnished")
+        self.assertContains(response, "Pets")
+        self.assertContains(response, "Yard")
 
     def test_listing_list_is_paginated(self):
         for index in range(13):
@@ -1485,6 +1504,8 @@ assert.equal(picker.isSelectionComplete(), true);
         created_listing = self.user.listings.get()
         self.assertEqual(created_listing.approval_status, Listing.APPROVAL_PENDING)
         self.assertContains(response, "Listing submitted for review.")
+        self.assertContains(response, "data-app-notification-stack")
+        self.assertContains(response, "data-app-notification")
 
     def test_authenticated_user_can_create_listing_and_persist_verified_coordinates(self):
         self.client.force_login(self.user)
@@ -1626,7 +1647,7 @@ assert.equal(picker.isSelectionComplete(), true);
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, pending_listing.title)
-        self.assertContains(response, "Pending review.")
+        self.assertContains(response, "Pending review")
 
     def test_marketplace_user_can_submit_review_for_approved_listing(self):
         owner = get_user_model().objects.create_user(
@@ -1928,6 +1949,8 @@ assert.equal(picker.isSelectionComplete(), true);
         self.assertContains(response, "data-listing-gallery")
         self.assertContains(response, "data-listing-gallery-active-image")
         self.assertContains(response, "data-listing-gallery-thumb")
+        self.assertContains(response, "listing-detail-gallery-topbar")
+        self.assertContains(response, "listing-detail-intro")
         self.assertContains(response, "js/listing-detail-gallery.js")
 
     def test_edit_listing_rejects_total_image_limit(self):
@@ -2231,7 +2254,7 @@ assert.equal(picker.isSelectionComplete(), true);
         response = self.client.get(reverse("listings:detail", args=[listing.pk]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Conversation threads")
+        self.assertContains(response, "Inquiries")
         self.assertContains(response, "Can I tour this week?")
 
     def test_listing_detail_shows_owner_avatar(self):
@@ -2320,9 +2343,53 @@ class GroupMatchPageTests(ListingTestCase):
         self.assertIn(matching_listing.id, listing_ids)
         self.assertNotIn(pricey_listing.id, listing_ids)
         self.assertNotIn(wrong_size_listing.id, listing_ids)
-        self.assertNotContains(response, "Compatible duo")
+        self.assertContains(response, "4 people")
+        self.assertNotContains(response, "Luxury option")
+        self.assertNotContains(response, "Smaller spot")
 
-    def test_group_match_results_render_first_selected_panel_expanded(self):
+    def test_group_match_page_surfaces_compatible_roommates(self):
+        my_profile = self.user.student_profile
+        my_profile.major = "Computer Science"
+        my_profile.bio = "Clean and pretty quiet."
+        my_profile.messy_level = 4
+        my_profile.guest_level = 2
+        my_profile.bedtime = 23
+        my_profile.noise_level = 2
+        my_profile.drink = 2
+        my_profile.party = 2
+        my_profile.save()
+        self.user.profile_completed_at = timezone.now()
+        self.user.save(update_fields=["profile_completed_at"])
+        roommate = get_user_model().objects.create_user(
+            username="match",
+            email="match@bc.edu",
+            password="testpass123",
+            first_name="Riley",
+        )
+        roommate_profile = roommate.student_profile
+        roommate_profile.major = "Biology"
+        roommate_profile.bio = "Prefers quieter nights and shared routines."
+        roommate_profile.messy_level = 4
+        roommate_profile.guest_level = 2
+        roommate_profile.bedtime = 23
+        roommate_profile.noise_level = 2
+        roommate_profile.drink = 2
+        roommate_profile.party = 2
+        roommate_profile.save()
+        roommate.profile_completed_at = timezone.now()
+        roommate.save(update_fields=["profile_completed_at"])
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:group_match"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Compatible roommates")
+        self.assertContains(response, roommate.display_name)
+        self.assertContains(response, "100% match")
+        self.assertContains(response, reverse("users:public_profile", args=[roommate.pk]))
+        self.assertContains(response, "Message")
+
+    def test_group_match_results_render_single_active_plan_card(self):
         self.client.force_login(self.user)
         self.create_listing(
             title="Allston group home",
@@ -2347,7 +2414,8 @@ class GroupMatchPageTests(ListingTestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'aria-expanded="true"', count=1)
+        self.assertContains(response, "Selected Plan")
+        self.assertContains(response, "group-plan-card is-active", count=1)
 
     def test_listing_owner_cannot_favorite_their_own_listing(self):
         listing = self.create_listing()

@@ -30,6 +30,12 @@ class CorePageTests(TestCase):
         self.assertContains(response, 'action="%s"' % reverse("listings:listing_list"))
         self.assertContains(response, 'name="q"')
 
+    def test_landing_page_includes_mobile_navigation_drawer(self):
+        response = self.client.get(reverse("core:landing"))
+
+        self.assertContains(response, 'data-bs-target="#siteMobileNav"')
+        self.assertContains(response, 'id="siteMobileNav"')
+
     def test_landing_background_asset_exists(self):
         landing_background = Path(settings.BASE_DIR / "static" / "images" / "landing.jpg")
 

@@ -69,6 +69,28 @@ LISTING_STATUS_VALUES = tuple(value for value, _ in LISTING_STATUS_CHOICES)
 LISTING_PROPERTY_TYPE_VALUES = tuple(value for value, _ in LISTING_PROPERTY_TYPES)
 LISTING_REPORT_STATUS_VALUES = tuple(value for value, _ in LISTING_REPORT_STATUS_CHOICES)
 LISTING_REPORT_REASON_VALUES = tuple(value for value, _ in LISTING_REPORT_REASON_CHOICES)
+LISTING_REPORT_UPDATE_ACTION_NOTE = "note"
+LISTING_REPORT_UPDATE_ACTION_IN_REVIEW = "in_review"
+LISTING_REPORT_UPDATE_ACTION_DISMISSED = "dismissed"
+LISTING_REPORT_UPDATE_ACTION_LISTING_CLOSED = "listing_closed"
+LISTING_REPORT_UPDATE_ACTION_REOPENED = "reopened"
+LISTING_REPORT_UPDATE_ACTION_CHOICES = [
+    (LISTING_REPORT_UPDATE_ACTION_NOTE, "Comment added"),
+    (LISTING_REPORT_UPDATE_ACTION_IN_REVIEW, "Moved to in review"),
+    (LISTING_REPORT_UPDATE_ACTION_DISMISSED, "Dismissed"),
+    (LISTING_REPORT_UPDATE_ACTION_LISTING_CLOSED, "Listing removed from marketplace"),
+    (LISTING_REPORT_UPDATE_ACTION_REOPENED, "Reopened"),
+]
+
+
+def _submission_context_changed(instance, *, identity_fields):
+    if instance._state.adding or not instance.pk:
+        return True
+
+    original_values = type(instance).objects.filter(pk=instance.pk).values(*identity_fields).first()
+    if original_values is None:
+        return True
+    return any(original_values[field_name] != getattr(instance, field_name) for field_name in identity_fields)
 
 
 class ListingQuerySet(models.QuerySet):
@@ -340,6 +362,14 @@ class Listing(models.Model):
         if self.submitted_for_approval_at is None:
             self.submitted_for_approval_at = reviewed_at
 
+    def close_from_report(self, *, reviewer, notes=""):
+        reviewed_at = timezone.now()
+        self.approval_status = self.APPROVAL_REJECTED
+        self.reviewed_by = reviewer
+        self.reviewed_at = reviewed_at
+        self.approved_at = None
+        self.approval_notes = notes.strip()
+
 
 class ListingImage(models.Model):
     listing = models.ForeignKey(Listing, related_name="images", on_delete=models.CASCADE)
@@ -451,18 +481,19 @@ class ListingReview(models.Model):
         super().clean()
         if not self.listing_id:
             return
-        user_model = get_user_model()
-        if self.author_id and not user_model._default_manager.filter(pk=self.author_id, role="student").exists():
-            raise ValidationError({"comment": "Only student accounts can leave resident reviews."})
-        listing_owner_id = getattr(self.listing, "owner_id", None)
-        if listing_owner_id is None:
-            listing_owner_id = Listing.objects.filter(pk=self.listing_id).values_list("owner_id", flat=True).first()
-        if self.author_id and listing_owner_id == self.author_id:
-            raise ValidationError({"comment": "You cannot review your own listing."})
-        if not Listing.objects.filter(pk=self.listing_id, approval_status=Listing.APPROVAL_APPROVED).exists():
-            raise ValidationError({"comment": "Only approved listings can receive public reviews."})
-        if self.author_id and not self.listing.conversations.filter(participant_id=self.author_id).exists():
-            raise ValidationError({"comment": "Contact the lister before leaving a resident review."})
+        if _submission_context_changed(self, identity_fields=("listing_id", "author_id")):
+            user_model = get_user_model()
+            if self.author_id and not user_model._default_manager.filter(pk=self.author_id, role="student").exists():
+                raise ValidationError({"comment": "Only student accounts can leave resident reviews."})
+            listing_owner_id = getattr(self.listing, "owner_id", None)
+            if listing_owner_id is None:
+                listing_owner_id = Listing.objects.filter(pk=self.listing_id).values_list("owner_id", flat=True).first()
+            if self.author_id and listing_owner_id == self.author_id:
+                raise ValidationError({"comment": "You cannot review your own listing."})
+            if not Listing.objects.filter(pk=self.listing_id, approval_status=Listing.APPROVAL_APPROVED).exists():
+                raise ValidationError({"comment": "Only approved listings can receive public reviews."})
+            if self.author_id and not self.listing.conversations.filter(participant_id=self.author_id).exists():
+                raise ValidationError({"comment": "Contact the lister before leaving a resident review."})
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -524,24 +555,38 @@ class ListingReport(models.Model):
             models.Index(fields=["reporter", "created_at"], name="listing_report_reporter_idx"),
         ]
 
+    @property
+    def is_closed(self):
+        return self.status in {self.STATUS_RESOLVED, self.STATUS_DISMISSED}
+
+    @property
+    def closes_listing(self):
+        return self.status == self.STATUS_RESOLVED
+
     def clean(self):
         super().clean()
         if not self.listing_id:
             return
-        user_model = get_user_model()
-        if self.reporter_id and not user_model._default_manager.filter(pk=self.reporter_id, role="student").exists():
-            raise ValidationError({"details": "Only student accounts can report listings."})
-        listing_owner_id = getattr(self.listing, "owner_id", None)
-        if listing_owner_id is None:
-            listing_owner_id = Listing.objects.filter(pk=self.listing_id).values_list("owner_id", flat=True).first()
-        if self.reporter_id and listing_owner_id == self.reporter_id:
-            raise ValidationError({"details": "You cannot report your own listing."})
-        if not Listing.objects.filter(pk=self.listing_id, approval_status=Listing.APPROVAL_APPROVED).exists():
-            raise ValidationError({"details": "Only approved listings can be reported."})
+        if _submission_context_changed(self, identity_fields=("listing_id", "reporter_id")):
+            user_model = get_user_model()
+            reporter_is_student = user_model._default_manager.filter(pk=self.reporter_id, role="student").exists()
+            if self.reporter_id and not reporter_is_student:
+                raise ValidationError({"details": "Only student accounts can report listings."})
+            listing_owner_id = getattr(self.listing, "owner_id", None)
+            if listing_owner_id is None:
+                listing_owner_id = Listing.objects.filter(pk=self.listing_id).values_list("owner_id", flat=True).first()
+            if self.reporter_id and listing_owner_id == self.reporter_id:
+                raise ValidationError({"details": "You cannot report your own listing."})
+            if not Listing.objects.filter(pk=self.listing_id, approval_status=Listing.APPROVAL_APPROVED).exists():
+                raise ValidationError({"details": "Only approved listings can be reported."})
+        if self.status in {self.STATUS_RESOLVED, self.STATUS_DISMISSED} and not (self.resolution_notes or "").strip():
+            raise ValidationError({"resolution_notes": "Add resolution notes before closing a report."})
 
     def mark_status(self, *, status, reviewer, resolution_notes=""):
         self.status = status
         cleaned_notes = resolution_notes.strip()
+        if status in {self.STATUS_RESOLVED, self.STATUS_DISMISSED} and not cleaned_notes:
+            raise ValidationError({"resolution_notes": "Add resolution notes before closing a report."})
         if status == self.STATUS_OPEN:
             self.reviewed_by = None
             self.reviewed_at = None
@@ -551,6 +596,57 @@ class ListingReport(models.Model):
         self.reviewed_at = timezone.now()
         self.resolution_notes = cleaned_notes
 
+    def activity_action_for_status(self, status):
+        if status == self.STATUS_OPEN:
+            return LISTING_REPORT_UPDATE_ACTION_REOPENED
+        if status == self.STATUS_IN_REVIEW:
+            return LISTING_REPORT_UPDATE_ACTION_IN_REVIEW
+        if status == self.STATUS_DISMISSED:
+            return LISTING_REPORT_UPDATE_ACTION_DISMISSED
+        if status == self.STATUS_RESOLVED:
+            return LISTING_REPORT_UPDATE_ACTION_LISTING_CLOSED
+        return LISTING_REPORT_UPDATE_ACTION_NOTE
+
+    def add_update(self, *, actor, note="", action=""):
+        return ListingReportUpdate.objects.create(
+            report=self,
+            actor=actor,
+            action=action or self.activity_action_for_status(self.status),
+            note=(note or "").strip(),
+        )
+
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+
+
+class ListingReportUpdate(models.Model):
+    ACTION_NOTE = LISTING_REPORT_UPDATE_ACTION_NOTE
+    ACTION_IN_REVIEW = LISTING_REPORT_UPDATE_ACTION_IN_REVIEW
+    ACTION_DISMISSED = LISTING_REPORT_UPDATE_ACTION_DISMISSED
+    ACTION_LISTING_CLOSED = LISTING_REPORT_UPDATE_ACTION_LISTING_CLOSED
+    ACTION_REOPENED = LISTING_REPORT_UPDATE_ACTION_REOPENED
+
+    ACTION_CHOICES = LISTING_REPORT_UPDATE_ACTION_CHOICES
+
+    report = models.ForeignKey(ListingReport, on_delete=models.CASCADE, related_name="updates")
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="listing_report_updates",
+    )
+    action = models.CharField(max_length=24, choices=ACTION_CHOICES)
+    note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["report", "created_at"], name="list_rep_upd_report_idx"),
+            models.Index(fields=["actor", "created_at"], name="list_rep_upd_actor_idx"),
+        ]
+
+    def __str__(self):
+        return f"Update for report {self.report_id}: {self.get_action_display()}"

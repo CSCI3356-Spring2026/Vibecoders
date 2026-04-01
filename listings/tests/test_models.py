@@ -9,6 +9,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.signing import BadSignature, SignatureExpired
 from django.db import IntegrityError, transaction
 from django.test.utils import override_settings
+from django.utils import timezone
 from PIL import Image
 
 from communications.models import ListingConversation
@@ -17,6 +18,7 @@ from communications.services import (
     delete_conversation_for_user,
     send_listing_message,
     serialize_conversation_for_user,
+    start_direct_conversation,
     start_listing_conversation,
 )
 
@@ -25,10 +27,15 @@ from ..address_signing import sign_address_selection, unsign_address_selection
 from ..forms import ListingForm
 from ..geocoding import geocode_listing_address
 from ..models import Listing, ListingFavorite, ListingImage, ListingReport, ListingReview
+from ..report_services import update_listing_report
 from .base import ListingTestCase
 
 
 class ListingModelTests(ListingTestCase):
+    def _complete_roommate_profile(self, user):
+        user.profile_completed_at = timezone.now()
+        user.save(update_fields=["profile_completed_at"])
+
     def _image_upload(self, name="photo.png"):
         buffer = BytesIO()
         Image.new("RGB", (8, 8), color=(79, 70, 229)).save(buffer, format="PNG")
@@ -351,6 +358,115 @@ class ListingModelTests(ListingTestCase):
         self.assertIsNone(report.reviewed_at)
         self.assertEqual(report.resolution_notes, "")
 
+    def test_report_resolution_does_not_permanently_hide_reapproved_listing(self):
+        reviewer = self.user.__class__.objects.create_user(
+            username="report-resolution-reviewer",
+            email="report-resolution-reviewer@bc.edu",
+            password="test",
+            role="admin",
+        )
+        reporter = self.user.__class__.objects.create_user(
+            username="report-resolution-student",
+            email="report-resolution-student@bc.edu",
+            password="test",
+        )
+        listing = self.create_listing(is_hidden=False)
+        report = ListingReport.objects.create(
+            listing=listing,
+            reporter=reporter,
+            reason=ListingReport.REASON_SPAM,
+            details="Duplicate listing.",
+        )
+
+        report.mark_status(
+            status=ListingReport.STATUS_RESOLVED,
+            reviewer=reviewer,
+            resolution_notes="Removed from the marketplace while we investigate.",
+        )
+        report.save()
+        listing.close_from_report(reviewer=reviewer, notes="Removed from the marketplace while we investigate.")
+        listing.save()
+        listing.refresh_from_db()
+
+        self.assertFalse(listing.is_hidden)
+        self.assertFalse(listing.is_publicly_active)
+
+        listing.submit_for_approval()
+        listing.save()
+        listing.approve(reviewer=reviewer, notes="Approved after remediation.")
+        listing.save()
+        listing.refresh_from_db()
+
+        self.assertTrue(listing.is_approved)
+        self.assertTrue(listing.is_publicly_active)
+
+    def test_update_listing_report_records_note_when_status_is_unchanged(self):
+        reviewer = self.user.__class__.objects.create_user(
+            username="report-note-reviewer",
+            email="report-note-reviewer@bc.edu",
+            password="test",
+            role="admin",
+        )
+        reporter = self.user.__class__.objects.create_user(
+            username="report-note-student",
+            email="report-note-student@bc.edu",
+            password="test",
+        )
+        report = ListingReport.objects.create(
+            listing=self.create_listing(),
+            reporter=reporter,
+            reason=ListingReport.REASON_SAFETY,
+            details="Need a closer look.",
+        )
+
+        listing_closed = update_listing_report(
+            report,
+            status=ListingReport.STATUS_OPEN,
+            reviewer=reviewer,
+            resolution_notes="Initial moderation note.",
+        )
+
+        report.refresh_from_db()
+        update = report.updates.get()
+        self.assertFalse(listing_closed)
+        self.assertEqual(report.status, ListingReport.STATUS_OPEN)
+        self.assertEqual(update.action, update.ACTION_NOTE)
+        self.assertEqual(update.note, "Initial moderation note.")
+
+    def test_update_listing_report_closes_listing_when_resolved(self):
+        reviewer = self.user.__class__.objects.create_user(
+            username="report-close-reviewer",
+            email="report-close-reviewer@bc.edu",
+            password="test",
+            role="admin",
+        )
+        reporter = self.user.__class__.objects.create_user(
+            username="report-close-student",
+            email="report-close-student@bc.edu",
+            password="test",
+        )
+        listing = self.create_listing()
+        report = ListingReport.objects.create(
+            listing=listing,
+            reporter=reporter,
+            reason=ListingReport.REASON_SPAM,
+            details="This listing looks fraudulent.",
+        )
+
+        listing_closed = update_listing_report(
+            report,
+            status=ListingReport.STATUS_RESOLVED,
+            reviewer=reviewer,
+            resolution_notes="Confirmed and removed from the marketplace.",
+        )
+
+        report.refresh_from_db()
+        listing.refresh_from_db()
+        self.assertTrue(listing_closed)
+        self.assertEqual(report.status, ListingReport.STATUS_RESOLVED)
+        self.assertEqual(listing.approval_status, Listing.APPROVAL_REJECTED)
+        self.assertFalse(listing.is_publicly_active)
+
     def test_start_listing_conversation_rejects_listing_only_user(self):
         listing = self.create_listing()
         realtor = self.user.__class__.objects.create_user(
@@ -407,6 +523,73 @@ class ListingModelTests(ListingTestCase):
         payload = serialize_conversation_for_user(conversation, participant)
 
         self.assertEqual(payload["counterparty_avatar_url"], "https://example.com/owner-avatar.png")
+
+    def test_start_direct_conversation_creates_direct_thread(self):
+        participant = self.user.__class__.objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="test",
+        )
+        self._complete_roommate_profile(self.user)
+        self._complete_roommate_profile(participant)
+
+        conversation, message, created = start_direct_conversation(self.user, participant, "Want to compare options?")
+
+        self.assertTrue(created)
+        self.assertTrue(conversation.is_direct)
+        self.assertIsNone(conversation.listing)
+        self.assertEqual(message.sender, self.user)
+        self.assertEqual(message.body, "Want to compare options?")
+        self.assertEqual(conversation.last_message_preview, "Want to compare options?")
+
+    def test_start_direct_conversation_reuses_existing_pair(self):
+        participant = self.user.__class__.objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="test",
+        )
+        self._complete_roommate_profile(self.user)
+        self._complete_roommate_profile(participant)
+        first_conversation, _, _ = start_direct_conversation(self.user, participant, "First note")
+
+        second_conversation, _, created = start_direct_conversation(participant, self.user, "Replying back")
+
+        self.assertFalse(created)
+        self.assertEqual(first_conversation.id, second_conversation.id)
+        self.assertEqual(ListingConversation.objects.filter(conversation_type="direct").count(), 1)
+
+    def test_direct_conversation_payload_uses_roommate_context(self):
+        participant = self.user.__class__.objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="test",
+            first_name="Riley",
+        )
+        self._complete_roommate_profile(self.user)
+        self._complete_roommate_profile(participant)
+        participant.student_profile.major = "Biology"
+        participant.student_profile.save(update_fields=["major"])
+        conversation, _, _ = start_direct_conversation(self.user, participant, "Want to compare options?")
+
+        payload = serialize_conversation_for_user(conversation, self.user)
+
+        self.assertEqual(payload["conversation_type"], "direct")
+        self.assertEqual(payload["context_title"], "Roommate chat")
+        self.assertEqual(payload["context_subtitle"], "Biology")
+        self.assertEqual(payload["listing_title"], "")
+
+    def test_start_direct_conversation_requires_completed_roommate_profiles(self):
+        participant = self.user.__class__.objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="test",
+        )
+        self._complete_roommate_profile(participant)
+
+        with self.assertRaises(ValidationError) as exc:
+            start_direct_conversation(self.user, participant, "Want to compare options?")
+
+        self.assertIn("Complete your roommate profile before messaging matches.", exc.exception.message_dict["body"][0])
 
     def test_deleting_conversation_hides_it_for_one_user_only(self):
         participant = self.user.__class__.objects.create_user(

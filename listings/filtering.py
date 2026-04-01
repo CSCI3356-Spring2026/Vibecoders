@@ -6,6 +6,8 @@ from django.utils.dateparse import parse_date
 PRICE_FILTER_MIN = Decimal("0")
 PRICE_FILTER_MAX = Decimal("25000")
 BEDROOMS_FILTER_MIN = 1
+BATHROOMS_FILTER_MIN = Decimal("0.5")
+BATHROOMS_FILTER_MAX = Decimal("10")
 DISTANCE_FILTER_MIN = Decimal("0")
 
 
@@ -42,6 +44,23 @@ def parse_price_filter(raw_value):
         return None, ""
 
     if parsed < PRICE_FILTER_MIN or parsed > PRICE_FILTER_MAX:
+        return None, ""
+    return parsed, value
+
+
+def parse_decimal_filter(raw_value, *, minimum=None, maximum=None):
+    value = (raw_value or "").strip()
+    if not value:
+        return None, ""
+
+    try:
+        parsed = Decimal(value)
+    except InvalidOperation:
+        return None, ""
+
+    if minimum is not None and parsed < minimum:
+        return None, ""
+    if maximum is not None and parsed > maximum:
         return None, ""
     return parsed, value
 
@@ -89,6 +108,14 @@ def apply_listing_filters(queryset, params, *, viewport_required=False):
     min_bedrooms_value, min_bedrooms = parse_integer_filter(params.get("min_bedrooms", ""), minimum=BEDROOMS_FILTER_MIN)
     if min_bedrooms_value is not None:
         queryset = queryset.filter(rooms__gte=min_bedrooms_value)
+
+    min_bathrooms_value, min_bathrooms = parse_decimal_filter(
+        params.get("min_bathrooms", ""),
+        minimum=BATHROOMS_FILTER_MIN,
+        maximum=BATHROOMS_FILTER_MAX,
+    )
+    if min_bathrooms_value is not None:
+        queryset = queryset.filter(bathrooms__gte=min_bathrooms_value)
 
     lease_type = params.get("lease_type", "").strip()
     if lease_type:
@@ -146,6 +173,7 @@ def apply_listing_filters(queryset, params, *, viewport_required=False):
         "min_price": min_price,
         "max_price": max_price,
         "min_bedrooms": min_bedrooms,
+        "min_bathrooms": min_bathrooms,
         "lease_type": lease_type,
         "max_distance": max_distance,
         "availability_start": availability_start,

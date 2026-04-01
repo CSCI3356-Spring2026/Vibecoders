@@ -14,25 +14,21 @@
 
 @media (max-width: 991px) {
     .nav-row {
-        flex-wrap: wrap;
-        align-items: stretch;
-        justify-content: flex-start;
-        gap: 0.85rem;
+        min-height: 3.35rem;
+        gap: 0.75rem;
+        padding: 0.45rem 0.55rem;
     }
 
-    .nav-main {
-        flex-direction: column;
-        align-items: stretch;
-        width: 100%;
-        gap: 0.85rem;
-    }
-
-    .nav-actions {
-        width: 100%;
+    .nav-center {
+        display: none !important;
     }
 
     .nav-account {
-        align-self: flex-end;
+        display: none !important;
+    }
+
+    .nav-mobile-toggle {
+        display: inline-flex;
         margin-left: auto;
     }
 
@@ -40,28 +36,22 @@
     .app-grid,
     .app-detail-grid,
     .app-card-grid,
-    .app-card-grid-three,
-    .home-hero-shell {
+    .app-card-grid-three {
         grid-template-columns: 1fr;
     }
 
     .home-hero-shell {
-        padding: 1.65rem;
+        min-height: clamp(22rem, 58vw, 28rem);
+        padding: 1.5rem 0 2.4rem;
     }
 
     .app-sidebar {
         position: static;
     }
 
-    .home-stage {
-        min-height: auto;
-        padding: 0;
-    }
-
-    .home-stage-card,
-    .home-stage-empty {
-        width: 100%;
-        margin: 0;
+    .landing-page-body .site-shell::before,
+    .landing-page-body .site-shell::after {
+        height: clamp(32rem, 96vw, 40rem);
     }
 
     .workspace-item-row {
@@ -122,15 +112,9 @@
 }
 
 @media (max-width: 767.98px) {
-    .nav-actions {
-        width: 100%;
-        overflow-x: auto;
-        flex-wrap: nowrap;
-        padding-bottom: 0.2rem;
-    }
-
-    .nav-actions .nav-button {
-        flex: 0 0 auto;
+    .nav-row {
+        min-height: 3.2rem;
+        padding: 0.4rem 0.5rem;
     }
 
     .profile-name {
@@ -139,6 +123,19 @@
 
     .site-brand-copy {
         gap: 0.1rem;
+    }
+
+    .site-brand-meta {
+        display: none;
+    }
+
+    .site-brand-name {
+        font-size: 0.92rem;
+    }
+
+    .nav-mobile-toggle {
+        width: 2.55rem;
+        height: 2.55rem;
     }
 
     .app-header-main {
@@ -160,29 +157,22 @@
         font-size: clamp(2.1rem, 10vw, 3.1rem);
     }
 
-    .home-search-bar,
-    .home-section-head,
-    .home-listing-grid {
-        grid-template-columns: 1fr;
-    }
-
     .home-section-head {
         flex-direction: column;
         align-items: flex-start;
     }
 
     .home-search-bar {
-        display: flex;
-        flex-direction: column;
+        display: grid;
+        grid-template-columns: 1fr;
+        width: min(100%, 24rem);
+        gap: 0.5rem;
+        padding: 0.5rem;
+        border-radius: 1.1rem;
     }
 
-    .home-quick-links {
+    .home-search-button {
         width: 100%;
-    }
-
-    .home-pill {
-        flex: 1 1 calc(50% - 0.5rem);
-        justify-content: center;
     }
 
     .app-stat-grid,
@@ -197,8 +187,6 @@
     }
 
     .listing-card-price-row,
-    .home-stage-card-topline,
-    .home-stage-card-footer,
     .files-preview-header,
     .workspace-item-main {
         flex-direction: column;

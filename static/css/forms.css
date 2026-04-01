@@ -3,7 +3,7 @@
     align-items: center;
     justify-content: center;
     gap: 0.35rem;
-    min-height: 2.75rem;
+    min-height: 2.55rem;
     border-radius: var(--radius-sm);
     font-size: 0.88rem;
     font-weight: 600;
@@ -16,8 +16,8 @@
 }
 
 .btn-sm {
-    min-height: 2.15rem;
-    padding: 0.35rem 0.8rem;
+    min-height: 2rem;
+    padding: 0.32rem 0.72rem;
     font-size: 0.84rem;
 }
 
@@ -98,20 +98,35 @@
 
 .form-control,
 .form-select {
-    min-height: 3rem;
+    min-height: 2.68rem;
     border-color: rgba(var(--gray-700-rgb), 0.16);
     border-radius: var(--radius-md);
-    background: rgba(var(--gray-100-rgb), 0.86);
+    background: rgba(var(--gray-100-rgb), 0.9);
     color: var(--text-strong);
-    font-size: 0.94rem;
+    font-size: 0.9rem;
     box-shadow: none;
-    transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+    transition: border-color 140ms ease, box-shadow 140ms ease, background-color 140ms ease, color 140ms ease;
 }
 
 .form-control:focus,
 .form-select:focus {
     border-color: rgba(var(--primary-rgb), 0.38);
     box-shadow: 0 0 0 3px var(--focus-ring-color);
+}
+
+.form-control:hover,
+.form-select:hover {
+    border-color: rgba(var(--gray-700-rgb), 0.24);
+    background: rgba(var(--white-rgb), 0.96);
+}
+
+.form-select {
+    appearance: none;
+    padding-right: 2.45rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none'%3E%3Cpath d='M3.25 5.25L7 9L10.75 5.25' stroke='%23495868' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-position: right 0.85rem center;
+    background-repeat: no-repeat;
+    background-size: 0.82rem;
 }
 
 textarea.form-control {

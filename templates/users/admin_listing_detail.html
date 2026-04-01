@@ -134,17 +134,56 @@
                                     <div class="admin-list-grid">
                                         {% for report in reports %}
                                             <div class="admin-list-item admin-list-item-static admin-report-card">
-                                                <div>
-                                                    <div class="admin-list-title">{{ report.get_reason_display }}</div>
-                                                    <div class="admin-list-meta">{{ report.reporter.display_name }} · {{ report.created_at|date:"M d, Y" }}</div>
-                                                    <div class="admin-list-meta">{{ report.details|default:"No details provided." }}</div>
+                                                <div class="admin-report-main">
+                                                    <div class="admin-report-topline">
+                                                        <div class="admin-report-tags">
+                                                            <span class="admin-report-chip admin-report-chip-reason">{{ report.get_reason_display }}</span>
+                                                            <span class="admin-report-chip admin-report-chip-status admin-report-chip-status-{{ report.status }}">
+                                                                {{ report.get_status_display }}
+                                                            </span>
+                                                        </div>
+                                                        <div class="admin-list-meta">{{ report.created_at|date:"M d, Y · P" }}</div>
+                                                    </div>
+                                                    <div class="admin-list-meta">{{ report.reporter.display_name }} · {{ report.reporter.email }}</div>
+                                                    <div class="admin-report-note">
+                                                        <span class="admin-report-note-label">Reporter details</span>
+                                                        <p>{{ report.details|default:"No details provided." }}</p>
+                                                    </div>
+                                                    {% if report.ui_updates %}
+                                                        <div class="admin-report-timeline">
+                                                            <span class="admin-report-note-label">Moderation history</span>
+                                                            {% for update in report.ui_updates %}
+                                                                <div class="admin-report-update">
+                                                                    <div class="admin-report-update-head">
+                                                                        <strong>{{ update.get_action_display }}</strong>
+                                                                        <span>{{ update.created_at|date:"M d, Y · P" }}</span>
+                                                                    </div>
+                                                                    <div class="admin-list-meta">
+                                                                        {% if update.actor %}{{ update.actor.display_name }}{% else %}System{% endif %}
+                                                                    </div>
+                                                                    {% if update.note %}
+                                                                        <p>{{ update.note }}</p>
+                                                                    {% endif %}
+                                                                </div>
+                                                            {% endfor %}
+                                                        </div>
+                                                    {% endif %}
                                                 </div>
                                                 <form method="post" action="{% url 'users:admin_update_report' report.id %}" class="admin-report-form">
                                                     {% csrf_token %}
-                                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                    <input type="hidden" name="next" value="{{ report.ui_next }}">
+                                                    <label class="form-label fw-semibold" for="{{ report.ui_form.status.id_for_label }}">{{ report.ui_form.status.label }}</label>
                                                     {{ report.ui_form.status }}
+                                                    <div class="admin-form-hint"><code>Resolved</code> removes the listing from the marketplace. <code>Dismissed</code> closes the report only.</div>
+                                                    {% for error in report.ui_form.status.errors %}
+                                                        <div class="app-field-error">{{ error }}</div>
+                                                    {% endfor %}
+                                                    <label class="form-label fw-semibold" for="{{ report.ui_form.resolution_notes.id_for_label }}">{{ report.ui_form.resolution_notes.label }}</label>
                                                     {{ report.ui_form.resolution_notes }}
-                                                    <button class="btn btn-outline-secondary btn-sm" type="submit">Update</button>
+                                                    {% for error in report.ui_form.resolution_notes.errors %}
+                                                        <div class="app-field-error">{{ error }}</div>
+                                                    {% endfor %}
+                                                    <button class="btn btn-brand btn-sm" type="submit">Save decision</button>
                                                 </form>
                                             </div>
                                         {% endfor %}

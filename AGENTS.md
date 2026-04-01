@@ -1,5 +1,5 @@
 # AGENTS.md
-Last Revised By: Hunter Scheppat -- March 25, 2026
+Last Revised By: Hunter Scheppat -- April 1, 2026
 
 Repository-specific instructions for AI coding agents working in this codebase.
 
@@ -165,6 +165,8 @@ Command guidance:
 - `listings/models.py`: listing and listing image models, visibility rules, DB constraints
 - `listings/forms.py`: listing form and summary helpers
 - `listings/form_services.py`: transactional listing save workflow and image handling
+- `listings/group_match_service.py`: group-match defaults, compatibility decoration, and scenario assembly
+- `listings/report_services.py`: report state transitions that can also change listing moderation state
 - `listings/selectors.py`: listing visibility and access querysets
 - `listings/views.py`: marketplace, detail, create/edit/delete, message-from-listing flow
 ### Communications
@@ -192,17 +194,21 @@ Command guidance:
 ### Frontend
 
 - `templates/base.html`: shared layout
+- `templates/includes/site_nav_links.html`: shared desktop/mobile nav links
 - `templates/includes/user_avatar.html`: shared avatar partial used across navbar, profile, listings, and messages
 - `static/css/base.css`: design tokens and global typography/surfaces
 - `static/css/navigation.css`, `footer.css`, `forms.css`, `layout.css`, `components.css`: shared UI layers
 - `static/css/home.css`, `listings.css`, `listing-form.css`, `messages-shell.css`, `messages-thread.css`, `files.css`, `auth.css`, `admin.css`, `responsive.css`: page and feature styles
+- `static/js/app-notifications.js`: compact notification stack behavior
 - `static/js/listing-form.js`: guided listing wizard
 - `static/js/messages.js`: messages entrypoint
+- `static/js/legal-review.js`: stepped legal-review flow on the login page
 - `static/js/messages_dom.js`, `messages_list.js`, `messages_avatar.js`, `messages_socket.js`: live inbox UI modules
 
 ### Tests
 
 - `core/tests/test_pages.py`
+- `core/tests/test_settings.py`
 - `listings/tests/`
 - `users/tests/`
 
@@ -223,6 +229,8 @@ Messaging coverage is split across `users/tests/` and listing/page tests rather 
 - `listings/selectors.py`, `communications/selectors.py`, and `users/selectors.py` are the current pattern for reusable query logic.
 - `communications/services.py` is the canonical place for message send/read/delete side effects and realtime publishing.
 - `listings/form_services.py` is the canonical place for multi-step listing save behavior involving uploads and deletions.
+- `listings/report_services.py` is the canonical place for admin report state transitions.
+- `listings/group_match_service.py` is the canonical place for non-HTTP roommate-planning logic.
 
 Prefer using or extending these modules before adding duplicate helpers in views.
 
@@ -368,31 +376,31 @@ The UI is based on Bootstrap 5 plus a custom token layer in `static/css/base.css
 
 Current design language:
 
-- Palette: ink blue + evergreen + brass
-- Body and headings: `Public Sans`
-- Accent serif: `Newsreader`
+- Palette: Padly red + secondary blue + warm gold accent
+- Core typography: `Instrument Sans`
+- Surfaces are intentionally flat and compact rather than decorative
 
 Current token source of truth:
 
 ```css
 :root {
-  --primary-600: #1f4d67;
-  --primary-500: #2c617c;
-  --primary-400: #3c7995;
-  --primary-100: #dceaf2;
+  --primary-600: #d9392e;
+  --primary-500: #e45146;
+  --primary-400: #ee7b73;
+  --primary-100: #fde3e0;
 
-  --secondary-600: #2a6659;
-  --secondary-500: #387b6d;
-  --secondary-400: #4c9383;
-  --secondary-100: #dff0ea;
+  --secondary-600: #1761c2;
+  --secondary-500: #2a76d2;
+  --secondary-400: #5f9be4;
+  --secondary-100: #deebfb;
 
-  --accent-500: #c18e3c;
+  --accent-500: #efb444;
 
-  --gray-900: #16212b;
-  --gray-700: #44525d;
-  --gray-500: #6d7a84;
-  --gray-300: #d5dde3;
-  --gray-100: #f4f7f7;
+  --gray-900: #19212b;
+  --gray-700: #495868;
+  --gray-500: #667686;
+  --gray-300: #d3d9df;
+  --gray-100: #f4f6f8;
   --white: #ffffff;
 }
 ```
@@ -414,7 +422,9 @@ Design expectations:
 ### 9.3 Frontend behavior to preserve
 
 - Listing creation/editing uses a gated multi-step wizard driven by `static/js/listing-form.js`.
+- Login/legal acceptance uses a stepped embedded review flow driven by `static/js/legal-review.js`.
 - Messaging uses a server-rendered baseline with progressive realtime enhancement.
+- Django messages render through the compact notification stack rather than full-width status banners.
 - The navbar, profile surfaces, listing cards, and messages all rely on consistent avatar markup and shared styles.
 
 ## 10. Testing Standards
