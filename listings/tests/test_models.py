@@ -27,6 +27,7 @@ from ..address_signing import sign_address_selection, unsign_address_selection
 from ..forms import ListingForm
 from ..geocoding import geocode_listing_address
 from ..models import Listing, ListingFavorite, ListingImage, ListingReport, ListingReview
+from ..report_services import update_listing_report
 from .base import ListingTestCase
 
 
@@ -398,6 +399,73 @@ class ListingModelTests(ListingTestCase):
 
         self.assertTrue(listing.is_approved)
         self.assertTrue(listing.is_publicly_active)
+
+    def test_update_listing_report_records_note_when_status_is_unchanged(self):
+        reviewer = self.user.__class__.objects.create_user(
+            username="report-note-reviewer",
+            email="report-note-reviewer@bc.edu",
+            password="test",
+            role="admin",
+        )
+        reporter = self.user.__class__.objects.create_user(
+            username="report-note-student",
+            email="report-note-student@bc.edu",
+            password="test",
+        )
+        report = ListingReport.objects.create(
+            listing=self.create_listing(),
+            reporter=reporter,
+            reason=ListingReport.REASON_SAFETY,
+            details="Need a closer look.",
+        )
+
+        listing_closed = update_listing_report(
+            report,
+            status=ListingReport.STATUS_OPEN,
+            reviewer=reviewer,
+            resolution_notes="Initial moderation note.",
+        )
+
+        report.refresh_from_db()
+        update = report.updates.get()
+        self.assertFalse(listing_closed)
+        self.assertEqual(report.status, ListingReport.STATUS_OPEN)
+        self.assertEqual(update.action, update.ACTION_NOTE)
+        self.assertEqual(update.note, "Initial moderation note.")
+
+    def test_update_listing_report_closes_listing_when_resolved(self):
+        reviewer = self.user.__class__.objects.create_user(
+            username="report-close-reviewer",
+            email="report-close-reviewer@bc.edu",
+            password="test",
+            role="admin",
+        )
+        reporter = self.user.__class__.objects.create_user(
+            username="report-close-student",
+            email="report-close-student@bc.edu",
+            password="test",
+        )
+        listing = self.create_listing()
+        report = ListingReport.objects.create(
+            listing=listing,
+            reporter=reporter,
+            reason=ListingReport.REASON_SPAM,
+            details="This listing looks fraudulent.",
+        )
+
+        listing_closed = update_listing_report(
+            report,
+            status=ListingReport.STATUS_RESOLVED,
+            reviewer=reviewer,
+            resolution_notes="Confirmed and removed from the marketplace.",
+        )
+
+        report.refresh_from_db()
+        listing.refresh_from_db()
+        self.assertTrue(listing_closed)
+        self.assertEqual(report.status, ListingReport.STATUS_RESOLVED)
+        self.assertEqual(listing.approval_status, Listing.APPROVAL_REJECTED)
+        self.assertFalse(listing.is_publicly_active)
 
     def test_start_listing_conversation_rejects_listing_only_user(self):
         listing = self.create_listing()

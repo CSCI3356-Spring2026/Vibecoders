@@ -6,7 +6,6 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
@@ -17,7 +16,8 @@ from communications.models import ListingConversation, ListingMessage
 from communications.selectors import user_related_conversations_queryset, user_related_messages_queryset
 from core.utils import get_page, preserved_query_suffix, safe_next_url
 from listings.forms import AdminListingApprovalForm, AdminListingReportResolutionForm
-from listings.models import Listing, ListingReport, ListingReportUpdate
+from listings.models import Listing, ListingReport
+from listings.report_services import update_listing_report
 from listings.selectors import listing_reports_queryset_for_admin, listing_reviews_queryset, with_feedback_summary
 
 from .models import Role
@@ -328,43 +328,12 @@ def admin_update_report(request, report_id):
         )
 
     try:
-        previous_status = report.status
-        new_status = form.cleaned_data["status"]
-        note = form.cleaned_data["resolution_notes"]
-        with transaction.atomic():
-            report.mark_status(
-                status=new_status,
-                reviewer=request.user,
-                resolution_notes=note,
-            )
-            report.save(
-                update_fields=[
-                    "status",
-                    "reviewed_by",
-                    "reviewed_at",
-                    "resolution_notes",
-                    "updated_at",
-                ]
-            )
-            if new_status == ListingReport.STATUS_RESOLVED:
-                report.listing.close_from_report(reviewer=request.user, notes=note)
-                report.listing.save(
-                    update_fields=[
-                        "approval_status",
-                        "reviewed_by",
-                        "reviewed_at",
-                        "approved_at",
-                        "approval_notes",
-                    ]
-                )
-            action = report.activity_action_for_status(new_status)
-            if previous_status == new_status:
-                if not note:
-                    action = ""
-                else:
-                    action = ListingReportUpdate.ACTION_NOTE
-            if action:
-                report.add_update(actor=request.user, note=note, action=action)
+        listing_closed = update_listing_report(
+            report,
+            status=form.cleaned_data["status"],
+            reviewer=request.user,
+            resolution_notes=form.cleaned_data["resolution_notes"],
+        )
     except ValidationError as exc:
         if hasattr(exc, "message_dict"):
             for field_name, errors in exc.message_dict.items():
@@ -387,7 +356,7 @@ def admin_update_report(request, report_id):
         request.user.id,
         report.status,
     )
-    if report.status == ListingReport.STATUS_RESOLVED:
+    if listing_closed:
         messages.success(request, "Report resolved and listing removed from the marketplace.")
     elif report.status == ListingReport.STATUS_DISMISSED:
         messages.success(request, "Report dismissed.")
