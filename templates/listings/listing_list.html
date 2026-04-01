@@ -42,36 +42,6 @@
                 <section class="listing-browser-workspace" data-listings-workspace>
                     <div class="listing-browser-main">
                         <aside class="listing-results-pane" data-listings-results data-listings-results-pane>
-                            <div class="listing-results-pane-head">
-                                <div>
-                                    <h1 class="listing-browser-title">
-                                        {% if has_listing_only_access %}
-                                            Your listings
-                                        {% else %}
-                                            Boston College rentals
-                                        {% endif %}
-                                    </h1>
-                                    <p class="listing-results-summary" data-listings-results-summary>
-                                        {% if active_filters.q %}
-                                            {{ listings_total }} result{{ listings_total|pluralize }} for "{{ active_filters.q }}".
-                                        {% else %}
-                                            {% if has_listing_only_access %}
-                                                {{ listings_total }} listing{{ listings_total|pluralize }}
-                                            {% else %}
-                                                {{ listings_total }} rental{{ listings_total|pluralize }}
-                                            {% endif %}
-                                        {% endif %}
-                                    </p>
-                                </div>
-                                <div class="listing-results-pane-head-actions">
-                                    <a class="btn btn-brand" href="{% url 'listings:create_listing' %}">Create listing</a>
-                                    {% if has_listing_only_access %}
-                                        <a class="btn btn-outline-secondary" href="{% url 'users:posts' %}">My listings</a>
-                                    {% endif %}
-                                    <a class="listing-reset-link" href="{% url 'listings:listing_list' %}">Reset</a>
-                                </div>
-                            </div>
-
                             <form
                                 class="listing-results-filter-bar"
                                 method="get"
@@ -79,6 +49,17 @@
                                 data-listings-filters
                                 data-listings-filter-form
                             >
+                                <div class="listing-filter-search-row">
+                                    <label class="visually-hidden" for="filter-query">Search listings</label>
+                                    <input
+                                        class="form-control listing-filter-search-input"
+                                        id="filter-query"
+                                        type="search"
+                                        name="q"
+                                        value="{{ active_filters.q }}"
+                                        placeholder="Search by address, neighborhood, or title"
+                                    >
+                                </div>
                                 <div class="listing-filter-toolbar-row listing-filter-toolbar-row-results">
                                     <details class="listing-filter-menu" data-listings-filter-menu data-filter-name="lease">
                                         <summary class="listing-filter-trigger">
@@ -199,17 +180,6 @@
                                             </div>
 
                                             <div class="listing-filter-stack">
-                                                <div>
-                                                    <label class="form-label" for="filter-query">Search</label>
-                                                    <input
-                                                        class="form-control"
-                                                        id="filter-query"
-                                                        type="search"
-                                                        name="q"
-                                                        value="{{ active_filters.q }}"
-                                                        placeholder="Address, neighborhood, or title"
-                                                    >
-                                                </div>
                                                 <div>
                                                     <label class="form-label" for="filter-max-distance">Distance from campus</label>
                                                     <select class="form-select" id="filter-max-distance" name="max_distance">

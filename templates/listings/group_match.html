@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Group Match | {{ site_product_name }}{% endblock %}
+{% block title %}Find Groups | {{ site_product_name }}{% endblock %}
 
 {% block extra_css %}
     <link rel="stylesheet" href="{% static 'css/group-match.css' %}">
@@ -11,332 +11,245 @@
 <section class="app-page group-match-page">
     <div class="container">
         <div class="app-shell">
-            <div class="app-header app-header-shell group-match-header">
+            <section class="app-header app-header-shell">
                 <div class="app-header-main">
                     <div>
-                        <p class="app-kicker">Group Match</p>
-                        <h1 class="app-title">Match the group, then the home.</h1>
-                        <p class="app-subtitle">Pick a size and budget. We rank roommates and approved homes.</p>
+                        <p class="app-kicker">Roommates</p>
+                        <h1 class="app-title">Find groups looking for roommates.</h1>
+                        <p class="app-subtitle">Browse active posts, compare fit, and message the person leading the group.</p>
                     </div>
                     <div class="app-actions">
                         <a class="btn btn-outline-secondary" href="{% url 'listings:listing_list' %}">Browse listings</a>
                     </div>
                 </div>
                 <div class="app-meta">
-                    <span class="app-meta-chip">{{ group_match_current_group_size }} in group</span>
-                    <span class="app-meta-chip app-meta-chip-secondary">{{ group_match_roommate_matches_total }} student match{{ group_match_roommate_matches_total|pluralize }}</span>
-                    <span class="app-meta-chip app-meta-chip-neutral">{{ group_match_total_matches }} home{{ group_match_total_matches|pluralize }} in range</span>
-                    {% if group_match_uses_profile_defaults %}
-                        <span class="app-meta-chip app-meta-chip-neutral">Using profile defaults</span>
+                    <span class="app-meta-chip">{{ roommate_posts_total }} active post{{ roommate_posts_total|pluralize }}</span>
+                    {% if current_roommate_post and current_roommate_post.is_active %}
+                        <span class="app-meta-chip app-meta-chip-secondary">Your post is live</span>
                     {% endif %}
-                    {% if location_keywords %}
-                        <span class="app-meta-chip app-meta-chip-neutral">Areas: {{ location_keywords|join:", " }}</span>
+                    {% if request.user.can_use_roommate_matching %}
+                        <span class="app-meta-chip app-meta-chip-neutral">Scores reflect your roommate profile</span>
+                    {% elif can_manage_roommate_post %}
+                        <span class="app-meta-chip app-meta-chip-neutral">Complete your profile to unlock scores and messages</span>
                     {% endif %}
                 </div>
-            </div>
+            </section>
 
-            <div class="app-layout group-match-layout">
-                <aside class="app-sidebar group-match-sidebar">
-                    <div class="listing-panel group-match-form-card">
+            <div class="app-layout group-board-layout">
+                <aside class="app-sidebar group-board-sidebar">
+                    <section class="listing-panel group-board-rail-panel group-board-post-panel" id="your-roommate-post">
                         <div class="app-panel-head">
                             <div>
-                                <h2 class="app-section-heading">Planner</h2>
-                                <p class="app-panel-copy">Size, budget, and areas.</p>
+                                <p class="group-board-panel-kicker">Your post</p>
+                                <h2 class="app-section-heading">
+                                    {% if current_roommate_post %}
+                                        {% if current_roommate_post.is_active %}Your roommate post{% else %}Reactivate your post{% endif %}
+                                    {% else %}
+                                        Create a roommate post
+                                    {% endif %}
+                                </h2>
+                                <p class="app-panel-copy">Budget, timing, and who your group wants to live with.</p>
                             </div>
                         </div>
-                        <form class="group-match-form" method="get">
-                            <div class="row g-3">
-                                {% include "listings/includes/form_field.html" with field=form.unit_size wrapper_class="col-12" %}
-                                {% include "listings/includes/form_field.html" with field=form.budget_min wrapper_class="col-md-6" %}
-                                {% include "listings/includes/form_field.html" with field=form.budget_max wrapper_class="col-md-6" %}
-                                {% include "listings/includes/form_field.html" with field=form.desired_group_min wrapper_class="col-md-6" %}
-                                {% include "listings/includes/form_field.html" with field=form.desired_group_max wrapper_class="col-md-6" %}
-                                {% include "listings/includes/form_field.html" with field=form.location_keywords wrapper_class="col-12" %}
-                                {% include "listings/includes/form_field.html" with field=form.cleanliness wrapper_class="col-md-6" %}
-                                {% include "listings/includes/form_field.html" with field=form.social wrapper_class="col-md-6" %}
-                                {% include "listings/includes/form_field.html" with field=form.sleep_schedule wrapper_class="col-12" %}
-                            </div>
-                            {% if form.non_field_errors %}
-                                <div class="app-field-error mt-3">{{ form.non_field_errors|join:", " }}</div>
-                            {% endif %}
-                            <div class="group-match-actions">
-                                <button class="btn btn-brand" type="submit">Apply</button>
-                                <a class="btn btn-outline-secondary" href="{% url 'listings:group_match' %}">Reset</a>
-                            </div>
-                        </form>
-                    </div>
 
-                    <div class="listing-panel group-match-profile-card">
-                        <div class="app-panel-head">
-                            <div>
-                                <h2 class="app-section-heading">Compatibility</h2>
-                                <p class="app-panel-copy">Based on profile responses.</p>
-                            </div>
-                        </div>
-                        {% if group_match_has_profile %}
-                            <div class="app-compact-list">
-                                <div class="app-compact-item app-compact-item-static">
-                                    <span class="app-compact-title">Roommate ranking</span>
-                                    <span class="app-compact-meta">Sorted by lifestyle fit.</span>
+                        {% if can_manage_roommate_post %}
+                            {% if request.user.can_use_roommate_matching %}
+                                {% if current_roommate_post %}
+                                    <div class="group-board-current group-board-current-summary">
+                                        <span class="app-meta-chip {% if current_roommate_post.is_active %}app-meta-chip-primary{% else %}app-meta-chip-neutral{% endif %}">
+                                            {% if current_roommate_post.is_active %}Live{% else %}Paused{% endif %}
+                                        </span>
+                                        <span class="app-meta-chip app-meta-chip-neutral">{{ current_roommate_post.target_household_size }} person target</span>
+                                        <span class="app-meta-chip app-meta-chip-neutral">{{ current_roommate_post.get_housing_status_display }}</span>
+                                    </div>
+                                {% endif %}
+
+                                <form class="group-board-post-form" method="post" action="{% url 'listings:save_roommate_post' %}">
+                                    {% csrf_token %}
+                                    {% if roommate_post_form.non_field_errors %}
+                                        <div class="app-field-error">{{ roommate_post_form.non_field_errors|join:", " }}</div>
+                                    {% endif %}
+                                    {% if roommate_post_form.errors %}
+                                        <div class="app-form-error-summary" role="alert">
+                                            <strong>Fix these fields to publish your post.</strong>
+                                            <ul>
+                                                {% for field in roommate_post_form %}
+                                                    {% for error in field.errors %}
+                                                        <li>{{ field.label }}: {{ error }}</li>
+                                                    {% endfor %}
+                                                {% endfor %}
+                                                {% for error in roommate_post_form.non_field_errors %}
+                                                    <li>{{ error }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    {% endif %}
+                                    <div class="group-board-form-stack">
+                                        {% include "listings/includes/form_field.html" with field=roommate_post_form.title wrapper_class="group-board-field" %}
+                                        {% include "listings/includes/form_field.html" with field=roommate_post_form.housing_status wrapper_class="group-board-field" %}
+
+                                        <div class="group-board-field-grid group-board-field-grid-3">
+                                            {% include "listings/includes/form_field.html" with field=roommate_post_form.current_group_size wrapper_class="group-board-field" %}
+                                            {% include "listings/includes/form_field.html" with field=roommate_post_form.open_spots wrapper_class="group-board-field" %}
+                                            {% include "listings/includes/form_field.html" with field=roommate_post_form.move_in_date wrapper_class="group-board-field" %}
+                                        </div>
+
+                                        <div class="group-board-field-grid">
+                                            {% include "listings/includes/form_field.html" with field=roommate_post_form.budget_min wrapper_class="group-board-field" %}
+                                            {% include "listings/includes/form_field.html" with field=roommate_post_form.budget_max wrapper_class="group-board-field" %}
+                                        </div>
+
+                                        {% include "listings/includes/form_field.html" with field=roommate_post_form.neighborhoods wrapper_class="group-board-field" %}
+                                        {% include "listings/includes/form_field.html" with field=roommate_post_form.description wrapper_class="group-board-field group-board-field-textarea" %}
+                                    </div>
+                                    <div class="group-board-actions">
+                                        <button class="btn btn-brand" type="submit">
+                                            {% if current_roommate_post and current_roommate_post.is_active %}Update post{% elif current_roommate_post %}Reactivate post{% else %}Publish post{% endif %}
+                                        </button>
+                                        {% if current_roommate_post and current_roommate_post.is_active %}
+                                            <button class="btn btn-outline-secondary" type="submit" formaction="{% url 'listings:deactivate_roommate_post' %}" formnovalidate>
+                                                Pause post
+                                            </button>
+                                        {% endif %}
+                                    </div>
+                                </form>
+                            {% else %}
+                                <div class="app-empty">
+                                    <h3 class="app-empty-title">Finish your roommate profile first</h3>
+                                    <p class="app-empty-copy">Posts, scores, and direct messages all run off your roommate profile.</p>
+                                    <a class="btn btn-brand mt-3" href="{% url 'users:profile_setup' %}">Complete profile</a>
                                 </div>
-                                <a class="app-compact-item" href="{% url 'users:profile_setup' %}">
-                                    <span class="app-compact-title">Update questionnaire</span>
-                                    <span class="app-compact-meta">Improve match quality.</span>
-                                </a>
-                            </div>
+                            {% endif %}
                         {% else %}
                             <div class="app-empty">
-                                <h3 class="app-empty-title">Complete your profile</h3>
-                                <p class="app-empty-copy">Add preferences to unlock scores.</p>
-                                <a class="btn btn-brand mt-3" href="{% url 'users:profile_setup' %}">Complete profile</a>
+                                <h3 class="app-empty-title">Roommate posts are student-only</h3>
+                                <p class="app-empty-copy">Use the listing workflow for property inventory and outreach.</p>
                             </div>
                         {% endif %}
-                    </div>
+                    </section>
+
+                    <section class="listing-panel group-board-rail-panel group-board-filter-panel">
+                        <div class="app-panel-head">
+                            <div>
+                                <p class="group-board-panel-kicker">Search board</p>
+                                <h2 class="app-section-heading">Filters</h2>
+                                <p class="app-panel-copy">Narrow by stage, budget, timing, and open spots.</p>
+                            </div>
+                            {% if roommate_filters_active %}
+                                <a class="btn btn-outline-secondary btn-sm" href="{% url 'listings:group_match' %}">Reset</a>
+                            {% endif %}
+                        </div>
+                        <form class="group-board-filter-form" method="get">
+                            <div class="group-board-form-stack">
+                                {% include "listings/includes/form_field.html" with field=roommate_post_filter_form.q wrapper_class="group-board-field" %}
+                                {% include "listings/includes/form_field.html" with field=roommate_post_filter_form.housing_status wrapper_class="group-board-field" %}
+                                <div class="group-board-field-grid">
+                                    {% include "listings/includes/form_field.html" with field=roommate_post_filter_form.max_budget wrapper_class="group-board-field" %}
+                                    {% include "listings/includes/form_field.html" with field=roommate_post_filter_form.open_spots_min wrapper_class="group-board-field" %}
+                                </div>
+                                {% include "listings/includes/form_field.html" with field=roommate_post_filter_form.move_in_by wrapper_class="group-board-field" %}
+                            </div>
+                            <div class="group-board-actions">
+                                <button class="btn btn-brand" type="submit">Apply</button>
+                            </div>
+                        </form>
+                    </section>
                 </aside>
 
-                <div class="app-main group-match-main">
-                    {% if group_options %}
-                        <section class="listing-panel group-match-plan-section">
-                            <div class="app-panel-head">
-                                <div>
-                                    <h2 class="app-section-heading">Choose a household size</h2>
-                                    <p class="app-panel-copy">Compare roommate depth and housing supply.</p>
-                                </div>
+                <div class="app-main group-board-main">
+                    <section class="listing-panel group-board-results-panel">
+                        <div class="app-panel-head group-board-results-head">
+                            <div>
+                                <h2 class="app-section-heading">Active posts</h2>
+                                <p class="app-panel-copy">Students are sorted by compatibility first when your profile can be scored.</p>
                             </div>
-                            <div class="group-plan-strip">
-                                {% for option in group_options %}
-                                    <a
-                                        class="group-plan-card{% if option.option_id == selected_group_id %} is-active{% endif %}"
-                                        href="{{ option.select_url }}"
-                                    >
-                                        <div class="group-plan-card-head">
-                                            <span class="group-plan-card-title">{{ option.label }}</span>
-                                            <span class="group-plan-card-fit">{{ option.fit_score }}</span>
-                                        </div>
-                                        <p class="group-plan-card-headline">
-                                            {% if option.additional_roommates_needed %}
-                                                Need {{ option.additional_roommates_needed }} more roommate{{ option.additional_roommates_needed|pluralize }}
-                                            {% else %}
-                                                Group already full
-                                            {% endif %}
-                                        </p>
-                                        <div class="group-plan-card-meta">
-                                            <span>{{ option.listings_count }} home{{ option.listings_count|pluralize }}</span>
-                                            <span>
-                                                {% if option.median_price_per_person %}
-                                                    ${{ option.median_price_per_person|floatformat:0 }}/person
+                            {% if roommate_filters_active %}
+                                <a class="btn btn-outline-secondary btn-sm" href="{% url 'listings:group_match' %}">Clear filters</a>
+                            {% endif %}
+                        </div>
+
+                        {% if roommate_posts.paginator.count %}
+                            <div class="group-post-list">
+                                {% for post in roommate_posts %}
+                                    <article class="group-post-card">
+                                        <div class="group-post-head">
+                                            <div class="identity-row group-post-identity">
+                                                {% include "includes/user_avatar.html" with user_obj=post.author avatar_class="user-avatar user-avatar-lg" %}
+                                                <div class="identity-copy">
+                                                    <p class="group-post-overline">Posted by {{ post.author.display_name }}</p>
+                                                    <h3 class="group-post-title">{{ post.title }}</h3>
+                                                    {% if post.ui_author_major %}
+                                                        <p class="group-post-subtitle">{{ post.ui_author_major }}</p>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            <span class="app-meta-chip {% if post.ui_score_variant == 'primary' %}app-meta-chip-primary{% elif post.ui_score_variant == 'secondary' %}app-meta-chip-secondary{% else %}app-meta-chip-neutral{% endif %}">
+                                                {% if post.ui_score is not None %}
+                                                    {{ post.ui_score }}% match
+                                                {% elif request.user.can_use_roommate_matching %}
+                                                    No score yet
                                                 {% else %}
-                                                    No price signal
+                                                    Complete profile to score
                                                 {% endif %}
                                             </span>
-                                            <span>{{ option.market_temperature }}</span>
                                         </div>
-                                    </a>
+
+                                        <div class="group-post-stats">
+                                            <div class="group-post-stat">
+                                                <span class="group-post-stat-label">Group now</span>
+                                                <strong>{{ post.current_group_size }}</strong>
+                                            </div>
+                                            <div class="group-post-stat">
+                                                <span class="group-post-stat-label">Open spots</span>
+                                                <strong>{{ post.open_spots }}</strong>
+                                            </div>
+                                            <div class="group-post-stat">
+                                                <span class="group-post-stat-label">Budget</span>
+                                                <strong>${{ post.budget_min|floatformat:0 }} - ${{ post.budget_max|floatformat:0 }}</strong>
+                                            </div>
+                                            <div class="group-post-stat">
+                                                <span class="group-post-stat-label">Move in</span>
+                                                <strong>{{ post.move_in_date|date:"M j" }}</strong>
+                                            </div>
+                                        </div>
+
+                                        <div class="group-post-tags">
+                                            <span class="app-meta-chip app-meta-chip-neutral">{{ post.get_housing_status_display }}</span>
+                                            <span class="app-meta-chip app-meta-chip-neutral">{{ post.target_household_size }} person target</span>
+                                            {% for area in post.neighborhoods_list|slice:":3" %}
+                                                <span class="app-meta-chip app-meta-chip-neutral">{{ area }}</span>
+                                            {% endfor %}
+                                        </div>
+
+                                        <p class="group-post-body">{{ post.description|truncatechars:220 }}</p>
+
+                                        {% if post.ui_highlights %}
+                                            <div class="group-post-highlights">
+                                                {% for highlight in post.ui_highlights %}
+                                                    <span>{{ highlight }}</span>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+
+                                        <div class="group-post-actions">
+                                            <a class="btn btn-outline-secondary btn-sm" href="{{ post.ui_profile_url }}">View profile</a>
+                                            {% if post.ui_can_message %}
+                                                <a class="btn btn-brand btn-sm" href="{{ post.ui_message_url }}">{{ post.ui_message_label }}</a>
+                                            {% else %}
+                                                <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:profile_setup' %}">Complete profile to message</a>
+                                            {% endif %}
+                                        </div>
+                                    </article>
                                 {% endfor %}
                             </div>
-                        </section>
-
-                        {% with option=selected_group_option %}
-                            <section class="listing-panel group-match-selected">
-                                <div class="group-match-selected-head">
-                                    <div>
-                                        <p class="app-kicker">Selected Plan</p>
-                                        <h2 class="group-match-selected-title">{{ option.label }}</h2>
-                                        <p class="group-match-selected-headline">{{ option.headline }}</p>
-                                        <p class="group-match-selected-summary">{{ option.summary }}</p>
-                                    </div>
-                                    <div class="app-meta">
-                                        {% if option.additional_roommates_needed %}
-                                            <span class="app-meta-chip app-meta-chip-primary">Add {{ option.additional_roommates_needed }} roommate{{ option.additional_roommates_needed|pluralize }}</span>
-                                        {% else %}
-                                            <span class="app-meta-chip app-meta-chip-primary">No extra roommates needed</span>
-                                        {% endif %}
-                                        {% if option.top_localities %}
-                                            <span class="app-meta-chip app-meta-chip-neutral">{{ option.top_localities|join:", " }}</span>
-                                        {% endif %}
-                                        {% if option.dominant_property_type %}
-                                            <span class="app-meta-chip app-meta-chip-neutral">{{ option.dominant_property_type }}</span>
-                                        {% endif %}
-                                    </div>
-                                </div>
-
-                                <div class="app-stat-grid group-match-selected-stats">
-                                    <div class="app-stat-card is-primary">
-                                        <span class="app-stat-label">Group size</span>
-                                        <span class="app-stat-value">{{ option.group_size }}</span>
-                                    </div>
-                                    <div class="app-stat-card is-secondary">
-                                        <span class="app-stat-label">Roommates to add</span>
-                                        <span class="app-stat-value">{{ option.additional_roommates_needed }}</span>
-                                    </div>
-                                    <div class="app-stat-card is-accent">
-                                        <span class="app-stat-label">Homes</span>
-                                        <span class="app-stat-value">{{ option.listings_count }}</span>
-                                    </div>
-                                    <div class="app-stat-card is-neutral">
-                                        <span class="app-stat-label">Median / person</span>
-                                        <span class="app-stat-value">
-                                            {% if option.median_price_per_person %}
-                                                ${{ option.median_price_per_person|floatformat:0 }}
-                                            {% else %}
-                                                --
-                                            {% endif %}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div class="group-match-score-strip">
-                                    <div class="group-plan-signal">
-                                        <span>Price fit</span>
-                                        <strong>{{ option.price_score }}</strong>
-                                    </div>
-                                    <div class="group-plan-signal">
-                                        <span>Inventory</span>
-                                        <strong>{{ option.inventory_score }}</strong>
-                                    </div>
-                                    <div class="group-plan-signal">
-                                        <span>Comfort</span>
-                                        <strong>{{ option.comfort_score }}</strong>
-                                    </div>
-                                </div>
-                            </section>
-
-                            <section class="listing-panel group-match-roommates" id="roommate-matches">
-                                <div class="app-panel-head">
-                                    <div>
-                                        <h2 class="app-section-heading">Compatible roommates</h2>
-                                        <p class="app-panel-copy">
-                                            {% if option.additional_roommates_needed %}
-                                                Best matches for a {{ option.group_size }} person home.
-                                            {% else %}
-                                                Closest profile matches.
-                                            {% endif %}
-                                        </p>
-                                    </div>
-                                </div>
-                                {% if option.roommate_matches %}
-                                    <div class="group-roommate-grid">
-                                        {% for match in option.roommate_matches %}
-                                            <div class="group-roommate-card">
-                                                <div class="group-roommate-card-top">
-                                                    <div class="identity-row">
-                                                        {% include "includes/user_avatar.html" with user_obj=match.user avatar_class="user-avatar user-avatar-md" %}
-                                                        <div class="identity-copy">
-                                                            <span class="group-roommate-name">{{ match.user.display_name }}</span>
-                                                            {% if match.profile.major %}
-                                                                <span class="group-roommate-meta">{{ match.profile.major }}</span>
-                                                            {% endif %}
-                                                        </div>
-                                                    </div>
-                                                    <span class="app-meta-chip {% if match.score_variant == 'primary' %}app-meta-chip-primary{% elif match.score_variant == 'secondary' %}app-meta-chip-secondary{% else %}app-meta-chip-neutral{% endif %}">
-                                                        {% if match.score is not None %}
-                                                            {{ match.score }}% match
-                                                        {% else %}
-                                                            No score yet
-                                                        {% endif %}
-                                                    </span>
-                                                </div>
-                                                {% if match.profile.bio %}
-                                                    <p class="group-roommate-bio">{{ match.profile.bio|truncatechars:120 }}</p>
-                                                {% endif %}
-                                                {% if match.highlights %}
-                                                    <div class="group-roommate-traits">
-                                                        {% for highlight in match.highlights %}
-                                                            <span>{{ highlight }}</span>
-                                                        {% endfor %}
-                                                    </div>
-                                                {% endif %}
-                                                <div class="group-roommate-actions">
-                                                    <a class="btn btn-outline-secondary btn-sm" href="{{ match.profile_url }}">View profile</a>
-                                                    <a class="btn btn-brand btn-sm" href="{{ match.message_url }}">{{ match.message_label }}</a>
-                                                </div>
-                                            </div>
-                                        {% endfor %}
-                                    </div>
-                                {% elif not group_match_has_profile %}
-                                    <div class="app-empty">
-                                        <h3 class="app-empty-title">Finish your profile first</h3>
-                                        <p class="app-empty-copy">Compatibility scores appear after setup.</p>
-                                    </div>
-                                {% else %}
-                                    <div class="app-empty">
-                                        <h3 class="app-empty-title">No student matches yet</h3>
-                                        <p class="app-empty-copy">Check back soon.</p>
-                                    </div>
-                                {% endif %}
-                            </section>
-
-                            <section class="listing-panel group-match-homes">
-                                <div class="app-panel-head">
-                                    <div>
-                                        <h2 class="app-section-heading">Homes for this plan</h2>
-                                        <p class="app-panel-copy">Approved homes in budget.</p>
-                                    </div>
-                                </div>
-                                {% if option.listings %}
-                                    <div class="group-listings-grid">
-                                        {% for listing in option.listings %}
-                                            {% include "listings/includes/listing_result_card.html" with listing=listing %}
-                                        {% endfor %}
-                                    </div>
-                                {% else %}
-                                    <div class="app-empty">
-                                        <h3 class="app-empty-title">No approved homes match this setup.</h3>
-                                        <p class="app-empty-copy">Adjust the budget, size, or area.</p>
-                                    </div>
-                                {% endif %}
-                            </section>
-                        {% endwith %}
-                    {% else %}
-                        <section class="listing-panel group-match-empty">
-                            <div class="app-panel-head">
-                                <div>
-                                    <h2 class="app-section-heading">Fix the planner</h2>
-                                    <p class="app-panel-copy">Group options appear after the fields are valid.</p>
-                                </div>
+                            {% include "includes/pagination.html" with page_obj=roommate_posts pagination_query=pagination_query %}
+                        {% else %}
+                            <div class="app-empty">
+                                <h3 class="app-empty-title">No matching posts right now</h3>
+                                <p class="app-empty-copy">Try broadening the filters or publish the first post for your own group.</p>
                             </div>
-                            {% if group_match_roommate_matches %}
-                                <div class="group-roommate-grid" id="roommate-matches">
-                                    {% for match in group_match_roommate_matches %}
-                                        <div class="group-roommate-card">
-                                            <div class="group-roommate-card-top">
-                                                <div class="identity-row">
-                                                    {% include "includes/user_avatar.html" with user_obj=match.user avatar_class="user-avatar user-avatar-md" %}
-                                                    <div class="identity-copy">
-                                                        <span class="group-roommate-name">{{ match.user.display_name }}</span>
-                                                        {% if match.profile.major %}
-                                                            <span class="group-roommate-meta">{{ match.profile.major }}</span>
-                                                        {% endif %}
-                                                    </div>
-                                                </div>
-                                                <span class="app-meta-chip {% if match.score_variant == 'primary' %}app-meta-chip-primary{% elif match.score_variant == 'secondary' %}app-meta-chip-secondary{% else %}app-meta-chip-neutral{% endif %}">
-                                                    {% if match.score is not None %}
-                                                        {{ match.score }}% match
-                                                    {% else %}
-                                                        No score yet
-                                                    {% endif %}
-                                                </span>
-                                            </div>
-                                            {% if match.profile.bio %}
-                                                <p class="group-roommate-bio">{{ match.profile.bio|truncatechars:120 }}</p>
-                                            {% endif %}
-                                            {% if match.highlights %}
-                                                <div class="group-roommate-traits">
-                                                    {% for highlight in match.highlights %}
-                                                        <span>{{ highlight }}</span>
-                                                    {% endfor %}
-                                                </div>
-                                            {% endif %}
-                                            <div class="group-roommate-actions">
-                                                <a class="btn btn-outline-secondary btn-sm" href="{{ match.profile_url }}">View profile</a>
-                                                <a class="btn btn-brand btn-sm" href="{{ match.message_url }}">{{ match.message_label }}</a>
-                                            </div>
-                                        </div>
-                                    {% endfor %}
-                                </div>
-                            {% endif %}
-                        </section>
-                    {% endif %}
+                        {% endif %}
+                    </section>
                 </div>
             </div>
         </div>

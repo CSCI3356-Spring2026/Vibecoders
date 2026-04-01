@@ -1,4 +1,5 @@
 import subprocess
+from datetime import timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
@@ -11,7 +12,7 @@ from django.utils import timezone
 
 from communications.models import ListingConversation
 from communications.selectors import accessible_conversations_for_user
-from listings.models import Listing, ListingReport, ListingReview
+from listings.models import Listing, ListingReport, ListingReview, RoommatePost
 
 from ..session_security import RECENT_AUTH_SESSION_KEY
 from .helpers import User
@@ -100,6 +101,53 @@ class UserPageTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], reverse("users:dashboard"))
         self.assertIsNotNone(self.user.profile_completed_at)
+
+    def test_student_profile_setup_renders_grouped_sections_and_choice_controls(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("users:profile_setup"))
+
+        self.assertContains(response, "Student profile")
+        self.assertContains(response, "Living preferences")
+        self.assertContains(response, "Habits")
+        self.assertContains(response, "Typical bedtime")
+        self.assertContains(response, "profile-scale-grid")
+        self.assertContains(response, 'type="radio"')
+        self.assertNotContains(response, 'type="range"')
+
+    @override_settings(PROFILE_COMPLETION_REQUIRED=True)
+    def test_realtor_profile_setup_completion_does_not_require_age_or_gender(self):
+        realtor = User.objects.create_user(username="agent", email="agent@gmail.com", password="test")
+        self.client.force_login(realtor)
+
+        response = self.client.post(
+            reverse("users:profile_setup"),
+            {
+                "preferred_name": "Beacon Realty",
+                "age": "",
+                "gender": "",
+                "gender_other": "",
+                "bio": "Managing listings near campus.",
+            },
+            follow=False,
+        )
+
+        realtor.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("users:dashboard"))
+        self.assertIsNotNone(realtor.profile_completed_at)
+
+    def test_realtor_profile_setup_is_lighter_than_student_questionnaire(self):
+        realtor = User.objects.create_user(username="agent2", email="agent2@gmail.com", password="test")
+        self.client.force_login(realtor)
+
+        response = self.client.get(reverse("users:profile_setup"))
+
+        self.assertContains(response, "Listing profile")
+        self.assertContains(response, "About this account")
+        self.assertNotContains(response, "Living preferences")
+        self.assertNotContains(response, 'name="messy_level"')
+        self.assertNotContains(response, 'type="radio"')
 
     def test_login_page_has_google_call_to_action(self):
         response = self.client.get("/users/login/")
@@ -329,7 +377,7 @@ class UserPageTests(TestCase):
         self.assertContains(dashboard_response, "https://example.com/avatar.jpg")
         self.assertContains(dashboard_response, self.user.display_role)
         self.assertContains(dashboard_response, "Open document library")
-        self.assertContains(dashboard_response, ">Group match<", html=False)
+        self.assertContains(dashboard_response, ">Find groups<", html=False)
         self.assertNotContains(dashboard_response, ">Browse<", html=False)
         self.assertContains(dashboard_response, "Workspace")
         self.assertNotContains(dashboard_response, "Permissions")
@@ -343,7 +391,7 @@ class UserPageTests(TestCase):
         response = self.client.get(reverse("users:browse_roommates"))
 
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response["Location"], f"{reverse('listings:group_match')}#roommate-matches")
+        self.assertEqual(response["Location"], reverse("listings:group_match"))
 
     def test_public_profile_shows_direct_message_entry_point(self):
         target = User.objects.create_user(username="match", email="match@bc.edu", password="test", first_name="Riley")
@@ -353,6 +401,18 @@ class UserPageTests(TestCase):
         target.save(update_fields=["profile_completed_at"])
         target.student_profile.major = "Biology"
         target.student_profile.save(update_fields=["major"])
+        RoommatePost.objects.create(
+            author=target,
+            title="Looking for one more roommate in Brighton",
+            description="We need one more roommate for a late-summer move and a quiet apartment.",
+            housing_status=RoommatePost.HOUSING_NEED_HOME,
+            current_group_size=2,
+            open_spots=1,
+            budget_min="1200",
+            budget_max="1500",
+            move_in_date=timezone.localdate() + timedelta(days=30),
+            neighborhoods="Brighton",
+        )
         self.client.force_login(self.user)
 
         response = self.client.get(reverse("users:public_profile", args=[target.id]))
@@ -368,6 +428,18 @@ class UserPageTests(TestCase):
         self.user.save(update_fields=["profile_completed_at"])
         target.profile_completed_at = timezone.now()
         target.save(update_fields=["profile_completed_at"])
+        RoommatePost.objects.create(
+            author=target,
+            title="Looking for one more roommate in Allston",
+            description="We want one more roommate for a fall lease and an easygoing apartment.",
+            housing_status=RoommatePost.HOUSING_NEED_HOME,
+            current_group_size=2,
+            open_spots=1,
+            budget_min="1200",
+            budget_max="1500",
+            move_in_date=timezone.localdate() + timedelta(days=30),
+            neighborhoods="Allston",
+        )
         self.client.force_login(self.user)
 
         response = self.client.post(
@@ -384,6 +456,20 @@ class UserPageTests(TestCase):
             reverse("communications:detail", args=[conversation.id]),
             fetch_redirect_response=False,
         )
+
+    def test_public_profile_hides_new_message_entry_when_target_has_no_active_roommate_post(self):
+        target = User.objects.create_user(username="match", email="match@bc.edu", password="test", first_name="Riley")
+        self.user.profile_completed_at = timezone.now()
+        self.user.save(update_fields=["profile_completed_at"])
+        target.profile_completed_at = timezone.now()
+        target.save(update_fields=["profile_completed_at"])
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("users:public_profile", args=[target.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Message Riley")
+        self.assertNotContains(response, "Start chat")
 
     def test_public_profile_requires_completed_roommate_profile(self):
         target = User.objects.create_user(username="match", email="match@bc.edu", password="test", first_name="Riley")

@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from allauth.socialaccount.models import SocialAccount
 from asgiref.sync import async_to_sync
 from channels.db import database_sync_to_async
@@ -9,6 +11,7 @@ from django.utils import timezone
 from communications.consumers import MessagesConsumer
 from communications.models import ListingConversation
 from communications.services import start_direct_conversation
+from listings.models import RoommatePost
 
 from .helpers import User
 
@@ -47,6 +50,21 @@ class MessagesRealtimeTests(TransactionTestCase):
             listing=self.listing,
             owner=self.owner,
             participant=self.participant,
+        )
+
+    def create_roommate_post(self, author):
+        return RoommatePost.objects.create(
+            author=author,
+            title="Looking for one more roommate",
+            description="Quiet BC student looking for a good fit for August.",
+            housing_status=RoommatePost.HOUSING_NEED_HOME,
+            current_group_size=1,
+            open_spots=1,
+            budget_min="1200",
+            budget_max="1600",
+            move_in_date=date.today() + timedelta(days=45),
+            neighborhoods="Allston, Brighton",
+            is_active=True,
         )
 
     def test_anonymous_socket_is_rejected(self):
@@ -128,6 +146,7 @@ class MessagesRealtimeTests(TransactionTestCase):
         async_to_sync(scenario)()
 
     def test_direct_conversation_realtime_payload_uses_direct_context(self):
+        self.create_roommate_post(self.participant)
         self.direct_conversation, _, _ = start_direct_conversation(self.owner, self.participant, "Want to compare?")
 
         async def scenario():

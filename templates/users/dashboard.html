@@ -98,10 +98,10 @@
                                 <span class="account-workspace-title">Create listing</span>
                                 <span class="account-workspace-meta">Post a new home</span>
                             </a>
-                            {% if can_browse_marketplace %}
+                            {% if request.user.is_student %}
                                 <a class="account-workspace-link" href="{% url 'listings:group_match' %}">
-                                    <span class="account-workspace-title">Group match</span>
-                                    <span class="account-workspace-meta">Roommates and homes</span>
+                                    <span class="account-workspace-title">Find groups</span>
+                                    <span class="account-workspace-meta">Roommate posts and outreach</span>
                                 </a>
                             {% endif %}
                             {% if request.user.can_access_admin_panel %}

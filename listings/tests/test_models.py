@@ -9,7 +9,6 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.signing import BadSignature, SignatureExpired
 from django.db import IntegrityError, transaction
 from django.test.utils import override_settings
-from django.utils import timezone
 from PIL import Image
 
 from communications.models import ListingConversation
@@ -26,15 +25,14 @@ from ..address_provider import get_geoapify_autocomplete_config, normalize_geoap
 from ..address_signing import sign_address_selection, unsign_address_selection
 from ..forms import ListingForm
 from ..geocoding import geocode_listing_address
-from ..models import Listing, ListingFavorite, ListingImage, ListingReport, ListingReview
+from ..models import Listing, ListingFavorite, ListingImage, ListingReport, ListingReview, RoommatePost
 from ..report_services import update_listing_report
 from .base import ListingTestCase
 
 
 class ListingModelTests(ListingTestCase):
     def _complete_roommate_profile(self, user):
-        user.profile_completed_at = timezone.now()
-        user.save(update_fields=["profile_completed_at"])
+        self.complete_roommate_profile(user)
 
     def _image_upload(self, name="photo.png"):
         buffer = BytesIO()
@@ -102,6 +100,66 @@ class ListingModelTests(ListingTestCase):
         listings = list(Listing.objects.public())
 
         self.assertEqual([listing.pk for listing in listings], [approved_listing.pk])
+
+    def test_roommate_post_requires_completed_student_profile(self):
+        student = self.user.__class__.objects.create_user(
+            username="student-two",
+            email="student-two@bc.edu",
+            password="test",
+        )
+
+        with self.assertRaises(ValidationError) as exc:
+            RoommatePost.objects.create(
+                author=student,
+                title="Need one roommate in Brighton",
+                description="We need one roommate for a late-summer move and a quieter apartment.",
+                housing_status=RoommatePost.HOUSING_NEED_HOME,
+                current_group_size=2,
+                open_spots=1,
+                budget_min="1200",
+                budget_max="1500",
+                move_in_date=date.today() + timedelta(days=30),
+            )
+
+        self.assertIn(
+            "Only students with completed roommate profiles can post.", exc.exception.message_dict["title"][0]
+        )
+
+    def test_roommate_post_active_queryset_only_returns_live_completed_student_posts(self):
+        live_post = self.create_roommate_post()
+        paused_author = self.user.__class__.objects.create_user(
+            username="paused-student",
+            email="paused-student@bc.edu",
+            password="test",
+        )
+        self.complete_roommate_profile(paused_author)
+        self.create_roommate_post(author=paused_author, title="Paused post", is_active=False)
+
+        posts = list(RoommatePost.objects.active())
+
+        self.assertEqual([post.pk for post in posts], [live_post.pk])
+
+    def test_roommate_post_active_queryset_excludes_past_move_in_dates(self):
+        stale_author = self.user.__class__.objects.create_user(
+            username="stale-student",
+            email="stale-student@bc.edu",
+            password="test",
+        )
+        self.complete_roommate_profile(stale_author)
+        stale_post = self.create_roommate_post(
+            author=stale_author,
+            title="Stale post",
+        )
+        RoommatePost.objects.filter(pk=stale_post.pk).update(move_in_date=date.today() - timedelta(days=1))
+
+        posts = list(RoommatePost.objects.active())
+
+        self.assertEqual(posts, [])
+
+    def test_roommate_post_reports_target_household_size(self):
+        roommate_post = self.create_roommate_post(current_group_size=3, open_spots=2)
+
+        self.assertEqual(roommate_post.target_household_size, 5)
 
     def test_listing_owner_cannot_be_reassigned_after_creation(self):
         listing = self.create_listing()
@@ -532,6 +590,7 @@ class ListingModelTests(ListingTestCase):
         )
         self._complete_roommate_profile(self.user)
         self._complete_roommate_profile(participant)
+        self.create_roommate_post(author=participant)
 
         conversation, message, created = start_direct_conversation(self.user, participant, "Want to compare options?")
 
@@ -550,6 +609,7 @@ class ListingModelTests(ListingTestCase):
         )
         self._complete_roommate_profile(self.user)
         self._complete_roommate_profile(participant)
+        self.create_roommate_post(author=participant)
         first_conversation, _, _ = start_direct_conversation(self.user, participant, "First note")
 
         second_conversation, _, created = start_direct_conversation(participant, self.user, "Replying back")
@@ -567,6 +627,7 @@ class ListingModelTests(ListingTestCase):
         )
         self._complete_roommate_profile(self.user)
         self._complete_roommate_profile(participant)
+        self.create_roommate_post(author=participant)
         participant.student_profile.major = "Biology"
         participant.student_profile.save(update_fields=["major"])
         conversation, _, _ = start_direct_conversation(self.user, participant, "Want to compare options?")
@@ -590,6 +651,41 @@ class ListingModelTests(ListingTestCase):
             start_direct_conversation(self.user, participant, "Want to compare options?")
 
         self.assertIn("Complete your roommate profile before messaging matches.", exc.exception.message_dict["body"][0])
+
+    def test_start_direct_conversation_requires_active_roommate_post_for_new_outreach(self):
+        participant = self.user.__class__.objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="test",
+        )
+        self._complete_roommate_profile(self.user)
+        self._complete_roommate_profile(participant)
+
+        with self.assertRaises(ValidationError) as exc:
+            start_direct_conversation(self.user, participant, "Want to compare options?")
+
+        self.assertIn(
+            "This user is not currently accepting new roommate messages.",
+            exc.exception.message_dict["body"][0],
+        )
+
+    def test_start_direct_conversation_allows_existing_thread_after_roommate_post_is_paused(self):
+        participant = self.user.__class__.objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="test",
+        )
+        self._complete_roommate_profile(self.user)
+        self._complete_roommate_profile(participant)
+        roommate_post = self.create_roommate_post(author=participant)
+        conversation, _, _ = start_direct_conversation(self.user, participant, "First note")
+        roommate_post.is_active = False
+        roommate_post.save(update_fields=["is_active", "updated_at"])
+
+        reused_conversation, _, created = start_direct_conversation(self.user, participant, "Second note")
+
+        self.assertFalse(created)
+        self.assertEqual(reused_conversation.id, conversation.id)
 
     def test_deleting_conversation_hides_it_for_one_user_only(self):
         participant = self.user.__class__.objects.create_user(

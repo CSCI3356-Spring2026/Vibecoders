@@ -71,7 +71,7 @@ class AuthSettingsTests(TestCase):
         self.assertEqual(first_result.returncode, 0, msg=first_result.stderr)
         self.assertEqual(second_result.returncode, 0, msg=second_result.stderr)
         self.assertEqual(first_result.stdout.strip(), second_result.stdout.strip())
-        self.assertEqual(first_result.stdout.strip(), "django-insecure-padly-dev-key-local-only")
+        self.assertEqual(first_result.stdout.strip(), settings.DEVELOPMENT_SECRET_KEY)
 
     def test_production_settings_require_explicit_allowed_hosts(self):
         env = os.environ.copy()

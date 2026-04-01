@@ -1,0 +1,20 @@
+<div class="profile-form-field-block profile-scale-field">
+    <div class="profile-field-head">
+        <label class="form-label fw-semibold listing-form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {% if field.help_text %}
+            <p class="app-field-note listing-form-field-note">{{ field.help_text }}</p>
+        {% endif %}
+    </div>
+    <div class="profile-scale-grid">
+        {% for option in field %}
+            <label class="profile-scale-option{% if option.data.selected %} is-selected{% endif %}" for="{{ option.id_for_label }}">
+                {{ option.tag }}
+                <span class="profile-scale-option-index">{{ option.data.value }}</span>
+                <span class="profile-scale-option-label">{{ option.choice_label }}</span>
+            </label>
+        {% endfor %}
+    </div>
+    {% for error in field.errors %}
+        <div class="app-field-error">{{ error }}</div>
+    {% endfor %}
+</div>

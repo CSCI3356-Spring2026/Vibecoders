@@ -3,6 +3,15 @@ from django import forms
 from .models import AdminProfile, StudentProfile, UserFile
 
 
+def _format_hour_label(hour):
+    suffix = "AM" if hour < 12 else "PM"
+    display_hour = hour % 12 or 12
+    return f"{display_hour}:00 {suffix}"
+
+
+BEDTIME_CHOICES = [("", "Select a time")] + [(hour, _format_hour_label(hour)) for hour in range(24)]
+
+
 class GoogleLoginAcceptanceForm(forms.Form):
     reviewed_terms = forms.BooleanField(required=False, widget=forms.HiddenInput())
     reviewed_privacy = forms.BooleanField(required=False, widget=forms.HiddenInput())
@@ -73,21 +82,35 @@ class GenderOtherRequiredMixin:
 class BaseProfileForm(GenderOtherRequiredMixin, forms.ModelForm):
     completion_fields = ()
     field_labels = {
+        "preferred_name": "Display name",
+        "age": "Age",
         "gender": "Gender",
         "gender_other": "Other (please specify)",
+        "bio": "Short intro",
     }
+    field_help_texts = {}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for field_name, label in self.field_labels.items():
             if field_name in self.fields:
                 self.fields[field_name].label = label
+        for field_name, help_text in self.field_help_texts.items():
+            if field_name in self.fields:
+                self.fields[field_name].help_text = help_text
         for field_name in self.completion_fields:
             if field_name in self.fields:
                 self.fields[field_name].required = True
 
 
 class StudentProfileForm(BaseProfileForm):
+    bedtime = forms.TypedChoiceField(
+        choices=BEDTIME_CHOICES,
+        coerce=int,
+        empty_value=None,
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
     completion_fields = (
         "preferred_name",
         "age",
@@ -101,6 +124,32 @@ class StudentProfileForm(BaseProfileForm):
         "drink",
         "party",
     )
+    field_labels = BaseProfileForm.field_labels | {
+        "major": "Major or program",
+        "messy_level": "Cleanliness preference",
+        "guest_level": "Guest frequency",
+        "bedtime": "Typical bedtime",
+        "noise_level": "Noise tolerance",
+        "smoke": "Smoking okay",
+        "drink": "Drinking",
+        "party": "Social scene",
+        "pets": "Pets okay",
+    }
+    field_help_texts = {
+        "preferred_name": "Shown on your profile, messages, and roommate matches.",
+        "age": "Used on your roommate profile.",
+        "gender": "Shown on your roommate profile.",
+        "major": "Helpful context for potential roommates.",
+        "bio": "A short introduction about how you live and what you are looking for.",
+        "messy_level": "Pick the option that feels closest to your shared-space standard.",
+        "guest_level": "How often you are comfortable having guests around.",
+        "bedtime": "Choose the closest time you usually wind down.",
+        "noise_level": "How much sound feels normal in your home.",
+        "smoke": "Turn this on if smoking is okay in your home search.",
+        "drink": "How often drinking is part of your routine.",
+        "party": "How social or nightlife-oriented your home feels.",
+        "pets": "Turn this on if pets are welcome in your housing plans.",
+    }
 
     class Meta:
         model = StudentProfile
@@ -121,25 +170,49 @@ class StudentProfileForm(BaseProfileForm):
             "pets",
         ]
         widgets = {
-            "preferred_name": forms.TextInput(attrs={"class": "form-control"}),
-            "age": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+            "preferred_name": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "How your name should appear",
+                    "autocomplete": "nickname",
+                }
+            ),
+            "age": forms.NumberInput(attrs={"class": "form-control", "min": 16, "max": 99, "placeholder": "Age"}),
             "gender": forms.Select(attrs={"class": "form-select"}),
-            "gender_other": forms.TextInput(attrs={"class": "form-control", "placeholder": "Please specify"}),
-            "major": forms.TextInput(attrs={"class": "form-control"}),
-            "bio": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
-            "messy_level": forms.NumberInput(attrs={"class": "form-range", "type": "range", "min": 1, "max": 5}),
-            "guest_level": forms.NumberInput(attrs={"class": "form-range", "type": "range", "min": 1, "max": 5}),
-            "bedtime": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
-            "noise_level": forms.NumberInput(attrs={"class": "form-range", "type": "range", "min": 1, "max": 5}),
-            "smoke": forms.CheckboxInput(attrs={"class": "form-check-input"}),
-            "drink": forms.NumberInput(attrs={"class": "form-range", "type": "range", "min": 1, "max": 5}),
-            "party": forms.NumberInput(attrs={"class": "form-range", "type": "range", "min": 1, "max": 5}),
-            "pets": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "gender_other": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "How you want this shown on your profile"}
+            ),
+            "major": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Computer Science, Finance, Nursing..."}
+            ),
+            "bio": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 4,
+                    "placeholder": "Share a quick sense of your routine, habits, and the kind of home you want.",
+                }
+            ),
+            "messy_level": forms.RadioSelect(attrs={"class": "profile-scale-input"}),
+            "guest_level": forms.RadioSelect(attrs={"class": "profile-scale-input"}),
+            "noise_level": forms.RadioSelect(attrs={"class": "profile-scale-input"}),
+            "smoke": forms.CheckboxInput(attrs={"class": "profile-toggle-input"}),
+            "drink": forms.RadioSelect(attrs={"class": "profile-scale-input"}),
+            "party": forms.RadioSelect(attrs={"class": "profile-scale-input"}),
+            "pets": forms.CheckboxInput(attrs={"class": "profile-toggle-input"}),
         }
 
 
 class AdminProfileForm(BaseProfileForm):
-    completion_fields = ("preferred_name", "age", "gender", "bio")
+    completion_fields = ("preferred_name", "bio")
+    field_labels = BaseProfileForm.field_labels | {
+        "age": "Age (optional)",
+        "bio": "About this account",
+    }
+    field_help_texts = {
+        "preferred_name": "Shown on your listings, messages, and account surfaces.",
+        "gender": "Optional profile detail.",
+        "bio": "A short description of who you are or what you manage.",
+    }
 
     class Meta:
         model = AdminProfile
@@ -151,9 +224,21 @@ class AdminProfileForm(BaseProfileForm):
             "bio",
         ]
         widgets = {
-            "preferred_name": forms.TextInput(attrs={"class": "form-control"}),
-            "age": forms.NumberInput(attrs={"class": "form-control", "min": 0}),
+            "preferred_name": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "How this account should appear",
+                    "autocomplete": "nickname",
+                }
+            ),
+            "age": forms.NumberInput(attrs={"class": "form-control", "min": 16, "max": 99, "placeholder": "Optional"}),
             "gender": forms.Select(attrs={"class": "form-select"}),
-            "gender_other": forms.TextInput(attrs={"class": "form-control", "placeholder": "Please specify"}),
-            "bio": forms.Textarea(attrs={"class": "form-control", "rows": 3}),
+            "gender_other": forms.TextInput(attrs={"class": "form-control", "placeholder": "Optional"}),
+            "bio": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 4,
+                    "placeholder": "Briefly describe who you are, what you manage, or what renters should know.",
+                }
+            ),
         }

@@ -7,7 +7,7 @@ This reference summarizes the main persisted models and the rules that matter mo
 | Model | Purpose | Key relations | Important rules |
 | --- | --- | --- | --- |
 | `CustomUser` | primary account model | one-to-one profiles, related listings, files, messages | email unique and normalized; role constrained to `student`, `realtor`, `admin`; non-admin role follows email policy |
-| `StudentProfile` | student roommate/profile questionnaire | one-to-one to `CustomUser` | completion-oriented fields for group match and profile setup |
+| `StudentProfile` | student roommate/profile questionnaire | one-to-one to `CustomUser` | completion-oriented fields for roommate posts, compatibility, and profile setup |
 | `AdminProfile` | admin/realtor profile record | one-to-one to `CustomUser` | lighter profile schema than student profile |
 | `UserFile` | private document library file | belongs to `CustomUser` | per-user capacity enforced; validators inspect file contents; storage delete happens after commit |
 
@@ -21,6 +21,7 @@ This reference summarizes the main persisted models and the rules that matter mo
 | `ListingReview` | resident review | `author` to `listing` | unique per `(listing, author)`; rating 1-5; student-only at submission time; approved-listing-only; prior conversation required |
 | `ListingReport` | abuse or quality report | `reporter` to `listing` | student-only at submission time; approved-listing-only; active-report uniqueness while open or in review; reopening clears resolution metadata |
 | `ListingReportUpdate` | moderator activity log entry for a report | belongs to `ListingReport`, optional actor | preserves comments and status decisions over time; supports reopen, in-review, dismiss, and listing-closed actions |
+| `RoommatePost` | student-authored roommate search post | one-to-one to `CustomUser` | one post per student; requires completed student profile; captures budget, move-in, housing stage, open spots, and active/paused state |
 
 ## Communications App
 
@@ -65,7 +66,7 @@ High-value fields used beyond simple display:
 - `drink`
 - `party`
 
-These inform profile completion and group-match defaults.
+These inform profile completion, compatibility scoring, and roommate-post matching.
 
 ## Conversation State Fields
 

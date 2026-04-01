@@ -33,7 +33,7 @@ and roommate matches do not spawn duplicate direct threads.
 
 - authenticated, active student
 - sender has a completed roommate profile
-- recipient is an active student with a completed roommate profile
+- recipient is an active student with a completed roommate profile and an active roommate post, unless the direct thread already exists
 - sender is not messaging themself
 
 ### Who can send a reply
