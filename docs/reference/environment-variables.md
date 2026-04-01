@@ -98,3 +98,4 @@ This document lists the environment variables used by Padly's runtime configurat
 - `.env` is loaded automatically by `python-dotenv`.
 - Production fails closed when required secrets or host/channel settings are missing.
 - Tests force some settings off or to deterministic values to avoid environment leakage.
+- Test runs also force Django's MD5 password hasher so the full suite stays fast enough to run routinely in local development and CI.

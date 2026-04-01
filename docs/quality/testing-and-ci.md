@@ -77,6 +77,13 @@ when the change affects models or deployment/security behavior.
 | Channel layer | in-memory by default | in-memory |
 | Google auth | depends on local env | not exercised through live OAuth |
 | Geoapify | mocked in tests where appropriate | mocked in tests where appropriate |
+| Password hashing | MD5 hasher forced during tests for speed | MD5 hasher forced during tests for speed |
+
+## Test Runtime Notes
+
+- `vibecoders/settings.py` detects test runs and applies deterministic test-only settings.
+- Tests force a fast password hasher, disable profile completion and legacy geocoding gates, and keep local secret handling stable.
+- The full suite is intentionally broad; optimize slow helpers before deleting useful behavioral coverage.
 
 ## Release Confidence Checklist
 

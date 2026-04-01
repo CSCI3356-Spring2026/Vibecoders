@@ -109,7 +109,7 @@ Legal acceptance is versioned by `LEGAL_DOCUMENT_VERSION`.
 - `/users/dashboard/`
 - Shows recent listings, files, and conversations
 - Acts as the main account workspace
-- Surfaces the entry point into group match and roommate discovery
+- Surfaces the primary entry point into group match and roommate discovery
 
 ### Listing-only users
 

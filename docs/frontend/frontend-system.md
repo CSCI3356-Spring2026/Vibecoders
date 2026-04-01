@@ -20,12 +20,14 @@ Padly is primarily a server-rendered Django application with targeted JavaScript
 `templates/base.html` provides:
 
 - brand header
+- shared centered desktop nav plus mobile offcanvas drawer
 - role-aware nav actions
 - authenticated account menu
 - flash message region
 - footer with legal links
 
 This is the default page shell unless a template intentionally overrides it.
+Shared nav link markup is centralized in `templates/includes/site_nav_links.html`.
 
 ## Design System
 
@@ -101,6 +103,8 @@ If markup class names or data attributes change, update the matching JS and CSS 
 - results on the left
 - map on the right
 - fixed shared navbar position consistent with the rest of the site
+- desktop results pane scrolls independently inside the fixed-height workspace
+- listing result cards reuse the same stacked media-first card language as landing cards instead of a split side-by-side treatment
 - map style toggle when satellite mode is available
 
 ### Listing detail

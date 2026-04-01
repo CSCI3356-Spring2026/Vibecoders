@@ -62,14 +62,16 @@ Secondary ordering is by most recent submission and creation timestamps.
 3. resolved
 4. dismissed
 
+By default the queue page shows active reports only. Closed reports remain visible through listing detail and status filtering.
+
 ### Report actions
 
-Admins can change a report's status and add resolution notes.
+Admins can change a report's status and add moderator notes.
 
 Rules:
 
 - closing a report as resolved or dismissed requires notes
-- resolving a report removes the listing from the marketplace
+- resolving a report removes the listing from the marketplace by moving the listing back to rejected moderation state
 - dismissing a report closes the report without removing the listing
 - reopening to `open` clears prior reviewer and resolution metadata
 - the queue surfaces reporter, listing owner, and prior moderation context on each report card

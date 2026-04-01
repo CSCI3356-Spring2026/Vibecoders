@@ -1,5 +1,5 @@
 # AGENTS.md
-Last Revised By: Hunter Scheppat -- March 25, 2026
+Last Revised By: Hunter Scheppat -- March 31, 2026
 
 Repository-specific instructions for AI coding agents working in this codebase.
 
@@ -165,6 +165,8 @@ Command guidance:
 - `listings/models.py`: listing and listing image models, visibility rules, DB constraints
 - `listings/forms.py`: listing form and summary helpers
 - `listings/form_services.py`: transactional listing save workflow and image handling
+- `listings/group_match_service.py`: group-match defaults, compatibility decoration, and scenario assembly
+- `listings/report_services.py`: report state transitions that can also change listing moderation state
 - `listings/selectors.py`: listing visibility and access querysets
 - `listings/views.py`: marketplace, detail, create/edit/delete, message-from-listing flow
 ### Communications
@@ -192,6 +194,7 @@ Command guidance:
 ### Frontend
 
 - `templates/base.html`: shared layout
+- `templates/includes/site_nav_links.html`: shared desktop/mobile nav links
 - `templates/includes/user_avatar.html`: shared avatar partial used across navbar, profile, listings, and messages
 - `static/css/base.css`: design tokens and global typography/surfaces
 - `static/css/navigation.css`, `footer.css`, `forms.css`, `layout.css`, `components.css`: shared UI layers
@@ -203,6 +206,7 @@ Command guidance:
 ### Tests
 
 - `core/tests/test_pages.py`
+- `core/tests/test_settings.py`
 - `listings/tests/`
 - `users/tests/`
 
@@ -223,6 +227,8 @@ Messaging coverage is split across `users/tests/` and listing/page tests rather 
 - `listings/selectors.py`, `communications/selectors.py`, and `users/selectors.py` are the current pattern for reusable query logic.
 - `communications/services.py` is the canonical place for message send/read/delete side effects and realtime publishing.
 - `listings/form_services.py` is the canonical place for multi-step listing save behavior involving uploads and deletions.
+- `listings/report_services.py` is the canonical place for admin report state transitions.
+- `listings/group_match_service.py` is the canonical place for non-HTTP roommate-planning logic.
 
 Prefer using or extending these modules before adding duplicate helpers in views.
 

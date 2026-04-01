@@ -34,7 +34,7 @@ In debug mode only, listing photos are also served from `media/listing_photos/<p
 | `/users/profile/` | `users.views.profile` | required | redirect to dashboard |
 | `/users/profile/setup/` | `users.views.profile_setup` | required | profile completion/update |
 | `/users/dashboard/` | `users.views.dashboard` | required | account workspace |
-| `/users/browse/` | `users.views.browse_roommates` | marketplace users | legacy redirect into group match |
+| `/users/browse/` | `users.views.browse_roommates` | marketplace users | legacy redirect into `/listings/group-match/#roommate-matches` |
 | `/users/profile/<user_id>/` | `users.views.public_profile` | marketplace users | public roommate profile |
 | `/users/posts/` | `users.views.posts` | required | current user's listings |
 | `/users/files/` | `users.views.files` | required | private document library |
@@ -65,7 +65,7 @@ In debug mode only, listing photos are also served from `media/listing_photos/<p
 | --- | --- | --- | --- |
 | `/listings/` | `listings.views.listing_list` | required | marketplace list/map view or listing-only inventory |
 | `/listings/search/` | `listings.views.listing_search` | required | JSON live-search endpoint |
-| `/listings/address-suggestions/` | `listings.views.address_suggestions` | optional auth check in view | JSON address autocomplete endpoint |
+| `/listings/address-suggestions/` | `listings.views.address_suggestions` | authenticated in practice | JSON address autocomplete endpoint; returns JSON `401` instead of redirecting to HTML login when signed out |
 | `/listings/group-match/` | `listings.views.group_match` | marketplace users | group matching planner |
 | `/listings/<pk>/` | `listings.views.listing_detail` | required | listing detail |
 | `/listings/<pk>/review/` | `listings.views.submit_listing_review` | eligible student + POST | submit or update review |

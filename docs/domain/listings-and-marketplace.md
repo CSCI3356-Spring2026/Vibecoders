@@ -168,6 +168,13 @@ Reports let student users flag approved listings for admin review.
 - `resolved`
 - `dismissed`
 
+### Report moderation behavior
+
+- `resolved` closes the report and removes the listing from the public marketplace by moving the listing back to rejected moderation state
+- `dismissed` closes the report without changing the listing's approved status
+- reopening to `open` clears prior reviewer and resolution metadata
+- moderator notes and decisions are preserved as a timeline of `ListingReportUpdate` records instead of a single overwritten field
+
 ## Group Match and Roommate Discovery
 
 Route: `/listings/group-match/`
@@ -177,6 +184,8 @@ The group-match surface is a combined planner:
 - live listing-inventory scenarios for different household sizes
 - roommate compatibility results derived from completed student profiles
 - direct profile and message actions for viable matches
+
+Legacy roommate browse now redirects into this surface from `/users/browse/`, while the main product entry point lives on the account dashboard.
 
 It builds listing scenarios using:
 
