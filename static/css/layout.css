@@ -3,8 +3,7 @@
 }
 
 .app-page > .container {
-    max-width: var(--app-shell-max-width);
-    padding-inline: clamp(1rem, 2vw, 1.35rem);
+    padding-inline: 0;
 }
 
 .app-shell {

@@ -63,7 +63,9 @@
     --link-hover-color: #0f4f9f;
     --focus-ring-color: rgba(var(--secondary-rgb), 0.16);
     --rule-color: rgba(var(--gray-700-rgb), 0.14);
-    --app-shell-max-width: 1520px;
+    --site-frame-max-width: 1600px;
+    --site-frame-gutter: clamp(2.5rem, 4vw, 4rem);
+    --app-shell-max-width: var(--site-frame-max-width);
     --app-reading-max-width: 980px;
     --bs-font-sans-serif: "Instrument Sans", sans-serif;
     --bs-body-font-family: "Instrument Sans", sans-serif;
@@ -97,6 +99,12 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+}
+
+.container {
+    width: min(calc(100% - var(--site-frame-gutter)), var(--site-frame-max-width));
+    max-width: none;
+    padding-inline: 0;
 }
 
 body,

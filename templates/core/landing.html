@@ -28,69 +28,6 @@
                     >
                     <button class="btn btn-brand home-search-button" type="submit">Search</button>
                 </form>
-
-                <div class="home-quick-links">
-                    {% if has_listing_only_access %}
-                        <a class="home-pill home-pill-primary" href="{% url 'users:posts' %}">My listings</a>
-                        <a class="home-pill home-pill-secondary" href="{% url 'listings:create_listing' %}">Create listing</a>
-                    {% else %}
-                        <a class="home-pill home-pill-primary" href="{% url 'listings:listing_list' %}">Listings</a>
-                        <a class="home-pill home-pill-secondary" href="{% url 'listings:listing_list' %}?lease_type=SUBLEASE">Subleases</a>
-                    {% endif %}
-                </div>
-            </div>
-
-            <div class="home-stage">
-                {% if hero_listing %}
-                    <a class="home-stage-card" href="{% url 'listings:detail' hero_listing.pk %}">
-                        <div class="home-stage-card-media">
-                            {% if hero_listing.primary_image %}
-                                <img src="{{ hero_listing.primary_image.versioned_url }}" alt="{{ hero_listing.title }}">
-                            {% else %}
-                                <div class="home-stage-card-placeholder">{{ hero_listing.get_property_type_display }}</div>
-                            {% endif %}
-                        </div>
-                        <div class="home-stage-card-body">
-                            <div class="home-stage-card-topline">
-                                <span class="home-stage-price">${{ hero_listing.price|floatformat:0 }}/mo</span>
-                                <span class="home-stage-tag">{{ hero_listing.get_lease_type_display }}</span>
-                            </div>
-                            <h2 class="home-stage-card-title">{{ hero_listing.title }}</h2>
-                            <p class="home-stage-card-address">{{ hero_listing.address }}</p>
-                            <div class="home-stage-card-specs">
-                                <span>{{ hero_listing.rooms }} bd</span>
-                                <span>{{ hero_listing.bathrooms }} ba</span>
-                                {% if hero_listing.sq_ft %}
-                                    <span>{{ hero_listing.sq_ft }} sqft</span>
-                                {% endif %}
-                            </div>
-                            <div class="home-stage-card-footer">
-                                <div class="home-stage-card-owner">
-                                    {% include "listings/includes/owner_meta.html" with listing=hero_listing size_class="user-avatar-sm" %}
-                                </div>
-                                <div class="home-stage-card-status">
-                                    <span>Available {{ hero_listing.start_date|date:"M j" }}</span>
-                                    <span>{{ hero_listing.get_status_display }}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </a>
-                {% else %}
-                    <div class="home-stage-empty">
-                        <h2 class="home-stage-empty-title">{% if has_listing_only_access %}No featured listing.{% else %}No featured listing.{% endif %}</h2>
-                        <p class="home-stage-empty-copy">
-                            {% if has_listing_only_access %}
-                                Create a listing.
-                            {% else %}
-                                Browse listings.
-                            {% endif %}
-                        </p>
-                        <div class="app-actions">
-                            <a class="btn btn-brand" href="{% if has_listing_only_access %}{% url 'users:posts' %}{% else %}{% url 'listings:listing_list' %}{% endif %}">{% if has_listing_only_access %}My listings{% else %}Browse listings{% endif %}</a>
-                            <a class="btn btn-outline-secondary" href="{% url 'listings:create_listing' %}">Create listing</a>
-                        </div>
-                    </div>
-                {% endif %}
             </div>
         </div>
     </div>
