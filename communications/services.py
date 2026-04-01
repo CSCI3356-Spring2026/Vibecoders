@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 
 from core.rate_limits import consume_rate_limit
+from listings.selectors import active_roommate_post_for_user
 
 from .models import ListingConversation
 
@@ -70,6 +71,15 @@ def get_or_create_direct_conversation(user_a, user_b):
     return conversation, created
 
 
+def _existing_direct_conversation(user_a, user_b):
+    owner, participant = _sorted_direct_participants(user_a, user_b)
+    return ListingConversation.objects.filter(
+        conversation_type=ListingConversation.CONVERSATION_TYPE_DIRECT,
+        owner=owner,
+        participant=participant,
+    ).first()
+
+
 def _validate_listing_conversation_participant(listing, participant):
     if not getattr(participant, "is_authenticated", False) or not getattr(participant, "is_active", False):
         raise ValidationError({"body": "Active account access is required to message about listings."})
@@ -81,7 +91,7 @@ def _validate_listing_conversation_participant(listing, participant):
         raise ValidationError({"body": "Verified student access is required to message about listings."})
 
 
-def _validate_direct_conversation_participants(sender, recipient):
+def _validate_direct_conversation_participants(sender, recipient, *, existing_conversation=None):
     user_model = get_user_model()
     if not getattr(sender, "is_authenticated", False) or not getattr(sender, "is_active", False):
         raise ValidationError({"body": "Active account access is required to start a conversation."})
@@ -93,6 +103,8 @@ def _validate_direct_conversation_participants(sender, recipient):
         raise ValidationError({"body": "Complete your roommate profile before messaging matches."})
     if not getattr(recipient, "can_use_roommate_matching", False):
         raise ValidationError({"body": "This user is not currently available for roommate messages."})
+    if existing_conversation is None and active_roommate_post_for_user(recipient) is None:
+        raise ValidationError({"body": "This user is not currently accepting new roommate messages."})
 
 
 def _listing_image_url(conversation):
@@ -301,7 +313,8 @@ def start_listing_conversation(listing, participant, body):
 
 
 def start_direct_conversation(sender, recipient, body):
-    _validate_direct_conversation_participants(sender, recipient)
+    existing_conversation = _existing_direct_conversation(sender, recipient)
+    _validate_direct_conversation_participants(sender, recipient, existing_conversation=existing_conversation)
     with transaction.atomic():
         conversation, created = get_or_create_direct_conversation(sender, recipient)
         locked_conversation = ListingConversation.objects.with_related().select_for_update().get(pk=conversation.pk)

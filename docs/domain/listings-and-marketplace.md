@@ -10,7 +10,7 @@ The `listings` app owns the marketplace domain:
 - favorites
 - resident reviews
 - listing reports
-- group matching
+- roommate posts
 - moderation state and public visibility rules
 
 ## Listing Lifecycle
@@ -43,6 +43,7 @@ This rule is enforced in `Listing.public_visibility_q()` and used by the public 
 | `ListingFavorite` | Saved-listing relationship between user and listing |
 | `ListingReview` | Student-only resident review and star rating |
 | `ListingReport` | Student report submitted for admin review |
+| `RoommatePost` | One active student-authored post for finding roommates |
 
 See [Data Models](../reference/data-models.md) for the full reference summary.
 
@@ -183,36 +184,32 @@ Reports let student users flag approved listings for admin review.
 - moderator notes and decisions are preserved as a timeline of `ListingReportUpdate` records instead of a single overwritten field
 - the admin queue defaults to active reports, while closed history remains visible on listing-level moderation detail
 
-## Group Match and Roommate Discovery
+## Roommate Posts and Group Discovery
 
 Route: `/listings/group-match/`
 
-The group-match surface is a combined planner:
+The roommate-discovery surface is now a post-based board:
 
-- live listing-inventory scenarios for different household sizes
-- roommate compatibility results derived from completed student profiles
-- direct profile and message actions for viable matches
+- students publish one active post for their current group
+- each post captures budget, move-in timing, open spots, housing stage, neighborhoods, and a freeform summary
+- viewers can filter the board, see compatibility against the post lead, and jump into direct chat or the poster's profile
 
 Legacy roommate browse now redirects into this surface from `/users/browse/`, while the main product entry point lives on the account dashboard.
 
-It builds listing scenarios using:
+### Post rules
 
-- current group size
-- budget range
-- cleanliness and social preference
-- sleep schedule
-- desired household size
-- optional location keywords
+- only students with completed roommate profiles can publish
+- each student has one post record that can be updated, paused, and reactivated
+- stale posts automatically fall out of the active board once the target move-in date has passed
+- compatibility is computed between the viewer's completed profile and the student leading the post
+- direct roommate messaging still reuses the existing direct conversation flow and only allows new outreach to students with an active roommate post
 
-The listing-plan scoring model balances:
+### Filter behavior
 
-- inventory depth
-- per-person price fit
-- target size fit
-- bathrooms-per-person comfort signal
-
-Roommate discovery is meaningful only for completed student profiles. Users without a completed roommate
-profile can still open the planner, but direct roommate messaging is reserved for completed student profiles.
+- text query covers post title, description, neighborhoods, poster identity, and major
+- housing stage filters between groups that already have a place, still need one, or are flexible
+- budget filtering uses the viewer's ceiling against the group's minimum stated budget
+- move-in and open-spot filters trim the board without changing compatibility logic
 
 ## Important Invariants
 

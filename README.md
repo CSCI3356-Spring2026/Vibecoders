@@ -6,7 +6,7 @@ Padly is a student housing and subletting marketplace built by Vibecoders for th
 
 - Google OAuth sign-in with verified-email-based role assignment
 - Marketplace flows for creating, managing, browsing, and messaging about listings
-- Roommate matching with compatibility profiles, household planning, and direct student-to-student chat
+- Roommate discovery with post-based group search, compatibility profiles, and direct student-to-student chat
 - Role model for `Student`, `Realtor`, and `Admin` users
 - Real-time conversations between listing owners and interested renters
 - Admin tooling for listing approval, report moderation, and operations

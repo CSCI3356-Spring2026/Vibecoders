@@ -1,24 +1,199 @@
-.profile-form-grid .profile-slider-field {
+.profile-setup-shell {
+    gap: 1rem;
+}
+
+.profile-setup-header {
+    margin-bottom: 0;
+}
+
+.profile-form-shell {
+    display: grid;
+    gap: 1.4rem;
+    padding: 1.35rem;
+}
+
+.profile-form-section {
+    display: grid;
+    gap: 1rem;
+}
+
+.profile-form-section + .profile-form-section {
+    padding-top: 1.3rem;
+    border-top: 1px solid rgba(var(--gray-700-rgb), 0.08);
+}
+
+.profile-form-section-head {
+    display: grid;
+    gap: 0.25rem;
+}
+
+.profile-form-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.profile-form-grid-two,
+.profile-toggle-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.profile-form-field-block {
+    min-width: 0;
+}
+
+.profile-form-field-full {
+    grid-column: 1 / -1;
+}
+
+.profile-scale-stack {
+    display: grid;
+    gap: 1rem;
+}
+
+.profile-scale-field {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: 0.55rem;
 }
 
-.profile-form-grid .profile-slider-labels {
+.profile-field-head {
+    display: grid;
+    gap: 0.18rem;
+}
+
+.profile-scale-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.6rem;
+}
+
+.profile-scale-option {
+    position: relative;
+    display: grid;
+    gap: 0.32rem;
+    min-height: 6rem;
+    padding: 0.85rem 0.8rem;
+    border: 1px solid rgba(var(--gray-300-rgb), 0.72);
+    border-radius: var(--radius-md);
+    background: rgba(var(--white-rgb), 0.92);
+    cursor: pointer;
+    transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.profile-scale-option:hover {
+    border-color: rgba(var(--primary-rgb), 0.2);
+    background: rgba(var(--white-rgb), 0.98);
+}
+
+.profile-scale-option:has(input:checked),
+.profile-scale-option.is-selected {
+    border-color: rgba(var(--primary-rgb), 0.28);
+    background: rgba(var(--primary-rgb), 0.06);
+    box-shadow: 0 0 0 1px rgba(var(--primary-rgb), 0.08);
+}
+
+.profile-scale-option input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.profile-scale-option-index {
+    color: var(--primary-600);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.profile-scale-option-label {
+    color: var(--text-strong);
+    font-size: 0.84rem;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.profile-toggle-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.profile-toggle-card {
+    position: relative;
     display: flex;
-    justify-content: space-between;
-    gap: 0.5rem;
-    font-size: 0.85rem;
-    color: var(--text-muted);
+    align-items: flex-start;
+    gap: 0.8rem;
+    min-height: 100%;
+    padding: 0.95rem 1rem;
+    border: 1px solid rgba(var(--gray-300-rgb), 0.72);
+    border-radius: var(--radius-md);
+    background: rgba(var(--white-rgb), 0.92);
+    cursor: pointer;
+    transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
 }
 
-.profile-form-grid .profile-other-field.is-hidden {
+.profile-toggle-card:hover {
+    border-color: rgba(var(--primary-rgb), 0.2);
+    background: rgba(var(--white-rgb), 0.98);
+}
+
+.profile-toggle-card:has(input:checked),
+.profile-toggle-card.is-selected {
+    border-color: rgba(var(--primary-rgb), 0.28);
+    background: rgba(var(--primary-rgb), 0.06);
+    box-shadow: 0 0 0 1px rgba(var(--primary-rgb), 0.08);
+}
+
+.profile-toggle-input {
+    width: 1.05rem;
+    height: 1.05rem;
+    margin-top: 0.1rem;
+    flex-shrink: 0;
+}
+
+.profile-toggle-copy {
+    display: grid;
+    gap: 0.22rem;
+}
+
+.profile-toggle-title {
+    color: var(--text-strong);
+    font-size: 0.86rem;
+    font-weight: 700;
+}
+
+.profile-toggle-meta,
+.profile-form-note {
+    color: var(--text-muted);
+    font-size: 0.84rem;
+    line-height: 1.5;
+}
+
+.profile-form-alert {
+    margin: 0;
+}
+
+.profile-form-actions {
+    margin-top: 0.2rem;
+}
+
+.profile-other-field.is-hidden {
     display: none;
 }
 
-.profile-form-note {
-    margin: 0 0 1rem;
-    color: var(--text-muted);
-    font-size: 0.95rem;
-    line-height: 1.55;
+@media (max-width: 767px) {
+    .profile-form-shell {
+        padding: 1rem;
+    }
+
+    .profile-form-grid-two,
+    .profile-toggle-grid,
+    .profile-scale-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .profile-scale-option {
+        min-height: auto;
+    }
 }

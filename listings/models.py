@@ -81,6 +81,15 @@ LISTING_REPORT_UPDATE_ACTION_CHOICES = [
     (LISTING_REPORT_UPDATE_ACTION_LISTING_CLOSED, "Listing removed from marketplace"),
     (LISTING_REPORT_UPDATE_ACTION_REOPENED, "Reopened"),
 ]
+ROOMMATE_POST_HOUSING_HAVE_HOME = "have_home"
+ROOMMATE_POST_HOUSING_NEED_HOME = "need_home"
+ROOMMATE_POST_HOUSING_FLEXIBLE = "flexible"
+ROOMMATE_POST_HOUSING_CHOICES = [
+    (ROOMMATE_POST_HOUSING_HAVE_HOME, "Already have a place"),
+    (ROOMMATE_POST_HOUSING_NEED_HOME, "Still need a place"),
+    (ROOMMATE_POST_HOUSING_FLEXIBLE, "Open to either"),
+]
+ROOMMATE_POST_HOUSING_VALUES = tuple(value for value, _ in ROOMMATE_POST_HOUSING_CHOICES)
 
 
 def _submission_context_changed(instance, *, identity_fields):
@@ -102,6 +111,20 @@ class ListingQuerySet(models.QuerySet):
 
     def visible(self):
         return self.with_related().public()
+
+
+class RoommatePostQuerySet(models.QuerySet):
+    def with_related(self):
+        return self.select_related("author", "author__student_profile").prefetch_related("author__socialaccount_set")
+
+    def active(self):
+        return self.with_related().filter(
+            is_active=True,
+            move_in_date__gte=timezone.localdate(),
+            author__is_active=True,
+            author__role="student",
+            author__profile_completed_at__isnull=False,
+        )
 
 
 class Listing(models.Model):
@@ -453,6 +476,95 @@ class ListingFavorite(models.Model):
 
     def __str__(self):
         return f"{self.user_id} favorited listing {self.listing_id}"
+
+
+class RoommatePost(models.Model):
+    HOUSING_HAVE_HOME = ROOMMATE_POST_HOUSING_HAVE_HOME
+    HOUSING_NEED_HOME = ROOMMATE_POST_HOUSING_NEED_HOME
+    HOUSING_FLEXIBLE = ROOMMATE_POST_HOUSING_FLEXIBLE
+    HOUSING_CHOICES = ROOMMATE_POST_HOUSING_CHOICES
+
+    author = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="roommate_post")
+    title = models.CharField(max_length=120)
+    description = models.TextField()
+    housing_status = models.CharField(max_length=16, choices=HOUSING_CHOICES, default=HOUSING_FLEXIBLE, db_index=True)
+    current_group_size = models.PositiveSmallIntegerField(default=1)
+    open_spots = models.PositiveSmallIntegerField(default=1)
+    budget_min = models.DecimalField(max_digits=8, decimal_places=0)
+    budget_max = models.DecimalField(max_digits=8, decimal_places=0)
+    move_in_date = models.DateField(db_index=True)
+    neighborhoods = models.CharField(max_length=240, blank=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    objects = RoommatePostQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["-updated_at", "-created_at"]
+        indexes = [
+            models.Index(fields=["is_active", "updated_at"], name="roommate_post_active_idx"),
+            models.Index(fields=["housing_status", "move_in_date"], name="roommate_post_housing_idx"),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(housing_status__in=ROOMMATE_POST_HOUSING_VALUES),
+                name="roommate_post_housing_status_valid",
+            ),
+            models.CheckConstraint(
+                condition=Q(current_group_size__gte=1),
+                name="roommate_post_group_size_gte_one",
+            ),
+            models.CheckConstraint(
+                condition=Q(open_spots__gte=1),
+                name="roommate_post_open_spots_gte_one",
+            ),
+            models.CheckConstraint(
+                condition=Q(budget_min__gte=0),
+                name="roommate_post_budget_min_gte_zero",
+            ),
+            models.CheckConstraint(
+                condition=Q(budget_max__gte=0),
+                name="roommate_post_budget_max_gte_zero",
+            ),
+            models.CheckConstraint(
+                condition=Q(budget_max__gte=F("budget_min")),
+                name="roommate_post_budget_max_gte_min",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.title} ({self.author})"
+
+    @property
+    def target_household_size(self):
+        return self.current_group_size + self.open_spots
+
+    @property
+    def neighborhoods_list(self):
+        return [item.strip() for item in self.neighborhoods.split(",") if item.strip()]
+
+    def clean(self):
+        super().clean()
+        if not self.author_id:
+            return
+
+        user_model = get_user_model()
+        if not user_model._default_manager.filter(
+            pk=self.author_id,
+            role="student",
+            is_active=True,
+            profile_completed_at__isnull=False,
+        ).exists():
+            raise ValidationError({"title": "Only students with completed roommate profiles can post."})
+
+        if self.budget_min is not None and self.budget_max is not None and self.budget_min > self.budget_max:
+            raise ValidationError({"budget_max": "Budget max must be greater than or equal to budget min."})
+        if self.move_in_date and self.move_in_date < timezone.localdate():
+            raise ValidationError({"move_in_date": "Move-in date must be today or later."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class ListingReview(models.Model):

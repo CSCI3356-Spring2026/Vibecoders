@@ -1,6 +1,6 @@
 from django.db.models import Avg, BooleanField, Case, Count, Exists, IntegerField, OuterRef, Prefetch, Q, Value, When
 
-from .models import Listing, ListingFavorite, ListingReport, ListingReportUpdate, ListingReview
+from .models import Listing, ListingFavorite, ListingReport, ListingReportUpdate, ListingReview, RoommatePost
 
 ACTIVE_REPORT_STATUSES = [ListingReport.STATUS_OPEN, ListingReport.STATUS_IN_REVIEW]
 
@@ -91,3 +91,50 @@ def with_favorite_state(queryset, user):
 
     favorites = ListingFavorite.objects.filter(user=user, listing_id=OuterRef("pk"))
     return queryset.annotate(is_favorited=Exists(favorites))
+
+
+def roommate_post_for_user(user):
+    if not getattr(user, "is_authenticated", False):
+        return None
+    return RoommatePost.objects.with_related().filter(author=user).first()
+
+
+def active_roommate_post_for_user(user):
+    if not getattr(user, "is_authenticated", False):
+        return None
+    return RoommatePost.objects.active().filter(author=user).first()
+
+
+def filtered_roommate_posts_queryset(
+    user,
+    *,
+    query="",
+    housing_status="",
+    max_budget=None,
+    move_in_by=None,
+    open_spots_min=None,
+):
+    queryset = RoommatePost.objects.active()
+    if getattr(user, "is_authenticated", False):
+        queryset = queryset.exclude(author=user)
+
+    if query:
+        queryset = queryset.filter(
+            Q(title__icontains=query)
+            | Q(description__icontains=query)
+            | Q(neighborhoods__icontains=query)
+            | Q(author__first_name__icontains=query)
+            | Q(author__last_name__icontains=query)
+            | Q(author__username__icontains=query)
+            | Q(author__student_profile__major__icontains=query)
+        )
+    if housing_status in {value for value, _ in RoommatePost.HOUSING_CHOICES}:
+        queryset = queryset.filter(housing_status=housing_status)
+    if max_budget is not None:
+        queryset = queryset.filter(budget_min__lte=max_budget)
+    if move_in_by is not None:
+        queryset = queryset.filter(move_in_date__lte=move_in_by)
+    if open_spots_min is not None:
+        queryset = queryset.filter(open_spots__gte=open_spots_min)
+
+    return queryset.order_by("-updated_at", "-created_at")

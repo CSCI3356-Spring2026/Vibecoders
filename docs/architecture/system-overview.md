@@ -60,7 +60,7 @@ flowchart LR
 | --- | --- | --- |
 | `core` | Landing page, legal pages, shared utilities, branding context, cache-backed rate limits | Does not own domain data beyond shared helpers |
 | `users` | Custom user model, profile flows, dashboard, document library, legal acceptance, admin workspace | Owns auth policy and private user file handling |
-| `listings` | Listings, images, filters, favorites, reviews, reports, moderation state, address verification, group match | Owns marketplace rules, moderation transitions, and listing lifecycle |
+| `listings` | Listings, images, filters, favorites, reviews, reports, moderation state, address verification, roommate posts | Owns marketplace rules, moderation transitions, and listing lifecycle |
 | `communications` | Listing conversations, messages, inbox selectors, realtime publishing, websocket consumer | Owns conversation state and websocket event flow |
 
 ## External Integrations
@@ -80,7 +80,7 @@ flowchart LR
 | Landing and legal pages | `/`, `/terms/`, `/privacy/` | `core` |
 | Login and account workspace | `/users/login/`, `/users/dashboard/`, `/users/profile/setup/` | `users` |
 | Marketplace and listing authoring | `/listings/`, `/listings/create/`, `/listings/<id>/` | `listings` |
-| Group match and roommate discovery | `/listings/group-match/` | `listings` |
+| Roommate posts and group discovery | `/listings/group-match/` | `listings` |
 | Inbox and threads | `/users/messages/` and `/ws/messages/` | `communications` |
 | Admin workspace | `/users/admin-*` | `users` + `listings` |
 

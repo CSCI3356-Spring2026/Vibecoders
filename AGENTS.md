@@ -165,7 +165,7 @@ Command guidance:
 - `listings/models.py`: listing and listing image models, visibility rules, DB constraints
 - `listings/forms.py`: listing form and summary helpers
 - `listings/form_services.py`: transactional listing save workflow and image handling
-- `listings/group_match_service.py`: group-match defaults, compatibility decoration, and scenario assembly
+- `listings/roommate_post_service.py`: roommate-post compatibility decoration and direct-message CTA wiring
 - `listings/report_services.py`: report state transitions that can also change listing moderation state
 - `listings/selectors.py`: listing visibility and access querysets
 - `listings/views.py`: marketplace, detail, create/edit/delete, message-from-listing flow
@@ -230,7 +230,7 @@ Messaging coverage is split across `users/tests/` and listing/page tests rather 
 - `communications/services.py` is the canonical place for message send/read/delete side effects and realtime publishing.
 - `listings/form_services.py` is the canonical place for multi-step listing save behavior involving uploads and deletions.
 - `listings/report_services.py` is the canonical place for admin report state transitions.
-- `listings/group_match_service.py` is the canonical place for non-HTTP roommate-planning logic.
+- `listings/roommate_post_service.py` is the canonical place for roommate-post compatibility decoration and chat-entry wiring.
 
 Prefer using or extending these modules before adding duplicate helpers in views.
 

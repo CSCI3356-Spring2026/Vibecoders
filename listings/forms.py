@@ -1,14 +1,15 @@
+from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 from django import forms
 from django.core import signing
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 from .address_provider import get_geoapify_autocomplete_config
 from .address_signing import unsign_address_selection
 from .fields import ListingImageField
-from .group_matching import SLEEP_SCHEDULES
-from .models import Listing, ListingImage, ListingReport, ListingReview
+from .models import Listing, ListingImage, ListingReport, ListingReview, RoommatePost
 
 ADDRESS_SELECTION_MAX_AGE_SECONDS = 300
 
@@ -389,6 +390,165 @@ class ListingForm(forms.ModelForm):
         }
 
 
+class RoommatePostForm(forms.ModelForm):
+    TITLE_MIN_LENGTH = 5
+    DESCRIPTION_MIN_LENGTH = 20
+
+    class Meta:
+        model = RoommatePost
+        fields = [
+            "title",
+            "housing_status",
+            "current_group_size",
+            "open_spots",
+            "budget_min",
+            "budget_max",
+            "move_in_date",
+            "neighborhoods",
+            "description",
+        ]
+        widgets = {
+            "title": forms.TextInput(attrs={"placeholder": "Two BC seniors looking for one more roommate"}),
+            "housing_status": forms.Select(attrs={"class": "form-select"}),
+            "current_group_size": forms.NumberInput(attrs={"min": 1, "max": 8}),
+            "open_spots": forms.NumberInput(attrs={"min": 1, "max": 8}),
+            "budget_min": forms.NumberInput(attrs={"min": 0, "step": 50, "placeholder": "1200"}),
+            "budget_max": forms.NumberInput(attrs={"min": 0, "step": 50, "placeholder": "1600"}),
+            "move_in_date": forms.DateInput(attrs={"type": "date"}),
+            "neighborhoods": forms.TextInput(attrs={"placeholder": "Allston, Brighton, Brookline"}),
+            "description": forms.Textarea(
+                attrs={
+                    "rows": 5,
+                    "placeholder": (
+                        "Who is already in the group, what kind of roommate fits best, "
+                        "and what the housing plan looks like."
+                    ),
+                }
+            ),
+        }
+        labels = {
+            "title": "Post title",
+            "housing_status": "Housing stage",
+            "current_group_size": "People already in the group",
+            "open_spots": "Open roommate spots",
+            "budget_min": "Budget min / person",
+            "budget_max": "Budget max / person",
+            "move_in_date": "Target move-in",
+            "neighborhoods": "Neighborhoods",
+            "description": "What your group is looking for",
+        }
+
+    def __init__(self, *args, user=None, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+        for field_name, field in self.fields.items():
+            if isinstance(field.widget, forms.Select):
+                field.widget.attrs["class"] = "form-select"
+            else:
+                css_class = field.widget.attrs.get("class", "")
+                field.widget.attrs["class"] = f"{css_class} form-control".strip()
+
+        if not self.is_bound and not getattr(self.instance, "pk", None):
+            self.fields["move_in_date"].initial = timezone.localdate() + timedelta(days=30)
+
+    def clean_title(self):
+        title = (self.cleaned_data.get("title") or "").strip()
+        if len(title) < self.TITLE_MIN_LENGTH:
+            raise ValidationError("Make the title specific enough that people can understand the group.")
+        return title
+
+    def clean_description(self):
+        description = (self.cleaned_data.get("description") or "").strip()
+        if len(description) < self.DESCRIPTION_MIN_LENGTH:
+            raise ValidationError("Add a short summary of who the group is and what you need.")
+        if len(description) > 2000:
+            raise ValidationError("Keep the post description to 2,000 characters or fewer.")
+        return description
+
+    def clean_neighborhoods(self):
+        neighborhoods = (self.cleaned_data.get("neighborhoods") or "").strip()
+        if not neighborhoods:
+            return ""
+
+        items = []
+        for item in neighborhoods.split(","):
+            normalized = item.strip()
+            if normalized and normalized not in items:
+                items.append(normalized)
+        return ", ".join(items)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        user = self.user
+        if user is not None and not getattr(user, "can_use_roommate_matching", False):
+            raise ValidationError("Complete your roommate profile before posting for roommates.")
+        move_in_date = cleaned_data.get("move_in_date")
+        if move_in_date and move_in_date < timezone.localdate():
+            self.add_error("move_in_date", "Move-in date must be today or later.")
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.is_active = True
+        if self.user is not None and instance.author_id is None:
+            instance.author = self.user
+        if commit:
+            instance.save()
+        return instance
+
+
+class RoommatePostFilterForm(forms.Form):
+    OPEN_SPOT_CHOICES = [
+        ("", "Any open spots"),
+        ("1", "1+ spot"),
+        ("2", "2+ spots"),
+        ("3", "3+ spots"),
+    ]
+
+    q = forms.CharField(
+        required=False,
+        label="Search",
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "Search neighborhoods, titles, majors",
+            }
+        ),
+    )
+    housing_status = forms.ChoiceField(
+        required=False,
+        label="Housing stage",
+        choices=[("", "Any stage"), *RoommatePost.HOUSING_CHOICES],
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    max_budget = forms.DecimalField(
+        required=False,
+        min_value=0,
+        max_digits=8,
+        decimal_places=0,
+        label="Budget cap",
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": 0, "step": 50, "placeholder": "1600"}),
+    )
+    move_in_by = forms.DateField(
+        required=False,
+        label="Move in by",
+        widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+    )
+    open_spots_min = forms.ChoiceField(
+        required=False,
+        label="Open spots",
+        choices=OPEN_SPOT_CHOICES,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
+    def clean_open_spots_min(self):
+        value = (self.cleaned_data.get("open_spots_min") or "").strip()
+        if not value:
+            return None
+        return int(value)
+
+
 STAR_RATING_CHOICES = [(value, "★" * value) for value in range(1, 6)]
 
 
@@ -517,84 +677,4 @@ class AdminListingReportResolutionForm(forms.Form):
         if status in {ListingReport.STATUS_RESOLVED, ListingReport.STATUS_DISMISSED} and not notes:
             self.add_error("resolution_notes", "Add a moderator note before closing out a report.")
         cleaned_data["resolution_notes"] = notes
-        return cleaned_data
-
-
-class GroupMatchPreferencesForm(forms.Form):
-    CLEANLINESS_CHOICES = [(value, f"{value}/5") for value in range(1, 6)]
-    SOCIAL_CHOICES = [(value, f"{value}/5") for value in range(1, 6)]
-
-    unit_size = forms.IntegerField(
-        min_value=1,
-        max_value=4,
-        label="People already committed",
-        widget=forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 4}),
-    )
-    budget_min = forms.DecimalField(
-        min_value=0,
-        max_digits=8,
-        decimal_places=0,
-        label="Budget min / person",
-        widget=forms.NumberInput(attrs={"class": "form-control", "min": 0, "step": 50}),
-    )
-    budget_max = forms.DecimalField(
-        min_value=0,
-        max_digits=8,
-        decimal_places=0,
-        label="Budget max / person",
-        widget=forms.NumberInput(attrs={"class": "form-control", "min": 0, "step": 50}),
-    )
-    cleanliness = forms.ChoiceField(
-        choices=CLEANLINESS_CHOICES,
-        label="Cleanliness",
-        widget=forms.Select(attrs={"class": "form-select"}),
-    )
-    social = forms.ChoiceField(
-        choices=SOCIAL_CHOICES,
-        label="Social energy",
-        widget=forms.Select(attrs={"class": "form-select"}),
-    )
-    sleep_schedule = forms.ChoiceField(
-        choices=SLEEP_SCHEDULES,
-        label="Sleep schedule",
-        widget=forms.Select(attrs={"class": "form-select"}),
-    )
-    desired_group_min = forms.IntegerField(
-        min_value=1,
-        max_value=8,
-        label="Smallest home size",
-        widget=forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 8}),
-    )
-    desired_group_max = forms.IntegerField(
-        min_value=1,
-        max_value=8,
-        label="Largest home size",
-        widget=forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 8}),
-    )
-    location_keywords = forms.CharField(
-        required=False,
-        label="Areas",
-        widget=forms.TextInput(
-            attrs={
-                "class": "form-control",
-                "placeholder": "Allston, Brighton, Chestnut Hill",
-            }
-        ),
-    )
-
-    def clean(self):
-        cleaned_data = super().clean()
-        budget_min = cleaned_data.get("budget_min")
-        budget_max = cleaned_data.get("budget_max")
-        desired_min = cleaned_data.get("desired_group_min")
-        desired_max = cleaned_data.get("desired_group_max")
-        unit_size = cleaned_data.get("unit_size")
-
-        if budget_min is not None and budget_max is not None and budget_min > budget_max:
-            raise ValidationError("Budget min must be less than or equal to budget max.")
-        if desired_min is not None and desired_max is not None and desired_min > desired_max:
-            raise ValidationError("Desired group size min must be less than or equal to max.")
-        if unit_size is not None and desired_min is not None and desired_min < unit_size:
-            raise ValidationError("Target household size must be at least as large as your current group.")
-
         return cleaned_data

@@ -15,14 +15,13 @@ from django.db import connection
 from django.test import override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
-from django.utils import timezone
 from PIL import Image
 
 from communications.models import ListingConversation, ListingMessage
 from users.models import Role
 
 from ..address_signing import sign_address_selection, unsign_address_selection
-from ..models import Listing, ListingFavorite, ListingImage, ListingReport, ListingReview
+from ..models import Listing, ListingFavorite, ListingImage, ListingReport, ListingReview, RoommatePost
 from .base import ListingTestCase
 
 
@@ -408,6 +407,14 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, "data-listings-map")
         self.assertContains(response, "data-listings-results")
         self.assertContains(response, "data-listings-live-error")
+        self.assertContains(response, 'class="form-control listing-filter-search-input"')
+        self.assertNotContains(response, "Boston College rentals")
+        self.assertNotContains(
+            response,
+            'class="btn btn-brand" href="/listings/create/">Create listing</a>',
+            html=False,
+        )
+        self.assertNotContains(response, ">Reset<", html=False)
         self.assertLess(browser_index, results_index)
         self.assertLess(workspace_index, results_index)
         self.assertLess(results_index, filters_index)
@@ -665,7 +672,6 @@ assert.equal(view.getStyleMode(), "satellite");
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "data-listings-live-error")
-        self.assertContains(response, "data-listings-results-summary")
         self.assertContains(response, "data-listings-empty-state")
         self.assertContains(response, 'role="alert"')
 
@@ -2277,145 +2283,160 @@ class GroupMatchPageTests(ListingTestCase):
 
         self.assertEqual(response.status_code, 403)
 
-    def test_group_match_invalid_preferences_show_form_errors(self):
-        self.client.force_login(self.user)
+    def test_group_match_requires_student_access(self):
+        admin = get_user_model().objects.create_user(username="admin-user", email="admin@bc.edu", password="test")
+        admin.set_admin_access(True)
+        admin.save()
+        self.client.force_login(admin)
 
-        response = self.client.get(
-            reverse("listings:group_match"),
-            {
-                "unit_size": 2,
-                "budget_min": 1700,
-                "budget_max": 1000,
-                "cleanliness": 4,
-                "social": 3,
-                "sleep_schedule": "balanced",
-                "desired_group_min": 4,
-                "desired_group_max": 6,
-                "location_keywords": "Allston",
-            },
-        )
+        response = self.client.get(reverse("listings:group_match"))
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.context["group_options"], [])
-        self.assertContains(response, "Budget min must be less than or equal to budget max.")
+        self.assertEqual(response.status_code, 403)
 
-    def test_group_match_page_filters_listings_by_size_and_budget(self):
-        self.client.force_login(self.user)
-        matching_listing = self.create_listing(
-            title="Allston group home",
-            address="Allston",
-            rooms=4,
-            price="4800.00",
-        )
-        pricey_listing = self.create_listing(
-            title="Luxury option",
-            address="Allston",
-            rooms=4,
-            price="8000.00",
-        )
-        wrong_size_listing = self.create_listing(
-            title="Smaller spot",
-            address="Allston",
-            rooms=3,
-            price="3600.00",
-        )
-
-        response = self.client.get(
-            reverse("listings:group_match"),
-            {
-                "unit_size": 2,
-                "budget_min": 1000,
-                "budget_max": 1600,
-                "cleanliness": 4,
-                "social": 3,
-                "sleep_schedule": "balanced",
-                "desired_group_min": 4,
-                "desired_group_max": 6,
-                "location_keywords": "Allston",
-            },
-        )
-
-        self.assertEqual(response.status_code, 200)
-        group_options = response.context["group_options"]
-        group_option = next((option for option in group_options if option.group_size == 4), None)
-        self.assertIsNotNone(group_option)
-        listing_ids = {listing.id for listing in group_option.listings}
-        self.assertIn(matching_listing.id, listing_ids)
-        self.assertNotIn(pricey_listing.id, listing_ids)
-        self.assertNotIn(wrong_size_listing.id, listing_ids)
-        self.assertContains(response, "4 people")
-        self.assertNotContains(response, "Luxury option")
-        self.assertNotContains(response, "Smaller spot")
-
-    def test_group_match_page_surfaces_compatible_roommates(self):
-        my_profile = self.user.student_profile
-        my_profile.major = "Computer Science"
-        my_profile.bio = "Clean and pretty quiet."
-        my_profile.messy_level = 4
-        my_profile.guest_level = 2
-        my_profile.bedtime = 23
-        my_profile.noise_level = 2
-        my_profile.drink = 2
-        my_profile.party = 2
-        my_profile.save()
-        self.user.profile_completed_at = timezone.now()
-        self.user.save(update_fields=["profile_completed_at"])
+    def test_group_match_page_shows_active_roommate_posts_with_score_and_message_entry(self):
+        self.complete_roommate_profile(self.user)
         roommate = get_user_model().objects.create_user(
             username="match",
             email="match@bc.edu",
             password="testpass123",
             first_name="Riley",
         )
-        roommate_profile = roommate.student_profile
-        roommate_profile.major = "Biology"
-        roommate_profile.bio = "Prefers quieter nights and shared routines."
-        roommate_profile.messy_level = 4
-        roommate_profile.guest_level = 2
-        roommate_profile.bedtime = 23
-        roommate_profile.noise_level = 2
-        roommate_profile.drink = 2
-        roommate_profile.party = 2
-        roommate_profile.save()
-        roommate.profile_completed_at = timezone.now()
-        roommate.save(update_fields=["profile_completed_at"])
+        self.complete_roommate_profile(
+            roommate,
+            major="Biology",
+            bio="Prefers quieter nights and shared routines.",
+        )
+        self.create_roommate_post(author=roommate, title="Two students looking for one more in Brighton")
         self.client.force_login(self.user)
 
         response = self.client.get(reverse("listings:group_match"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Compatible roommates")
+        self.assertContains(response, "Active posts")
         self.assertContains(response, roommate.display_name)
         self.assertContains(response, "100% match")
         self.assertContains(response, reverse("users:public_profile", args=[roommate.pk]))
-        self.assertContains(response, "Message")
+        self.assertContains(response, "Message lead")
 
-    def test_group_match_results_render_single_active_plan_card(self):
+    def test_group_match_page_filters_posts(self):
+        self.complete_roommate_profile(self.user)
         self.client.force_login(self.user)
-        self.create_listing(
-            title="Allston group home",
-            address="Allston",
-            rooms=4,
-            price="4800.00",
+        matching_author = get_user_model().objects.create_user(
+            username="matching-group",
+            email="matching-group@bc.edu",
+            password="testpass123",
+        )
+        self.complete_roommate_profile(matching_author)
+        matching_post = self.create_roommate_post(
+            author=matching_author,
+            title="Brighton three-person group",
+            neighborhoods="Brighton, Cleveland Circle",
+            budget_min="1200",
+            budget_max="1600",
+            open_spots=2,
+            move_in_date=date.today() + timedelta(days=40),
+        )
+        other_author = get_user_model().objects.create_user(
+            username="other-group",
+            email="other-group@bc.edu",
+            password="testpass123",
+        )
+        self.complete_roommate_profile(other_author)
+        other_post = self.create_roommate_post(
+            author=other_author,
+            title="Already have a place in Newton",
+            housing_status=RoommatePost.HOUSING_HAVE_HOME,
+            neighborhoods="Newton",
+            budget_min="1700",
+            budget_max="2200",
+            open_spots=1,
+            move_in_date=date.today() + timedelta(days=90),
         )
 
         response = self.client.get(
             reverse("listings:group_match"),
             {
-                "unit_size": 2,
-                "budget_min": 1000,
-                "budget_max": 1600,
-                "cleanliness": 4,
-                "social": 3,
-                "sleep_schedule": "balanced",
-                "desired_group_min": 4,
-                "desired_group_max": 6,
-                "location_keywords": "Allston",
+                "q": "Brighton",
+                "housing_status": RoommatePost.HOUSING_NEED_HOME,
+                "max_budget": 1300,
+                "open_spots_min": 2,
+                "move_in_by": (date.today() + timedelta(days=60)).isoformat(),
             },
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Selected Plan")
-        self.assertContains(response, "group-plan-card is-active", count=1)
+        self.assertContains(response, matching_post.title)
+        self.assertNotContains(response, other_post.title)
+
+    def test_student_can_publish_roommate_post(self):
+        self.complete_roommate_profile(self.user)
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("listings:save_roommate_post"),
+            {
+                "title": "Three students looking for one more roommate",
+                "housing_status": RoommatePost.HOUSING_NEED_HOME,
+                "current_group_size": 3,
+                "open_spots": 1,
+                "budget_min": 1100,
+                "budget_max": 1500,
+                "move_in_date": (date.today() + timedelta(days=50)).isoformat(),
+                "neighborhoods": "Allston, Brighton",
+                "description": "We want one more roommate for an August lease and a calm weeknight apartment.",
+            },
+        )
+
+        self.assertRedirects(response, reverse("listings:group_match"))
+        roommate_post = RoommatePost.objects.get(author=self.user)
+        self.assertEqual(roommate_post.current_group_size, 3)
+        self.assertTrue(roommate_post.is_active)
+
+    def test_roommate_post_publish_requires_completed_profile(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("listings:save_roommate_post"),
+            {
+                "title": "Two students looking for one more roommate",
+                "housing_status": RoommatePost.HOUSING_NEED_HOME,
+                "current_group_size": 2,
+                "open_spots": 1,
+                "budget_min": 1100,
+                "budget_max": 1500,
+                "move_in_date": (date.today() + timedelta(days=50)).isoformat(),
+                "neighborhoods": "Allston",
+                "description": "We want one more roommate for a fall lease.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(RoommatePost.objects.count(), 0)
+        self.assertContains(response, "Complete your roommate profile before posting for roommates.")
+
+    def test_roommate_post_publish_rejects_past_move_in_date(self):
+        self.complete_roommate_profile(self.user)
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("listings:save_roommate_post"),
+            {
+                "title": "Two students looking for one more roommate",
+                "housing_status": RoommatePost.HOUSING_NEED_HOME,
+                "current_group_size": 2,
+                "open_spots": 1,
+                "budget_min": 1100,
+                "budget_max": 1500,
+                "move_in_date": (date.today() - timedelta(days=1)).isoformat(),
+                "neighborhoods": "Allston",
+                "description": "We want one more roommate for a fall lease.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(RoommatePost.objects.count(), 0)
+        self.assertContains(response, "Move-in date must be today or later.")
+        self.assertContains(response, "Fix these fields to publish your post.")
 
     def test_listing_owner_cannot_favorite_their_own_listing(self):
         listing = self.create_listing()

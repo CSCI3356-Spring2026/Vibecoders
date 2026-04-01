@@ -109,9 +109,9 @@ Legal acceptance is versioned by `LEGAL_DOCUMENT_VERSION`.
 
 - `/users/dashboard/`
 - Acts as the main account workspace
-- Prioritizes document library, inbox, listings, and group match actions
+- Prioritizes document library, inbox, listings, and roommate discovery actions
 - Shows recent listings and recent messages in one activity surface
-- Surfaces the primary entry point into group match and roommate discovery
+- Surfaces the primary entry point into the roommate-post board
 
 ### Listing-only users
 

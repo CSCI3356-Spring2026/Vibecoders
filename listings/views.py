@@ -25,24 +25,18 @@ from .address_provider import get_geoapify_autocomplete_config, normalize_geoapi
 from .address_signing import sign_address_selection
 from .filtering import BEDROOMS_FILTER_MIN, PRICE_FILTER_MAX, PRICE_FILTER_MIN, apply_listing_filters
 from .form_services import handle_listing_form_submission, validation_message
-from .forms import GroupMatchPreferencesForm, ListingForm, ListingReportForm, ListingReviewForm
+from .forms import ListingForm, ListingReportForm, ListingReviewForm, RoommatePostFilterForm, RoommatePostForm
 from .geocoding import BOSTON_COLLEGE_LATITUDE, BOSTON_COLLEGE_LONGITUDE
-from .group_match_service import (
-    group_match_initial_data,
-    group_match_listings_by_size,
-    group_match_option_url,
-    group_match_preferences,
-    group_match_roommate_limit,
-    group_match_roommate_matches,
-)
-from .group_matching import build_group_options
 from .models import Listing, ListingFavorite, ListingReport, ListingReview
+from .roommate_post_service import decorate_roommate_posts_for_user
 from .search_payloads import listing_card_payload, listing_marker_payload
 from .selectors import (
     accessible_listing_detail_queryset,
+    filtered_roommate_posts_queryset,
     listing_reviews_queryset,
     marketplace_listings_for_user,
     messageable_listings_for_user,
+    roommate_post_for_user,
     searchable_marketplace_listings_for_user,
     with_favorite_state,
 )
@@ -50,6 +44,7 @@ from .selectors import (
 logger = logging.getLogger(__name__)
 
 LISTINGS_PER_PAGE = 12
+ROOMMATE_POSTS_PER_PAGE = 12
 ADDRESS_AUTOCOMPLETE_MIN_QUERY_LENGTH = 3
 ADDRESS_AUTOCOMPLETE_MAX_RESULTS = 5
 ADDRESS_AUTOCOMPLETE_ERROR = {
@@ -317,13 +312,6 @@ def _consume_listing_report_rate_limit(user):
     )
 
 
-def _first_form_error(form, *, fallback):
-    for errors in form.errors.values():
-        if errors:
-            return errors[0]
-    return fallback
-
-
 def _apply_listing_ui_flags(listings, user):
     for listing in listings:
         listing.can_favorite = _can_favorite_listing(user, listing)
@@ -355,67 +343,97 @@ def _listing_highlight_items(listing):
     return items
 
 
+def _first_form_error(form, default_message):
+    if form.non_field_errors():
+        return form.non_field_errors()[0]
+    for field_errors in form.errors.values():
+        if field_errors:
+            return field_errors[0]
+    return default_message
+
+
+def _roommate_post_board_context(request, *, filter_form=None, post_form=None):
+    current_post = roommate_post_for_user(request.user)
+
+    if filter_form is None:
+        filter_form = RoommatePostFilterForm(request.GET or None)
+
+    filter_data = {}
+    if not filter_form.is_bound or filter_form.is_valid():
+        filter_data = filter_form.cleaned_data if filter_form.is_bound else {}
+
+    roommate_posts = filtered_roommate_posts_queryset(
+        request.user,
+        query=filter_data.get("q", ""),
+        housing_status=filter_data.get("housing_status", ""),
+        max_budget=filter_data.get("max_budget"),
+        move_in_by=filter_data.get("move_in_by"),
+        open_spots_min=filter_data.get("open_spots_min"),
+    )
+    roommate_posts = decorate_roommate_posts_for_user(request.user, roommate_posts)
+    roommate_posts_page = get_page(roommate_posts, request.GET.get("page"), ROOMMATE_POSTS_PER_PAGE)
+
+    if post_form is None:
+        post_form = RoommatePostForm(instance=current_post, user=request.user)
+
+    return {
+        "roommate_post_form": post_form,
+        "roommate_post_filter_form": filter_form,
+        "current_roommate_post": current_post,
+        "roommate_posts": roommate_posts_page,
+        "roommate_posts_total": len(roommate_posts),
+        "pagination_query": preserved_query_suffix(request.GET, "page"),
+        "can_manage_roommate_post": request.user.is_student,
+        "can_message_roommate_posts": request.user.can_use_roommate_matching,
+        "roommate_filters_active": any(filter_data.get(field_name) for field_name in filter_data),
+    }
+
+
 @login_required
 @require_GET
 def group_match(request):
-    if not request.user.can_browse_marketplace:
-        return HttpResponseForbidden("Verified student access is required to use group matching.")
+    if not request.user.is_student:
+        return HttpResponseForbidden("Student access is required to use roommate posts.")
 
-    initial_data = group_match_initial_data(request.user)
-    form = GroupMatchPreferencesForm(request.GET or None, initial=initial_data)
-    group_options = []
-    selected_group_id = ""
-    selected_group_option = None
-    location_keywords = ()
-    effective_data = initial_data
-    form_is_valid = not bool(request.GET)
-    if request.GET:
-        form_is_valid = form.is_valid()
-        if form_is_valid:
-            effective_data = form.cleaned_data
+    return render(request, "listings/group_match.html", _roommate_post_board_context(request))
 
-    if form_is_valid:
-        preferences, location_keywords = group_match_preferences(effective_data)
-        listings_by_size = group_match_listings_by_size(
-            request.user,
-            unit_size=int(effective_data["unit_size"]),
-            preferences=preferences,
-        )
-        group_options = build_group_options(
-            base_unit_size=int(effective_data["unit_size"]),
-            preferences=preferences,
-            listings_by_size=listings_by_size,
-            max_options=6,
-        )
 
-    roommate_matches = group_match_roommate_matches(request.user)
+@login_required
+@require_POST
+def save_roommate_post(request):
+    if not request.user.is_student:
+        return HttpResponseForbidden("Student access is required to use roommate posts.")
 
-    listing_limit = 6
-    for option in group_options:
-        option.listings = _apply_listing_ui_flags(list(option.listings[:listing_limit]), request.user)
-        option.roommate_matches = roommate_matches[: group_match_roommate_limit(option.additional_roommates_needed)]
-        option.select_url = group_match_option_url(effective_data=effective_data, option_id=option.option_id)
+    current_post = roommate_post_for_user(request.user)
+    was_active = bool(current_post and current_post.is_active)
+    form = RoommatePostForm(request.POST, instance=current_post, user=request.user)
+    if form.is_valid():
+        form.save()
+        if current_post is None:
+            messages.success(request, "Roommate post published.")
+        elif was_active:
+            messages.success(request, "Roommate post updated.")
+        else:
+            messages.success(request, "Roommate post reactivated.")
+        return redirect("listings:group_match")
 
-    selected_group_id = request.GET.get("group") or (group_options[0].option_id if group_options else "")
-    if selected_group_id and not any(option.option_id == selected_group_id for option in group_options):
-        selected_group_id = group_options[0].option_id if group_options else ""
-    selected_group_option = next((option for option in group_options if option.option_id == selected_group_id), None)
-
-    context = {
-        "form": form,
-        "group_options": group_options,
-        "selected_group_id": selected_group_id,
-        "selected_group_option": selected_group_option,
-        "location_keywords": location_keywords,
-        "group_match_uses_profile_defaults": not bool(request.GET) and bool(request.user.profile_completed_at),
-        "group_match_has_profile": bool(request.user.profile_completed_at),
-        "group_match_current_group_size": int(effective_data["unit_size"]),
-        "group_match_roommate_matches_total": len(roommate_matches),
-        "group_match_roommate_matches": roommate_matches[:6],
-        "group_match_total_matches": sum(option.listings_count for option in group_options),
-        "group_match_sizes_with_inventory": sum(1 for option in group_options if option.listings_count),
-    }
+    messages.error(request, _first_form_error(form, "Review the highlighted roommate post fields and try again."))
+    context = _roommate_post_board_context(request, post_form=form)
     return render(request, "listings/group_match.html", context)
+
+
+@login_required
+@require_POST
+def deactivate_roommate_post(request):
+    if not request.user.is_student:
+        return HttpResponseForbidden("Student access is required to use roommate posts.")
+
+    roommate_post = roommate_post_for_user(request.user)
+    if roommate_post is not None and roommate_post.is_active:
+        roommate_post.is_active = False
+        roommate_post.save(update_fields=["is_active", "updated_at"])
+        messages.success(request, "Roommate post paused.")
+    return redirect("listings:group_match")
 
 
 @login_required

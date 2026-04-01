@@ -61,7 +61,7 @@ LOCAL_DEBUG_COMMANDS = {
     "set_user_role",
 }
 RUNNING_TESTS = "test" in sys.argv
-DEVELOPMENT_SECRET_KEY = "django-insecure-padly-dev-key-local-only"
+DEVELOPMENT_SECRET_KEY = "padly-local-dev-secret-key-2026-04-01-keep-out-of-production-only"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env_bool("DJANGO_DEBUG", any(command in sys.argv for command in LOCAL_DEBUG_COMMANDS))

@@ -25,7 +25,7 @@ from communications.selectors import (
 )
 from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
-from listings.selectors import with_feedback_summary
+from listings.selectors import active_roommate_post_for_user, with_feedback_summary
 
 from .compatibility import compatibility_highlights, compute_compatibility
 from .forms import AdminProfileForm, GoogleLoginAcceptanceForm, StudentProfileForm, UserFileUploadForm
@@ -228,10 +228,16 @@ def profile_setup(request):
         profile, _ = StudentProfile.objects.get_or_create(user=user)
         form_class = StudentProfileForm
         role_label = "Student"
+        profile_title = "Student profile"
+        profile_subtitle = "These details power roommate matching and your public profile."
+        is_student_profile = True
     elif user.role in {Role.ADMIN, Role.REALTOR}:
         profile, _ = AdminProfile.objects.get_or_create(user=user)
         form_class = AdminProfileForm
         role_label = "Admin" if user.role == Role.ADMIN else "Realtor"
+        profile_title = "Admin profile" if user.role == Role.ADMIN else "Listing profile"
+        profile_subtitle = "Keep the public details for this account clean and current."
+        is_student_profile = False
     else:
         messages.info(request, "Profile details are only available for student or admin accounts.")
         return redirect("users:dashboard")
@@ -255,6 +261,9 @@ def profile_setup(request):
     context = {
         "form": form,
         "role_label": role_label,
+        "profile_title": profile_title,
+        "profile_subtitle": profile_subtitle,
+        "is_student_profile": is_student_profile,
         "next_url": next_url,
         "profile_needs_completion": profile_needs_completion,
     }
@@ -398,15 +407,15 @@ def delete_account(request):
 @login_required
 @require_GET
 def browse_roommates(request):
-    if not request.user.can_browse_marketplace:
+    if not request.user.is_student:
         raise Http404
-    return redirect(f"{reverse('listings:group_match')}#roommate-matches")
+    return redirect(reverse("listings:group_match"))
 
 
 @login_required
 @require_GET
 def public_profile(request, user_id):
-    if not request.user.can_browse_marketplace:
+    if not request.user.is_student:
         raise Http404
     User = get_user_model()
     target = get_object_or_404(User, id=user_id, role=Role.STUDENT, is_active=True, profile_completed_at__isnull=False)
@@ -416,11 +425,15 @@ def public_profile(request, user_id):
     my_profile = getattr(request.user, "student_profile", None)
     score = compute_compatibility(my_profile, their_profile) if my_profile else None
     highlights = compatibility_highlights(my_profile, their_profile)
-    can_message_user = request.user.id != target.id and request.user.can_use_roommate_matching
     existing_direct_conversation = None
     direct_message_form = None
-    if can_message_user:
+    if request.user.id != target.id and request.user.can_use_roommate_matching:
         existing_direct_conversation = direct_conversation_between_users(request.user, target)
+    has_active_roommate_post = active_roommate_post_for_user(target) is not None
+    can_message_user = (
+        request.user.id != target.id and request.user.can_use_roommate_matching and has_active_roommate_post
+    )
+    if can_message_user:
         direct_message_form = ConversationMessageForm(
             placeholder="Introduce yourself and compare housing plans.",
         )
@@ -433,6 +446,7 @@ def public_profile(request, user_id):
             "score": score,
             "compatibility_highlights": highlights,
             "can_message_user": can_message_user,
+            "has_active_roommate_post": has_active_roommate_post,
             "existing_direct_conversation": existing_direct_conversation,
             "direct_message_form": direct_message_form,
         },
