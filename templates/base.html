@@ -33,6 +33,14 @@
     <link rel="stylesheet" href="{% static 'css/admin.css' %}">
     {% block extra_css %}{% endblock %}
     <link rel="stylesheet" href="{% static 'css/responsive.css' %}">
+    <script>
+        (function () {
+            if (localStorage.getItem('theme') === 'dark') {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                document.documentElement.setAttribute('data-bs-theme', 'dark');
+            }
+        })();
+    </script>
 </head>
 <body class="{% block body_class %}{% endblock %}">
     <div class="site-shell">
@@ -69,6 +77,9 @@
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end">
                                     <li><a class="dropdown-item" href="{% url 'users:dashboard' %}">Account</a></li>
+                                    {% if request.user.is_student and request.user.profile_completed_at %}
+                                        <li><a class="dropdown-item" href="{% url 'users:public_profile' request.user.id %}">My Profile</a></li>
+                                    {% endif %}
                                     {% if request.user.is_bc_admin %}
                                         <li><a class="dropdown-item" href="{% url 'users:admin_dashboard' %}">Admin Dashboard</a></li>
                                     {% endif %}
@@ -129,6 +140,9 @@
                         <div class="nav-drawer-actions">
                             {% if request.user.is_authenticated %}
                                 <a class="nav-drawer-secondary" href="{% url 'users:dashboard' %}">Account</a>
+                                {% if request.user.is_student and request.user.profile_completed_at %}
+                                    <a class="nav-drawer-secondary" href="{% url 'users:public_profile' request.user.id %}">My Profile</a>
+                                {% endif %}
                                 {% if request.user.is_bc_admin %}
                                     <a class="nav-drawer-secondary" href="{% url 'users:admin_dashboard' %}">Admin Dashboard</a>
                                 {% endif %}
@@ -224,5 +238,27 @@
     <script src="{% static 'js/inline-confirm.js' %}"></script>
     <script src="{% static 'js/app-notifications.js' %}"></script>
     {% block extra_js %}{% endblock %}
+    <script>
+        (function () {
+            function applyTheme(dark) {
+                if (dark) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    document.documentElement.setAttribute('data-bs-theme', 'dark');
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                    document.documentElement.removeAttribute('data-bs-theme');
+                }
+                localStorage.setItem('theme', dark ? 'dark' : 'light');
+            }
+
+            var checkbox = document.getElementById('theme-toggle-desktop');
+            if (checkbox) {
+                checkbox.checked = localStorage.getItem('theme') === 'dark';
+                checkbox.addEventListener('change', function () {
+                    applyTheme(this.checked);
+                });
+            }
+        })();
+    </script>
 </body>
 </html>

@@ -260,6 +260,11 @@
     gap: 0.55rem;
 }
 
+.group-board-message-form {
+    padding-top: 0.85rem;
+    border-top: 1px solid rgba(var(--gray-700-rgb), 0.1);
+}
+
 @media (max-width: 991px) {
     .group-board-layout {
         grid-template-columns: minmax(0, 1fr);

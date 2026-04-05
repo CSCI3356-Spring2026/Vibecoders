@@ -24,5 +24,10 @@ if settings.DEBUG:
             "media/listing_photos/<path:path>",
             serve,
             {"document_root": settings.MEDIA_ROOT / "listing_photos"},
-        )
+        ),
+        path(
+            "media/avatars/<path:path>",
+            serve,
+            {"document_root": settings.MEDIA_ROOT / "avatars"},
+        ),
     ]

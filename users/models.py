@@ -41,6 +41,7 @@ class CustomUser(AbstractUser):
     REQUIRED_FIELDS = ["email"]
     email = models.EmailField("email address", unique=True)
     profile_image_url = models.URLField(blank=True, max_length=500)
+    uploaded_avatar = models.ImageField(upload_to="avatars/", blank=True)
     role = models.CharField(
         max_length=12,
         choices=Role.choices,
@@ -127,6 +128,8 @@ class CustomUser(AbstractUser):
 
     @property
     def avatar_url(self):
+        if self.uploaded_avatar:
+            return self.uploaded_avatar.url
         return self.google_avatar_url or self.profile_image_url or ""
 
     @property

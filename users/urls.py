@@ -26,6 +26,7 @@ urlpatterns = [
     path("files/<int:file_id>/download/", views.file_download, name="file_download"),
     path("files/<int:file_id>/delete/", views.delete_file, name="file_delete"),
     path("account/delete/", views.delete_account, name="delete_account"),
+    path("avatar/", views.upload_avatar, name="upload_avatar"),
     path("browse/", views.browse_roommates, name="browse_roommates"),
     path("profile/<int:user_id>/", views.public_profile, name="public_profile"),
 ]

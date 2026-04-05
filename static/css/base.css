@@ -76,6 +76,64 @@
     --bs-border-radius-lg: var(--radius-md);
 }
 
+/* ── Dark mode ───────────────────────────────────────────── */
+[data-theme="dark"] {
+    --page-background: #0a0a0b;
+    --page-background-top: #0a0a0b;
+    --page-background-wash: #0a0a0b;
+
+    --white: #111114;
+    --white-rgb: 17, 17, 20;
+    --gray-100: #18181c;
+    --gray-100-rgb: 24, 24, 28;
+    --gray-300: #252529;
+    --gray-300-rgb: 37, 37, 41;
+    --gray-500: #72788a;
+    --gray-500-rgb: 114, 120, 138;
+    --gray-700: #9098ae;
+    --gray-700-rgb: 144, 152, 174;
+    --gray-900: #d4d8e2;
+    --gray-900-rgb: 212, 216, 226;
+    --gray-950: #eceef2;
+    --gray-200: #252529;
+
+    --text-strong: #eceef2;
+    --text-default: #9098ae;
+    --text-muted: #585f72;
+
+    --surface: #111114;
+    --surface-muted: #18181c;
+    --surface-elevated: #18181c;
+    --surface-gradient: #18181c;
+    --surface-gradient-soft: #111114;
+    --surface-gradient-strong: #1e1e23;
+    --surface-gradient-secondary: rgba(var(--secondary-rgb), 0.1);
+    --surface-gradient-accent: rgba(var(--accent-rgb), 0.1);
+
+    --border: rgba(255, 255, 255, 0.07);
+    --border-primary: rgba(var(--primary-rgb), 0.28);
+    --border-secondary: rgba(var(--secondary-rgb), 0.28);
+    --border-accent: rgba(var(--accent-rgb), 0.3);
+    --rule-color: rgba(255, 255, 255, 0.06);
+
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.6);
+    --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.55);
+    --shadow-lg: 0 10px 24px rgba(0, 0, 0, 0.6);
+
+    --focus-ring-color: rgba(var(--secondary-rgb), 0.28);
+
+    /* Bootstrap token overrides */
+    --bs-body-bg: #0a0a0b;
+    --bs-body-color: #9098ae;
+    --bs-border-color: rgba(255, 255, 255, 0.08);
+    --bs-dropdown-bg: #18181c;
+    --bs-dropdown-border-color: rgba(255, 255, 255, 0.08);
+    --bs-dropdown-link-color: #d4d8e2;
+    --bs-dropdown-link-hover-bg: rgba(255, 255, 255, 0.05);
+    --bs-dropdown-link-hover-color: #eceef2;
+    --bs-dropdown-divider-bg: rgba(255, 255, 255, 0.07);
+}
+
 html {
     font-size: 93.75%;
     scrollbar-gutter: stable;

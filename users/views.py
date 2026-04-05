@@ -22,13 +22,14 @@ from communications.selectors import (
     accessible_conversations_for_user,
     conversation_summary_for_user,
     direct_conversation_between_users,
+    direct_conversations_by_counterparty,
 )
 from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
 from listings.selectors import active_roommate_post_for_user, with_feedback_summary
 
 from .compatibility import compatibility_highlights, compute_compatibility
-from .forms import AdminProfileForm, GoogleLoginAcceptanceForm, StudentProfileForm, UserFileUploadForm
+from .forms import AdminProfileForm, AvatarUploadForm, GoogleLoginAcceptanceForm, StudentProfileForm, UserFileUploadForm
 from .legal import (
     is_legal_review_required,
     set_pending_legal_acceptance,
@@ -405,11 +406,101 @@ def delete_account(request):
 
 
 @login_required
+@require_POST
+def upload_avatar(request):
+    form = AvatarUploadForm(request.POST, request.FILES)
+    if form.is_valid():
+        user = request.user
+        if user.uploaded_avatar:
+            user.uploaded_avatar.delete(save=False)
+        user.uploaded_avatar = form.cleaned_data["avatar"]
+        user.save(update_fields=["uploaded_avatar"])
+        messages.success(request, "Profile photo updated.")
+    else:
+        for error_list in form.errors.values():
+            for error in error_list:
+                messages.error(request, error)
+    return redirect("users:profile_setup")
+
+
+@login_required
 @require_GET
 def browse_roommates(request):
     if not request.user.is_student:
         raise Http404
-    return redirect(reverse("listings:group_match"))
+    User = get_user_model()
+    query = request.GET.get("q", "").strip()
+    gender_filter = request.GET.get("gender", "").strip()
+    smoke_filter = request.GET.get("smoke", "").strip()
+    pets_filter = request.GET.get("pets", "").strip()
+    min_score_raw = request.GET.get("min_score", "").strip()
+    min_score = int(min_score_raw) if min_score_raw.isdigit() else None
+
+    my_profile = getattr(request.user, "student_profile", None)
+
+    students_qs = (
+        User.objects.filter(
+            role=Role.STUDENT,
+            is_active=True,
+            profile_completed_at__isnull=False,
+        )
+        .exclude(id=request.user.id)
+        .select_related("student_profile")
+    )
+
+    if query:
+        students_qs = students_qs.filter(
+            Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+            | Q(student_profile__preferred_name__icontains=query)
+        )
+    if gender_filter:
+        students_qs = students_qs.filter(student_profile__gender=gender_filter)
+    if smoke_filter == "yes":
+        students_qs = students_qs.filter(student_profile__smoke=True)
+    elif smoke_filter == "no":
+        students_qs = students_qs.filter(student_profile__smoke=False)
+    if pets_filter == "yes":
+        students_qs = students_qs.filter(student_profile__pets=True)
+    elif pets_filter == "no":
+        students_qs = students_qs.filter(student_profile__pets=False)
+
+    results = []
+    for student in students_qs[:80]:
+        their_profile = getattr(student, "student_profile", None)
+        score = compute_compatibility(my_profile, their_profile) if my_profile and their_profile else None
+        if min_score is not None and (score is None or score < min_score):
+            continue
+        results.append({"user": student, "profile": their_profile, "score": score})
+
+    results.sort(key=lambda r: r["score"] if r["score"] is not None else -1, reverse=True)
+
+    # Look up existing direct conversations in one query
+    if request.user.can_use_roommate_matching and results:
+        existing_convos = direct_conversations_by_counterparty(request.user, [r["user"] for r in results])
+    else:
+        existing_convos = {}
+
+    for result in results:
+        result["existing_convo"] = existing_convos.get(result["user"].id)
+
+    filters_active = any([query, gender_filter, smoke_filter, pets_filter, min_score is not None])
+
+    return render(
+        request,
+        "users/browse_roommates.html",
+        {
+            "results": results,
+            "query": query,
+            "gender_filter": gender_filter,
+            "smoke_filter": smoke_filter,
+            "pets_filter": pets_filter,
+            "min_score": min_score_raw,
+            "filters_active": filters_active,
+            "has_my_profile": my_profile is not None,
+            "can_message": request.user.can_use_roommate_matching,
+        },
+    )
 
 
 @login_required
