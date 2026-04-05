@@ -9,6 +9,9 @@
 {% if request.user.is_authenticated and not request.user.has_listing_only_access %}
     <a class="{{ link_class|default:'nav-button' }}" href="{% url 'users:posts' %}">My Listings</a>
 {% endif %}
+{% if request.user.is_authenticated and request.user.is_student %}
+    <a class="{{ link_class|default:'nav-button' }}" href="{% url 'users:browse_roommates' %}">Roommates</a>
+{% endif %}
 {% if request.user.is_authenticated %}
     <a
         class="{{ link_class|default:'nav-button' }}{% if show_unread_badge %} nav-button-with-badge{% endif %}"

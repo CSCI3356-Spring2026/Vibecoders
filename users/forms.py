@@ -1,6 +1,7 @@
 from django import forms
 
 from .models import AdminProfile, StudentProfile, UserFile
+from .validators import validate_avatar_upload
 
 
 def _format_hour_label(hour):
@@ -65,6 +66,15 @@ class UserFileUploadForm(forms.ModelForm):
                 attrs={"class": "form-control", "accept": ".pdf,.txt,.doc,.docx,.jpg,.jpeg,.png,.webp"}
             ),
         }
+
+
+class AvatarUploadForm(forms.Form):
+    avatar = forms.ImageField(
+        validators=[validate_avatar_upload],
+        widget=forms.ClearableFileInput(
+            attrs={"accept": "image/jpeg,image/png,image/webp", "class": "avatar-upload-input"}
+        ),
+    )
 
 
 class GenderOtherRequiredMixin:

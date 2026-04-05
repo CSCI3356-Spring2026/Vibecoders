@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Browse Roommates | {{ site_product_name }}{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/group-match.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="app-page group-match-page">
+    <div class="container">
+        <div class="app-shell">
+
+            <section class="app-header app-header-shell">
+                <div class="app-header-main">
+                    <div>
+                        <p class="app-kicker">Roommates</p>
+                        <h1 class="app-title">Browse students</h1>
+                        <p class="app-subtitle">Search by name, filter by preferences, and reach out directly.</p>
+                    </div>
+                    <div class="app-actions">
+                        <a class="btn btn-outline-secondary" href="{% url 'listings:group_match' %}">Find Groups</a>
+                    </div>
+                </div>
+                <div class="app-meta">
+                    <span class="app-meta-chip">{{ results|length }} student{{ results|length|pluralize }}</span>
+                    {% if filters_active %}
+                        <span class="app-meta-chip app-meta-chip-secondary">Filters active</span>
+                    {% endif %}
+                    {% if not has_my_profile %}
+                        <span class="app-meta-chip app-meta-chip-neutral">Complete your profile to see match scores</span>
+                    {% endif %}
+                </div>
+            </section>
+
+            <div class="app-layout group-board-layout">
+
+                {# ── Sidebar ── #}
+                <aside class="app-sidebar group-board-sidebar">
+                    <section class="listing-panel group-board-rail-panel group-board-filter-panel">
+                        <div class="app-panel-head">
+                            <div>
+                                <p class="group-board-panel-kicker">Find students</p>
+                                <h2 class="app-section-heading">Filters</h2>
+                                <p class="app-panel-copy">Narrow by name, gender, habits, and fit.</p>
+                            </div>
+                            {% if filters_active %}
+                                <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:browse_roommates' %}">Reset</a>
+                            {% endif %}
+                        </div>
+
+                        <form class="group-board-filter-form" method="get">
+                            <div class="group-board-form-stack">
+
+                                <div class="group-board-field">
+                                    <label class="listing-form-label" for="br_q">Name</label>
+                                    <input
+                                        class="form-control"
+                                        type="search"
+                                        id="br_q"
+                                        name="q"
+                                        value="{{ query }}"
+                                        placeholder="Search by name…"
+                                    >
+                                </div>
+
+                                <div class="group-board-field">
+                                    <label class="listing-form-label" for="br_gender">Gender</label>
+                                    <select class="form-select" id="br_gender" name="gender">
+                                        <option value="">Any</option>
+                                        <option value="male"       {% if gender_filter == "male" %}selected{% endif %}>Male</option>
+                                        <option value="female"     {% if gender_filter == "female" %}selected{% endif %}>Female</option>
+                                        <option value="other"      {% if gender_filter == "other" %}selected{% endif %}>Other</option>
+                                        <option value="prefer_not" {% if gender_filter == "prefer_not" %}selected{% endif %}>Prefer not to say</option>
+                                    </select>
+                                </div>
+
+                                <div class="group-board-field-grid">
+                                    <div class="group-board-field">
+                                        <label class="listing-form-label" for="br_smoke">Smoking</label>
+                                        <select class="form-select" id="br_smoke" name="smoke">
+                                            <option value="">Any</option>
+                                            <option value="yes" {% if smoke_filter == "yes" %}selected{% endif %}>Okay</option>
+                                            <option value="no"  {% if smoke_filter == "no"  %}selected{% endif %}>No smoking</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="group-board-field">
+                                        <label class="listing-form-label" for="br_pets">Pets</label>
+                                        <select class="form-select" id="br_pets" name="pets">
+                                            <option value="">Any</option>
+                                            <option value="yes" {% if pets_filter == "yes" %}selected{% endif %}>Okay</option>
+                                            <option value="no"  {% if pets_filter == "no"  %}selected{% endif %}>No pets</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {% if has_my_profile %}
+                                    <div class="group-board-field">
+                                        <label class="listing-form-label" for="br_min_score">Min match %</label>
+                                        <input
+                                            class="form-control"
+                                            type="number"
+                                            id="br_min_score"
+                                            name="min_score"
+                                            value="{{ min_score }}"
+                                            placeholder="e.g. 60"
+                                            min="0"
+                                            max="100"
+                                        >
+                                    </div>
+                                {% endif %}
+
+                            </div>
+                            <div class="group-board-actions">
+                                <button class="btn btn-brand" type="submit">Apply</button>
+                            </div>
+                        </form>
+                    </section>
+                </aside>
+
+                {# ── Results ── #}
+                <div class="app-main group-board-main">
+                    <section class="listing-panel group-board-results-panel">
+                        <div class="app-panel-head group-board-results-head">
+                            <div>
+                                <h2 class="app-section-heading">Students</h2>
+                                <p class="app-panel-copy">Sorted by compatibility when your profile is complete.</p>
+                            </div>
+                            {% if filters_active %}
+                                <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:browse_roommates' %}">Clear filters</a>
+                            {% endif %}
+                        </div>
+
+                        {% if results %}
+                            <div class="group-post-list">
+                                {% for result in results %}
+                                    <article class="group-post-card">
+
+                                        <div class="group-post-head">
+                                            <div class="identity-row group-post-identity">
+                                                {% include "includes/user_avatar.html" with user_obj=result.user avatar_class="user-avatar user-avatar-lg" %}
+                                                <div class="identity-copy">
+                                                    <a class="group-post-title" href="{% url 'users:public_profile' result.user.id %}">
+                                                        {{ result.user.display_name }}
+                                                    </a>
+                                                    {% if result.profile.major %}
+                                                        <p class="group-post-subtitle">{{ result.profile.major }}</p>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+
+                                            {% if result.score is not None %}
+                                                <span class="app-meta-chip {% if result.score >= 75 %}app-meta-chip-primary{% elif result.score >= 50 %}app-meta-chip-secondary{% else %}app-meta-chip-neutral{% endif %}">
+                                                    {{ result.score }}% match
+                                                </span>
+                                            {% elif has_my_profile %}
+                                                <span class="app-meta-chip app-meta-chip-neutral">No score yet</span>
+                                            {% endif %}
+                                        </div>
+
+                                        {% if result.profile.bio %}
+                                            <p class="group-post-body">{{ result.profile.bio }}</p>
+                                        {% endif %}
+
+                                        <div class="group-post-actions">
+                                            <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:public_profile' result.user.id %}">View profile</a>
+
+                                            {% if can_message %}
+                                                {% if result.existing_convo %}
+                                                    <a class="btn btn-brand btn-sm" href="{% url 'communications:detail' result.existing_convo.id %}">Open chat</a>
+                                                {% else %}
+                                                    <button
+                                                        class="btn btn-outline-secondary btn-sm"
+                                                        type="button"
+                                                        onclick="toggleMessageForm('msg-{{ result.user.id }}')"
+                                                        id="btn-msg-{{ result.user.id }}"
+                                                    >Message</button>
+                                                {% endif %}
+                                            {% endif %}
+                                        </div>
+
+                                        {% if can_message and not result.existing_convo %}
+                                            <div class="group-board-message-form" id="msg-{{ result.user.id }}" hidden>
+                                                <form method="post" action="{% url 'communications:start_direct_conversation' result.user.id %}">
+                                                    {% csrf_token %}
+                                                    <textarea
+                                                        class="form-control mb-2"
+                                                        name="body"
+                                                        rows="3"
+                                                        placeholder="Introduce yourself and compare housing plans…"
+                                                        required
+                                                    ></textarea>
+                                                    <div class="group-board-actions">
+                                                        <button class="btn btn-brand btn-sm" type="submit">Send message</button>
+                                                        <button
+                                                            class="btn btn-outline-secondary btn-sm"
+                                                            type="button"
+                                                            onclick="toggleMessageForm('msg-{{ result.user.id }}')"
+                                                        >Cancel</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        {% endif %}
+
+                                    </article>
+                                {% endfor %}
+                            </div>
+
+                        {% else %}
+                            <div class="app-empty">
+                                <h3 class="app-empty-title">No students found</h3>
+                                <p class="app-empty-copy">
+                                    {% if filters_active %}Try adjusting or clearing your filters.{% else %}No other students with completed profiles yet.{% endif %}
+                                </p>
+                                {% if filters_active %}
+                                    <a class="btn btn-outline-secondary mt-3" href="{% url 'users:browse_roommates' %}">Clear filters</a>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+
+                    </section>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+function toggleMessageForm(id) {
+    var form = document.getElementById(id);
+    var btn  = document.getElementById('btn-msg-' + id.replace('msg-', ''));
+    if (!form) return;
+    var opening = form.hasAttribute('hidden');
+    form.toggleAttribute('hidden', !opening);
+    if (opening) {
+        form.querySelector('textarea').focus();
+        if (btn) btn.textContent = 'Cancel message';
+    } else {
+        if (btn) btn.textContent = 'Message';
+    }
+}
+</script>
+{% endblock %}

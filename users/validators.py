@@ -106,6 +106,25 @@ def _validate_upload_contents(upload, extension):
         _validate_docx_upload(upload)
 
 
+ALLOWED_AVATAR_EXTENSIONS = {"jpeg", "jpg", "png", "webp"}
+AVATAR_MAX_BYTES = 5 * 1024 * 1024  # 5 MB
+
+
+def validate_avatar_upload(upload):
+    extension = Path(upload.name).suffix.lower().lstrip(".")
+    if extension not in ALLOWED_AVATAR_EXTENSIONS:
+        raise ValidationError("Upload a JPG, PNG, or WebP image.")
+
+    content_type = getattr(upload, "content_type", "")
+    if content_type and content_type not in {"image/jpeg", "image/png", "image/webp"}:
+        raise ValidationError("Unsupported file type.")
+
+    _validate_image_upload(upload)
+
+    if upload.size > AVATAR_MAX_BYTES:
+        raise ValidationError("Profile photo must be 5 MB or smaller.")
+
+
 def validate_user_upload(upload):
     extension = Path(upload.name).suffix.lower().lstrip(".")
     if extension not in ALLOWED_USER_FILE_EXTENSIONS:

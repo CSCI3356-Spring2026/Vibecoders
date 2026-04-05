@@ -13,6 +13,19 @@
         <div class="app-shell">
             <section class="app-header-shell account-hero-shell">
                 <div class="account-hero-main">
+                    <label class="account-theme-toggle" title="Toggle dark mode" aria-label="Toggle dark mode">
+                        <span class="theme-toggle-icon">☀</span>
+                        <input
+                            class="theme-toggle-input"
+                            id="theme-toggle-desktop"
+                            type="checkbox"
+                            aria-label="Dark mode"
+                        >
+                        <span class="theme-toggle-track">
+                            <span class="theme-toggle-thumb"></span>
+                        </span>
+                        <span class="theme-toggle-icon">🌙</span>
+                    </label>
                     <div class="identity-row profile-hero-row">
                         {% include "includes/user_avatar.html" with user_obj=request.user avatar_class="profile-hero-avatar user-avatar user-avatar-xl" %}
                         <div class="identity-copy">
@@ -39,10 +52,14 @@
                     </div>
 
                     <div class="app-actions account-hero-actions">
-                        <a class="btn btn-brand" href="{% url 'users:files' %}">Open document library</a>
+                        <a class="btn btn-brand" href="{% url 'users:profile_setup' %}">Edit profile</a>
                         <a class="btn btn-outline-secondary" href="{% url 'communications:messages' %}">Inbox</a>
                         <a class="btn btn-outline-secondary" href="{% url 'users:posts' %}">My listings</a>
-                        <a class="btn btn-outline-secondary" href="{% url 'users:profile_setup' %}">Edit profile</a>
+                        {% if request.user.is_student %}
+                            <a class="btn btn-outline-secondary" href="{% url 'listings:group_match' %}">Find groups</a>
+                        {% endif %}
+                        <a class="btn btn-outline-secondary" href="{% url 'listings:create_listing' %}">Create listing</a>
+                        <a class="btn btn-outline-secondary" href="{% url 'users:files' %}">Document library</a>
                     </div>
                 </div>
             </section>
@@ -68,51 +85,6 @@
 
             <div class="account-dashboard-layout">
                 <div class="account-dashboard-main">
-                    <section class="listing-panel account-workspace-panel">
-                        <div class="app-panel-head">
-                            <div>
-                                <h2 class="app-section-heading">Workspace</h2>
-                            </div>
-                        </div>
-
-                        <div class="account-workspace-grid">
-                            <a class="account-workspace-link" href="{% url 'users:profile_setup' %}">
-                                <span class="account-workspace-title">Profile</span>
-                                <span class="account-workspace-meta">Edit details</span>
-                            </a>
-                            <a class="account-workspace-link" href="{% url 'users:posts' %}">
-                                <span class="account-workspace-title">My listings</span>
-                                <span class="account-workspace-meta">Inventory and status</span>
-                            </a>
-                            <a class="account-workspace-link" href="{% url 'communications:messages' %}">
-                                <span class="account-workspace-title">Inbox</span>
-                                <span class="account-workspace-meta">
-                                    {% if unread_conversations_count %}
-                                        {{ unread_conversations_count }} unread thread{{ unread_conversations_count|pluralize }}
-                                    {% else %}
-                                        Direct and listing chats
-                                    {% endif %}
-                                </span>
-                            </a>
-                            <a class="account-workspace-link" href="{% url 'listings:create_listing' %}">
-                                <span class="account-workspace-title">Create listing</span>
-                                <span class="account-workspace-meta">Post a new home</span>
-                            </a>
-                            {% if request.user.is_student %}
-                                <a class="account-workspace-link" href="{% url 'listings:group_match' %}">
-                                    <span class="account-workspace-title">Find groups</span>
-                                    <span class="account-workspace-meta">Roommate posts and outreach</span>
-                                </a>
-                            {% endif %}
-                            {% if request.user.can_access_admin_panel %}
-                                <a class="account-workspace-link" href="{% url 'users:admin_dashboard' %}">
-                                    <span class="account-workspace-title">Admin</span>
-                                    <span class="account-workspace-meta">Moderation and review</span>
-                                </a>
-                            {% endif %}
-                        </div>
-                    </section>
-
                     <section class="listing-panel account-activity-panel">
                         <div class="app-panel-head">
                             <div>

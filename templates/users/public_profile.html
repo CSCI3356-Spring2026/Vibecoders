@@ -19,12 +19,16 @@
                         </div>
                     </div>
                     <div class="app-actions">
-                        {% if existing_direct_conversation %}
-                            <a class="btn btn-brand" href="{% url 'communications:detail' existing_direct_conversation.id %}">Open chat</a>
-                        {% elif can_message_user %}
-                            <a class="btn btn-brand" href="#message-user">Message</a>
+                        {% if request.user.id == target.id %}
+                            <a class="btn btn-brand" href="{% url 'users:profile_setup' %}">Edit Profile</a>
+                        {% else %}
+                            {% if existing_direct_conversation %}
+                                <a class="btn btn-brand" href="{% url 'communications:detail' existing_direct_conversation.id %}">Open chat</a>
+                            {% elif can_message_user %}
+                                <a class="btn btn-brand" href="#message-user">Message</a>
+                            {% endif %}
                         {% endif %}
-                        <a class="btn btn-outline-secondary" href="{% url 'listings:listing_list' %}">Browse listings</a>
+                        <a class="btn btn-outline-secondary" href="{% url 'listings:group_match' %}">Find Groups</a>
                     </div>
                 </div>
             </div>

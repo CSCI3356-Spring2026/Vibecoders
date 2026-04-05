@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(DJANGO_DEBUG=true python manage.py seed_fake_students --count 20)",
+      "Bash(DJANGO_DEBUG=true python manage.py shell -c \":*)",
+      "Bash(DJANGO_DEBUG=true python manage.py seed_fake_students --clear --count 20)",
+      "Bash(DJANGO_DEBUG=true python manage.py makemigrations users)",
+      "Bash(DJANGO_DEBUG=true python manage.py migrate)",
+      "Bash(DJANGO_DEBUG=true python manage.py check)"
+    ]
+  }
+}
