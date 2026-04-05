@@ -379,19 +379,18 @@ class UserPageTests(TestCase):
         self.assertContains(dashboard_response, "Open document library")
         self.assertContains(dashboard_response, ">Find groups<", html=False)
         self.assertNotContains(dashboard_response, ">Browse<", html=False)
-        self.assertContains(dashboard_response, "Workspace")
+        self.assertNotContains(dashboard_response, "Workspace")
         self.assertNotContains(dashboard_response, "Permissions")
         self.assertNotContains(dashboard_response, "Email verification")
         self.assertNotContains(dashboard_response, "Student domains")
         self.assertNotContains(dashboard_response, "Admin access")
 
-    def test_browse_route_redirects_to_group_match_workspace(self):
+    def test_browse_roommates_renders_for_authenticated_user(self):
         self.client.force_login(self.user)
 
         response = self.client.get(reverse("users:browse_roommates"))
 
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response["Location"], reverse("listings:group_match"))
+        self.assertEqual(response.status_code, 200)
 
     def test_public_profile_shows_direct_message_entry_point(self):
         target = User.objects.create_user(username="match", email="match@bc.edu", password="test", first_name="Riley")
