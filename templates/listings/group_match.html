@@ -27,8 +27,17 @@
                     {% if current_roommate_post and current_roommate_post.is_active %}
                         <span class="app-meta-chip app-meta-chip-secondary">Your post is live</span>
                     {% endif %}
+                    {% if selected_roommate_post %}
+                        <span class="app-meta-chip app-meta-chip-secondary">
+                            {{ selected_roommate_post_listings_total }} open listing{{ selected_roommate_post_listings_total|pluralize }} match this group
+                        </span>
+                    {% endif %}
                     {% if request.user.can_use_roommate_matching %}
-                        <span class="app-meta-chip app-meta-chip-neutral">Scores reflect your roommate profile</span>
+                        {% if group_member_count|default:0 > 1 %}
+                            <span class="app-meta-chip app-meta-chip-neutral">Scores reflect your group</span>
+                        {% else %}
+                            <span class="app-meta-chip app-meta-chip-neutral">Scores reflect your roommate profile</span>
+                        {% endif %}
                     {% elif can_manage_roommate_post %}
                         <span class="app-meta-chip app-meta-chip-neutral">Complete your profile to unlock scores and messages</span>
                     {% endif %}
@@ -59,7 +68,11 @@
                                         <span class="app-meta-chip {% if current_roommate_post.is_active %}app-meta-chip-primary{% else %}app-meta-chip-neutral{% endif %}">
                                             {% if current_roommate_post.is_active %}Live{% else %}Paused{% endif %}
                                         </span>
-                                        <span class="app-meta-chip app-meta-chip-neutral">{{ current_roommate_post.target_household_size }} person target</span>
+                                        {% if current_roommate_post.target_household_size %}
+                                            <span class="app-meta-chip app-meta-chip-neutral">{{ current_roommate_post.target_household_size }} person target</span>
+                                        {% else %}
+                                            <span class="app-meta-chip app-meta-chip-neutral">Target size TBD</span>
+                                        {% endif %}
                                         <span class="app-meta-chip app-meta-chip-neutral">{{ current_roommate_post.get_housing_status_display }}</span>
                                     </div>
                                 {% endif %}
@@ -90,7 +103,11 @@
 
                                         <div class="group-board-field-grid group-board-field-grid-3">
                                             {% include "listings/includes/form_field.html" with field=roommate_post_form.current_group_size wrapper_class="group-board-field" %}
-                                            {% include "listings/includes/form_field.html" with field=roommate_post_form.open_spots wrapper_class="group-board-field" %}
+                                            {% if roommate_post_form.housing_status.value == "have_home" %}
+                                                {% include "listings/includes/form_field.html" with field=roommate_post_form.open_spots wrapper_class="group-board-field js-open-spots-post" %}
+                                            {% else %}
+                                                {% include "listings/includes/form_field.html" with field=roommate_post_form.open_spots wrapper_class="group-board-field js-open-spots-post" hidden_attr=True %}
+                                            {% endif %}
                                             {% include "listings/includes/form_field.html" with field=roommate_post_form.move_in_date wrapper_class="group-board-field" %}
                                         </div>
 
@@ -128,7 +145,42 @@
                         {% endif %}
                     </section>
 
-                    <section class="listing-panel group-board-rail-panel group-board-filter-panel">
+                </aside>
+
+                <div class="app-main group-board-main">
+                    {% if selected_roommate_post %}
+                        <section class="listing-panel group-board-results-panel group-board-matches-panel">
+                            <div class="app-panel-head group-board-results-head">
+                                <div>
+                                    <h2 class="app-section-heading">Listing matches</h2>
+                                    <p class="app-panel-copy">
+                                        Open listings that fit the timing and minimum room count for "{{ selected_roommate_post.title }}".
+                                    </p>
+                                </div>
+                            </div>
+
+                            {% if selected_roommate_post_listings %}
+                                <div class="group-board-listing-grid">
+                                    {% for listing in selected_roommate_post_listings %}
+                                        {% include "listings/includes/listing_result_card.html" with listing=listing %}
+                                    {% endfor %}
+                                </div>
+                                {% if selected_roommate_post_listings_total > selected_roommate_post_listings|length %}
+                                    <p class="group-board-listing-note">
+                                        Showing {{ selected_roommate_post_listings|length }} of
+                                        {{ selected_roommate_post_listings_total }} open listings.
+                                    </p>
+                                {% endif %}
+                            {% else %}
+                                <div class="app-empty">
+                                    <h3 class="app-empty-title">No open listings fit this group yet</h3>
+                                    <p class="app-empty-copy">Try another group or check back as new listings go live.</p>
+                                </div>
+                            {% endif %}
+                        </section>
+                    {% endif %}
+
+                    <section class="listing-panel group-board-filter-panel">
                         <div class="app-panel-head">
                             <div>
                                 <p class="group-board-panel-kicker">Search board</p>
@@ -145,8 +197,9 @@
                                 {% include "listings/includes/form_field.html" with field=roommate_post_filter_form.housing_status wrapper_class="group-board-field" %}
                                 <div class="group-board-field-grid">
                                     {% include "listings/includes/form_field.html" with field=roommate_post_filter_form.max_budget wrapper_class="group-board-field" %}
-                                    {% include "listings/includes/form_field.html" with field=roommate_post_filter_form.open_spots_min wrapper_class="group-board-field" %}
+                                    {% include "listings/includes/form_field.html" with field=roommate_post_filter_form.people_in_group wrapper_class="group-board-field" %}
                                 </div>
+                                {% include "listings/includes/form_field.html" with field=roommate_post_filter_form.open_spots_min wrapper_class="group-board-field js-open-spots-filter" %}
                                 {% include "listings/includes/form_field.html" with field=roommate_post_filter_form.move_in_by wrapper_class="group-board-field" %}
                             </div>
                             <div class="group-board-actions">
@@ -154,9 +207,7 @@
                             </div>
                         </form>
                     </section>
-                </aside>
 
-                <div class="app-main group-board-main">
                     <section class="listing-panel group-board-results-panel">
                         <div class="app-panel-head group-board-results-head">
                             <div>
@@ -201,7 +252,7 @@
                                             </div>
                                             <div class="group-post-stat">
                                                 <span class="group-post-stat-label">Open spots</span>
-                                                <strong>{{ post.open_spots }}</strong>
+                                                <strong>{% if post.open_spots %}{{ post.open_spots }}{% else %}TBD{% endif %}</strong>
                                             </div>
                                             <div class="group-post-stat">
                                                 <span class="group-post-stat-label">Budget</span>
@@ -211,11 +262,19 @@
                                                 <span class="group-post-stat-label">Move in</span>
                                                 <strong>{{ post.move_in_date|date:"M j" }}</strong>
                                             </div>
+                                            <div class="group-post-stat">
+                                                <span class="group-post-stat-label">Open listings</span>
+                                                <strong>{{ post.ui_listing_match_count }}</strong>
+                                            </div>
                                         </div>
 
                                         <div class="group-post-tags">
                                             <span class="app-meta-chip app-meta-chip-neutral">{{ post.get_housing_status_display }}</span>
-                                            <span class="app-meta-chip app-meta-chip-neutral">{{ post.target_household_size }} person target</span>
+                                            {% if post.target_household_size %}
+                                                <span class="app-meta-chip app-meta-chip-neutral">{{ post.target_household_size }} person target</span>
+                                            {% else %}
+                                                <span class="app-meta-chip app-meta-chip-neutral">Target size TBD</span>
+                                            {% endif %}
                                             {% for area in post.neighborhoods_list|slice:":3" %}
                                                 <span class="app-meta-chip app-meta-chip-neutral">{{ area }}</span>
                                             {% endfor %}
@@ -233,6 +292,11 @@
 
                                         <div class="group-post-actions">
                                             <a class="btn btn-outline-secondary btn-sm" href="{{ post.ui_profile_url }}">View profile</a>
+                                            {% if post.ui_is_selected %}
+                                                <span class="btn btn-outline-secondary btn-sm">Viewing listings</span>
+                                            {% else %}
+                                                <a class="btn btn-outline-secondary btn-sm" href="{{ post.ui_match_url }}">See listing matches</a>
+                                            {% endif %}
                                             {% if post.ui_can_message %}
                                                 <a class="btn btn-brand btn-sm" href="{{ post.ui_message_url }}">{{ post.ui_message_label }}</a>
                                             {% else %}
@@ -255,4 +319,8 @@
         </div>
     </div>
 </section>
+{% endblock %}
+
+{% block extra_js %}
+    <script src="{% static 'js/group-match.js' %}"></script>
 {% endblock %}

@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from core.utils import get_page, preserved_query_suffix
+from users.selectors import pending_group_invite_for_conversation
 
 from .forms import ConversationMessageForm
 from .selectors import (
@@ -87,7 +88,9 @@ def messages_inbox(request, conversation_id=None):
     thread_messages = []
     thread_messages_page = None
     thread_pagination_query = ""
+    pending_group_invite = None
     if selected_conversation:
+        pending_group_invite = pending_group_invite_for_conversation(request.user, selected_conversation)
         messages_qs = (
             selected_conversation.messages.select_related("sender")
             .prefetch_related("sender__socialaccount_set")
@@ -109,6 +112,7 @@ def messages_inbox(request, conversation_id=None):
         "thread_pagination_query": thread_pagination_query,
         "reply_form": reply_form,
         "reply_max_length": reply_form.fields["body"].max_length,
+        "pending_group_invite": pending_group_invite,
     }
     return render(request, "communications/messages.html", context)
 

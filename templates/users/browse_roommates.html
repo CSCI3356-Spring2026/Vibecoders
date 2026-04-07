@@ -25,6 +25,11 @@
                 </div>
                 <div class="app-meta">
                     <span class="app-meta-chip">{{ results|length }} student{{ results|length|pluralize }}</span>
+                    {% if active_group %}
+                        <span class="app-meta-chip app-meta-chip-secondary">
+                            Group matching active ({{ group_memberships|length }} member{{ group_memberships|length|pluralize }})
+                        </span>
+                    {% endif %}
                     {% if filters_active %}
                         <span class="app-meta-chip app-meta-chip-secondary">Filters active</span>
                     {% endif %}
@@ -38,6 +43,71 @@
 
                 {# ── Sidebar ── #}
                 <aside class="app-sidebar group-board-sidebar">
+                    <section class="listing-panel group-board-rail-panel group-board-group-panel">
+                        <div class="app-panel-head">
+                            <div>
+                                <p class="group-board-panel-kicker">Your group</p>
+                                <h2 class="app-section-heading">Roommate crew</h2>
+                                <p class="app-panel-copy">Invite people and match as a group.</p>
+                            </div>
+                        </div>
+                        {% if active_group %}
+                            <div class="group-board-current group-board-current-summary">
+                                {% for membership in group_memberships %}
+                                    <span class="app-meta-chip app-meta-chip-neutral">{{ membership.user.display_name }}</span>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="app-empty">
+                                <h3 class="app-empty-title">No group yet</h3>
+                                <p class="app-empty-copy">Invite a roommate match to start a group.</p>
+                            </div>
+                        {% endif %}
+
+                        {% if pending_group_approvals %}
+                            <div class="group-board-invite-list">
+                                <p class="group-post-overline">Needs your approval</p>
+                                {% for approval in pending_group_approvals %}
+                                    <div class="group-board-invite-row">
+                                        <span class="group-post-body">
+                                            Invite {{ approval.invite.invitee.display_name }}
+                                        </span>
+                                        <div class="group-board-actions">
+                                            <form method="post" action="{% url 'users:approve_group_invite' approval.invite.id %}">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                <button class="btn btn-brand btn-sm" type="submit">Approve</button>
+                                            </form>
+                                            <form method="post" action="{% url 'users:reject_group_invite' approval.invite.id %}">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                <button class="btn btn-outline-secondary btn-sm" type="submit">Decline</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+
+                        {% if pending_group_invites %}
+                            <div class="group-board-invite-list">
+                                <p class="group-post-overline">Invites for you</p>
+                                {% for invite in pending_group_invites %}
+                                    <div class="group-board-invite-row">
+                                        <span class="group-post-body">
+                                            {{ invite.inviter.display_name }} invited you
+                                        </span>
+                                        {% if invite.conversation %}
+                                            <a class="btn btn-outline-secondary btn-sm" href="{% url 'communications:detail' invite.conversation.id %}">
+                                                Open invite chat
+                                            </a>
+                                        {% endif %}
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    </section>
+
                     <section class="listing-panel group-board-rail-panel group-board-filter-panel">
                         <div class="app-panel-head">
                             <div>
@@ -166,6 +236,19 @@
 
                                         <div class="group-post-actions">
                                             <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:public_profile' result.user.id %}">View profile</a>
+                                            {% if can_message %}
+                                                {% if result.is_in_group %}
+                                                    <span class="btn btn-outline-secondary btn-sm">In your group</span>
+                                                {% elif result.invite_status %}
+                                                    <span class="btn btn-outline-secondary btn-sm">Invite pending</span>
+                                                {% else %}
+                                                    <form method="post" action="{% url 'users:send_group_invite' result.user.id %}">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                        <button class="btn btn-outline-secondary btn-sm" type="submit">Invite to group</button>
+                                                    </form>
+                                                {% endif %}
+                                            {% endif %}
 
                                             {% if can_message %}
                                                 {% if result.existing_convo %}

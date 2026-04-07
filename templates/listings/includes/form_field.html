@@ -1,4 +1,4 @@
-<div class="{{ wrapper_class|default:'col-12' }} listing-form-field">
+<div class="{{ wrapper_class|default:'col-12' }} listing-form-field"{% if hidden_attr %} hidden{% endif %}>
     <label class="form-label fw-semibold listing-form-label" for="{{ field.id_for_label }}">{{ label|default:field.label }}</label>
     {{ field }}
     {% if hint or field.help_text %}

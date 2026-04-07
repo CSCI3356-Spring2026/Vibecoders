@@ -201,7 +201,7 @@
 
 .group-post-stats {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
     gap: 0.7rem;
 }
 
@@ -265,6 +265,40 @@
     border-top: 1px solid rgba(var(--gray-700-rgb), 0.1);
 }
 
+.group-board-group-panel {
+    gap: 0.9rem;
+}
+
+.group-board-invite-list {
+    display: grid;
+    gap: 0.6rem;
+}
+
+.group-board-invite-row {
+    display: grid;
+    gap: 0.45rem;
+    padding: 0.7rem 0.8rem;
+    border: 1px solid rgba(var(--gray-700-rgb), 0.1);
+    border-radius: var(--radius-sm);
+    background: rgba(var(--gray-100-rgb), 0.55);
+}
+
+.group-board-matches-panel {
+    gap: 1.1rem;
+}
+
+.group-board-listing-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.group-board-listing-note {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
 @media (max-width: 991px) {
     .group-board-layout {
         grid-template-columns: minmax(0, 1fr);
@@ -274,8 +308,8 @@
         position: static;
     }
 
-    .group-post-stats {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+    .group-board-listing-grid {
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .group-board-field-grid-3 {
@@ -288,8 +322,7 @@
         flex-direction: column;
     }
 
-    .group-board-field-grid,
-    .group-post-stats {
+    .group-board-field-grid {
         grid-template-columns: minmax(0, 1fr);
     }
 

@@ -17,6 +17,10 @@
     box-shadow: none;
 }
 
+.messages-thread-invite-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .messages-thread-context-media {
     display: flex;
     align-items: center;

@@ -1,7 +1,12 @@
 from django.urls import reverse
 
 from communications.selectors import direct_conversations_by_counterparty
-from users.compatibility import compatibility_highlights, compute_compatibility
+from users.compatibility import (
+    compatibility_highlights,
+    compute_compatibility,
+    compute_group_compatibility,
+    group_compatibility_highlights,
+)
 
 
 def _score_variant(score):
@@ -14,19 +19,32 @@ def _score_variant(score):
     return "neutral"
 
 
-def decorate_roommate_posts_for_user(user, roommate_posts):
+def decorate_roommate_posts_for_user(user, roommate_posts, *, group_profiles=None):
     posts = list(roommate_posts)
     counterparties = [post.author for post in posts]
     conversation_map = direct_conversations_by_counterparty(user, counterparties) if counterparties else {}
     my_profile = getattr(user, "student_profile", None) if getattr(user, "can_use_roommate_matching", False) else None
+    use_group_profiles = group_profiles or []
 
     for post in posts:
         their_profile = getattr(post.author, "student_profile", None)
-        score = compute_compatibility(my_profile, their_profile) if my_profile and their_profile else None
+        if use_group_profiles:
+            score = (
+                compute_group_compatibility(use_group_profiles, their_profile)
+                if use_group_profiles and their_profile
+                else None
+            )
+            post.ui_highlights = (
+                group_compatibility_highlights(use_group_profiles, their_profile)
+                if use_group_profiles and their_profile
+                else []
+            )
+        else:
+            score = compute_compatibility(my_profile, their_profile) if my_profile and their_profile else None
+            post.ui_highlights = compatibility_highlights(my_profile, their_profile)
         conversation = conversation_map.get(post.author_id)
         post.ui_score = score
         post.ui_score_variant = _score_variant(score)
-        post.ui_highlights = compatibility_highlights(my_profile, their_profile)
         post.ui_profile_url = reverse("users:public_profile", args=[post.author_id])
         post.ui_can_message = getattr(user, "can_use_roommate_matching", False) and user.id != post.author_id
         post.ui_message_url = (

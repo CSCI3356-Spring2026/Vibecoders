@@ -27,6 +27,19 @@
                             {% elif can_message_user %}
                                 <a class="btn btn-brand" href="#message-user">Message</a>
                             {% endif %}
+                            {% if request.user.can_use_roommate_matching %}
+                                {% if is_in_group %}
+                                    <span class="btn btn-outline-secondary">In your group</span>
+                                {% elif invite_status %}
+                                    <span class="btn btn-outline-secondary">Invite pending</span>
+                                {% else %}
+                                    <form method="post" action="{% url 'users:send_group_invite' target.id %}">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                        <button class="btn btn-outline-secondary" type="submit">Invite to group</button>
+                                    </form>
+                                {% endif %}
+                            {% endif %}
                         {% endif %}
                         <a class="btn btn-outline-secondary" href="{% url 'listings:group_match' %}">Find Groups</a>
                     </div>
@@ -36,11 +49,17 @@
             <div class="app-meta mb-4">
                 {% if score is not None %}
                     {% if score >= 75 %}
-                        <span class="app-meta-chip app-meta-chip-primary">{{ score }}% compatible with you</span>
+                        <span class="app-meta-chip app-meta-chip-primary">
+                            {{ score }}% compatible with {% if group_member_count|default:0 > 1 %}your group{% else %}you{% endif %}
+                        </span>
                     {% elif score >= 50 %}
-                        <span class="app-meta-chip app-meta-chip-secondary">{{ score }}% compatible with you</span>
+                        <span class="app-meta-chip app-meta-chip-secondary">
+                            {{ score }}% compatible with {% if group_member_count|default:0 > 1 %}your group{% else %}you{% endif %}
+                        </span>
                     {% else %}
-                        <span class="app-meta-chip app-meta-chip-neutral">{{ score }}% compatible with you</span>
+                        <span class="app-meta-chip app-meta-chip-neutral">
+                            {{ score }}% compatible with {% if group_member_count|default:0 > 1 %}your group{% else %}you{% endif %}
+                        </span>
                     {% endif %}
                 {% endif %}
                 {% if their_profile.gender %}

@@ -132,6 +132,29 @@
                                         <span class="messages-thread-context-status">Direct chat</span>
                                     </div>
                                 </a>
+                                {% if pending_group_invite %}
+                                    <div class="messages-thread-context-card messages-thread-invite-card">
+                                        <div class="messages-thread-context-copy">
+                                            <p class="messages-thread-context-kicker">Group invite</p>
+                                            <h3 class="messages-thread-context-title">
+                                                {{ pending_group_invite.inviter.display_name }} invited you to join their group
+                                            </h3>
+                                            <p class="messages-thread-context-address">Accept to match as a group.</p>
+                                        </div>
+                                        <div class="messages-thread-context-meta">
+                                            <form method="post" action="{% url 'users:accept_group_invite' pending_group_invite.id %}">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                <button class="btn btn-brand btn-sm" type="submit">Accept invite</button>
+                                            </form>
+                                            <form method="post" action="{% url 'users:decline_group_invite' pending_group_invite.id %}">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                <button class="btn btn-outline-secondary btn-sm" type="submit">Decline</button>
+                                            </form>
+                                        </div>
+                                    </div>
+                                {% endif %}
                             {% else %}
                                 <a class="messages-thread-context-card" href="{% url 'listings:detail' selected_conversation.listing.id %}">
                                     <div class="messages-thread-context-media">
