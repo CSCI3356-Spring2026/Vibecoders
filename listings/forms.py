@@ -465,6 +465,10 @@ class RoommatePostForm(forms.ModelForm):
             self.fields["current_group_size"].initial = self.group.member_count
             self.fields["current_group_size"].widget.attrs["readonly"] = "readonly"
             self.fields["current_group_size"].help_text = "Automatically set from your group members."
+        self.fields["open_spots"].required = False
+        self.fields[
+            "open_spots"
+        ].help_text = "Required when you already have a place. Optional if you're still looking."
 
     def clean_title(self):
         title = (self.cleaned_data.get("title") or "").strip()
@@ -505,6 +509,12 @@ class RoommatePostForm(forms.ModelForm):
             self.instance.author = self.user
             self.instance.group = None
         move_in_date = cleaned_data.get("move_in_date")
+        housing_status = cleaned_data.get("housing_status")
+        open_spots = cleaned_data.get("open_spots")
+        if housing_status == RoommatePost.HOUSING_HAVE_HOME and open_spots is None:
+            self.add_error("open_spots", "Add how many open roommate spots you have.")
+        if open_spots is not None and open_spots < 1:
+            self.add_error("open_spots", "Open roommate spots must be at least 1.")
         if move_in_date and move_in_date < timezone.localdate():
             self.add_error("move_in_date", "Move-in date must be today or later.")
         return cleaned_data
@@ -670,6 +680,12 @@ class RoommatePostFilterForm(forms.Form):
         decimal_places=0,
         label="Budget cap",
         widget=forms.NumberInput(attrs={"class": "form-control", "min": 0, "step": 50, "placeholder": "1600"}),
+    )
+    people_in_group = forms.IntegerField(
+        required=False,
+        min_value=1,
+        label="People in my group",
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": 1, "placeholder": "2"}),
     )
     move_in_by = forms.DateField(
         required=False,

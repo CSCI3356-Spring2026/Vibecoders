@@ -204,6 +204,28 @@ class ListingModelTests(ListingTestCase):
 
         self.assertEqual(roommate_post.target_household_size, 5)
 
+    def test_roommate_post_target_household_size_allows_missing_open_spots(self):
+        roommate_post = self.create_roommate_post(open_spots=None)
+
+        self.assertIsNone(roommate_post.target_household_size)
+
+    def test_roommate_post_requires_open_spots_when_have_home(self):
+        self.complete_roommate_profile(self.user)
+        with self.assertRaises(ValidationError) as exc:
+            RoommatePost.objects.create(
+                author=self.user,
+                title="We already have a place",
+                description="We have housing and want to add roommates.",
+                housing_status=RoommatePost.HOUSING_HAVE_HOME,
+                current_group_size=2,
+                open_spots=None,
+                budget_min="1200",
+                budget_max="1500",
+                move_in_date=date.today() + timedelta(days=30),
+            )
+
+        self.assertIn("Add how many open roommate spots you have.", exc.exception.message_dict["open_spots"][0])
+
     def test_listing_owner_cannot_be_reassigned_after_creation(self):
         listing = self.create_listing()
         new_owner = self.user.__class__.objects.create_user(

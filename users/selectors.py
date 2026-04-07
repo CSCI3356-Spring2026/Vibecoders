@@ -5,7 +5,13 @@ from listings.models import Listing, ListingReport
 from listings.selectors import listing_reports_queryset_for_admin, with_feedback_summary
 
 from .compatibility import compatibility_highlights, compute_compatibility
-from .models import Role, UserFile
+from .models import (
+    Role,
+    RoommateGroupInvite,
+    RoommateGroupInviteApproval,
+    RoommateGroupMember,
+    UserFile,
+)
 
 
 def admin_listings_queryset(query="", selected_status="", selected_review_status=""):
@@ -142,3 +148,78 @@ def compatible_students_for_user(user, limit=30):
 
     results.sort(key=lambda x: (x["score"] is not None, x["score"] or 0), reverse=True)
     return results[:limit]
+
+
+def active_roommate_group_for_user(user):
+    if not getattr(user, "is_authenticated", False):
+        return None
+    membership = RoommateGroupMember.objects.select_related("group").filter(user=user).order_by("-joined_at").first()
+    if membership is None:
+        return None
+    return membership.group
+
+
+def roommate_group_memberships(group):
+    return (
+        RoommateGroupMember.objects.filter(group=group)
+        .select_related("user", "user__student_profile")
+        .order_by("joined_at")
+    )
+
+
+def roommate_group_profiles_for_user(user):
+    if not getattr(user, "can_use_roommate_matching", False):
+        return []
+    group = active_roommate_group_for_user(user)
+    if group is None:
+        return []
+    memberships = roommate_group_memberships(group)
+    profiles = []
+    for membership in memberships:
+        profile = getattr(membership.user, "student_profile", None)
+        if profile is not None:
+            profiles.append(profile)
+    return profiles
+
+
+def pending_group_invite_approvals_for_user(user):
+    if not getattr(user, "is_authenticated", False):
+        return RoommateGroupInviteApproval.objects.none()
+    return RoommateGroupInviteApproval.objects.select_related(
+        "invite",
+        "invite__group",
+        "invite__invitee",
+        "invite__inviter",
+    ).filter(
+        member=user,
+        approved__isnull=True,
+        invite__status=RoommateGroupInvite.STATUS_PENDING_APPROVAL,
+    )
+
+
+def pending_group_invites_for_user(user):
+    if not getattr(user, "is_authenticated", False):
+        return RoommateGroupInvite.objects.none()
+    return RoommateGroupInvite.objects.select_related(
+        "group",
+        "inviter",
+        "inviter__student_profile",
+        "conversation",
+    ).filter(
+        invitee=user,
+        status=RoommateGroupInvite.STATUS_PENDING_INVITEE,
+    )
+
+
+def pending_group_invite_for_conversation(user, conversation):
+    if conversation is None or not getattr(conversation, "is_direct", False):
+        return None
+    return (
+        RoommateGroupInvite.objects.select_related("group", "inviter")
+        .filter(
+            conversation=conversation,
+            invitee=user,
+            status=RoommateGroupInvite.STATUS_PENDING_INVITEE,
+        )
+        .first()
+    )

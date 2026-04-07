@@ -20,6 +20,7 @@ from communications.services import (
 )
 from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
+from users.selectors import roommate_group_profiles_for_user
 
 from .address_provider import get_geoapify_autocomplete_config, normalize_geoapify_suggestions
 from .address_signing import sign_address_selection
@@ -34,7 +35,7 @@ from .forms import (
     RoommatePostForm,
 )
 from .geocoding import BOSTON_COLLEGE_LATITUDE, BOSTON_COLLEGE_LONGITUDE
-from .models import Listing, ListingFavorite, ListingReport, ListingReview
+from .models import Listing, ListingFavorite, ListingReport, ListingReview, RoommatePost
 from .roommate_post_service import decorate_roommate_posts_for_user
 from .search_payloads import listing_card_payload, listing_marker_payload
 from .selectors import (
@@ -45,6 +46,7 @@ from .selectors import (
     messageable_listings_for_user,
     roommate_group_for_user,
     roommate_group_post_for_user,
+    open_listings_matching_roommate_post,
     roommate_post_for_user,
     searchable_marketplace_listings_for_user,
     with_favorite_state,
@@ -365,13 +367,17 @@ def _roommate_post_board_context(request, *, filter_form=None, post_form=None):
     current_post = roommate_post_for_user(request.user)
     current_group = roommate_group_for_user(request.user)
     current_group_post = roommate_group_post_for_user(request.user)
+    group_profiles = roommate_group_profiles_for_user(request.user)
 
     if filter_form is None:
         filter_form = RoommatePostFilterForm(request.GET or None)
 
     filter_data = {}
-    if not filter_form.is_bound or filter_form.is_valid():
-        filter_data = filter_form.cleaned_data if filter_form.is_bound else {}
+    if not filter_form.is_bound:
+        filter_data = {}
+    else:
+        filter_form.is_valid()
+        filter_data = filter_form.cleaned_data
 
     roommate_posts = filtered_roommate_posts_queryset(
         request.user,
@@ -380,8 +386,26 @@ def _roommate_post_board_context(request, *, filter_form=None, post_form=None):
         max_budget=filter_data.get("max_budget"),
         move_in_by=filter_data.get("move_in_by"),
         open_spots_min=filter_data.get("open_spots_min"),
+        people_in_group=filter_data.get("people_in_group"),
     )
-    roommate_posts = decorate_roommate_posts_for_user(request.user, roommate_posts)
+    roommate_posts = decorate_roommate_posts_for_user(request.user, roommate_posts, group_profiles=group_profiles)
+    selected_post = None
+    matched_listings = []
+    matched_listings_total = 0
+    selected_post_id = (request.GET.get("group") or "").strip()
+    if selected_post_id.isdigit():
+        selected_post = RoommatePost.objects.active().with_related().filter(pk=int(selected_post_id)).first()
+        if selected_post is not None:
+            matched_queryset = open_listings_matching_roommate_post(request.user, selected_post)
+            matched_listings_total = matched_queryset.count()
+            matched_listings = list(matched_queryset[:6])
+            _apply_listing_ui_flags(matched_listings, request.user)
+
+    group_query_suffix = preserved_query_suffix(request.GET, "page", "group")
+    for post in roommate_posts:
+        post.ui_listing_match_count = open_listings_matching_roommate_post(request.user, post).count()
+        post.ui_match_url = f"{reverse('listings:group_match')}?group={post.id}{group_query_suffix}"
+        post.ui_is_selected = selected_post is not None and post.id == selected_post.id
     roommate_posts_page = get_page(roommate_posts, request.GET.get("page"), ROOMMATE_POSTS_PER_PAGE)
 
     if post_form is None:
@@ -397,6 +421,10 @@ def _roommate_post_board_context(request, *, filter_form=None, post_form=None):
         "current_roommate_post": current_post,
         "current_roommate_group": current_group,
         "current_group_roommate_post": current_group_post,
+        "group_member_count": len(group_profiles),
+        "selected_roommate_post": selected_post,
+        "selected_roommate_post_listings": matched_listings,
+        "selected_roommate_post_listings_total": matched_listings_total,
         "roommate_posts": roommate_posts_page,
         "roommate_posts_total": len(roommate_posts),
         "pagination_query": preserved_query_suffix(request.GET, "page"),

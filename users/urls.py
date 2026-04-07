@@ -28,5 +28,10 @@ urlpatterns = [
     path("account/delete/", views.delete_account, name="delete_account"),
     path("avatar/", views.upload_avatar, name="upload_avatar"),
     path("browse/", views.browse_roommates, name="browse_roommates"),
+    path("group-invite/<int:user_id>/", views.send_group_invite, name="send_group_invite"),
+    path("group-invite/<int:invite_id>/approve/", views.approve_group_invite, name="approve_group_invite"),
+    path("group-invite/<int:invite_id>/reject/", views.reject_group_invite, name="reject_group_invite"),
+    path("group-invite/<int:invite_id>/accept/", views.accept_group_invite, name="accept_group_invite"),
+    path("group-invite/<int:invite_id>/decline/", views.decline_group_invite, name="decline_group_invite"),
     path("profile/<int:user_id>/", views.public_profile, name="public_profile"),
 ]

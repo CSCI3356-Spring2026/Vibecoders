@@ -2345,6 +2345,30 @@ class GroupMatchPageTests(ListingTestCase):
         self.assertContains(response, "Led by Jordan")
         self.assertContains(response, "Taylor")
         self.assertContains(response, "View lead")
+    def test_group_match_page_shows_listing_matches_for_selected_post(self):
+        self.complete_roommate_profile(self.user)
+        self.client.force_login(self.user)
+        author = get_user_model().objects.create_user(
+            username="listing-group",
+            email="listing-group@bc.edu",
+            password="testpass123",
+        )
+        self.complete_roommate_profile(author)
+        post = self.create_roommate_post(
+            author=author,
+            current_group_size=2,
+            open_spots=1,
+            move_in_date=date.today() + timedelta(days=45),
+        )
+        matching_listing = self.create_listing(title="Matching listing", rooms=3)
+        self.create_listing(title="Too small listing", rooms=1)
+
+        response = self.client.get(reverse("listings:group_match"), {"group": post.id})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Listing matches")
+        self.assertContains(response, matching_listing.title)
+        self.assertNotContains(response, "Too small listing")
 
     def test_group_match_page_filters_posts(self):
         self.complete_roommate_profile(self.user)
@@ -2362,6 +2386,7 @@ class GroupMatchPageTests(ListingTestCase):
             budget_min="1200",
             budget_max="1600",
             open_spots=2,
+            housing_status=RoommatePost.HOUSING_NEED_HOME,
             move_in_date=date.today() + timedelta(days=40),
         )
         other_author = get_user_model().objects.create_user(
@@ -2385,9 +2410,10 @@ class GroupMatchPageTests(ListingTestCase):
             reverse("listings:group_match"),
             {
                 "q": "Brighton",
-                "housing_status": RoommatePost.HOUSING_NEED_HOME,
+                "housing_status": RoommatePost.HOUSING_HAVE_HOME,
                 "max_budget": 1300,
                 "open_spots_min": 2,
+                "people_in_group": 2,
                 "move_in_by": (date.today() + timedelta(days=60)).isoformat(),
             },
         )
@@ -2460,6 +2486,50 @@ class GroupMatchPageTests(ListingTestCase):
         group_post = RoommatePost.objects.get(group__lead=self.user)
         self.assertEqual(group_post.current_group_size, 2)
         self.assertTrue(group_post.is_active)
+
+    def test_student_can_publish_roommate_post_without_open_spots_when_still_need_home(self):
+        self.complete_roommate_profile(self.user)
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("listings:save_roommate_post"),
+            {
+                "title": "Looking for a group to join",
+                "housing_status": RoommatePost.HOUSING_NEED_HOME,
+                "current_group_size": 1,
+                "budget_min": 1100,
+                "budget_max": 1500,
+                "move_in_date": (date.today() + timedelta(days=50)).isoformat(),
+                "neighborhoods": "Allston, Brighton",
+                "description": "I still need a place and want to find a compatible group.",
+            },
+        )
+
+        self.assertRedirects(response, reverse("listings:group_match"))
+        roommate_post = RoommatePost.objects.get(author=self.user)
+        self.assertIsNone(roommate_post.open_spots)
+
+    def test_roommate_post_publish_requires_open_spots_when_have_home(self):
+        self.complete_roommate_profile(self.user)
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("listings:save_roommate_post"),
+            {
+                "title": "We already have a place",
+                "housing_status": RoommatePost.HOUSING_HAVE_HOME,
+                "current_group_size": 2,
+                "budget_min": 1100,
+                "budget_max": 1500,
+                "move_in_date": (date.today() + timedelta(days=50)).isoformat(),
+                "neighborhoods": "Allston",
+                "description": "We have housing and want to add roommates.",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(RoommatePost.objects.count(), 0)
+        self.assertContains(response, "Add how many open roommate spots you have.")
 
     def test_roommate_post_publish_requires_completed_profile(self):
         self.client.force_login(self.user)
