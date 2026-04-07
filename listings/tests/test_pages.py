@@ -2318,6 +2318,34 @@ class GroupMatchPageTests(ListingTestCase):
         self.assertContains(response, reverse("users:public_profile", args=[roommate.pk]))
         self.assertContains(response, "Message lead")
 
+    def test_group_match_page_shows_group_owned_post_details(self):
+        self.complete_roommate_profile(self.user)
+        group_lead = get_user_model().objects.create_user(
+            username="group-lead-board",
+            email="group-lead-board@bc.edu",
+            password="testpass123",
+            first_name="Jordan",
+        )
+        group_member = get_user_model().objects.create_user(
+            username="group-member-board",
+            email="group-member-board@bc.edu",
+            password="testpass123",
+            first_name="Taylor",
+        )
+        self.complete_roommate_profile(group_lead, major="Economics")
+        self.complete_roommate_profile(group_member, major="Finance")
+        group = self.create_roommate_group(lead=group_lead, members=[group_member], name="Cleveland Circle Crew")
+        self.create_group_roommate_post(group=group, title="Cleveland Circle group needs one more roommate")
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:group_match"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Cleveland Circle Crew")
+        self.assertContains(response, "Led by Jordan")
+        self.assertContains(response, "Taylor")
+        self.assertContains(response, "View lead")
+
     def test_group_match_page_filters_posts(self):
         self.complete_roommate_profile(self.user)
         self.client.force_login(self.user)
@@ -2391,6 +2419,47 @@ class GroupMatchPageTests(ListingTestCase):
         roommate_post = RoommatePost.objects.get(author=self.user)
         self.assertEqual(roommate_post.current_group_size, 3)
         self.assertTrue(roommate_post.is_active)
+
+    def test_student_can_save_roommate_group_and_publish_group_post(self):
+        group_member = get_user_model().objects.create_user(
+            username="group-member-form",
+            email="group-member-form@bc.edu",
+            password="testpass123",
+        )
+        self.complete_roommate_profile(self.user)
+        self.complete_roommate_profile(group_member)
+        self.client.force_login(self.user)
+
+        group_response = self.client.post(
+            reverse("listings:save_roommate_group"),
+            {
+                "name": "South Street Search",
+                "member_emails": group_member.email,
+                "description": "Two students trying to lock in a quiet fall apartment.",
+            },
+        )
+
+        self.assertRedirects(group_response, reverse("listings:group_match"))
+
+        post_response = self.client.post(
+            reverse("listings:save_group_roommate_post"),
+            {
+                "title": "South Street group looking for one more roommate",
+                "housing_status": RoommatePost.HOUSING_NEED_HOME,
+                "current_group_size": 99,
+                "open_spots": 1,
+                "budget_min": 1100,
+                "budget_max": 1500,
+                "move_in_date": (date.today() + timedelta(days=50)).isoformat(),
+                "neighborhoods": "Allston, Brighton",
+                "description": "We already have two committed roommates and want one more for a late summer lease.",
+            },
+        )
+
+        self.assertRedirects(post_response, reverse("listings:group_match"))
+        group_post = RoommatePost.objects.get(group__lead=self.user)
+        self.assertEqual(group_post.current_group_size, 2)
+        self.assertTrue(group_post.is_active)
 
     def test_roommate_post_publish_requires_completed_profile(self):
         self.client.force_login(self.user)

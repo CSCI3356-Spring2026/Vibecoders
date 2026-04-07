@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
 
-from listings.models import Listing, RoommatePost
+from listings.models import Listing, RoommateGroup, RoommateGroupMembership, RoommatePost
 
 User = get_user_model()
 
@@ -75,3 +75,38 @@ class ListingTestCase(TestCase):
         }
         payload.update(overrides)
         return RoommatePost.objects.create(author=author, **payload)
+
+    def create_roommate_group(self, lead=None, members=None, **overrides):
+        lead = lead or self.user
+        if lead.profile_completed_at is None:
+            self.complete_roommate_profile(lead)
+        payload = {
+            "name": "Beacon Street Housemates",
+            "description": "A steady group looking for one more roommate.",
+            "is_active": True,
+        }
+        payload.update(overrides)
+        group = RoommateGroup.objects.create(lead=lead, **payload)
+        RoommateGroupMembership.objects.get_or_create(group=group, user=lead)
+        for member in members or []:
+            if member.profile_completed_at is None:
+                self.complete_roommate_profile(member)
+            RoommateGroupMembership.objects.get_or_create(group=group, user=member)
+        return group
+
+    def create_group_roommate_post(self, group=None, **overrides):
+        group = group or self.create_roommate_group()
+        payload = {
+            "title": "Beacon Street house looking for one more roommate",
+            "description": "We already have a shared plan and want one more roommate who fits the household.",
+            "housing_status": RoommatePost.HOUSING_NEED_HOME,
+            "current_group_size": group.member_count,
+            "open_spots": 1,
+            "budget_min": "1200",
+            "budget_max": "1600",
+            "move_in_date": date.today() + timedelta(days=45),
+            "neighborhoods": "Allston, Brighton",
+            "is_active": True,
+        }
+        payload.update(overrides)
+        return RoommatePost.objects.create(group=group, **payload)

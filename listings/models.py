@@ -115,15 +115,43 @@ class ListingQuerySet(models.QuerySet):
 
 class RoommatePostQuerySet(models.QuerySet):
     def with_related(self):
-        return self.select_related("author", "author__student_profile").prefetch_related("author__socialaccount_set")
+        return self.select_related(
+            "author",
+            "author__student_profile",
+            "group",
+            "group__lead",
+            "group__lead__student_profile",
+        ).prefetch_related(
+            "author__socialaccount_set",
+            "group__lead__socialaccount_set",
+            "group__members__student_profile",
+            "group__members__socialaccount_set",
+        )
 
     def active(self):
-        return self.with_related().filter(
-            is_active=True,
-            move_in_date__gte=timezone.localdate(),
-            author__is_active=True,
-            author__role="student",
-            author__profile_completed_at__isnull=False,
+        return (
+            self.with_related()
+            .filter(
+                is_active=True,
+                move_in_date__gte=timezone.localdate(),
+            )
+            .filter(
+                (
+                    Q(
+                        author__is_active=True,
+                        author__role="student",
+                        author__profile_completed_at__isnull=False,
+                    )
+                )
+                | (
+                    Q(
+                        group__lead__is_active=True,
+                        group__lead__role="student",
+                        group__lead__profile_completed_at__isnull=False,
+                        group__is_active=True,
+                    )
+                )
+            )
         )
 
 
@@ -478,13 +506,115 @@ class ListingFavorite(models.Model):
         return f"{self.user_id} favorited listing {self.listing_id}"
 
 
+class RoommateGroup(models.Model):
+    lead = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="led_roommate_group")
+    name = models.CharField(max_length=120)
+    description = models.TextField(blank=True)
+    members = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        through="RoommateGroupMembership",
+        related_name="roommate_groups",
+    )
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-created_at"]
+        indexes = [
+            models.Index(fields=["is_active", "updated_at"], name="roommate_group_active_idx"),
+        ]
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def member_count(self):
+        prefetched = getattr(self, "_prefetched_objects_cache", {})
+        members = prefetched.get("members")
+        if members is not None:
+            return len(members)
+        return self.members.count()
+
+    @property
+    def member_names(self):
+        prefetched = getattr(self, "_prefetched_objects_cache", {})
+        members = prefetched.get("members")
+        if members is None:
+            members = self.members.all()
+        return [member.display_name for member in members]
+
+    def clean(self):
+        super().clean()
+        if not self.lead_id:
+            return
+        user_model = get_user_model()
+        if not user_model._default_manager.filter(
+            pk=self.lead_id,
+            role="student",
+            is_active=True,
+            profile_completed_at__isnull=False,
+        ).exists():
+            raise ValidationError({"name": "Only students with completed roommate profiles can lead a group."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
+class RoommateGroupMembership(models.Model):
+    group = models.ForeignKey(RoommateGroup, on_delete=models.CASCADE, related_name="memberships")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="roommate_memberships")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        constraints = [
+            models.UniqueConstraint(fields=["group", "user"], name="roommate_group_membership_unique"),
+        ]
+        indexes = [
+            models.Index(fields=["group", "created_at"], name="roommate_group_member_idx"),
+            models.Index(fields=["user", "created_at"], name="roommate_group_user_idx"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if not self.user_id:
+            return
+        user_model = get_user_model()
+        if not user_model._default_manager.filter(
+            pk=self.user_id,
+            role="student",
+            is_active=True,
+            profile_completed_at__isnull=False,
+        ).exists():
+            raise ValidationError({"user": "Only students with completed roommate profiles can join a group."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+
 class RoommatePost(models.Model):
     HOUSING_HAVE_HOME = ROOMMATE_POST_HOUSING_HAVE_HOME
     HOUSING_NEED_HOME = ROOMMATE_POST_HOUSING_NEED_HOME
     HOUSING_FLEXIBLE = ROOMMATE_POST_HOUSING_FLEXIBLE
     HOUSING_CHOICES = ROOMMATE_POST_HOUSING_CHOICES
 
-    author = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="roommate_post")
+    author = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="roommate_post",
+        null=True,
+        blank=True,
+    )
+    group = models.OneToOneField(
+        RoommateGroup,
+        on_delete=models.CASCADE,
+        related_name="roommate_post",
+        null=True,
+        blank=True,
+    )
     title = models.CharField(max_length=120)
     description = models.TextField()
     housing_status = models.CharField(max_length=16, choices=HOUSING_CHOICES, default=HOUSING_FLEXIBLE, db_index=True)
@@ -506,6 +636,11 @@ class RoommatePost(models.Model):
             models.Index(fields=["housing_status", "move_in_date"], name="roommate_post_housing_idx"),
         ]
         constraints = [
+            models.CheckConstraint(
+                condition=(Q(author__isnull=False) & Q(group__isnull=True))
+                | (Q(author__isnull=True) & Q(group__isnull=False)),
+                name="roommate_post_exactly_one_owner",
+            ),
             models.CheckConstraint(
                 condition=Q(housing_status__in=ROOMMATE_POST_HOUSING_VALUES),
                 name="roommate_post_housing_status_valid",
@@ -533,11 +668,37 @@ class RoommatePost(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.title} ({self.author})"
+        return f"{self.title} ({self.owner_display_name})"
 
     @property
     def target_household_size(self):
         return self.current_group_size + self.open_spots
+
+    @property
+    def owner_user(self):
+        if self.group_id:
+            return self.group.lead
+        return self.author
+
+    @property
+    def owner_display_name(self):
+        if self.group_id:
+            return self.group.name
+        if self.author_id:
+            return self.author.display_name
+        return ""
+
+    @property
+    def lead_user(self):
+        return self.owner_user
+
+    @property
+    def member_users(self):
+        if self.group_id:
+            prefetched = getattr(self.group, "_prefetched_objects_cache", {})
+            members = prefetched.get("members")
+            return list(members) if members is not None else list(self.group.members.all())
+        return [self.author] if self.author_id else []
 
     @property
     def neighborhoods_list(self):
@@ -545,17 +706,30 @@ class RoommatePost(models.Model):
 
     def clean(self):
         super().clean()
-        if not self.author_id:
-            return
+        if bool(self.author_id) == bool(self.group_id):
+            raise ValidationError({"title": "Choose either an individual post owner or a group owner."})
 
         user_model = get_user_model()
-        if not user_model._default_manager.filter(
-            pk=self.author_id,
-            role="student",
-            is_active=True,
-            profile_completed_at__isnull=False,
-        ).exists():
+        if (
+            self.author_id
+            and not user_model._default_manager.filter(
+                pk=self.author_id,
+                role="student",
+                is_active=True,
+                profile_completed_at__isnull=False,
+            ).exists()
+        ):
             raise ValidationError({"title": "Only students with completed roommate profiles can post."})
+        if self.group_id:
+            if not RoommateGroup.objects.filter(
+                pk=self.group_id,
+                is_active=True,
+                lead__role="student",
+                lead__is_active=True,
+                lead__profile_completed_at__isnull=False,
+            ).exists():
+                raise ValidationError({"title": "Only active student groups with completed profiles can post."})
+            self.current_group_size = self.group.member_count
 
         if self.budget_min is not None and self.budget_max is not None and self.budget_min > self.budget_max:
             raise ValidationError({"budget_max": "Budget max must be greater than or equal to budget min."})
