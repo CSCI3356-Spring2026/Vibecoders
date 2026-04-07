@@ -6,81 +6,114 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('listings', '0017_roommatepost'),
+        ("listings", "0017_roommatepost"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='RoommateGroupMembership',
+            name="RoommateGroupMembership",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
             ],
             options={
-                'ordering': ['created_at', 'id'],
+                "ordering": ["created_at", "id"],
             },
         ),
         migrations.AlterField(
-            model_name='roommatepost',
-            name='author',
-            field=models.OneToOneField(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='roommate_post', to=settings.AUTH_USER_MODEL),
+            model_name="roommatepost",
+            name="author",
+            field=models.OneToOneField(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="roommate_post",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
         migrations.CreateModel(
-            name='RoommateGroup',
+            name="RoommateGroup",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=120)),
-                ('description', models.TextField(blank=True)),
-                ('is_active', models.BooleanField(db_index=True, default=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('lead', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='led_roommate_group', to=settings.AUTH_USER_MODEL)),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("name", models.CharField(max_length=120)),
+                ("description", models.TextField(blank=True)),
+                ("is_active", models.BooleanField(db_index=True, default=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "lead",
+                    models.OneToOneField(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="led_roommate_group",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-updated_at', '-created_at'],
+                "ordering": ["-updated_at", "-created_at"],
             },
         ),
         migrations.AddField(
-            model_name='roommatepost',
-            name='group',
-            field=models.OneToOneField(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='roommate_post', to='listings.roommategroup'),
+            model_name="roommatepost",
+            name="group",
+            field=models.OneToOneField(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="roommate_post",
+                to="listings.roommategroup",
+            ),
         ),
         migrations.AddConstraint(
-            model_name='roommatepost',
-            constraint=models.CheckConstraint(condition=models.Q(models.Q(('author__isnull', False), ('group__isnull', True)), models.Q(('author__isnull', True), ('group__isnull', False)), _connector='OR'), name='roommate_post_exactly_one_owner'),
+            model_name="roommatepost",
+            constraint=models.CheckConstraint(
+                condition=models.Q(
+                    models.Q(("author__isnull", False), ("group__isnull", True)),
+                    models.Q(("author__isnull", True), ("group__isnull", False)),
+                    _connector="OR",
+                ),
+                name="roommate_post_exactly_one_owner",
+            ),
         ),
         migrations.AddField(
-            model_name='roommategroupmembership',
-            name='group',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='memberships', to='listings.roommategroup'),
+            model_name="roommategroupmembership",
+            name="group",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, related_name="memberships", to="listings.roommategroup"
+            ),
         ),
         migrations.AddField(
-            model_name='roommategroupmembership',
-            name='user',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='roommate_memberships', to=settings.AUTH_USER_MODEL),
+            model_name="roommategroupmembership",
+            name="user",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="roommate_memberships",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
         migrations.AddField(
-            model_name='roommategroup',
-            name='members',
-            field=models.ManyToManyField(related_name='roommate_groups', through='listings.RoommateGroupMembership', to=settings.AUTH_USER_MODEL),
+            model_name="roommategroup",
+            name="members",
+            field=models.ManyToManyField(
+                related_name="roommate_groups", through="listings.RoommateGroupMembership", to=settings.AUTH_USER_MODEL
+            ),
         ),
         migrations.AddIndex(
-            model_name='roommategroupmembership',
-            index=models.Index(fields=['group', 'created_at'], name='roommate_group_member_idx'),
+            model_name="roommategroupmembership",
+            index=models.Index(fields=["group", "created_at"], name="roommate_group_member_idx"),
         ),
         migrations.AddIndex(
-            model_name='roommategroupmembership',
-            index=models.Index(fields=['user', 'created_at'], name='roommate_group_user_idx'),
+            model_name="roommategroupmembership",
+            index=models.Index(fields=["user", "created_at"], name="roommate_group_user_idx"),
         ),
         migrations.AddConstraint(
-            model_name='roommategroupmembership',
-            constraint=models.UniqueConstraint(fields=('group', 'user'), name='roommate_group_membership_unique'),
+            model_name="roommategroupmembership",
+            constraint=models.UniqueConstraint(fields=("group", "user"), name="roommate_group_membership_unique"),
         ),
         migrations.AddIndex(
-            model_name='roommategroup',
-            index=models.Index(fields=['is_active', 'updated_at'], name='roommate_group_active_idx'),
+            model_name="roommategroup",
+            index=models.Index(fields=["is_active", "updated_at"], name="roommate_group_active_idx"),
         ),
     ]
