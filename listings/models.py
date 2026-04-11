@@ -621,7 +621,7 @@ class RoommatePost(models.Model):
         db_index=True,
     )
     current_group_size = models.PositiveSmallIntegerField(default=1)
-    open_spots = models.PositiveSmallIntegerField(default=1, null=True, blank=True)
+    open_spots = models.PositiveSmallIntegerField(default=None, null=True, blank=True)
     budget_min = models.DecimalField(max_digits=8, decimal_places=0)
     budget_max = models.DecimalField(max_digits=8, decimal_places=0)
     move_in_date = models.DateField(db_index=True)
