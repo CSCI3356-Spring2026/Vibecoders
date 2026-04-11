@@ -314,7 +314,7 @@ class RoommateGroup(models.Model):
 
 class RoommateGroupMember(models.Model):
     group = models.ForeignKey(RoommateGroup, on_delete=models.CASCADE, related_name="memberships")
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="roommate_groups")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="legacy_roommate_groups")
     joined_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -2345,6 +2345,7 @@ class GroupMatchPageTests(ListingTestCase):
         self.assertContains(response, "Led by Jordan")
         self.assertContains(response, "Taylor")
         self.assertContains(response, "View lead")
+
     def test_group_match_page_shows_listing_matches_for_selected_post(self):
         self.complete_roommate_profile(self.user)
         self.client.force_login(self.user)
