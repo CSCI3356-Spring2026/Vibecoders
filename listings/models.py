@@ -83,11 +83,9 @@ LISTING_REPORT_UPDATE_ACTION_CHOICES = [
 ]
 ROOMMATE_POST_HOUSING_HAVE_HOME = "have_home"
 ROOMMATE_POST_HOUSING_NEED_HOME = "need_home"
-ROOMMATE_POST_HOUSING_FLEXIBLE = "flexible"
 ROOMMATE_POST_HOUSING_CHOICES = [
     (ROOMMATE_POST_HOUSING_HAVE_HOME, "Already have a place"),
     (ROOMMATE_POST_HOUSING_NEED_HOME, "Still need a place"),
-    (ROOMMATE_POST_HOUSING_FLEXIBLE, "Open to either"),
 ]
 ROOMMATE_POST_HOUSING_VALUES = tuple(value for value, _ in ROOMMATE_POST_HOUSING_CHOICES)
 
@@ -598,7 +596,6 @@ class RoommateGroupMembership(models.Model):
 class RoommatePost(models.Model):
     HOUSING_HAVE_HOME = ROOMMATE_POST_HOUSING_HAVE_HOME
     HOUSING_NEED_HOME = ROOMMATE_POST_HOUSING_NEED_HOME
-    HOUSING_FLEXIBLE = ROOMMATE_POST_HOUSING_FLEXIBLE
     HOUSING_CHOICES = ROOMMATE_POST_HOUSING_CHOICES
 
     author = models.OneToOneField(
@@ -617,9 +614,14 @@ class RoommatePost(models.Model):
     )
     title = models.CharField(max_length=120)
     description = models.TextField()
-    housing_status = models.CharField(max_length=16, choices=HOUSING_CHOICES, default=HOUSING_FLEXIBLE, db_index=True)
+    housing_status = models.CharField(
+        max_length=16,
+        choices=HOUSING_CHOICES,
+        default=HOUSING_NEED_HOME,
+        db_index=True,
+    )
     current_group_size = models.PositiveSmallIntegerField(default=1)
-    open_spots = models.PositiveSmallIntegerField(default=1)
+    open_spots = models.PositiveSmallIntegerField(default=None, null=True, blank=True)
     budget_min = models.DecimalField(max_digits=8, decimal_places=0)
     budget_max = models.DecimalField(max_digits=8, decimal_places=0)
     move_in_date = models.DateField(db_index=True)
@@ -650,8 +652,14 @@ class RoommatePost(models.Model):
                 name="roommate_post_group_size_gte_one",
             ),
             models.CheckConstraint(
-                condition=Q(open_spots__gte=1),
-                name="roommate_post_open_spots_gte_one",
+                condition=(
+                    Q(housing_status=ROOMMATE_POST_HOUSING_HAVE_HOME, open_spots__gte=1)
+                    | (
+                        Q(housing_status__in=[ROOMMATE_POST_HOUSING_NEED_HOME])
+                        & (Q(open_spots__isnull=True) | Q(open_spots__gte=1))
+                    )
+                ),
+                name="roommate_post_open_spots_valid",
             ),
             models.CheckConstraint(
                 condition=Q(budget_min__gte=0),
@@ -672,6 +680,8 @@ class RoommatePost(models.Model):
 
     @property
     def target_household_size(self):
+        if self.open_spots is None:
+            return None
         return self.current_group_size + self.open_spots
 
     @property
@@ -733,6 +743,10 @@ class RoommatePost(models.Model):
 
         if self.budget_min is not None and self.budget_max is not None and self.budget_min > self.budget_max:
             raise ValidationError({"budget_max": "Budget max must be greater than or equal to budget min."})
+        if self.housing_status == self.HOUSING_HAVE_HOME and self.open_spots is None:
+            raise ValidationError({"open_spots": "Add how many open roommate spots you have."})
+        if self.open_spots is not None and self.open_spots < 1:
+            raise ValidationError({"open_spots": "Open roommate spots must be at least 1."})
         if self.move_in_date and self.move_in_date < timezone.localdate():
             raise ValidationError({"move_in_date": "Move-in date must be today or later."})
 

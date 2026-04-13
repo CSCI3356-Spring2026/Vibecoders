@@ -125,6 +125,22 @@ def active_roommate_post_for_user(user):
     return RoommatePost.objects.active().filter(Q(author=user) | Q(group__lead=user)).first()
 
 
+def open_listings_matching_roommate_post(user, roommate_post):
+    if roommate_post is None:
+        return Listing.objects.none()
+
+    queryset = with_favorite_state(marketplace_listings_for_user(user), user)
+    move_in_date = getattr(roommate_post, "move_in_date", None)
+    if move_in_date:
+        queryset = queryset.filter(start_date__lte=move_in_date, end_date__gte=move_in_date)
+
+    target_size = roommate_post.target_household_size or roommate_post.current_group_size
+    if target_size:
+        queryset = queryset.filter(rooms__gte=target_size)
+
+    return queryset.order_by("-created_at")
+
+
 def filtered_roommate_posts_queryset(
     user,
     *,
@@ -133,6 +149,7 @@ def filtered_roommate_posts_queryset(
     max_budget=None,
     move_in_by=None,
     open_spots_min=None,
+    people_in_group=None,
 ):
     queryset = RoommatePost.objects.active()
     if getattr(user, "is_authenticated", False):
@@ -156,12 +173,17 @@ def filtered_roommate_posts_queryset(
             | Q(group__members__student_profile__major__icontains=query)
         )
     if housing_status in {value for value, _ in RoommatePost.HOUSING_CHOICES}:
-        queryset = queryset.filter(housing_status=housing_status)
+        if housing_status == RoommatePost.HOUSING_HAVE_HOME:
+            queryset = queryset.filter(housing_status=RoommatePost.HOUSING_NEED_HOME)
+        else:
+            queryset = queryset.filter(housing_status=housing_status)
     if max_budget is not None:
         queryset = queryset.filter(budget_min__lte=max_budget)
     if move_in_by is not None:
         queryset = queryset.filter(move_in_date__lte=move_in_by)
     if open_spots_min is not None:
         queryset = queryset.filter(open_spots__gte=open_spots_min)
+    if people_in_group is not None:
+        queryset = queryset.filter(open_spots__gte=people_in_group)
 
     return queryset.distinct().order_by("-updated_at", "-created_at")

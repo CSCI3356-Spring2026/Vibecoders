@@ -28,14 +28,27 @@ from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
 from listings.selectors import active_roommate_post_for_user, with_feedback_summary
 
-from .compatibility import compatibility_highlights, compute_compatibility
+from .compatibility import (
+    compatibility_highlights,
+    compute_compatibility,
+    compute_group_compatibility,
+    group_compatibility_highlights,
+)
 from .forms import AdminProfileForm, AvatarUploadForm, GoogleLoginAcceptanceForm, StudentProfileForm, UserFileUploadForm
+from .group_services import create_group_invite, respond_to_group_invite, respond_to_invite_approval
 from .legal import (
     is_legal_review_required,
     set_pending_legal_acceptance,
 )
-from .models import AdminProfile, Role, StudentProfile, UserFile
-from .selectors import accessible_user_files_queryset
+from .models import AdminProfile, Role, RoommateGroupInvite, StudentProfile, UserFile
+from .selectors import (
+    accessible_user_files_queryset,
+    active_roommate_group_for_user,
+    pending_group_invite_approvals_for_user,
+    pending_group_invites_for_user,
+    roommate_group_memberships,
+    roommate_group_profiles_for_user,
+)
 from .session_security import has_recent_auth
 
 FILES_PER_PAGE = 12
@@ -437,6 +450,10 @@ def browse_roommates(request):
     min_score = int(min_score_raw) if min_score_raw.isdigit() else None
 
     my_profile = getattr(request.user, "student_profile", None)
+    group_profiles = roommate_group_profiles_for_user(request.user)
+    active_group = active_roommate_group_for_user(request.user)
+    group_memberships = roommate_group_memberships(active_group) if active_group else []
+    group_member_ids = {membership.user_id for membership in group_memberships}
 
     students_qs = (
         User.objects.filter(
@@ -468,10 +485,29 @@ def browse_roommates(request):
     results = []
     for student in students_qs[:80]:
         their_profile = getattr(student, "student_profile", None)
-        score = compute_compatibility(my_profile, their_profile) if my_profile and their_profile else None
+        if group_profiles:
+            score = (
+                compute_group_compatibility(group_profiles, their_profile) if group_profiles and their_profile else None
+            )
+            highlights = (
+                group_compatibility_highlights(group_profiles, their_profile)
+                if group_profiles and their_profile
+                else []
+            )
+        else:
+            score = compute_compatibility(my_profile, their_profile) if my_profile and their_profile else None
+            highlights = compatibility_highlights(my_profile, their_profile)
         if min_score is not None and (score is None or score < min_score):
             continue
-        results.append({"user": student, "profile": their_profile, "score": score})
+        results.append(
+            {
+                "user": student,
+                "profile": their_profile,
+                "score": score,
+                "highlights": highlights,
+                "is_in_group": student.id in group_member_ids,
+            }
+        )
 
     results.sort(key=lambda r: r["score"] if r["score"] is not None else -1, reverse=True)
 
@@ -481,8 +517,19 @@ def browse_roommates(request):
     else:
         existing_convos = {}
 
+    existing_invites = RoommateGroupInvite.objects.filter(
+        inviter=request.user,
+        invitee__in=[result["user"] for result in results],
+        status__in=[
+            RoommateGroupInvite.STATUS_PENDING_APPROVAL,
+            RoommateGroupInvite.STATUS_PENDING_INVITEE,
+        ],
+    ).values_list("invitee_id", "status")
+    invite_status_map = {invitee_id: status for invitee_id, status in existing_invites}
+
     for result in results:
         result["existing_convo"] = existing_convos.get(result["user"].id)
+        result["invite_status"] = invite_status_map.get(result["user"].id)
 
     filters_active = any([query, gender_filter, smoke_filter, pets_filter, min_score is not None])
 
@@ -499,6 +546,10 @@ def browse_roommates(request):
             "filters_active": filters_active,
             "has_my_profile": my_profile is not None,
             "can_message": request.user.can_use_roommate_matching,
+            "active_group": active_group,
+            "group_memberships": group_memberships,
+            "pending_group_approvals": pending_group_invite_approvals_for_user(request.user),
+            "pending_group_invites": pending_group_invites_for_user(request.user),
         },
     )
 
@@ -514,8 +565,13 @@ def public_profile(request, user_id):
     if their_profile is None:
         raise Http404
     my_profile = getattr(request.user, "student_profile", None)
-    score = compute_compatibility(my_profile, their_profile) if my_profile else None
-    highlights = compatibility_highlights(my_profile, their_profile)
+    group_profiles = roommate_group_profiles_for_user(request.user)
+    if group_profiles:
+        score = compute_group_compatibility(group_profiles, their_profile) if their_profile else None
+        highlights = group_compatibility_highlights(group_profiles, their_profile)
+    else:
+        score = compute_compatibility(my_profile, their_profile) if my_profile else None
+        highlights = compatibility_highlights(my_profile, their_profile)
     existing_direct_conversation = None
     direct_message_form = None
     if request.user.id != target.id and request.user.can_use_roommate_matching:
@@ -528,6 +584,24 @@ def public_profile(request, user_id):
         direct_message_form = ConversationMessageForm(
             placeholder="Introduce yourself and compare housing plans.",
         )
+    active_group = active_roommate_group_for_user(request.user)
+    group_member_ids = set()
+    if active_group:
+        group_member_ids = {membership.user_id for membership in roommate_group_memberships(active_group)}
+    group_member_count = len(group_member_ids) if group_member_ids else (1 if my_profile else 0)
+    group_member_count = len(group_member_ids) if group_member_ids else (1 if my_profile else 0)
+    invite_status = (
+        RoommateGroupInvite.objects.filter(
+            inviter=request.user,
+            invitee=target,
+            status__in=[
+                RoommateGroupInvite.STATUS_PENDING_APPROVAL,
+                RoommateGroupInvite.STATUS_PENDING_INVITEE,
+            ],
+        )
+        .values_list("status", flat=True)
+        .first()
+    )
     return render(
         request,
         "users/public_profile.html",
@@ -540,5 +614,99 @@ def public_profile(request, user_id):
             "has_active_roommate_post": has_active_roommate_post,
             "existing_direct_conversation": existing_direct_conversation,
             "direct_message_form": direct_message_form,
+            "active_group": active_group,
+            "invite_status": invite_status,
+            "is_in_group": target.id in group_member_ids,
+            "group_member_count": group_member_count,
         },
     )
+
+
+@login_required
+@require_POST
+def send_group_invite(request, user_id):
+    if not request.user.is_student:
+        raise Http404
+    User = get_user_model()
+    invitee = get_object_or_404(
+        User,
+        id=user_id,
+        role=Role.STUDENT,
+        is_active=True,
+        profile_completed_at__isnull=False,
+    )
+    next_url = safe_next_url(request, request.POST.get("next"), reverse("users:browse_roommates"))
+    try:
+        invite = create_group_invite(request.user, invitee)
+    except ValidationError as exc:
+        if hasattr(exc, "message_dict"):
+            message = next(iter(exc.message_dict.values()))[0]
+        else:
+            message = exc.messages[0]
+        messages.error(request, message)
+    else:
+        if invite.status == RoommateGroupInvite.STATUS_PENDING_APPROVAL:
+            messages.success(request, "Invite proposed. Waiting on your group to approve.")
+        else:
+            messages.success(request, "Group invite sent.")
+    return redirect(next_url)
+
+
+@login_required
+@require_POST
+def approve_group_invite(request, invite_id):
+    invite = get_object_or_404(RoommateGroupInvite, pk=invite_id)
+    next_url = safe_next_url(request, request.POST.get("next"), reverse("users:browse_roommates"))
+    try:
+        respond_to_invite_approval(invite, request.user, approve=True)
+    except ValidationError as exc:
+        message = exc.messages[0]
+        messages.error(request, message)
+    else:
+        messages.success(request, "Invite approved.")
+    return redirect(next_url)
+
+
+@login_required
+@require_POST
+def reject_group_invite(request, invite_id):
+    invite = get_object_or_404(RoommateGroupInvite, pk=invite_id)
+    next_url = safe_next_url(request, request.POST.get("next"), reverse("users:browse_roommates"))
+    try:
+        respond_to_invite_approval(invite, request.user, approve=False)
+    except ValidationError as exc:
+        message = exc.messages[0]
+        messages.error(request, message)
+    else:
+        messages.success(request, "Invite declined.")
+    return redirect(next_url)
+
+
+@login_required
+@require_POST
+def accept_group_invite(request, invite_id):
+    invite = get_object_or_404(RoommateGroupInvite, pk=invite_id)
+    next_url = safe_next_url(request, request.POST.get("next"), reverse("communications:messages"))
+    try:
+        respond_to_group_invite(invite, request.user, accept=True)
+    except ValidationError as exc:
+        message = exc.messages[0]
+        messages.error(request, message)
+    else:
+        messages.success(request, "You joined the group.")
+    return redirect(next_url)
+
+
+@login_required
+@require_POST
+def decline_group_invite(request, invite_id):
+    invite = get_object_or_404(RoommateGroupInvite, pk=invite_id)
+    next_url = safe_next_url(request, request.POST.get("next"), reverse("communications:messages"))
+    try:
+        respond_to_group_invite(invite, request.user, accept=False)
+    except ValidationError as exc:
+        message = exc.messages[0]
+        messages.error(request, message)
+    else:
+        messages.success(request, "You declined the invite.")
+    return redirect(next_url)

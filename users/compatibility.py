@@ -91,3 +91,32 @@ def compatibility_highlights(profile_a: StudentProfile | None, profile_b: Studen
 
     candidates.sort(reverse=True)
     return [label for _, label in candidates[:limit]]
+
+
+def compute_group_compatibility(group_profiles: list[StudentProfile], target_profile: StudentProfile) -> int | None:
+    scores = []
+    for profile in group_profiles:
+        score = compute_compatibility(profile, target_profile)
+        if score is not None:
+            scores.append(score)
+    if not scores:
+        return None
+    return round(sum(scores) / len(scores))
+
+
+def group_compatibility_highlights(
+    group_profiles: list[StudentProfile], target_profile: StudentProfile, limit=3
+) -> list[str]:
+    if not group_profiles or target_profile is None:
+        return []
+
+    counts = {}
+    for profile in group_profiles:
+        for label in compatibility_highlights(profile, target_profile, limit=limit):
+            counts[label] = counts.get(label, 0) + 1
+
+    if not counts:
+        return []
+
+    ranked = sorted(counts.items(), key=lambda item: (item[1], item[0]), reverse=True)
+    return [label for label, _ in ranked[:limit]]

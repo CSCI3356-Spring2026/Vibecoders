@@ -292,6 +292,121 @@ class AdminProfile(models.Model):
         return f"AdminProfile({self.user.username})"
 
 
+class RoommateGroup(models.Model):
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="created_roommate_groups",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-created_at"]
+
+    @property
+    def member_count(self):
+        return self.memberships.count()
+
+    def __str__(self):
+        return f"RoommateGroup({self.pk})"
+
+
+class RoommateGroupMember(models.Model):
+    group = models.ForeignKey(RoommateGroup, on_delete=models.CASCADE, related_name="memberships")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="legacy_roommate_groups")
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["joined_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["group", "user"], name="roommate_group_member_unique"),
+        ]
+        indexes = [
+            models.Index(fields=["user", "joined_at"], name="roommate_group_member_user_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.user} in group {self.group_id}"
+
+
+class RoommateGroupInvite(models.Model):
+    STATUS_PENDING_APPROVAL = "pending_approval"
+    STATUS_PENDING_INVITEE = "pending_invitee"
+    STATUS_ACCEPTED = "accepted"
+    STATUS_REJECTED = "rejected"
+    STATUS_CANCELLED = "cancelled"
+    STATUS_CHOICES = [
+        (STATUS_PENDING_APPROVAL, "Awaiting group approval"),
+        (STATUS_PENDING_INVITEE, "Awaiting invitee response"),
+        (STATUS_ACCEPTED, "Accepted"),
+        (STATUS_REJECTED, "Rejected"),
+        (STATUS_CANCELLED, "Cancelled"),
+    ]
+
+    group = models.ForeignKey(RoommateGroup, on_delete=models.CASCADE, related_name="invites")
+    inviter = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="sent_roommate_group_invites",
+    )
+    invitee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="received_roommate_group_invites",
+    )
+    conversation = models.ForeignKey(
+        "communications.ListingConversation",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="roommate_group_invites",
+    )
+    status = models.CharField(max_length=24, choices=STATUS_CHOICES, default=STATUS_PENDING_APPROVAL, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    responded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["group", "invitee"],
+                condition=models.Q(status__in=["pending_approval", "pending_invitee"]),
+                name="roommate_group_invite_active_unique",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["invitee", "status", "created_at"], name="rg_invite_in_idx"),
+            models.Index(fields=["group", "status", "created_at"], name="rg_invite_group_idx"),
+        ]
+
+    def __str__(self):
+        return f"Invite {self.pk} to {self.invitee_id} ({self.status})"
+
+
+class RoommateGroupInviteApproval(models.Model):
+    invite = models.ForeignKey(RoommateGroupInvite, on_delete=models.CASCADE, related_name="approvals")
+    member = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="roommate_group_invite_approvals",
+    )
+    approved = models.BooleanField(null=True)
+    responded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["invite", "member"], name="roommate_group_invite_approval_unique"),
+        ]
+        indexes = [
+            models.Index(fields=["member", "responded_at"], name="rg_invite_approval_mem_idx"),
+        ]
+
+    def __str__(self):
+        return f"InviteApproval({self.invite_id}, {self.member_id})"
+
+
 class UserFile(models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="files")
     title = models.CharField(max_length=120, blank=True)
