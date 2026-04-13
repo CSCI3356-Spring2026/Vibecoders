@@ -49,7 +49,8 @@ def decorate_roommate_posts_for_user(user, roommate_posts, *, group_profiles=Non
     use_group_profiles = group_profiles or []
 
     for post in posts:
-        their_profile = getattr(post.author, "student_profile", None)
+        post_author = post.author or post.lead_user
+        their_profile = getattr(post_author, "student_profile", None)
         if post.group_id:
             score, highlights = _group_compatibility(my_profile, post.member_users)
         elif use_group_profiles:
@@ -66,14 +67,20 @@ def decorate_roommate_posts_for_user(user, roommate_posts, *, group_profiles=Non
         else:
             score = compute_compatibility(my_profile, their_profile) if my_profile and their_profile else None
             highlights = compatibility_highlights(my_profile, their_profile)
-        conversation = conversation_map.get(post.author_id)
+        conversation_key = post_author.id if post_author is not None else None
+        conversation = conversation_map.get(conversation_key)
         post.ui_score = score
         post.ui_score_variant = _score_variant(score)
         post.ui_highlights = highlights
         post.ui_profile_url = reverse(
-            "users:public_profile", args=[post.lead_user.id if post.lead_user else post.author_id]
+            "users:public_profile",
+            args=[post.lead_user.id if post.lead_user else conversation_key],
         )
-        post.ui_can_message = getattr(user, "can_use_roommate_matching", False) and user.id != post.author_id
+        post.ui_can_message = (
+            getattr(user, "can_use_roommate_matching", False)
+            and conversation_key is not None
+            and user.id != conversation_key
+        )
         post.ui_message_url = (
             reverse("communications:detail", args=[conversation.id])
             if conversation is not None
@@ -81,10 +88,12 @@ def decorate_roommate_posts_for_user(user, roommate_posts, *, group_profiles=Non
         )
         post.ui_message_label = "Open chat" if conversation is not None else "Message lead"
         post.ui_has_existing_conversation = conversation is not None
-        post.ui_author_major = getattr(getattr(post.author, "student_profile", None), "major", "")
-        post.ui_owner_label = post.group.name if post.group_id else post.author.display_name
+        post.ui_author_major = getattr(getattr(post_author, "student_profile", None), "major", "")
+        post.ui_owner_label = post.group.name if post.group_id else getattr(post_author, "display_name", "")
         post.ui_owner_meta = (
-            f"Led by {post.author.display_name}" if post.group_id else f"Posted by {post.author.display_name}"
+            f"Led by {getattr(post_author, 'display_name', '')}"
+            if post.group_id
+            else f"Posted by {getattr(post_author, 'display_name', '')}"
         )
         post.ui_member_count = len(post.member_users)
         post.ui_member_names = [member.display_name for member in post.member_users[:4]]
