@@ -1665,6 +1665,12 @@
     gap: 1rem;
 }
 
+.listing-detail-commute-grid {
+    display: grid;
+    grid-template-columns: minmax(16rem, 0.74fr) minmax(0, 1.26fr);
+    gap: 1rem;
+}
+
 .listing-detail-data-list,
 .listing-detail-policy-cards,
 .listing-detail-amenities-column,
@@ -1672,6 +1678,46 @@
 .listing-detail-sidebar-summary {
     display: grid;
     gap: 0.75rem;
+}
+
+.listing-detail-commute-summary {
+    display: grid;
+    gap: 0.9rem;
+    align-content: start;
+}
+
+.listing-detail-commute-stat,
+.listing-detail-commute-control {
+    display: grid;
+    gap: 0.35rem;
+    padding: 0.95rem 1rem;
+    border: 1px solid rgba(var(--gray-700-rgb), 0.08);
+    border-radius: var(--radius-md);
+    background: rgba(var(--gray-100-rgb), 0.52);
+}
+
+.listing-detail-commute-stat strong {
+    color: var(--gray-900);
+    font-size: 1.35rem;
+    font-weight: 800;
+}
+
+.listing-detail-commute-map-shell {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.listing-detail-commute-map-frame {
+    min-height: 18rem;
+    border-radius: var(--radius-md);
+}
+
+.listing-detail-commute-map {
+    min-height: 18rem;
+}
+
+.listing-detail-commute-map-note {
+    margin: 0;
 }
 
 .listing-detail-data-row {
@@ -1817,7 +1863,8 @@
     .listing-detail-intro-topline,
     .listing-detail-overview-grid,
     .listing-detail-data-grid,
-    .listing-detail-amenities-grid {
+    .listing-detail-amenities-grid,
+    .listing-detail-commute-grid {
         grid-template-columns: minmax(0, 1fr);
     }
 
@@ -2006,5 +2053,10 @@
 
     .listing-detail-data-row strong {
         text-align: left;
+    }
+
+    .listing-detail-commute-map-frame,
+    .listing-detail-commute-map {
+        min-height: 15rem;
     }
 }

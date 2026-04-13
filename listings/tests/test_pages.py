@@ -1941,6 +1941,35 @@ assert.equal(picker.isSelectionComplete(), true);
         self.assertContains(response, listing.owner.display_name)
         self.assertContains(response, "https://example.com/listing-owner-detail.png")
 
+    def test_listing_detail_shows_commute_distance_from_coordinates(self):
+        listing = self.create_listing(latitude=42.3477, longitude=-71.1538, distance_to_campus=None)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:detail", args=[listing.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Commute to Boston College")
+        self.assertContains(response, "Distance to campus")
+        self.assertContains(response, f"{response.context['commute_distance_miles']} mi")
+        self.assertContains(response, "js/listing-commute.js")
+
+    def test_listing_detail_renders_route_map_hooks_for_mapped_listing(self):
+        listing = self.create_listing(latitude=42.3477, longitude=-71.1538, distance_to_campus=None)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:detail", args=[listing.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "data-listing-commute")
+        self.assertContains(response, "data-commute-map")
+        self.assertContains(response, "data-commute-map-note")
+        self.assertContains(response, 'id="listing-commute-payload"')
+        self.assertContains(response, "https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.js")
+        self.assertTrue(response.context["commute_map_enabled"])
+        self.assertEqual(
+            response.context["commute_payload"]["map"]["routing_url"], "https://api.geoapify.com/v1/routing"
+        )
+
     def test_listing_detail_renders_gallery_hooks_when_multiple_images_exist(self):
         listing = self.create_listing()
         self.client.force_login(self.user)
