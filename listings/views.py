@@ -24,6 +24,7 @@ from users.selectors import roommate_group_profiles_for_user
 
 from .address_provider import get_geoapify_autocomplete_config, normalize_geoapify_suggestions
 from .address_signing import sign_address_selection
+from .commute import commute_payload_for_listing, listing_distance_to_bc_miles
 from .filtering import BEDROOMS_FILTER_MIN, PRICE_FILTER_MAX, PRICE_FILTER_MIN, apply_listing_filters
 from .form_services import handle_listing_form_submission, validation_message
 from .forms import (
@@ -145,6 +146,22 @@ def _listing_map_style_url():
 
 def _listing_satellite_map_style_url():
     return getattr(settings, "LISTING_MAP_SATELLITE_STYLE_URL", "").strip()
+
+
+def _listing_commute_map_payload():
+    if not settings.LISTING_MAPS_ENABLED:
+        return None
+
+    api_key = getattr(settings, "LISTING_GEOAPIFY_API_KEY", "").strip()
+    style_url = _listing_map_style_url()
+    if not api_key or not style_url:
+        return None
+
+    return {
+        "api_key": api_key,
+        "routing_url": "https://api.geoapify.com/v1/routing",
+        "style_url": style_url,
+    }
 
 
 def _autocomplete_results_response(results, *, status=200):
@@ -349,8 +366,9 @@ def _listing_highlight_items(listing):
         items.append("Parking")
     if listing.is_furnished:
         items.append("Furnished")
-    if listing.distance_to_campus:
-        items.append(f"{listing.distance_to_campus} mi to campus")
+    distance_to_campus = listing_distance_to_bc_miles(listing)
+    if distance_to_campus is not None:
+        items.append(f"{distance_to_campus:.1f} mi to campus")
     return items
 
 
@@ -581,6 +599,14 @@ def listing_detail(request, pk):
         and listing.owner_id != request.user.id
         and listing.is_publicly_active
     )
+    commute_payload = commute_payload_for_listing(listing)
+    commute_distance_miles = commute_payload["distance_miles"] if commute_payload else None
+    commute_map_payload = _listing_commute_map_payload()
+    commute_map_enabled = bool(
+        commute_payload and commute_map_payload and commute_payload.get("origin") and commute_payload.get("destination")
+    )
+    if commute_map_enabled:
+        commute_payload["map"] = commute_map_payload
     review_requires_contact = (
         _can_leave_listing_feedback(request.user)
         and listing.owner_id != request.user.id
@@ -648,6 +674,9 @@ def listing_detail(request, pk):
         "can_review_listing": can_review_listing,
         "can_report_listing": can_report_listing,
         "review_requires_contact": review_requires_contact,
+        "commute_payload": commute_payload,
+        "commute_distance_miles": commute_distance_miles,
+        "commute_map_enabled": commute_map_enabled,
         "listing_highlight_items": _listing_highlight_items(listing),
         "amenity_items": _split_listing_detail_items(listing.amenities),
         "utility_items": _split_listing_detail_items(listing.utilities_included),
