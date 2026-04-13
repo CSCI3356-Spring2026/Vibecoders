@@ -1,6 +1,14 @@
 from django.db.models import Avg, BooleanField, Case, Count, Exists, IntegerField, OuterRef, Prefetch, Q, Value, When
 
-from .models import Listing, ListingFavorite, ListingReport, ListingReportUpdate, ListingReview, RoommatePost
+from .models import (
+    Listing,
+    ListingFavorite,
+    ListingReport,
+    ListingReportUpdate,
+    ListingReview,
+    RoommateGroup,
+    RoommatePost,
+)
 
 ACTIVE_REPORT_STATUSES = [ListingReport.STATUS_OPEN, ListingReport.STATUS_IN_REVIEW]
 
@@ -99,10 +107,22 @@ def roommate_post_for_user(user):
     return RoommatePost.objects.with_related().filter(author=user).first()
 
 
+def roommate_group_for_user(user):
+    if not getattr(user, "is_authenticated", False):
+        return None
+    return RoommateGroup.objects.prefetch_related("members").filter(lead=user).first()
+
+
+def roommate_group_post_for_user(user):
+    if not getattr(user, "is_authenticated", False):
+        return None
+    return RoommatePost.objects.with_related().filter(group__lead=user).first()
+
+
 def active_roommate_post_for_user(user):
     if not getattr(user, "is_authenticated", False):
         return None
-    return RoommatePost.objects.active().filter(author=user).first()
+    return RoommatePost.objects.active().filter(Q(author=user) | Q(group__lead=user)).first()
 
 
 def filtered_roommate_posts_queryset(
@@ -116,17 +136,24 @@ def filtered_roommate_posts_queryset(
 ):
     queryset = RoommatePost.objects.active()
     if getattr(user, "is_authenticated", False):
-        queryset = queryset.exclude(author=user)
+        queryset = queryset.exclude(Q(author=user) | Q(group__lead=user))
 
     if query:
         queryset = queryset.filter(
             Q(title__icontains=query)
             | Q(description__icontains=query)
             | Q(neighborhoods__icontains=query)
+            | Q(group__name__icontains=query)
             | Q(author__first_name__icontains=query)
             | Q(author__last_name__icontains=query)
             | Q(author__username__icontains=query)
             | Q(author__student_profile__major__icontains=query)
+            | Q(group__lead__first_name__icontains=query)
+            | Q(group__lead__last_name__icontains=query)
+            | Q(group__lead__username__icontains=query)
+            | Q(group__members__first_name__icontains=query)
+            | Q(group__members__last_name__icontains=query)
+            | Q(group__members__student_profile__major__icontains=query)
         )
     if housing_status in {value for value, _ in RoommatePost.HOUSING_CHOICES}:
         queryset = queryset.filter(housing_status=housing_status)
@@ -137,4 +164,4 @@ def filtered_roommate_posts_queryset(
     if open_spots_min is not None:
         queryset = queryset.filter(open_spots__gte=open_spots_min)
 
-    return queryset.order_by("-updated_at", "-created_at")
+    return queryset.distinct().order_by("-updated_at", "-created_at")

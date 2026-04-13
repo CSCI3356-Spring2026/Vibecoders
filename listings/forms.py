@@ -2,6 +2,7 @@ from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 from django import forms
+from django.contrib.auth import get_user_model
 from django.core import signing
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -9,7 +10,15 @@ from django.utils import timezone
 from .address_provider import get_geoapify_autocomplete_config
 from .address_signing import unsign_address_selection
 from .fields import ListingImageField
-from .models import Listing, ListingImage, ListingReport, ListingReview, RoommatePost
+from .models import (
+    Listing,
+    ListingImage,
+    ListingReport,
+    ListingReview,
+    RoommateGroup,
+    RoommateGroupMembership,
+    RoommatePost,
+)
 
 ADDRESS_SELECTION_MAX_AGE_SECONDS = 300
 
@@ -438,8 +447,9 @@ class RoommatePostForm(forms.ModelForm):
             "description": "What your group is looking for",
         }
 
-    def __init__(self, *args, user=None, **kwargs):
+    def __init__(self, *args, user=None, group=None, **kwargs):
         self.user = user
+        self.group = group
         super().__init__(*args, **kwargs)
 
         for field_name, field in self.fields.items():
@@ -451,6 +461,10 @@ class RoommatePostForm(forms.ModelForm):
 
         if not self.is_bound and not getattr(self.instance, "pk", None):
             self.fields["move_in_date"].initial = timezone.localdate() + timedelta(days=30)
+        if self.group is not None:
+            self.fields["current_group_size"].initial = self.group.member_count
+            self.fields["current_group_size"].widget.attrs["readonly"] = "readonly"
+            self.fields["current_group_size"].help_text = "Automatically set from your group members."
 
     def clean_title(self):
         title = (self.cleaned_data.get("title") or "").strip()
@@ -483,6 +497,13 @@ class RoommatePostForm(forms.ModelForm):
         user = self.user
         if user is not None and not getattr(user, "can_use_roommate_matching", False):
             raise ValidationError("Complete your roommate profile before posting for roommates.")
+        if self.group is not None:
+            cleaned_data["current_group_size"] = self.group.member_count
+            self.instance.group = self.group
+            self.instance.author = None
+        elif self.user is not None:
+            self.instance.author = self.user
+            self.instance.group = None
         move_in_date = cleaned_data.get("move_in_date")
         if move_in_date and move_in_date < timezone.localdate():
             self.add_error("move_in_date", "Move-in date must be today or later.")
@@ -491,10 +512,130 @@ class RoommatePostForm(forms.ModelForm):
     def save(self, commit=True):
         instance = super().save(commit=False)
         instance.is_active = True
-        if self.user is not None and instance.author_id is None:
+        if self.group is not None:
+            instance.group = self.group
+            instance.author = None
+            instance.current_group_size = self.group.member_count
+        elif self.user is not None and instance.author_id is None:
             instance.author = self.user
+            instance.group = None
         if commit:
             instance.save()
+        return instance
+
+
+class RoommateGroupForm(forms.ModelForm):
+    name = forms.CharField(
+        max_length=RoommateGroup._meta.get_field("name").max_length,
+        widget=forms.TextInput(attrs={"placeholder": "Beacon Street Housemates"}),
+        label="Group name",
+    )
+    member_emails = forms.CharField(
+        required=False,
+        label="Member emails",
+        widget=forms.Textarea(
+            attrs={
+                "rows": 4,
+                "placeholder": "one@bc.edu, two@bc.edu",
+            }
+        ),
+        help_text="Add active student emails separated by commas or new lines. Your email is included automatically.",
+    )
+
+    class Meta:
+        model = RoommateGroup
+        fields = ["name", "description"]
+        widgets = {
+            "description": forms.Textarea(
+                attrs={
+                    "rows": 3,
+                    "placeholder": "A quick note about your group and living style.",
+                }
+            ),
+        }
+        labels = {
+            "description": "Group summary",
+        }
+
+    def __init__(self, *args, user=None, **kwargs):
+        self.user = user
+        self.member_users = []
+        super().__init__(*args, **kwargs)
+        for field_name, field in self.fields.items():
+            css_class = field.widget.attrs.get("class", "")
+            field.widget.attrs["class"] = f"{css_class} form-control".strip()
+        if self.instance.pk:
+            member_emails = [
+                member.email for member in self.instance.members.exclude(pk=self.instance.lead_id).order_by("email")
+            ]
+            self.fields["member_emails"].initial = ", ".join(member_emails)
+
+    def _parse_member_emails(self):
+        raw_value = self.cleaned_data.get("member_emails") or ""
+        emails = []
+        for item in raw_value.replace("\n", ",").split(","):
+            normalized = item.strip().lower()
+            if normalized and normalized not in emails:
+                emails.append(normalized)
+        return emails
+
+    def clean_name(self):
+        name = (self.cleaned_data.get("name") or "").strip()
+        if len(name) < 3:
+            raise ValidationError("Give the group a clearer name.")
+        return name
+
+    def clean_description(self):
+        description = (self.cleaned_data.get("description") or "").strip()
+        if len(description) > 500:
+            raise ValidationError("Keep the group summary to 500 characters or fewer.")
+        return description
+
+    def clean(self):
+        cleaned_data = super().clean()
+        user = self.user
+        if user is None or not getattr(user, "can_use_roommate_matching", False):
+            raise ValidationError("Complete your roommate profile before creating a roommate group.")
+
+        email_values = self._parse_member_emails()
+        User = get_user_model()
+        member_lookup = {
+            member.email: member
+            for member in User._default_manager.filter(
+                email__in=email_values,
+                role="student",
+                is_active=True,
+                profile_completed_at__isnull=False,
+            )
+        }
+        missing_emails = [email for email in email_values if email not in member_lookup]
+        if missing_emails:
+            self.add_error("member_emails", f"These students are unavailable: {', '.join(missing_emails)}.")
+        member_users = [user, *member_lookup.values()]
+        deduped_members = []
+        seen_ids = set()
+        for member in member_users:
+            if member.id not in seen_ids:
+                deduped_members.append(member)
+                seen_ids.add(member.id)
+        if len(deduped_members) > 8:
+            self.add_error("member_emails", "Keep roommate groups to 8 people or fewer.")
+        self.member_users = deduped_members
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        if self.user is not None and instance.lead_id is None:
+            instance.lead = self.user
+        if commit:
+            instance.save()
+            instance.memberships.exclude(user=instance.lead).delete()
+            RoommateGroupMembership.objects.get_or_create(group=instance, user=instance.lead)
+            current_member_ids = {instance.lead_id}
+            for member in self.member_users:
+                RoommateGroupMembership.objects.get_or_create(group=instance, user=member)
+                current_member_ids.add(member.id)
+            instance.memberships.exclude(user_id__in=current_member_ids).delete()
         return instance
 
 

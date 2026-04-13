@@ -26,7 +26,14 @@ from .address_signing import sign_address_selection
 from .commute import commute_payload_for_listing, listing_distance_to_bc_miles
 from .filtering import BEDROOMS_FILTER_MIN, PRICE_FILTER_MAX, PRICE_FILTER_MIN, apply_listing_filters
 from .form_services import handle_listing_form_submission, validation_message
-from .forms import ListingForm, ListingReportForm, ListingReviewForm, RoommatePostFilterForm, RoommatePostForm
+from .forms import (
+    ListingForm,
+    ListingReportForm,
+    ListingReviewForm,
+    RoommateGroupForm,
+    RoommatePostFilterForm,
+    RoommatePostForm,
+)
 from .geocoding import BOSTON_COLLEGE_LATITUDE, BOSTON_COLLEGE_LONGITUDE
 from .models import Listing, ListingFavorite, ListingReport, ListingReview
 from .roommate_post_service import decorate_roommate_posts_for_user
@@ -37,6 +44,8 @@ from .selectors import (
     listing_reviews_queryset,
     marketplace_listings_for_user,
     messageable_listings_for_user,
+    roommate_group_for_user,
+    roommate_group_post_for_user,
     roommate_post_for_user,
     searchable_marketplace_listings_for_user,
     with_favorite_state,
@@ -372,6 +381,8 @@ def _first_form_error(form, default_message):
 
 def _roommate_post_board_context(request, *, filter_form=None, post_form=None):
     current_post = roommate_post_for_user(request.user)
+    current_group = roommate_group_for_user(request.user)
+    current_group_post = roommate_group_post_for_user(request.user)
 
     if filter_form is None:
         filter_form = RoommatePostFilterForm(request.GET or None)
@@ -393,11 +404,17 @@ def _roommate_post_board_context(request, *, filter_form=None, post_form=None):
 
     if post_form is None:
         post_form = RoommatePostForm(instance=current_post, user=request.user)
+    group_form = RoommateGroupForm(instance=current_group, user=request.user)
+    group_post_form = RoommatePostForm(instance=current_group_post, user=request.user, group=current_group)
 
     return {
+        "roommate_group_form": group_form,
         "roommate_post_form": post_form,
+        "roommate_group_post_form": group_post_form,
         "roommate_post_filter_form": filter_form,
         "current_roommate_post": current_post,
+        "current_roommate_group": current_group,
+        "current_group_roommate_post": current_group_post,
         "roommate_posts": roommate_posts_page,
         "roommate_posts_total": len(roommate_posts),
         "pagination_query": preserved_query_suffix(request.GET, "page"),
@@ -442,6 +459,59 @@ def save_roommate_post(request):
 
 @login_required
 @require_POST
+def save_roommate_group(request):
+    if not request.user.is_student:
+        return HttpResponseForbidden("Student access is required to use roommate posts.")
+
+    current_group = roommate_group_for_user(request.user)
+    form = RoommateGroupForm(request.POST, instance=current_group, user=request.user)
+    if form.is_valid():
+        group = form.save()
+        group_post = roommate_group_post_for_user(request.user)
+        if group_post is not None:
+            group_post.current_group_size = group.member_count
+            group_post.save(update_fields=["current_group_size", "updated_at"])
+        messages.success(request, "Roommate group saved.")
+        return redirect("listings:group_match")
+
+    messages.error(request, _first_form_error(form, "Review the highlighted roommate group fields and try again."))
+    context = _roommate_post_board_context(request)
+    context["roommate_group_form"] = form
+    return render(request, "listings/group_match.html", context)
+
+
+@login_required
+@require_POST
+def save_group_roommate_post(request):
+    if not request.user.is_student:
+        return HttpResponseForbidden("Student access is required to use roommate posts.")
+
+    current_group = roommate_group_for_user(request.user)
+    if current_group is None:
+        messages.error(request, "Create your roommate group before publishing a group post.")
+        return redirect("listings:group_match")
+
+    current_post = roommate_group_post_for_user(request.user)
+    was_active = bool(current_post and current_post.is_active)
+    form = RoommatePostForm(request.POST, instance=current_post, user=request.user, group=current_group)
+    if form.is_valid():
+        form.save()
+        if current_post is None:
+            messages.success(request, "Group roommate post published.")
+        elif was_active:
+            messages.success(request, "Group roommate post updated.")
+        else:
+            messages.success(request, "Group roommate post reactivated.")
+        return redirect("listings:group_match")
+
+    messages.error(request, _first_form_error(form, "Review the highlighted group post fields and try again."))
+    context = _roommate_post_board_context(request)
+    context["roommate_group_post_form"] = form
+    return render(request, "listings/group_match.html", context)
+
+
+@login_required
+@require_POST
 def deactivate_roommate_post(request):
     if not request.user.is_student:
         return HttpResponseForbidden("Student access is required to use roommate posts.")
@@ -451,6 +521,20 @@ def deactivate_roommate_post(request):
         roommate_post.is_active = False
         roommate_post.save(update_fields=["is_active", "updated_at"])
         messages.success(request, "Roommate post paused.")
+    return redirect("listings:group_match")
+
+
+@login_required
+@require_POST
+def deactivate_group_roommate_post(request):
+    if not request.user.is_student:
+        return HttpResponseForbidden("Student access is required to use roommate posts.")
+
+    roommate_post = roommate_group_post_for_user(request.user)
+    if roommate_post is not None and roommate_post.is_active:
+        roommate_post.is_active = False
+        roommate_post.save(update_fields=["is_active", "updated_at"])
+        messages.success(request, "Group roommate post paused.")
     return redirect("listings:group_match")
 
 

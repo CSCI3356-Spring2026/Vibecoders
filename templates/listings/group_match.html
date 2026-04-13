@@ -25,7 +25,10 @@
                 <div class="app-meta">
                     <span class="app-meta-chip">{{ roommate_posts_total }} active post{{ roommate_posts_total|pluralize }}</span>
                     {% if current_roommate_post and current_roommate_post.is_active %}
-                        <span class="app-meta-chip app-meta-chip-secondary">Your post is live</span>
+                        <span class="app-meta-chip app-meta-chip-secondary">Your personal post is live</span>
+                    {% endif %}
+                    {% if current_group_roommate_post and current_group_roommate_post.is_active %}
+                        <span class="app-meta-chip app-meta-chip-secondary">Your group post is live</span>
                     {% endif %}
                     {% if request.user.can_use_roommate_matching %}
                         <span class="app-meta-chip app-meta-chip-neutral">Scores reflect your roommate profile</span>
@@ -37,10 +40,68 @@
 
             <div class="app-layout group-board-layout">
                 <aside class="app-sidebar group-board-sidebar">
+                    <section class="listing-panel group-board-rail-panel group-board-post-panel" id="your-roommate-group">
+                        <div class="app-panel-head">
+                            <div>
+                                <p class="group-board-panel-kicker">Your group</p>
+                                <h2 class="app-section-heading">
+                                    {% if current_roommate_group %}Manage roommate group{% else %}Create a roommate group{% endif %}
+                                </h2>
+                                <p class="app-panel-copy">Keep a real member list and publish posts as a household.</p>
+                            </div>
+                        </div>
+
+                        {% if can_manage_roommate_post %}
+                            {% if request.user.can_use_roommate_matching %}
+                                {% if current_roommate_group %}
+                                    <div class="group-board-current group-board-current-summary">
+                                        <span class="app-meta-chip app-meta-chip-primary">{{ current_roommate_group.member_count }} member{{ current_roommate_group.member_count|pluralize }}</span>
+                                        <span class="app-meta-chip app-meta-chip-neutral">Lead: {{ current_roommate_group.lead.display_name }}</span>
+                                    </div>
+                                {% endif %}
+
+                                <form class="group-board-post-form" method="post" action="{% url 'listings:save_roommate_group' %}">
+                                    {% csrf_token %}
+                                    {% if roommate_group_form.errors %}
+                                        <div class="app-form-error-summary" role="alert">
+                                            <strong>Fix these fields to save your group.</strong>
+                                            <ul>
+                                                {% for field in roommate_group_form %}
+                                                    {% for error in field.errors %}
+                                                        <li>{{ field.label }}: {{ error }}</li>
+                                                    {% endfor %}
+                                                {% endfor %}
+                                                {% for error in roommate_group_form.non_field_errors %}
+                                                    <li>{{ error }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    {% endif %}
+                                    <div class="group-board-form-stack">
+                                        {% include "listings/includes/form_field.html" with field=roommate_group_form.name wrapper_class="group-board-field" %}
+                                        {% include "listings/includes/form_field.html" with field=roommate_group_form.member_emails wrapper_class="group-board-field group-board-field-textarea" %}
+                                        {% include "listings/includes/form_field.html" with field=roommate_group_form.description wrapper_class="group-board-field group-board-field-textarea" %}
+                                    </div>
+                                    <div class="group-board-actions">
+                                        <button class="btn btn-brand" type="submit">
+                                            {% if current_roommate_group %}Update group{% else %}Create group{% endif %}
+                                        </button>
+                                    </div>
+                                </form>
+                            {% else %}
+                                <div class="app-empty">
+                                    <h3 class="app-empty-title">Finish your roommate profile first</h3>
+                                    <p class="app-empty-copy">Groups, scores, and direct messages all run off your roommate profile.</p>
+                                    <a class="btn btn-brand mt-3" href="{% url 'users:profile_setup' %}">Complete profile</a>
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                    </section>
+
                     <section class="listing-panel group-board-rail-panel group-board-post-panel" id="your-roommate-post">
                         <div class="app-panel-head">
                             <div>
-                                <p class="group-board-panel-kicker">Your post</p>
+                                <p class="group-board-panel-kicker">Your personal post</p>
                                 <h2 class="app-section-heading">
                                     {% if current_roommate_post %}
                                         {% if current_roommate_post.is_active %}Your roommate post{% else %}Reactivate your post{% endif %}
@@ -48,7 +109,7 @@
                                         Create a roommate post
                                     {% endif %}
                                 </h2>
-                                <p class="app-panel-copy">Budget, timing, and who your group wants to live with.</p>
+                                <p class="app-panel-copy">Budget, timing, and who you or your current household want to live with.</p>
                             </div>
                         </div>
 
@@ -128,6 +189,88 @@
                         {% endif %}
                     </section>
 
+                    <section class="listing-panel group-board-rail-panel group-board-post-panel" id="your-group-roommate-post">
+                        <div class="app-panel-head">
+                            <div>
+                                <p class="group-board-panel-kicker">Your group post</p>
+                                <h2 class="app-section-heading">
+                                    {% if current_group_roommate_post %}
+                                        {% if current_group_roommate_post.is_active %}Your group roommate post{% else %}Reactivate your group post{% endif %}
+                                    {% else %}
+                                        Publish a group roommate post
+                                    {% endif %}
+                                </h2>
+                                <p class="app-panel-copy">Use your group entity to post as one household instead of one person.</p>
+                            </div>
+                        </div>
+
+                        {% if can_manage_roommate_post and request.user.can_use_roommate_matching %}
+                            {% if current_roommate_group %}
+                                {% if current_group_roommate_post %}
+                                    <div class="group-board-current group-board-current-summary">
+                                        <span class="app-meta-chip {% if current_group_roommate_post.is_active %}app-meta-chip-primary{% else %}app-meta-chip-neutral{% endif %}">
+                                            {% if current_group_roommate_post.is_active %}Live{% else %}Paused{% endif %}
+                                        </span>
+                                        <span class="app-meta-chip app-meta-chip-neutral">{{ current_roommate_group.member_count }} group member{{ current_roommate_group.member_count|pluralize }}</span>
+                                        <span class="app-meta-chip app-meta-chip-neutral">{{ current_group_roommate_post.get_housing_status_display }}</span>
+                                    </div>
+                                {% endif %}
+
+                                <form class="group-board-post-form" method="post" action="{% url 'listings:save_group_roommate_post' %}">
+                                    {% csrf_token %}
+                                    {% if roommate_group_post_form.errors %}
+                                        <div class="app-form-error-summary" role="alert">
+                                            <strong>Fix these fields to publish your group post.</strong>
+                                            <ul>
+                                                {% for field in roommate_group_post_form %}
+                                                    {% for error in field.errors %}
+                                                        <li>{{ field.label }}: {{ error }}</li>
+                                                    {% endfor %}
+                                                {% endfor %}
+                                                {% for error in roommate_group_post_form.non_field_errors %}
+                                                    <li>{{ error }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    {% endif %}
+                                    <div class="group-board-form-stack">
+                                        {% include "listings/includes/form_field.html" with field=roommate_group_post_form.title wrapper_class="group-board-field" %}
+                                        {% include "listings/includes/form_field.html" with field=roommate_group_post_form.housing_status wrapper_class="group-board-field" %}
+
+                                        <div class="group-board-field-grid group-board-field-grid-3">
+                                            {% include "listings/includes/form_field.html" with field=roommate_group_post_form.current_group_size wrapper_class="group-board-field" %}
+                                            {% include "listings/includes/form_field.html" with field=roommate_group_post_form.open_spots wrapper_class="group-board-field" %}
+                                            {% include "listings/includes/form_field.html" with field=roommate_group_post_form.move_in_date wrapper_class="group-board-field" %}
+                                        </div>
+
+                                        <div class="group-board-field-grid">
+                                            {% include "listings/includes/form_field.html" with field=roommate_group_post_form.budget_min wrapper_class="group-board-field" %}
+                                            {% include "listings/includes/form_field.html" with field=roommate_group_post_form.budget_max wrapper_class="group-board-field" %}
+                                        </div>
+
+                                        {% include "listings/includes/form_field.html" with field=roommate_group_post_form.neighborhoods wrapper_class="group-board-field" %}
+                                        {% include "listings/includes/form_field.html" with field=roommate_group_post_form.description wrapper_class="group-board-field group-board-field-textarea" %}
+                                    </div>
+                                    <div class="group-board-actions">
+                                        <button class="btn btn-brand" type="submit">
+                                            {% if current_group_roommate_post and current_group_roommate_post.is_active %}Update group post{% elif current_group_roommate_post %}Reactivate group post{% else %}Publish group post{% endif %}
+                                        </button>
+                                        {% if current_group_roommate_post and current_group_roommate_post.is_active %}
+                                            <button class="btn btn-outline-secondary" type="submit" formaction="{% url 'listings:deactivate_group_roommate_post' %}" formnovalidate>
+                                                Pause group post
+                                            </button>
+                                        {% endif %}
+                                    </div>
+                                </form>
+                            {% else %}
+                                <div class="app-empty">
+                                    <h3 class="app-empty-title">Create your group first</h3>
+                                    <p class="app-empty-copy">Group posts are available once your roommate group has a lead and members.</p>
+                                </div>
+                            {% endif %}
+                        {% endif %}
+                    </section>
+
                     <section class="listing-panel group-board-rail-panel group-board-filter-panel">
                         <div class="app-panel-head">
                             <div>
@@ -174,10 +317,13 @@
                                     <article class="group-post-card">
                                         <div class="group-post-head">
                                             <div class="identity-row group-post-identity">
-                                                {% include "includes/user_avatar.html" with user_obj=post.author avatar_class="user-avatar user-avatar-lg" %}
+                                                {% include "includes/user_avatar.html" with user_obj=post.lead_user avatar_class="user-avatar user-avatar-lg" %}
                                                 <div class="identity-copy">
-                                                    <p class="group-post-overline">Posted by {{ post.author.display_name }}</p>
+                                                    <p class="group-post-overline">{{ post.ui_owner_meta }}</p>
                                                     <h3 class="group-post-title">{{ post.title }}</h3>
+                                                    {% if post.group_id %}
+                                                        <p class="group-post-subtitle">{{ post.group.name }}</p>
+                                                    {% endif %}
                                                     {% if post.ui_author_major %}
                                                         <p class="group-post-subtitle">{{ post.ui_author_major }}</p>
                                                     {% endif %}
@@ -216,10 +362,21 @@
                                         <div class="group-post-tags">
                                             <span class="app-meta-chip app-meta-chip-neutral">{{ post.get_housing_status_display }}</span>
                                             <span class="app-meta-chip app-meta-chip-neutral">{{ post.target_household_size }} person target</span>
+                                            {% if post.group_id %}
+                                                <span class="app-meta-chip app-meta-chip-neutral">Lead: {{ post.lead_user.display_name }}</span>
+                                            {% endif %}
                                             {% for area in post.neighborhoods_list|slice:":3" %}
                                                 <span class="app-meta-chip app-meta-chip-neutral">{{ area }}</span>
                                             {% endfor %}
                                         </div>
+
+                                        {% if post.group_id and post.ui_member_names %}
+                                            <div class="group-post-highlights">
+                                                {% for member_name in post.ui_member_names %}
+                                                    <span>{{ member_name }}</span>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
 
                                         <p class="group-post-body">{{ post.description|truncatechars:220 }}</p>
 
@@ -232,7 +389,9 @@
                                         {% endif %}
 
                                         <div class="group-post-actions">
-                                            <a class="btn btn-outline-secondary btn-sm" href="{{ post.ui_profile_url }}">View profile</a>
+                                            <a class="btn btn-outline-secondary btn-sm" href="{{ post.ui_profile_url }}">
+                                                {% if post.group_id %}View lead{% else %}View profile{% endif %}
+                                            </a>
                                             {% if post.ui_can_message %}
                                                 <a class="btn btn-brand btn-sm" href="{{ post.ui_message_url }}">{{ post.ui_message_label }}</a>
                                             {% else %}

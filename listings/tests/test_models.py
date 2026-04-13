@@ -25,7 +25,7 @@ from ..address_provider import get_geoapify_autocomplete_config, normalize_geoap
 from ..address_signing import sign_address_selection, unsign_address_selection
 from ..forms import ListingForm
 from ..geocoding import geocode_listing_address
-from ..models import Listing, ListingFavorite, ListingImage, ListingReport, ListingReview, RoommatePost
+from ..models import Listing, ListingFavorite, ListingImage, ListingReport, ListingReview, RoommateGroup, RoommatePost
 from ..report_services import update_listing_report
 from .base import ListingTestCase
 
@@ -138,6 +138,49 @@ class ListingModelTests(ListingTestCase):
         posts = list(RoommatePost.objects.active())
 
         self.assertEqual([post.pk for post in posts], [live_post.pk])
+
+    def test_roommate_group_requires_completed_student_lead(self):
+        student = self.user.__class__.objects.create_user(
+            username="group-lead",
+            email="group-lead@bc.edu",
+            password="test",
+        )
+
+        with self.assertRaises(ValidationError) as exc:
+            RoommateGroup.objects.create(
+                lead=student,
+                name="Late Summer Search",
+            )
+
+        self.assertIn(
+            "Only students with completed roommate profiles can lead a group.",
+            exc.exception.message_dict["name"][0],
+        )
+
+    def test_group_roommate_post_uses_group_member_count(self):
+        second_member = self.user.__class__.objects.create_user(
+            username="groupmate",
+            email="groupmate@bc.edu",
+            password="test",
+        )
+        group = self.create_roommate_group(lead=self.user, members=[second_member])
+
+        post = self.create_group_roommate_post(group=group, current_group_size=99)
+
+        self.assertEqual(post.current_group_size, 2)
+
+    def test_roommate_post_active_queryset_includes_live_group_posts(self):
+        second_member = self.user.__class__.objects.create_user(
+            username="groupmate-two",
+            email="groupmate-two@bc.edu",
+            password="test",
+        )
+        group = self.create_roommate_group(lead=self.user, members=[second_member])
+        post = self.create_group_roommate_post(group=group)
+
+        posts = list(RoommatePost.objects.active())
+
+        self.assertEqual([item.pk for item in posts], [post.pk])
 
     def test_roommate_post_active_queryset_excludes_past_move_in_dates(self):
         stale_author = self.user.__class__.objects.create_user(
@@ -668,6 +711,28 @@ class ListingModelTests(ListingTestCase):
             "This user is not currently accepting new roommate messages.",
             exc.exception.message_dict["body"][0],
         )
+
+    def test_start_direct_conversation_allows_group_lead_with_active_group_post(self):
+        participant = self.user.__class__.objects.create_user(
+            username="group-lead-match",
+            email="group-lead-match@bc.edu",
+            password="test",
+        )
+        group_member = self.user.__class__.objects.create_user(
+            username="group-member-match",
+            email="group-member-match@bc.edu",
+            password="test",
+        )
+        self._complete_roommate_profile(self.user)
+        self._complete_roommate_profile(participant)
+        self._complete_roommate_profile(group_member)
+        group = self.create_roommate_group(lead=participant, members=[group_member])
+        self.create_group_roommate_post(group=group)
+
+        conversation, _, created = start_direct_conversation(self.user, participant, "Want to compare options?")
+
+        self.assertTrue(created)
+        self.assertTrue(conversation.is_direct)
 
     def test_start_direct_conversation_allows_existing_thread_after_roommate_post_is_paused(self):
         participant = self.user.__class__.objects.create_user(
