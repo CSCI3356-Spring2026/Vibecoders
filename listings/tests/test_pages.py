@@ -2471,7 +2471,7 @@ class GroupMatchPageTests(ListingTestCase):
             },
         )
 
-        self.assertRedirects(response, reverse("listings:group_match"))
+        self.assertRedirects(response, reverse("listings:roommates_hub") + "?tab=mypost")
         roommate_post = RoommatePost.objects.get(author=self.user)
         self.assertEqual(roommate_post.current_group_size, 3)
         self.assertTrue(roommate_post.is_active)
@@ -2495,7 +2495,7 @@ class GroupMatchPageTests(ListingTestCase):
             },
         )
 
-        self.assertRedirects(group_response, reverse("listings:group_match"))
+        self.assertRedirects(group_response, reverse("listings:roommates_hub") + "?tab=mypost")
 
         post_response = self.client.post(
             reverse("listings:save_group_roommate_post"),
@@ -2512,9 +2512,9 @@ class GroupMatchPageTests(ListingTestCase):
             },
         )
 
-        self.assertRedirects(post_response, reverse("listings:group_match"))
+        self.assertRedirects(post_response, reverse("listings:roommates_hub") + "?tab=mypost")
         group_post = RoommatePost.objects.get(group__lead=self.user)
-        self.assertEqual(group_post.current_group_size, 2)
+        self.assertEqual(group_post.current_group_size, 1)  # members now join via invite flow, not member_emails
         self.assertTrue(group_post.is_active)
 
     def test_student_can_publish_roommate_post_without_open_spots_when_still_need_home(self):
@@ -2535,7 +2535,7 @@ class GroupMatchPageTests(ListingTestCase):
             },
         )
 
-        self.assertRedirects(response, reverse("listings:group_match"))
+        self.assertRedirects(response, reverse("listings:roommates_hub") + "?tab=mypost")
         roommate_post = RoommatePost.objects.get(author=self.user)
         self.assertIsNone(roommate_post.open_spots)
 

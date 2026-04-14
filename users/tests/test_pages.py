@@ -377,7 +377,7 @@ class UserPageTests(TestCase):
         self.assertContains(dashboard_response, "https://example.com/avatar.jpg")
         self.assertContains(dashboard_response, self.user.display_role)
         self.assertContains(dashboard_response, "Open document library")
-        self.assertContains(dashboard_response, ">Find groups<", html=False)
+        self.assertContains(dashboard_response, ">Roommates<", html=False)
         self.assertNotContains(dashboard_response, ">Browse<", html=False)
         self.assertNotContains(dashboard_response, "Workspace")
         self.assertNotContains(dashboard_response, "Permissions")
