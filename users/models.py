@@ -292,6 +292,7 @@ class AdminProfile(models.Model):
         return f"AdminProfile({self.user.username})"
 
 
+# DEPRECATED — use listings.RoommateGroup
 class RoommateGroup(models.Model):
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -312,6 +313,7 @@ class RoommateGroup(models.Model):
         return f"RoommateGroup({self.pk})"
 
 
+# DEPRECATED — use listings.RoommateGroupMembership
 class RoommateGroupMember(models.Model):
     group = models.ForeignKey(RoommateGroup, on_delete=models.CASCADE, related_name="memberships")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="legacy_roommate_groups")
@@ -344,7 +346,7 @@ class RoommateGroupInvite(models.Model):
         (STATUS_CANCELLED, "Cancelled"),
     ]
 
-    group = models.ForeignKey(RoommateGroup, on_delete=models.CASCADE, related_name="invites")
+    group = models.ForeignKey("listings.RoommateGroup", on_delete=models.CASCADE, related_name="invites")
     inviter = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,

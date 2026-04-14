@@ -1,0 +1,682 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Roommates | {{ site_product_name }}{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/group-match.css' %}?v=2">
+{% endblock %}
+
+{% block content %}
+<section class="app-page rmhub-page">
+    <div class="container">
+        <div class="app-shell">
+
+            {# ── Page header ── #}
+            <section class="app-header app-header-shell">
+                <div class="app-header-main">
+                    <div>
+                        <p class="app-kicker">Roommates</p>
+                        <h1 class="app-title">Find your next roommate.</h1>
+                        <p class="app-subtitle">Browse group posts and student profiles, compare fit, and reach out directly.</p>
+                    </div>
+                    <div class="app-actions">
+                        <a class="btn btn-outline-secondary" href="{% url 'listings:listing_list' %}">Browse listings</a>
+                    </div>
+                </div>
+                <div class="app-meta">
+                    {% if tab == "posts" %}
+                        <span class="app-meta-chip">{{ roommate_posts_total }} active post{{ roommate_posts_total|pluralize }}</span>
+                        {% if request.user.can_use_roommate_matching %}
+                            <span class="app-meta-chip app-meta-chip-neutral">Scores reflect your roommate profile</span>
+                        {% elif can_manage_roommate_post %}
+                            <span class="app-meta-chip app-meta-chip-neutral">Complete your profile to unlock scores and messages</span>
+                        {% endif %}
+                    {% elif tab == "people" %}
+                        <span class="app-meta-chip">{{ people_results|length }} student{{ people_results|length|pluralize }}</span>
+                        {% if not has_my_profile %}
+                            <span class="app-meta-chip app-meta-chip-neutral">Complete your profile to see match scores</span>
+                        {% endif %}
+                    {% else %}
+                        {% if current_roommate_post and current_roommate_post.is_active %}
+                            <span class="app-meta-chip app-meta-chip-secondary">Your post is live</span>
+                        {% elif current_roommate_post %}
+                            <span class="app-meta-chip app-meta-chip-neutral">Your post is paused</span>
+                        {% else %}
+                            <span class="app-meta-chip app-meta-chip-neutral">No post yet</span>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </section>
+
+            {# ── Toolbar: tabs + search + filter toggle ── #}
+            <div class="rmhub-toolbar">
+                <div class="rmhub-tabs">
+                    <a class="rmhub-tab {% if tab == 'posts' %}rmhub-tab-active{% endif %}"
+                       href="?tab=posts">Posts</a>
+                    <a class="rmhub-tab {% if tab == 'people' %}rmhub-tab-active{% endif %}"
+                       href="?tab=people">People</a>
+                    {% if can_manage_roommate_post %}
+                        <a class="rmhub-tab {% if tab == 'mypost' %}rmhub-tab-active{% endif %}"
+                           href="?tab=mypost">Your Post</a>
+                    {% endif %}
+                </div>
+
+                {% if tab != "mypost" %}
+                    <form class="rmhub-search-form" method="get" id="rmhub-search-form">
+                        <input type="hidden" name="tab" value="{{ tab }}">
+                        <input
+                            class="form-control rmhub-search-input"
+                            type="search"
+                            name="q"
+                            value="{{ request.GET.q }}"
+                            placeholder="Search…"
+                            aria-label="Search"
+                        >
+                    </form>
+
+                    <div class="rmhub-toolbar-actions">
+                        <button
+                            class="btn btn-outline-secondary btn-sm"
+                            type="button"
+                            id="rmhub-filter-toggle"
+                            onclick="rmhubToggleFilters()"
+                            aria-expanded="false"
+                            aria-controls="rmhub-filter-panel"
+                        >Filters</button>
+                        {% if can_manage_roommate_post %}
+                            {% if has_any_roommate_post %}
+                                <a class="btn btn-brand btn-sm" href="?tab=mypost">Edit Post</a>
+                            {% else %}
+                                <button class="btn btn-brand btn-sm" type="button" onclick="document.getElementById('rmhub-create-dialog').showModal()">+ Create Post</button>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="rmhub-toolbar-actions" style="margin-left:auto">
+                        {% if can_manage_roommate_post %}
+                            {% if has_any_roommate_post %}
+                                {# Already on mypost tab — no button needed #}
+                            {% else %}
+                                <button class="btn btn-brand btn-sm" type="button" onclick="document.getElementById('rmhub-create-dialog').showModal()">+ Create Post</button>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+
+            {# ── Filter drawer (Posts + People tabs only) ── #}
+            {% if tab != "mypost" %}
+            <div class="rmhub-filter-panel" id="rmhub-filter-panel" hidden>
+                <form class="rmhub-filter-form" method="get">
+                    <input type="hidden" name="tab" value="{{ tab }}">
+                    <div class="rmhub-filter-grid">
+
+                        {% if tab == "posts" %}
+                            <div class="rmhub-filter-field">
+                                <label class="rmhub-filter-label" for="fp_q">Search</label>
+                                <input class="form-control" type="search" id="fp_q" name="q"
+                                    value="{{ request.GET.q }}" placeholder="Title, neighborhood…">
+                            </div>
+                            <div class="rmhub-filter-field">
+                                <label class="rmhub-filter-label" for="fp_status">Housing stage</label>
+                                <select class="form-select" id="fp_status" name="housing_status">
+                                    <option value="">Any stage</option>
+                                    {% for val, label in roommate_post_filter_form.housing_status.field.choices %}
+                                        {% if val %}
+                                            <option value="{{ val }}" {% if roommate_post_filter_form.housing_status.value == val %}selected{% endif %}>{{ label }}</option>
+                                        {% endif %}
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="rmhub-filter-field">
+                                <label class="rmhub-filter-label" for="fp_budget">Budget cap</label>
+                                <input class="form-control" type="number" id="fp_budget" name="max_budget"
+                                    value="{{ roommate_post_filter_form.max_budget.value|default:'' }}"
+                                    placeholder="e.g. 1800" min="0">
+                            </div>
+                            <div class="rmhub-filter-field">
+                                <label class="rmhub-filter-label" for="fp_spots">Min open spots</label>
+                                <input class="form-control" type="number" id="fp_spots" name="open_spots_min"
+                                    value="{{ roommate_post_filter_form.open_spots_min.value|default:'' }}"
+                                    placeholder="e.g. 1" min="1" max="8">
+                            </div>
+                            <div class="rmhub-filter-field">
+                                <label class="rmhub-filter-label" for="fp_movein">Move in by</label>
+                                <input class="form-control" type="date" id="fp_movein" name="move_in_by"
+                                    value="{{ roommate_post_filter_form.move_in_by.value|default:'' }}">
+                            </div>
+
+                        {% else %}{# people tab #}
+                            <div class="rmhub-filter-field">
+                                <label class="rmhub-filter-label" for="fp_q">Name</label>
+                                <input class="form-control" type="search" id="fp_q" name="q"
+                                    value="{{ request.GET.q }}" placeholder="Search by name…">
+                            </div>
+                            <div class="rmhub-filter-field">
+                                <label class="rmhub-filter-label" for="fp_gender">Gender</label>
+                                <select class="form-select" id="fp_gender" name="gender">
+                                    <option value="">Any</option>
+                                    <option value="male"       {% if people_gender_filter == "male" %}selected{% endif %}>Male</option>
+                                    <option value="female"     {% if people_gender_filter == "female" %}selected{% endif %}>Female</option>
+                                    <option value="other"      {% if people_gender_filter == "other" %}selected{% endif %}>Other</option>
+                                    <option value="prefer_not" {% if people_gender_filter == "prefer_not" %}selected{% endif %}>Prefer not to say</option>
+                                </select>
+                            </div>
+                            <div class="rmhub-filter-field">
+                                <label class="rmhub-filter-label" for="fp_smoke">Smoking</label>
+                                <select class="form-select" id="fp_smoke" name="smoke">
+                                    <option value="">Any</option>
+                                    <option value="yes" {% if people_smoke_filter == "yes" %}selected{% endif %}>Okay</option>
+                                    <option value="no"  {% if people_smoke_filter == "no"  %}selected{% endif %}>No smoking</option>
+                                </select>
+                            </div>
+                            <div class="rmhub-filter-field">
+                                <label class="rmhub-filter-label" for="fp_pets">Pets</label>
+                                <select class="form-select" id="fp_pets" name="pets">
+                                    <option value="">Any</option>
+                                    <option value="yes" {% if people_pets_filter == "yes" %}selected{% endif %}>Okay</option>
+                                    <option value="no"  {% if people_pets_filter == "no"  %}selected{% endif %}>No pets</option>
+                                </select>
+                            </div>
+                            {% if has_my_profile %}
+                                <div class="rmhub-filter-field">
+                                    <label class="rmhub-filter-label" for="fp_min_score">Min match %</label>
+                                    <input class="form-control" type="number" id="fp_min_score" name="min_score"
+                                        value="{{ people_min_score }}" placeholder="e.g. 60" min="0" max="100">
+                                </div>
+                            {% endif %}
+                        {% endif %}
+
+                    </div>
+                    <div class="rmhub-filter-actions">
+                        <button class="btn btn-brand btn-sm" type="submit">Apply</button>
+                        <a class="btn btn-outline-secondary btn-sm" href="?tab={{ tab }}">Clear</a>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+
+            {# ── Feed ── #}
+            <div class="rmhub-feed">
+
+                {# ──────── Posts tab ──────── #}
+                {% if tab == "posts" %}
+                    {% if roommate_posts.paginator.count %}
+                        <div class="group-post-list">
+                            {% for post in roommate_posts %}
+                                <article class="group-post-card group-post-card-compact">
+                                    {# Always-visible summary row #}
+                                    <div class="group-post-head">
+                                        <div class="identity-row group-post-identity">
+                                            {% include "includes/user_avatar.html" with user_obj=post.author avatar_class="user-avatar user-avatar-md" %}
+                                            <div class="identity-copy">
+                                                <h3 class="group-post-title">{{ post.title }}</h3>
+                                                <p class="group-post-overline">
+                                                    {{ post.author.display_name }}{% if post.ui_author_major %} · {{ post.ui_author_major }}{% endif %}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <span class="app-meta-chip {% if post.ui_score_variant == 'primary' %}app-meta-chip-primary{% elif post.ui_score_variant == 'secondary' %}app-meta-chip-secondary{% else %}app-meta-chip-neutral{% endif %}">
+                                            {% if post.ui_score is not None %}{{ post.ui_score }}% match
+                                            {% elif request.user.can_use_roommate_matching %}No score
+                                            {% else %}–{% endif %}
+                                        </span>
+                                    </div>
+
+                                    {# Key info chips — always visible #}
+                                    <div class="group-post-compact-chips">
+                                        <span class="app-meta-chip app-meta-chip-neutral">{{ post.get_housing_status_display }}</span>
+                                        <span class="app-meta-chip app-meta-chip-neutral">{{ post.current_group_size }}+{{ post.open_spots }} people</span>
+                                        <span class="app-meta-chip app-meta-chip-neutral">${{ post.budget_min|floatformat:0 }}–${{ post.budget_max|floatformat:0 }}/mo</span>
+                                        <span class="app-meta-chip app-meta-chip-neutral">{{ post.move_in_date|date:"M j" }}</span>
+                                    </div>
+
+                                    {# Actions row — always visible #}
+                                    <div class="group-post-actions">
+                                        <button
+                                            class="btn btn-outline-secondary btn-sm group-post-expand-btn"
+                                            type="button"
+                                            onclick="rmhubExpandPost(this)"
+                                            aria-expanded="false"
+                                        >Details ▾</button>
+                                        {% if post.ui_can_message %}
+                                            <a class="btn btn-brand btn-sm" href="{{ post.ui_message_url }}">{{ post.ui_message_label }}</a>
+                                        {% elif can_manage_roommate_post %}
+                                            <a class="btn btn-brand btn-sm" href="{% url 'users:profile_setup' %}">Message</a>
+                                        {% endif %}
+                                    </div>
+
+                                    {# Expanded detail section — hidden by default #}
+                                    <div class="group-post-expanded" hidden>
+                                        {% if post.description %}
+                                            <p class="group-post-body">{{ post.description }}</p>
+                                        {% endif %}
+                                        {% if post.neighborhoods_list %}
+                                            <div class="group-post-tags">
+                                                {% for area in post.neighborhoods_list %}
+                                                    <span class="app-meta-chip app-meta-chip-neutral">{{ area }}</span>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        {% if post.ui_highlights %}
+                                            <div class="group-post-highlights">
+                                                {% for h in post.ui_highlights %}<span>{{ h }}</span>{% endfor %}
+                                            </div>
+                                        {% endif %}
+                                        <div class="group-post-actions">
+                                            <a class="btn btn-outline-secondary btn-sm" href="{{ post.ui_profile_url }}">View profile</a>
+                                            {% if post.ui_can_message %}
+                                                <a class="btn btn-brand btn-sm" href="{{ post.ui_message_url }}">{{ post.ui_message_label }}</a>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </article>
+                            {% endfor %}
+                        </div>
+                        {% include "includes/pagination.html" with page_obj=roommate_posts pagination_query=pagination_query %}
+                    {% else %}
+                        <div class="app-empty">
+                            <h3 class="app-empty-title">No matching posts right now</h3>
+                            <p class="app-empty-copy">Try broadening the filters or be the first to post.</p>
+                        </div>
+                    {% endif %}
+
+                {# ──────── People tab ──────── #}
+                {% elif tab == "people" %}
+                    {% if people_results %}
+                        <div class="group-post-list">
+                            {% for result in people_results %}
+                                <article class="group-post-card">
+                                    <div class="group-post-head">
+                                        <div class="identity-row group-post-identity">
+                                            {% include "includes/user_avatar.html" with user_obj=result.user avatar_class="user-avatar user-avatar-lg" %}
+                                            <div class="identity-copy">
+                                                <a class="group-post-title" href="{% url 'users:public_profile' result.user.id %}">
+                                                    {{ result.user.display_name }}
+                                                </a>
+                                                {% if result.profile.major %}
+                                                    <p class="group-post-subtitle">{{ result.profile.major }}</p>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        {% if result.score is not None %}
+                                            <span class="app-meta-chip {% if result.score >= 75 %}app-meta-chip-primary{% elif result.score >= 50 %}app-meta-chip-secondary{% else %}app-meta-chip-neutral{% endif %}">
+                                                {{ result.score }}% match
+                                            </span>
+                                        {% elif has_my_profile %}
+                                            <span class="app-meta-chip app-meta-chip-neutral">No score yet</span>
+                                        {% endif %}
+                                    </div>
+
+                                    {% if result.profile.bio %}
+                                        <p class="group-post-body">{{ result.profile.bio }}</p>
+                                    {% endif %}
+
+                                    <div class="group-post-actions">
+                                        <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:public_profile' result.user.id %}">View profile</a>
+                                        {% if can_message %}
+                                            {% if result.existing_convo %}
+                                                <a class="btn btn-brand btn-sm" href="{% url 'communications:detail' result.existing_convo.id %}">Open chat</a>
+                                            {% else %}
+                                                <button
+                                                    class="btn btn-outline-secondary btn-sm"
+                                                    type="button"
+                                                    onclick="rmhubToggleMsg('msg-{{ result.user.id }}')"
+                                                    id="btn-msg-{{ result.user.id }}"
+                                                >Message</button>
+                                            {% endif %}
+                                        {% endif %}
+                                        {% if is_group_lead and not result.already_in_group %}
+                                            {% if result.invite_status == "pending_invitee" %}
+                                                <span class="app-meta-chip app-meta-chip-secondary">Invite sent</span>
+                                            {% elif result.invite_status == "pending_approval" %}
+                                                <span class="app-meta-chip app-meta-chip-neutral">Awaiting group approval</span>
+                                            {% else %}
+                                                <form method="post" action="{% url 'users:send_group_invite' result.user.id %}?next={{ request.path }}%3Ftab%3Dpeople" style="margin:0">
+                                                    {% csrf_token %}
+                                                    <button class="btn btn-outline-secondary btn-sm" type="submit">+ Invite to group</button>
+                                                </form>
+                                            {% endif %}
+                                        {% endif %}
+                                    </div>
+
+                                    {% if can_message and not result.existing_convo %}
+                                        <div class="group-board-message-form" id="msg-{{ result.user.id }}" hidden>
+                                            <form method="post" action="{% url 'communications:start_direct_conversation' result.user.id %}">
+                                                {% csrf_token %}
+                                                <textarea
+                                                    class="form-control mb-2"
+                                                    name="body"
+                                                    rows="3"
+                                                    placeholder="Introduce yourself and compare housing plans…"
+                                                    required
+                                                ></textarea>
+                                                <div class="group-board-actions">
+                                                    <button class="btn btn-brand btn-sm" type="submit">Send message</button>
+                                                    <button class="btn btn-outline-secondary btn-sm" type="button"
+                                                        onclick="rmhubToggleMsg('msg-{{ result.user.id }}')">Cancel</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    {% endif %}
+                                </article>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="app-empty">
+                            <h3 class="app-empty-title">No students found</h3>
+                            <p class="app-empty-copy">
+                                {% if people_filters_active %}Try adjusting or clearing your filters.{% else %}No other students with completed profiles yet.{% endif %}
+                            </p>
+                        </div>
+                    {% endif %}
+
+                {# ──────── Your Post tab ──────── #}
+                {% elif tab == "mypost" %}
+                    {% if can_manage_roommate_post %}
+                        {% if request.user.can_use_roommate_matching %}
+
+                            {# ── Existing posts ── #}
+                            {% if my_posts_with_forms %}
+                                <div class="group-post-list">
+                                    {% for post, edit_form in my_posts_with_forms %}
+                                        <article class="group-post-card group-post-card-compact">
+                                            <div class="group-post-head">
+                                                <div class="identity-row group-post-identity">
+                                                    {% include "includes/user_avatar.html" with user_obj=request.user avatar_class="user-avatar user-avatar-md" %}
+                                                    <div class="identity-copy">
+                                                        <h3 class="group-post-title">{{ post.title }}</h3>
+                                                        <p class="group-post-overline">
+                                                            {{ request.user.display_name }}{% with major=request.user.student_profile.major %}{% if major %} · {{ major }}{% endif %}{% endwith %}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div class="rmhub-mypost-card-actions">
+                                                    <span class="app-meta-chip {% if post.is_active %}app-meta-chip-primary{% else %}app-meta-chip-neutral{% endif %}">
+                                                        {% if post.is_active %}Live{% else %}Paused{% endif %}
+                                                    </span>
+                                                    <button class="btn btn-outline-secondary btn-sm" type="button"
+                                                        onclick="document.getElementById('rmhub-edit-dialog-{{ post.pk }}').showModal()">Edit</button>
+                                                    <button class="btn btn-outline-secondary btn-sm" type="button"
+                                                        onclick="rmhubConfirmDelete({{ post.pk }})">Delete</button>
+                                                </div>
+                                            </div>
+
+                                            <div class="group-post-compact-chips">
+                                                <span class="app-meta-chip app-meta-chip-neutral">{{ post.get_housing_status_display }}</span>
+                                                <span class="app-meta-chip app-meta-chip-neutral">{{ post.current_group_size }}+{{ post.open_spots }} people</span>
+                                                <span class="app-meta-chip app-meta-chip-neutral">${{ post.budget_min|floatformat:0 }}–${{ post.budget_max|floatformat:0 }}/mo</span>
+                                                <span class="app-meta-chip app-meta-chip-neutral">{{ post.move_in_date|date:"M j" }}</span>
+                                            </div>
+
+                                            <div class="group-post-actions">
+                                                <button
+                                                    class="btn btn-outline-secondary btn-sm group-post-expand-btn"
+                                                    type="button"
+                                                    onclick="rmhubExpandPost(this)"
+                                                    aria-expanded="false"
+                                                >Details ▾</button>
+                                            </div>
+
+                                            <div class="group-post-expanded" hidden>
+                                                {% if post.description %}
+                                                    <p class="group-post-body">{{ post.description }}</p>
+                                                {% endif %}
+                                                {% if post.neighborhoods_list %}
+                                                    <div class="group-post-tags">
+                                                        {% for area in post.neighborhoods_list %}
+                                                            <span class="app-meta-chip app-meta-chip-neutral">{{ area }}</span>
+                                                        {% endfor %}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+
+                                            {# Per-post edit dialog #}
+                                            <dialog id="rmhub-edit-dialog-{{ post.pk }}" class="rmhub-dialog">
+                                                <div class="rmhub-dialog-panel">
+                                                    <div class="rmhub-dialog-head">
+                                                        <h2 class="rmhub-dialog-title">Edit post</h2>
+                                                        <button class="rmhub-dialog-close" type="button"
+                                                            onclick="this.closest('dialog').close()" aria-label="Close">✕</button>
+                                                    </div>
+                                                    <form class="group-board-post-form" method="post"
+                                                        action="{% url 'listings:edit_roommate_post' post.pk %}">
+                                                        {% csrf_token %}
+                                                        {% if edit_error_pk == post.pk and edit_form.errors %}
+                                                            <div class="app-form-error-summary" role="alert">
+                                                                <strong>Fix these fields to save.</strong>
+                                                                <ul>
+                                                                    {% for field in edit_form %}{% for error in field.errors %}<li>{{ field.label }}: {{ error }}</li>{% endfor %}{% endfor %}
+                                                                    {% for error in edit_form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+                                                                </ul>
+                                                            </div>
+                                                        {% endif %}
+                                                        <div class="group-board-form-stack">
+                                                            {% include "listings/includes/form_field.html" with field=edit_form.title wrapper_class="group-board-field" %}
+                                                            {% include "listings/includes/form_field.html" with field=edit_form.housing_status wrapper_class="group-board-field" %}
+                                                            <div class="group-board-field-grid group-board-field-grid-3">
+                                                                {% include "listings/includes/form_field.html" with field=edit_form.current_group_size wrapper_class="group-board-field" %}
+                                                                {% include "listings/includes/form_field.html" with field=edit_form.open_spots wrapper_class="group-board-field" %}
+                                                                {% include "listings/includes/form_field.html" with field=edit_form.move_in_date wrapper_class="group-board-field" %}
+                                                            </div>
+                                                            <div class="group-board-field-grid">
+                                                                {% include "listings/includes/form_field.html" with field=edit_form.budget_min wrapper_class="group-board-field" %}
+                                                                {% include "listings/includes/form_field.html" with field=edit_form.budget_max wrapper_class="group-board-field" %}
+                                                            </div>
+                                                            {% include "listings/includes/form_field.html" with field=edit_form.neighborhoods wrapper_class="group-board-field" %}
+                                                            {% include "listings/includes/form_field.html" with field=edit_form.description wrapper_class="group-board-field group-board-field-textarea" %}
+                                                        </div>
+                                                        <div class="group-board-actions">
+                                                            <button class="btn btn-brand btn-sm" type="submit">
+                                                                {% if post.is_active %}Save changes{% else %}Reactivate post{% endif %}
+                                                            </button>
+                                                            <button class="btn btn-outline-secondary btn-sm" type="button"
+                                                                onclick="this.closest('dialog').close()">Cancel</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </dialog>
+
+                                            {# Hidden delete form #}
+                                            <form id="rmhub-delete-form-{{ post.pk }}" method="post"
+                                                action="{% url 'listings:delete_roommate_post' post.pk %}" hidden>
+                                                {% csrf_token %}
+                                            </form>
+                                        </article>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <div class="app-empty">
+                                    <h3 class="app-empty-title">No posts yet</h3>
+                                    <p class="app-empty-copy">Hit "+ Create Post" to publish your first roommate post.</p>
+                                </div>
+                            {% endif %}
+
+                            {# ── Your Group panel ── #}
+                            {% if display_group %}
+                            <div class="rmhub-group-panel">
+                                <div class="rmhub-group-panel-head">
+                                    <div>
+                                        <p class="app-kicker" style="margin-bottom:0.1rem">Your Group</p>
+                                        <h3 class="rmhub-group-name">{{ display_group.name }}</h3>
+                                    </div>
+                                    <div style="display:flex;align-items:center;gap:0.5rem">
+                                        <span class="app-meta-chip app-meta-chip-neutral">{{ group_members|length }} member{{ group_members|length|pluralize }}</span>
+                                        {% if is_group_lead %}
+                                            <a class="btn btn-outline-secondary btn-sm" href="?tab=people">+ Add members</a>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% if group_members %}
+                                    <div class="rmhub-member-list">
+                                        {% for membership in group_members %}
+                                            <div class="rmhub-member-row">
+                                                {% include "includes/user_avatar.html" with user_obj=membership.user avatar_class="user-avatar user-avatar-sm" %}
+                                                <span class="rmhub-member-row-name">
+                                                    <a href="{% url 'users:public_profile' membership.user.id %}" style="color:inherit;text-decoration:none">{{ membership.user.display_name }}</a>
+                                                </span>
+                                                {% if membership.user.id == display_group.lead_id %}
+                                                    <span class="rmhub-member-row-role">Lead</span>
+                                                {% else %}
+                                                    <span class="rmhub-member-row-role">Member</span>
+                                                    {% if is_group_lead %}
+                                                        <form method="post" action="{% url 'listings:remove_group_member' membership.pk %}" style="margin:0">
+                                                            {% csrf_token %}
+                                                            <button
+                                                                class="btn btn-outline-danger btn-sm"
+                                                                type="button"
+                                                                onclick="if(confirm('Remove {{ membership.user.display_name }} from the group?')) this.closest('form').submit()"
+                                                            >Remove</button>
+                                                        </form>
+                                                    {% endif %}
+                                                {% endif %}
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+
+                        {% else %}
+                            <div class="app-empty">
+                                <h3 class="app-empty-title">Finish your roommate profile first</h3>
+                                <p class="app-empty-copy">Posts, scores, and direct messages all run off your roommate profile.</p>
+                                <a class="btn btn-brand mt-3" href="{% url 'users:profile_setup' %}">Complete profile</a>
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <div class="app-empty">
+                            <h3 class="app-empty-title">Roommate posts are student-only</h3>
+                            <p class="app-empty-copy">Use the listing workflow for property inventory and outreach.</p>
+                        </div>
+                    {% endif %}
+                {% endif %}
+
+            </div>{# /rmhub-feed #}
+
+        </div>
+    </div>
+</section>
+
+{# ── Global create-post dialog ── #}
+{% if can_manage_roommate_post and request.user.can_use_roommate_matching %}
+<dialog id="rmhub-create-dialog" class="rmhub-dialog">
+    <div class="rmhub-dialog-panel">
+        <div class="rmhub-dialog-head">
+            <h2 class="rmhub-dialog-title">New roommate post</h2>
+            <button class="rmhub-dialog-close" type="button"
+                onclick="this.closest('dialog').close()" aria-label="Close">✕</button>
+        </div>
+        <form class="group-board-post-form" method="post" action="{% url 'listings:save_roommate_post' %}">
+            {% csrf_token %}
+            {% if show_create_modal and roommate_post_create_form.errors %}
+                <div class="app-form-error-summary" role="alert">
+                    <strong>Fix these fields to publish your post.</strong>
+                    <ul>
+                        {% for field in roommate_post_create_form %}{% for error in field.errors %}<li>{{ field.label }}: {{ error }}</li>{% endfor %}{% endfor %}
+                        {% for error in roommate_post_create_form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+            <div class="group-board-form-stack">
+                {% include "listings/includes/form_field.html" with field=roommate_post_create_form.title wrapper_class="group-board-field" %}
+                {% include "listings/includes/form_field.html" with field=roommate_post_create_form.housing_status wrapper_class="group-board-field" %}
+                <div class="group-board-field-grid group-board-field-grid-3">
+                    {% include "listings/includes/form_field.html" with field=roommate_post_create_form.current_group_size wrapper_class="group-board-field" %}
+                    {% include "listings/includes/form_field.html" with field=roommate_post_create_form.open_spots wrapper_class="group-board-field" %}
+                    {% include "listings/includes/form_field.html" with field=roommate_post_create_form.move_in_date wrapper_class="group-board-field" %}
+                </div>
+                <div class="group-board-field-grid">
+                    {% include "listings/includes/form_field.html" with field=roommate_post_create_form.budget_min wrapper_class="group-board-field" %}
+                    {% include "listings/includes/form_field.html" with field=roommate_post_create_form.budget_max wrapper_class="group-board-field" %}
+                </div>
+                {% include "listings/includes/form_field.html" with field=roommate_post_create_form.neighborhoods wrapper_class="group-board-field" %}
+                {% include "listings/includes/form_field.html" with field=roommate_post_create_form.description wrapper_class="group-board-field group-board-field-textarea" %}
+            </div>
+            <div class="group-board-actions">
+                <button class="btn btn-brand" type="submit">Publish post</button>
+                <button class="btn btn-outline-secondary" type="button"
+                    onclick="this.closest('dialog').close()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+{% endif %}
+
+<script>
+// ── Post expand/collapse ───────────────────────────────────────────────────
+function rmhubExpandPost(btn) {
+    var card    = btn.closest('.group-post-card');
+    var details = card.querySelector('.group-post-expanded');
+    if (!details) return;
+    var opening = details.hasAttribute('hidden');
+    details.toggleAttribute('hidden', !opening);
+    btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
+    btn.textContent = opening ? 'Details ▴' : 'Details ▾';
+}
+
+// ── Delete confirmation (per post) ────────────────────────────────────────
+function rmhubConfirmDelete(pk) {
+    if (confirm('Delete this post? This cannot be undone.')) {
+        document.getElementById('rmhub-delete-form-' + pk).submit();
+    }
+}
+
+// ── Filter drawer ──────────────────────────────────────────────────────────
+function rmhubToggleFilters() {
+    var panel = document.getElementById('rmhub-filter-panel');
+    var btn   = document.getElementById('rmhub-filter-toggle');
+    if (!panel) return;
+    var open = panel.hasAttribute('hidden');
+    panel.toggleAttribute('hidden', !open);
+    if (btn) {
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        btn.classList.toggle('btn-active', open);
+    }
+}
+
+// ── Message form per student ───────────────────────────────────────────────
+function rmhubToggleMsg(id) {
+    var form = document.getElementById(id);
+    var btn  = document.getElementById('btn-' + id);
+    if (!form) return;
+    var opening = form.hasAttribute('hidden');
+    form.toggleAttribute('hidden', !opening);
+    if (opening) {
+        form.querySelector('textarea').focus();
+        if (btn) btn.textContent = 'Cancel message';
+    } else {
+        if (btn) btn.textContent = 'Message';
+    }
+}
+
+// ── Auto-open filters if there are active filter params ───────────────────
+{% if roommate_filters_active or people_filters_active %}
+document.addEventListener('DOMContentLoaded', function() {
+    var panel = document.getElementById('rmhub-filter-panel');
+    var btn   = document.getElementById('rmhub-filter-toggle');
+    if (panel) {
+        panel.removeAttribute('hidden');
+        if (btn) { btn.setAttribute('aria-expanded', 'true'); btn.classList.add('btn-active'); }
+    }
+});
+{% endif %}
+
+// ── Auto-open create dialog on error ──────────────────────────────────────
+{% if show_create_modal %}
+document.addEventListener('DOMContentLoaded', function() {
+    var d = document.getElementById('rmhub-create-dialog');
+    if (d) d.showModal();
+});
+{% endif %}
+
+// ── Auto-open edit dialog on error ────────────────────────────────────────
+{% if edit_error_pk %}
+document.addEventListener('DOMContentLoaded', function() {
+    var d = document.getElementById('rmhub-edit-dialog-{{ edit_error_pk }}');
+    if (d) d.showModal();
+});
+{% endif %}
+</script>
+{% endblock %}

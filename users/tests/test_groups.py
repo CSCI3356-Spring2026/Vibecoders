@@ -4,7 +4,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from communications.models import ListingConversation
-from users.models import RoommateGroup, RoommateGroupInvite, RoommateGroupMember
+from listings.models import RoommateGroup, RoommateGroupMembership
+from users.models import RoommateGroupInvite
 
 
 class RoommateGroupTests(TestCase):
@@ -53,7 +54,7 @@ class RoommateGroupTests(TestCase):
         self.assertEqual(response.status_code, 302)
         invite.refresh_from_db()
         self.assertEqual(invite.status, RoommateGroupInvite.STATUS_ACCEPTED)
-        self.assertTrue(RoommateGroupMember.objects.filter(group=invite.group, user=invitee).exists())
+        self.assertTrue(RoommateGroupMembership.objects.filter(group=invite.group, user=invitee).exists())
 
     def test_group_invite_requires_member_approval(self):
         member = self.User.objects.create_user(username="member", email="member@bc.edu", password="test")
@@ -61,9 +62,9 @@ class RoommateGroupTests(TestCase):
         self._complete_profile(member)
         self._complete_profile(invitee)
 
-        group = RoommateGroup.objects.create(created_by=self.user)
-        RoommateGroupMember.objects.create(group=group, user=self.user)
-        RoommateGroupMember.objects.create(group=group, user=member)
+        group = RoommateGroup.objects.create(lead=self.user, name="Test Group")
+        RoommateGroupMembership.objects.create(group=group, user=self.user)
+        RoommateGroupMembership.objects.create(group=group, user=member)
 
         self.client.force_login(self.user)
         response = self.client.post(reverse("users:send_group_invite", args=[invitee.id]))
@@ -103,9 +104,9 @@ class RoommateGroupTests(TestCase):
         )
         self._complete_profile(candidate)
 
-        group = RoommateGroup.objects.create(created_by=self.user)
-        RoommateGroupMember.objects.create(group=group, user=self.user)
-        RoommateGroupMember.objects.create(group=group, user=buddy)
+        group = RoommateGroup.objects.create(lead=self.user, name="Test Group")
+        RoommateGroupMembership.objects.create(group=group, user=self.user)
+        RoommateGroupMembership.objects.create(group=group, user=buddy)
 
         self.client.force_login(self.user)
         response = self.client.get(reverse("users:browse_roommates"), {"q": "Casey"})

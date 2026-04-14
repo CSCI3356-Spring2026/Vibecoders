@@ -569,6 +569,7 @@ class RoommateGroupMembership(models.Model):
         ordering = ["created_at", "id"]
         constraints = [
             models.UniqueConstraint(fields=["group", "user"], name="roommate_group_membership_unique"),
+            models.UniqueConstraint(fields=["user"], name="roommate_group_membership_one_group_per_user"),
         ]
         indexes = [
             models.Index(fields=["group", "created_at"], name="roommate_group_member_idx"),

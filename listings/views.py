@@ -4,15 +4,18 @@ import re
 import requests
 from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.http import HttpResponseForbidden, JsonResponse
+from django.db.models import Q
+from django.http import Http404, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from communications.forms import ConversationMessageForm
 from communications.models import ListingConversation
+from communications.selectors import direct_conversations_by_counterparty
 from communications.services import (
     MESSAGE_SEND_RATE_LIMIT_ERROR,
     consume_message_send_rate_limit,
@@ -20,7 +23,14 @@ from communications.services import (
 )
 from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
-from users.selectors import roommate_group_profiles_for_user
+from users.compatibility import (
+    compatibility_highlights,
+    compute_compatibility,
+    compute_group_compatibility,
+    group_compatibility_highlights,
+)
+from users.models import Role, RoommateGroupInvite
+from users.selectors import active_roommate_group_for_user, roommate_group_memberships, roommate_group_profiles_for_user
 
 from .address_provider import get_geoapify_autocomplete_config, normalize_geoapify_suggestions
 from .address_signing import sign_address_selection
@@ -36,7 +46,14 @@ from .forms import (
     RoommatePostForm,
 )
 from .geocoding import BOSTON_COLLEGE_LATITUDE, BOSTON_COLLEGE_LONGITUDE
-from .models import Listing, ListingFavorite, ListingReport, ListingReview, RoommatePost
+from .models import (
+    Listing,
+    ListingFavorite,
+    ListingReport,
+    ListingReview,
+    RoommateGroupMembership,
+    RoommatePost,
+)
 from .roommate_post_service import decorate_roommate_posts_for_user
 from .search_payloads import listing_card_payload, listing_marker_payload
 from .selectors import (
@@ -452,6 +469,184 @@ def _roommate_post_board_context(request, *, filter_form=None, post_form=None):
     }
 
 
+def _posts_tab_context(request):
+    filter_form = RoommatePostFilterForm(request.GET or None)
+    filter_data = {}
+    if filter_form.is_bound:
+        filter_form.is_valid()
+        filter_data = filter_form.cleaned_data
+
+    group_profiles = roommate_group_profiles_for_user(request.user)
+    roommate_posts = filtered_roommate_posts_queryset(
+        request.user,
+        query=filter_data.get("q", ""),
+        housing_status=filter_data.get("housing_status", ""),
+        max_budget=filter_data.get("max_budget"),
+        move_in_by=filter_data.get("move_in_by"),
+        open_spots_min=filter_data.get("open_spots_min"),
+        people_in_group=filter_data.get("people_in_group"),
+    )
+    roommate_posts = decorate_roommate_posts_for_user(request.user, roommate_posts, group_profiles=group_profiles)
+    roommate_posts_page = get_page(roommate_posts, request.GET.get("page"), ROOMMATE_POSTS_PER_PAGE)
+    return {
+        "roommate_post_filter_form": filter_form,
+        "roommate_posts": roommate_posts_page,
+        "roommate_posts_total": len(roommate_posts),
+        "pagination_query": preserved_query_suffix(request.GET, "page"),
+        "can_message_roommate_posts": request.user.can_use_roommate_matching,
+        "roommate_filters_active": any(filter_data.get(f) for f in filter_data),
+    }
+
+
+def _people_tab_context(request):
+    User = get_user_model()
+    query = request.GET.get("q", "").strip()
+    gender_filter = request.GET.get("gender", "").strip()
+    smoke_filter = request.GET.get("smoke", "").strip()
+    pets_filter = request.GET.get("pets", "").strip()
+    min_score_raw = request.GET.get("min_score", "").strip()
+    min_score = int(min_score_raw) if min_score_raw.isdigit() else None
+
+    my_profile = getattr(request.user, "student_profile", None)
+    group_profiles = roommate_group_profiles_for_user(request.user)
+
+    students_qs = (
+        User.objects.filter(role=Role.STUDENT, is_active=True, profile_completed_at__isnull=False)
+        .exclude(id=request.user.id)
+        .select_related("student_profile")
+    )
+    if query:
+        students_qs = students_qs.filter(
+            Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+            | Q(student_profile__preferred_name__icontains=query)
+        )
+    if gender_filter:
+        students_qs = students_qs.filter(student_profile__gender=gender_filter)
+    if smoke_filter == "yes":
+        students_qs = students_qs.filter(student_profile__smoke=True)
+    elif smoke_filter == "no":
+        students_qs = students_qs.filter(student_profile__smoke=False)
+    if pets_filter == "yes":
+        students_qs = students_qs.filter(student_profile__pets=True)
+    elif pets_filter == "no":
+        students_qs = students_qs.filter(student_profile__pets=False)
+
+    results = []
+    for student in students_qs[:80]:
+        their_profile = getattr(student, "student_profile", None)
+        if group_profiles:
+            score = compute_group_compatibility(group_profiles, their_profile) if their_profile else None
+            highlights = group_compatibility_highlights(group_profiles, their_profile) if their_profile else []
+        else:
+            score = compute_compatibility(my_profile, their_profile) if my_profile and their_profile else None
+            highlights = compatibility_highlights(my_profile, their_profile)
+        if min_score is not None and (score is None or score < min_score):
+            continue
+        results.append({"user": student, "profile": their_profile, "score": score, "highlights": highlights})
+    results.sort(key=lambda r: r["score"] if r["score"] is not None else -1, reverse=True)
+
+    if request.user.can_use_roommate_matching and results:
+        existing_convos = direct_conversations_by_counterparty(request.user, [r["user"] for r in results])
+    else:
+        existing_convos = {}
+    existing_invites = RoommateGroupInvite.objects.filter(
+        inviter=request.user,
+        invitee__in=[r["user"] for r in results],
+        status__in=[RoommateGroupInvite.STATUS_PENDING_APPROVAL, RoommateGroupInvite.STATUS_PENDING_INVITEE],
+    ).values_list("invitee_id", "status")
+    invite_status_map = {invitee_id: status for invitee_id, status in existing_invites}
+
+    # Determine if viewer is a group lead and get existing member IDs
+    led_group = roommate_group_for_user(request.user)
+    is_group_lead = led_group is not None
+    existing_member_ids = (
+        set(RoommateGroupMembership.objects.filter(group=led_group).values_list("user_id", flat=True))
+        if led_group
+        else set()
+    )
+
+    for result in results:
+        result["existing_convo"] = existing_convos.get(result["user"].id)
+        result["invite_status"] = invite_status_map.get(result["user"].id)
+        result["already_in_group"] = result["user"].id in existing_member_ids
+
+    return {
+        "people_results": results,
+        "has_my_profile": my_profile is not None,
+        "can_message": request.user.can_use_roommate_matching,
+        "is_group_lead": is_group_lead,
+        "people_gender_filter": gender_filter,
+        "people_smoke_filter": smoke_filter,
+        "people_pets_filter": pets_filter,
+        "people_min_score": min_score_raw,
+        "people_filters_active": any([query, gender_filter, smoke_filter, pets_filter, min_score is not None]),
+    }
+
+
+def _mypost_tab_context(
+    request, *, create_form=None, edit_forms_by_pk=None, edit_error_pk=None, show_create_modal=False
+):
+    personal_post = roommate_post_for_user(request.user)
+    led_group = roommate_group_for_user(request.user)
+    group_post = roommate_group_post_for_user(request.user)
+    # Get any group the user belongs to (lead or member)
+    any_group = led_group or active_roommate_group_for_user(request.user)
+    all_posts = [p for p in [personal_post, group_post] if p is not None]
+    my_posts_with_forms = []
+    for post in all_posts:
+        if edit_forms_by_pk and post.pk in edit_forms_by_pk:
+            form = edit_forms_by_pk[post.pk]
+        else:
+            grp = led_group if post.group_id else None
+            form = RoommatePostForm(instance=post, user=request.user, group=grp)
+        my_posts_with_forms.append((post, form))
+    if create_form is None:
+        create_form = RoommatePostForm(user=request.user)
+    group_members = list(roommate_group_memberships(any_group)) if any_group else []
+    return {
+        "my_posts_with_forms": my_posts_with_forms,
+        "roommate_post_create_form": create_form,
+        "show_create_modal": show_create_modal,
+        "edit_error_pk": edit_error_pk,
+        "display_group": any_group,
+        "group_members": group_members,
+        "is_group_lead": any_group is not None and any_group.lead_id == request.user.id,
+    }
+
+
+@login_required
+@require_GET
+def roommates_hub(request):
+    if not request.user.is_student:
+        raise Http404
+
+    tab = request.GET.get("tab", "posts")
+    if tab not in ("posts", "people", "mypost"):
+        tab = "posts"
+
+    personal_post = roommate_post_for_user(request.user)
+    has_any_post = personal_post is not None or roommate_group_post_for_user(request.user) is not None
+    context = {
+        "tab": tab,
+        "can_manage_roommate_post": True,
+        "current_roommate_post": personal_post,
+        "has_any_roommate_post": has_any_post,
+        # Always include the create form — the create dialog is outside the tab blocks
+        "roommate_post_create_form": RoommatePostForm(user=request.user),
+        "show_create_modal": False,
+        "edit_error_pk": None,
+        "my_posts_with_forms": [],
+    }
+    if tab == "posts":
+        context.update(_posts_tab_context(request))
+    elif tab == "people":
+        context.update(_people_tab_context(request))
+    else:
+        context.update(_mypost_tab_context(request))
+    return render(request, "listings/roommates_hub.html", context)
+
+
 @login_required
 @require_GET
 def group_match(request):
@@ -478,11 +673,16 @@ def save_roommate_post(request):
             messages.success(request, "Roommate post updated.")
         else:
             messages.success(request, "Roommate post reactivated.")
-        return redirect("listings:group_match")
+        return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
 
     messages.error(request, _first_form_error(form, "Review the highlighted roommate post fields and try again."))
-    context = _roommate_post_board_context(request, post_form=form)
-    return render(request, "listings/group_match.html", context)
+    context = {
+        "tab": "mypost",
+        "can_manage_roommate_post": True,
+        "current_roommate_post": current_post,
+    }
+    context.update(_mypost_tab_context(request, create_form=form, show_create_modal=True))
+    return render(request, "listings/roommates_hub.html", context)
 
 
 @login_required
@@ -500,12 +700,10 @@ def save_roommate_group(request):
             group_post.current_group_size = group.member_count
             group_post.save(update_fields=["current_group_size", "updated_at"])
         messages.success(request, "Roommate group saved.")
-        return redirect("listings:group_match")
+        return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
 
     messages.error(request, _first_form_error(form, "Review the highlighted roommate group fields and try again."))
-    context = _roommate_post_board_context(request)
-    context["roommate_group_form"] = form
-    return render(request, "listings/group_match.html", context)
+    return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
 
 
 @login_required
@@ -517,7 +715,7 @@ def save_group_roommate_post(request):
     current_group = roommate_group_for_user(request.user)
     if current_group is None:
         messages.error(request, "Create your roommate group before publishing a group post.")
-        return redirect("listings:group_match")
+        return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
 
     current_post = roommate_group_post_for_user(request.user)
     was_active = bool(current_post and current_post.is_active)
@@ -530,12 +728,10 @@ def save_group_roommate_post(request):
             messages.success(request, "Group roommate post updated.")
         else:
             messages.success(request, "Group roommate post reactivated.")
-        return redirect("listings:group_match")
+        return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
 
     messages.error(request, _first_form_error(form, "Review the highlighted group post fields and try again."))
-    context = _roommate_post_board_context(request)
-    context["roommate_group_post_form"] = form
-    return render(request, "listings/group_match.html", context)
+    return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
 
 
 @login_required
@@ -549,7 +745,7 @@ def deactivate_roommate_post(request):
         roommate_post.is_active = False
         roommate_post.save(update_fields=["is_active", "updated_at"])
         messages.success(request, "Roommate post paused.")
-    return redirect("listings:group_match")
+    return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
 
 
 @login_required
@@ -563,7 +759,69 @@ def deactivate_group_roommate_post(request):
         roommate_post.is_active = False
         roommate_post.save(update_fields=["is_active", "updated_at"])
         messages.success(request, "Group roommate post paused.")
-    return redirect("listings:group_match")
+    return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
+
+
+@login_required
+@require_POST
+def edit_roommate_post(request, pk):
+    if not request.user.is_student:
+        return HttpResponseForbidden("Student access is required.")
+
+    post = get_object_or_404(RoommatePost, pk=pk)
+    current_group = roommate_group_for_user(request.user)
+    if post.author_id != request.user.id and (current_group is None or post.group_id != current_group.pk):
+        return HttpResponseForbidden("You cannot edit this post.")
+
+    grp = current_group if post.group_id else None
+    form = RoommatePostForm(request.POST, instance=post, user=request.user, group=grp)
+    if form.is_valid():
+        form.save()
+        messages.success(request, "Post updated.")
+        return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
+
+    messages.error(request, _first_form_error(form, "Review the highlighted fields and try again."))
+    context = {
+        "tab": "mypost",
+        "can_manage_roommate_post": True,
+        "current_roommate_post": roommate_post_for_user(request.user),
+    }
+    context.update(_mypost_tab_context(request, edit_forms_by_pk={post.pk: form}, edit_error_pk=post.pk))
+    return render(request, "listings/roommates_hub.html", context)
+
+
+@login_required
+@require_POST
+def delete_roommate_post(request, pk):
+    if not request.user.is_student:
+        return HttpResponseForbidden("Student access is required.")
+
+    post = get_object_or_404(RoommatePost, pk=pk)
+    current_group = roommate_group_for_user(request.user)
+    if post.author_id != request.user.id and (current_group is None or post.group_id != current_group.pk):
+        return HttpResponseForbidden("You cannot delete this post.")
+
+    post.delete()
+    messages.success(request, "Post deleted.")
+    return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
+
+
+@login_required
+@require_POST
+def remove_group_member(request, member_pk):
+    if not request.user.is_student:
+        raise Http404
+    membership = get_object_or_404(RoommateGroupMembership, pk=member_pk)
+    group = membership.group
+    if group.lead_id != request.user.id:
+        return HttpResponseForbidden("Only the group leader can remove members.")
+    if membership.user_id == request.user.id:
+        messages.error(request, "You can't remove yourself from the group.")
+        return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
+    removed_name = membership.user.display_name
+    membership.delete()
+    messages.success(request, f"Removed {removed_name} from the group.")
+    return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
 
 
 @login_required
