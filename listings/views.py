@@ -29,6 +29,8 @@ from users.compatibility import (
     compute_group_compatibility,
     group_compatibility_highlights,
 )
+from users.group_services import remove_group_member as remove_roommate_group_member
+from users.group_services import save_roommate_group_details
 from users.models import Role, RoommateGroupInvite
 from users.selectors import active_roommate_group_for_user, roommate_group_memberships, roommate_group_profiles_for_user
 
@@ -694,11 +696,12 @@ def save_roommate_group(request):
     current_group = roommate_group_for_user(request.user)
     form = RoommateGroupForm(request.POST, instance=current_group, user=request.user)
     if form.is_valid():
-        group = form.save()
-        group_post = roommate_group_post_for_user(request.user)
-        if group_post is not None:
-            group_post.current_group_size = group.member_count
-            group_post.save(update_fields=["current_group_size", "updated_at"])
+        save_roommate_group_details(
+            lead=request.user,
+            group=current_group,
+            name=form.cleaned_data["name"],
+            description=form.cleaned_data["description"],
+        )
         messages.success(request, "Roommate group saved.")
         return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
 
@@ -812,14 +815,12 @@ def remove_group_member(request, member_pk):
     if not request.user.is_student:
         raise Http404
     membership = get_object_or_404(RoommateGroupMembership, pk=member_pk)
-    group = membership.group
-    if group.lead_id != request.user.id:
-        return HttpResponseForbidden("Only the group leader can remove members.")
-    if membership.user_id == request.user.id:
-        messages.error(request, "You can't remove yourself from the group.")
-        return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
     removed_name = membership.user.display_name
-    membership.delete()
+    try:
+        remove_roommate_group_member(acting_user=request.user, membership=membership)
+    except ValidationError as exc:
+        messages.error(request, exc.messages[0])
+        return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
     messages.success(request, f"Removed {removed_name} from the group.")
     return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
 

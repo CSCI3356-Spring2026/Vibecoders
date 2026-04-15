@@ -25,8 +25,58 @@ def _create_group_for_inviter(inviter):
         lead=inviter,
         name=f"{inviter.display_name[:110]}'s Group",
     )
-    RoommateGroupMembership.objects.get_or_create(group=group, user=inviter)
+    _add_group_membership(group, inviter)
     return group
+
+
+def _sync_group_post_size(group):
+    try:
+        roommate_post = group.roommate_post
+    except ListingsRoommateGroup.roommate_post.RelatedObjectDoesNotExist:
+        return
+    current_size = group.member_count
+    if roommate_post.current_group_size == current_size:
+        return
+    roommate_post.current_group_size = current_size
+    roommate_post.save(update_fields=["current_group_size", "updated_at"])
+
+
+def _add_group_membership(group, user):
+    membership, created = RoommateGroupMembership.objects.get_or_create(group=group, user=user)
+    _sync_group_post_size(group)
+    return membership, created
+
+
+def save_roommate_group_details(*, lead, group=None, name, description):
+    _ensure_student_with_profile(lead)
+
+    with transaction.atomic():
+        if group is None:
+            group = ListingsRoommateGroup(lead=lead)
+        elif group.lead_id != lead.id:
+            raise ValidationError("Only the group lead can update this roommate group.")
+
+        group.name = name
+        group.description = description
+        group.save()
+        _add_group_membership(group, lead)
+        return group
+
+
+def remove_group_member(*, acting_user, membership):
+    _ensure_student_with_profile(acting_user)
+
+    with transaction.atomic():
+        membership = RoommateGroupMembership.objects.select_related("group", "user").get(pk=membership.pk)
+        group = membership.group
+        if group.lead_id != acting_user.id:
+            raise ValidationError("Only the group leader can remove members.")
+        if membership.user_id == acting_user.id:
+            raise ValidationError("You can't remove yourself from the group.")
+
+        membership.delete()
+        _sync_group_post_size(group)
+        return group
 
 
 def _create_invite_approvals(invite, inviter):
@@ -78,6 +128,11 @@ def create_group_invite(inviter, invitee):
         if group is None:
             group = _create_group_for_inviter(inviter)
 
+        invitee_group = active_roommate_group_for_user(invitee)
+        if invitee_group is not None:
+            if invitee_group.pk == group.pk:
+                raise ValidationError("This student is already in your group.")
+            raise ValidationError("This student is already in a roommate group.")
         if RoommateGroupMembership.objects.filter(group=group, user=invitee).exists():
             raise ValidationError("This student is already in your group.")
         if RoommateGroupInvite.objects.filter(
@@ -142,7 +197,10 @@ def respond_to_group_invite(invite, invitee, *, accept):
 
         invite.responded_at = timezone.now()
         if accept:
-            RoommateGroupMembership.objects.get_or_create(group=invite.group, user=invitee)
+            existing_group = active_roommate_group_for_user(invitee)
+            if existing_group is not None and existing_group.pk != invite.group_id:
+                raise ValidationError("You are already in a roommate group.")
+            _add_group_membership(invite.group, invitee)
             invite.status = RoommateGroupInvite.STATUS_ACCEPTED
         else:
             invite.status = RoommateGroupInvite.STATUS_REJECTED
