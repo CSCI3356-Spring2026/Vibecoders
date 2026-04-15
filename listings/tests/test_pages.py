@@ -2452,6 +2452,27 @@ class GroupMatchPageTests(ListingTestCase):
         self.assertContains(response, matching_post.title)
         self.assertNotContains(response, other_post.title)
 
+    def test_roommates_hub_people_tab_results_are_paginated(self):
+        self.complete_roommate_profile(self.user)
+        for index in range(13):
+            candidate = get_user_model().objects.create_user(
+                username=f"people-candidate-{index}",
+                email=f"people-candidate-{index}@bc.edu",
+                password="testpass123",
+                first_name=f"Candidate{index:02d}",
+            )
+            self.complete_roommate_profile(candidate)
+
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:roommates_hub"), {"tab": "people", "page": "2"})
+
+        self.assertEqual(response.status_code, 200)
+        people_page = response.context["people_results"]
+        self.assertEqual(people_page.paginator.count, 13)
+        self.assertEqual(people_page.number, 2)
+        self.assertEqual(len(people_page.object_list), 1)
+
     def test_student_can_publish_roommate_post(self):
         self.complete_roommate_profile(self.user)
         self.client.force_login(self.user)

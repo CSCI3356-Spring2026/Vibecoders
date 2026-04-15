@@ -24,7 +24,7 @@
                     </div>
                 </div>
                 <div class="app-meta">
-                    <span class="app-meta-chip">{{ results|length }} student{{ results|length|pluralize }}</span>
+                    <span class="app-meta-chip">{{ results_total }} student{{ results_total|pluralize }}</span>
                     {% if active_group %}
                         <span class="app-meta-chip app-meta-chip-secondary">
                             Group matching active ({{ group_memberships|length }} member{{ group_memberships|length|pluralize }})
@@ -290,6 +290,7 @@
                                     </article>
                                 {% endfor %}
                             </div>
+                            {% include "includes/pagination.html" with page_obj=results pagination_query=pagination_query %}
 
                         {% else %}
                             <div class="app-empty">

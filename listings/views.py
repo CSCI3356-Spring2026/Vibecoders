@@ -76,6 +76,7 @@ logger = logging.getLogger(__name__)
 
 LISTINGS_PER_PAGE = 12
 ROOMMATE_POSTS_PER_PAGE = 12
+ROOMMATE_PEOPLE_PER_PAGE = 12
 ADDRESS_AUTOCOMPLETE_MIN_QUERY_LENGTH = 3
 ADDRESS_AUTOCOMPLETE_MAX_RESULTS = 5
 ADDRESS_AUTOCOMPLETE_ERROR = {
@@ -516,6 +517,7 @@ def _people_tab_context(request):
         User.objects.filter(role=Role.STUDENT, is_active=True, profile_completed_at__isnull=False)
         .exclude(id=request.user.id)
         .select_related("student_profile")
+        .order_by("first_name", "last_name", "id")
     )
     if query:
         students_qs = students_qs.filter(
@@ -535,7 +537,7 @@ def _people_tab_context(request):
         students_qs = students_qs.filter(student_profile__pets=False)
 
     results = []
-    for student in students_qs[:80]:
+    for student in students_qs:
         their_profile = getattr(student, "student_profile", None)
         if group_profiles:
             score = compute_group_compatibility(group_profiles, their_profile) if their_profile else None
@@ -547,14 +549,16 @@ def _people_tab_context(request):
             continue
         results.append({"user": student, "profile": their_profile, "score": score, "highlights": highlights})
     results.sort(key=lambda r: r["score"] if r["score"] is not None else -1, reverse=True)
+    people_results_page = get_page(results, request.GET.get("page"), ROOMMATE_PEOPLE_PER_PAGE)
+    page_results = list(people_results_page.object_list)
 
-    if request.user.can_use_roommate_matching and results:
-        existing_convos = direct_conversations_by_counterparty(request.user, [r["user"] for r in results])
+    if request.user.can_use_roommate_matching and page_results:
+        existing_convos = direct_conversations_by_counterparty(request.user, [r["user"] for r in page_results])
     else:
         existing_convos = {}
     existing_invites = RoommateGroupInvite.objects.filter(
         inviter=request.user,
-        invitee__in=[r["user"] for r in results],
+        invitee__in=[r["user"] for r in page_results],
         status__in=[RoommateGroupInvite.STATUS_PENDING_APPROVAL, RoommateGroupInvite.STATUS_PENDING_INVITEE],
     ).values_list("invitee_id", "status")
     invite_status_map = {invitee_id: status for invitee_id, status in existing_invites}
@@ -568,13 +572,15 @@ def _people_tab_context(request):
         else set()
     )
 
-    for result in results:
+    for result in page_results:
         result["existing_convo"] = existing_convos.get(result["user"].id)
         result["invite_status"] = invite_status_map.get(result["user"].id)
         result["already_in_group"] = result["user"].id in existing_member_ids
 
     return {
-        "people_results": results,
+        "people_results": people_results_page,
+        "people_results_total": people_results_page.paginator.count,
+        "pagination_query": preserved_query_suffix(request.GET, "page"),
         "has_my_profile": my_profile is not None,
         "can_message": request.user.can_use_roommate_matching,
         "is_group_lead": is_group_lead,
