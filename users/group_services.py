@@ -3,12 +3,12 @@ from django.db import transaction
 from django.utils import timezone
 
 from communications.services import get_or_create_direct_conversation, send_conversation_message
+from listings.models import RoommateGroup as ListingsRoommateGroup
+from listings.models import RoommateGroupMembership
 
 from .models import (
-    RoommateGroup,
     RoommateGroupInvite,
     RoommateGroupInviteApproval,
-    RoommateGroupMember,
 )
 from .selectors import active_roommate_group_for_user, roommate_group_memberships
 
@@ -21,8 +21,11 @@ def _ensure_student_with_profile(user):
 
 
 def _create_group_for_inviter(inviter):
-    group = RoommateGroup.objects.create(created_by=inviter)
-    RoommateGroupMember.objects.create(group=group, user=inviter)
+    group = ListingsRoommateGroup.objects.create(
+        lead=inviter,
+        name=f"{inviter.display_name[:110]}'s Group",
+    )
+    RoommateGroupMembership.objects.get_or_create(group=group, user=inviter)
     return group
 
 
@@ -75,7 +78,7 @@ def create_group_invite(inviter, invitee):
         if group is None:
             group = _create_group_for_inviter(inviter)
 
-        if RoommateGroupMember.objects.filter(group=group, user=invitee).exists():
+        if RoommateGroupMembership.objects.filter(group=group, user=invitee).exists():
             raise ValidationError("This student is already in your group.")
         if RoommateGroupInvite.objects.filter(
             group=group,
@@ -139,7 +142,7 @@ def respond_to_group_invite(invite, invitee, *, accept):
 
         invite.responded_at = timezone.now()
         if accept:
-            RoommateGroupMember.objects.get_or_create(group=invite.group, user=invitee)
+            RoommateGroupMembership.objects.get_or_create(group=invite.group, user=invitee)
             invite.status = RoommateGroupInvite.STATUS_ACCEPTED
         else:
             invite.status = RoommateGroupInvite.STATUS_REJECTED

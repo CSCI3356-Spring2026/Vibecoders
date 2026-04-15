@@ -2,7 +2,6 @@ from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 from django import forms
-from django.contrib.auth import get_user_model
 from django.core import signing
 from django.core.exceptions import ValidationError
 from django.utils import timezone
@@ -540,17 +539,6 @@ class RoommateGroupForm(forms.ModelForm):
         widget=forms.TextInput(attrs={"placeholder": "Beacon Street Housemates"}),
         label="Group name",
     )
-    member_emails = forms.CharField(
-        required=False,
-        label="Member emails",
-        widget=forms.Textarea(
-            attrs={
-                "rows": 4,
-                "placeholder": "one@bc.edu, two@bc.edu",
-            }
-        ),
-        help_text="Add active student emails separated by commas or new lines. Your email is included automatically.",
-    )
 
     class Meta:
         model = RoommateGroup
@@ -569,25 +557,10 @@ class RoommateGroupForm(forms.ModelForm):
 
     def __init__(self, *args, user=None, **kwargs):
         self.user = user
-        self.member_users = []
         super().__init__(*args, **kwargs)
         for field_name, field in self.fields.items():
             css_class = field.widget.attrs.get("class", "")
             field.widget.attrs["class"] = f"{css_class} form-control".strip()
-        if self.instance.pk:
-            member_emails = [
-                member.email for member in self.instance.members.exclude(pk=self.instance.lead_id).order_by("email")
-            ]
-            self.fields["member_emails"].initial = ", ".join(member_emails)
-
-    def _parse_member_emails(self):
-        raw_value = self.cleaned_data.get("member_emails") or ""
-        emails = []
-        for item in raw_value.replace("\n", ",").split(","):
-            normalized = item.strip().lower()
-            if normalized and normalized not in emails:
-                emails.append(normalized)
-        return emails
 
     def clean_name(self):
         name = (self.cleaned_data.get("name") or "").strip()
@@ -606,31 +579,6 @@ class RoommateGroupForm(forms.ModelForm):
         user = self.user
         if user is None or not getattr(user, "can_use_roommate_matching", False):
             raise ValidationError("Complete your roommate profile before creating a roommate group.")
-
-        email_values = self._parse_member_emails()
-        User = get_user_model()
-        member_lookup = {
-            member.email: member
-            for member in User._default_manager.filter(
-                email__in=email_values,
-                role="student",
-                is_active=True,
-                profile_completed_at__isnull=False,
-            )
-        }
-        missing_emails = [email for email in email_values if email not in member_lookup]
-        if missing_emails:
-            self.add_error("member_emails", f"These students are unavailable: {', '.join(missing_emails)}.")
-        member_users = [user, *member_lookup.values()]
-        deduped_members = []
-        seen_ids = set()
-        for member in member_users:
-            if member.id not in seen_ids:
-                deduped_members.append(member)
-                seen_ids.add(member.id)
-        if len(deduped_members) > 8:
-            self.add_error("member_emails", "Keep roommate groups to 8 people or fewer.")
-        self.member_users = deduped_members
         return cleaned_data
 
     def save(self, commit=True):
@@ -639,13 +587,7 @@ class RoommateGroupForm(forms.ModelForm):
             instance.lead = self.user
         if commit:
             instance.save()
-            instance.memberships.exclude(user=instance.lead).delete()
             RoommateGroupMembership.objects.get_or_create(group=instance, user=instance.lead)
-            current_member_ids = {instance.lead_id}
-            for member in self.member_users:
-                RoommateGroupMembership.objects.get_or_create(group=instance, user=member)
-                current_member_ids.add(member.id)
-            instance.memberships.exclude(user_id__in=current_member_ids).delete()
         return instance
 
 

@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.db.models import Case, Count, IntegerField, Q, Value, When
 
-from listings.models import Listing, ListingReport
+from listings.models import Listing, ListingReport, RoommateGroupMembership
 from listings.selectors import listing_reports_queryset_for_admin, with_feedback_summary
 
 from .compatibility import compatibility_highlights, compute_compatibility
@@ -9,7 +9,6 @@ from .models import (
     Role,
     RoommateGroupInvite,
     RoommateGroupInviteApproval,
-    RoommateGroupMember,
     UserFile,
 )
 
@@ -153,7 +152,7 @@ def compatible_students_for_user(user, limit=30):
 def active_roommate_group_for_user(user):
     if not getattr(user, "is_authenticated", False):
         return None
-    membership = RoommateGroupMember.objects.select_related("group").filter(user=user).order_by("-joined_at").first()
+    membership = RoommateGroupMembership.objects.select_related("group").filter(user=user).first()
     if membership is None:
         return None
     return membership.group
@@ -161,9 +160,9 @@ def active_roommate_group_for_user(user):
 
 def roommate_group_memberships(group):
     return (
-        RoommateGroupMember.objects.filter(group=group)
+        RoommateGroupMembership.objects.filter(group=group)
         .select_related("user", "user__student_profile")
-        .order_by("joined_at")
+        .order_by("created_at", "id")
     )
 
 
