@@ -33,7 +33,7 @@
                             <span class="app-meta-chip app-meta-chip-neutral">Complete your profile to unlock scores and messages</span>
                         {% endif %}
                     {% elif tab == "people" %}
-                        <span class="app-meta-chip">{{ people_results|length }} student{{ people_results|length|pluralize }}</span>
+                        <span class="app-meta-chip">{{ people_results_total }} student{{ people_results_total|pluralize }}</span>
                         {% if not has_my_profile %}
                             <span class="app-meta-chip app-meta-chip-neutral">Complete your profile to see match scores</span>
                         {% endif %}
@@ -363,6 +363,7 @@
                                 </article>
                             {% endfor %}
                         </div>
+                        {% include "includes/pagination.html" with page_obj=people_results pagination_query=pagination_query %}
                     {% else %}
                         <div class="app-empty">
                             <h3 class="app-empty-title">No students found</h3>

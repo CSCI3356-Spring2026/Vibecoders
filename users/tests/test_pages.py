@@ -22,6 +22,27 @@ class UserPageTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="eagle", email="eagle@bc.edu", password="test")
 
+    def _complete_roommate_profile(self, user, *, first_name=None):
+        if first_name is not None:
+            user.first_name = first_name
+        user.profile_completed_at = timezone.now()
+        update_fields = ["first_name", "profile_completed_at"] if first_name is not None else ["profile_completed_at"]
+        user.save(update_fields=update_fields)
+
+        profile = user.student_profile
+        profile.preferred_name = first_name or user.username
+        profile.major = "Computer Science"
+        profile.bio = "Easygoing roommate."
+        profile.messy_level = 3
+        profile.guest_level = 3
+        profile.bedtime = 22
+        profile.noise_level = 3
+        profile.smoke = False
+        profile.drink = 3
+        profile.party = 2
+        profile.pets = False
+        profile.save()
+
     def test_login_page_renders(self):
         response = self.client.get("/users/login/")
 
@@ -391,6 +412,26 @@ class UserPageTests(TestCase):
         response = self.client.get(reverse("users:browse_roommates"))
 
         self.assertEqual(response.status_code, 200)
+
+    def test_browse_roommates_people_results_are_paginated(self):
+        self._complete_roommate_profile(self.user, first_name="Viewer")
+        for index in range(13):
+            candidate = User.objects.create_user(
+                username=f"candidate{index}",
+                email=f"candidate{index}@bc.edu",
+                password="test",
+            )
+            self._complete_roommate_profile(candidate, first_name=f"Student{index:02d}")
+
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("users:browse_roommates"), {"page": "2"})
+
+        self.assertEqual(response.status_code, 200)
+        results_page = response.context["results"]
+        self.assertEqual(results_page.paginator.count, 13)
+        self.assertEqual(results_page.number, 2)
+        self.assertEqual(len(results_page.object_list), 1)
 
     def test_public_profile_shows_direct_message_entry_point(self):
         target = User.objects.create_user(username="match", email="match@bc.edu", password="test", first_name="Riley")
