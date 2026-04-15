@@ -1,10 +1,12 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
 from communications.models import ListingConversation
-from listings.models import RoommateGroup, RoommateGroupMembership
+from listings.models import RoommateGroup, RoommateGroupMembership, RoommatePost
 from users.models import RoommateGroupInvite
 
 
@@ -82,6 +84,78 @@ class RoommateGroupTests(TestCase):
         self.assertTrue(
             ListingConversation.objects.filter(pk=invite.conversation_id, conversation_type="direct").exists()
         )
+
+    def test_cannot_invite_student_who_is_already_in_another_group(self):
+        invitee = self.User.objects.create_user(username="invitee", email="invitee@bc.edu", password="test")
+        other_lead = self.User.objects.create_user(username="other", email="other@bc.edu", password="test")
+        self._complete_profile(invitee)
+        self._complete_profile(other_lead)
+
+        other_group = RoommateGroup.objects.create(lead=other_lead, name="Elsewhere")
+        RoommateGroupMembership.objects.create(group=other_group, user=other_lead)
+        RoommateGroupMembership.objects.create(group=other_group, user=invitee)
+
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("users:send_group_invite", args=[invitee.id]), follow=True)
+
+        self.assertContains(response, "already in a roommate group")
+        self.assertFalse(RoommateGroupInvite.objects.filter(invitee=invitee, inviter=self.user).exists())
+
+    def test_accepting_group_invite_updates_group_post_size(self):
+        invitee = self.User.objects.create_user(username="invitee", email="invitee@bc.edu", password="test")
+        self._complete_profile(invitee)
+
+        group = RoommateGroup.objects.create(lead=self.user, name="Test Group")
+        RoommateGroupMembership.objects.create(group=group, user=self.user)
+        group_post = RoommatePost.objects.create(
+            group=group,
+            title="Need one more",
+            description="Looking for one more roommate for our apartment search.",
+            housing_status=RoommatePost.HOUSING_NEED_HOME,
+            current_group_size=1,
+            open_spots=1,
+            budget_min=1000,
+            budget_max=1400,
+            move_in_date=timezone.localdate() + timedelta(days=30),
+            neighborhoods="Allston",
+        )
+
+        self.client.force_login(self.user)
+        self.client.post(reverse("users:send_group_invite", args=[invitee.id]))
+        invite = RoommateGroupInvite.objects.get(invitee=invitee)
+
+        self.client.force_login(invitee)
+        self.client.post(reverse("users:accept_group_invite", args=[invite.id]))
+
+        group_post.refresh_from_db()
+        self.assertEqual(group_post.current_group_size, 2)
+
+    def test_removing_group_member_updates_group_post_size(self):
+        member = self.User.objects.create_user(username="member", email="member@bc.edu", password="test")
+        self._complete_profile(member)
+
+        group = RoommateGroup.objects.create(lead=self.user, name="Test Group")
+        RoommateGroupMembership.objects.create(group=group, user=self.user)
+        membership = RoommateGroupMembership.objects.create(group=group, user=member)
+        group_post = RoommatePost.objects.create(
+            group=group,
+            title="Quiet two-person search",
+            description="We want a calm apartment and are narrowing down our shortlist.",
+            housing_status=RoommatePost.HOUSING_NEED_HOME,
+            current_group_size=2,
+            open_spots=1,
+            budget_min=1000,
+            budget_max=1400,
+            move_in_date=timezone.localdate() + timedelta(days=30),
+            neighborhoods="Brighton",
+        )
+
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("listings:remove_group_member", args=[membership.id]))
+
+        self.assertEqual(response.status_code, 302)
+        group_post.refresh_from_db()
+        self.assertEqual(group_post.current_group_size, 1)
 
     def test_browse_roommates_uses_group_compatibility(self):
         buddy = self.User.objects.create_user(username="buddy", email="buddy@bc.edu", password="test")

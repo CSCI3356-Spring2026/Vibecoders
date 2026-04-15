@@ -15,7 +15,6 @@ from .models import (
     ListingReport,
     ListingReview,
     RoommateGroup,
-    RoommateGroupMembership,
     RoommatePost,
 )
 
@@ -587,7 +586,6 @@ class RoommateGroupForm(forms.ModelForm):
             instance.lead = self.user
         if commit:
             instance.save()
-            RoommateGroupMembership.objects.get_or_create(group=instance, user=instance.lead)
         return instance
 
 
