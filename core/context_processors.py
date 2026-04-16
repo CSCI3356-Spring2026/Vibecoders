@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.core.cache import cache
 
+from communications.cache import global_unread_conversations_count_cache_key
 from communications.selectors import conversation_summary_for_user
 
 
@@ -9,7 +10,7 @@ def global_unread_conversations_count_for_user(user):
     if cache_timeout <= 0:
         return conversation_summary_for_user(user)["unread_conversations_count"]
 
-    cache_key = f"global-unread-conversations-count:{user.pk}"
+    cache_key = global_unread_conversations_count_cache_key(user.pk)
     cached_count = cache.get(cache_key)
     if cached_count is not None:
         return cached_count

@@ -4,6 +4,8 @@ from django.db import models, transaction
 from django.db.models import F, Q
 from django.utils import timezone
 
+from .cache import clear_global_unread_conversations_counts
+
 MESSAGE_BODY_MAX_LENGTH = 2000
 MESSAGE_PREVIEW_MAX_LENGTH = 280
 
@@ -137,6 +139,14 @@ class ListingConversation(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+        clear_global_unread_conversations_counts(self.owner_id, self.participant_id)
+
+    def delete(self, *args, **kwargs):
+        owner_id = self.owner_id
+        participant_id = self.participant_id
+        result = super().delete(*args, **kwargs)
+        clear_global_unread_conversations_counts(owner_id, participant_id)
+        return result
 
     def counterparty_for(self, user):
         if user.id == self.owner_id:

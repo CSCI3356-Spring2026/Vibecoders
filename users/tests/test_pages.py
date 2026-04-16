@@ -330,6 +330,10 @@ class UserPageTests(TestCase):
         self.assertContains(response, 'aria-hidden="true"')
 
     def test_authenticated_header_shows_unread_messages_badge(self):
+        self.client.force_login(self.user)
+        empty_response = self.client.get("/")
+        self.assertContains(empty_response, 'class="nav-badge is-hidden"')
+
         listing = self.user.listings.create(
             title="Unread listing",
             address="140 Commonwealth Ave",
@@ -346,7 +350,6 @@ class UserPageTests(TestCase):
             participant=participant,
         )
         conversation.add_message(sender=participant, body="Unread note.")
-        self.client.force_login(self.user)
 
         response = self.client.get("/")
 
