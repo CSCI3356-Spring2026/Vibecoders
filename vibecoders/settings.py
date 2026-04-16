@@ -14,6 +14,7 @@ import os
 import sys
 from pathlib import Path
 
+import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
@@ -163,12 +164,19 @@ ASGI_APPLICATION = "vibecoders.asgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+if not DEBUG and not DATABASE_URL:
+    raise ImproperlyConfigured("Set DATABASE_URL when running with DJANGO_DEBUG=false.")
+
+if DATABASE_URL:
+    DATABASES = {"default": dj_database_url.parse(DATABASE_URL, conn_max_age=600)}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
     }
-}
 
 
 # Password validation
@@ -311,6 +319,18 @@ SOCIALACCOUNT_ADAPTER = "users.adapters.MarketplaceSocialAccountAdapter"
 CHANNEL_REDIS_URL = os.getenv("CHANNEL_REDIS_URL", "").strip()
 if not DEBUG and not CHANNEL_REDIS_URL:
     raise ImproperlyConfigured("Set CHANNEL_REDIS_URL when running with DJANGO_DEBUG=false.")
+
+CACHE_REDIS_URL = os.getenv("CACHE_REDIS_URL", "").strip()
+if not DEBUG and not CACHE_REDIS_URL:
+    raise ImproperlyConfigured("Set CACHE_REDIS_URL when running with DJANGO_DEBUG=false.")
+
+if CACHE_REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": CACHE_REDIS_URL,
+        }
+    }
 
 if CHANNEL_REDIS_URL:
     CHANNEL_LAYERS = {
