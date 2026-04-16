@@ -1684,6 +1684,34 @@ assert.equal(picker.isSelectionComplete(), true);
         review = ListingReview.objects.get(listing=listing, author=self.user)
         self.assertEqual(review.rating, 5)
 
+    def test_invalid_review_submission_redirects_without_creating_review(self):
+        owner = get_user_model().objects.create_user(
+            username="invalid-review-owner",
+            email="invalid-review-owner@bc.edu",
+            password="test",
+        )
+        listing = owner.listings.create(
+            title="Invalid review home",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 5, 31),
+            approval_status=Listing.APPROVAL_APPROVED,
+        )
+        ListingConversation.objects.create(listing=listing, owner=owner, participant=self.user)
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("listings:submit_review", args=[listing.pk]),
+            {"comment": "Missing a rating should not raise a server error."},
+            follow=True,
+        )
+
+        self.assertRedirects(response, f"{reverse('listings:detail', args=[listing.pk])}#community")
+        self.assertContains(response, "This field is required.")
+        self.assertFalse(ListingReview.objects.filter(listing=listing, author=self.user).exists())
+
     def test_marketplace_user_needs_prior_contact_before_submitting_review(self):
         owner = get_user_model().objects.create_user(
             username="review-contact-owner",
@@ -1741,6 +1769,33 @@ assert.equal(picker.isSelectionComplete(), true);
         self.assertEqual(first_response.status_code, 302)
         self.assertEqual(ListingReport.objects.filter(listing=listing, reporter=self.user).count(), 1)
         self.assertContains(second_response, "You already have an active report on this listing.")
+
+    def test_invalid_report_submission_redirects_without_creating_report(self):
+        owner = get_user_model().objects.create_user(
+            username="invalid-report-owner",
+            email="invalid-report-owner@bc.edu",
+            password="test",
+        )
+        listing = owner.listings.create(
+            title="Invalid report home",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 5, 31),
+            approval_status=Listing.APPROVAL_APPROVED,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("listings:report_listing", args=[listing.pk]),
+            {"reason": ListingReport.REASON_OTHER, "details": ""},
+            follow=True,
+        )
+
+        self.assertRedirects(response, f"{reverse('listings:detail', args=[listing.pk])}#community")
+        self.assertContains(response, "Add context so the admin team can review this report.")
+        self.assertFalse(ListingReport.objects.filter(listing=listing, reporter=self.user).exists())
 
     def test_create_listing_rejects_submission_without_selected_signed_token(self):
         self.client.force_login(self.user)
