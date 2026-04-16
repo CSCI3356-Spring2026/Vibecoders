@@ -14,9 +14,13 @@ import os
 import sys
 from pathlib import Path
 
-import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
+
+try:
+    import dj_database_url
+except ImportError:  # pragma: no cover - exercised via subprocess tests.
+    dj_database_url = None
 
 load_dotenv()
 
@@ -169,6 +173,8 @@ if not DEBUG and not DATABASE_URL:
     raise ImproperlyConfigured("Set DATABASE_URL when running with DJANGO_DEBUG=false.")
 
 if DATABASE_URL:
+    if dj_database_url is None:
+        raise ImproperlyConfigured("Install dj-database-url to use DATABASE_URL.")
     DATABASES = {"default": dj_database_url.parse(DATABASE_URL, conn_max_age=600)}
 else:
     DATABASES = {
