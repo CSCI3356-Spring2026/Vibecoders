@@ -453,14 +453,18 @@
                                                                 </ul>
                                                             </div>
                                                         {% endif %}
-                                                        <div class="group-board-form-stack">
-                                                            {% include "listings/includes/form_field.html" with field=edit_form.title wrapper_class="group-board-field" %}
-                                                            {% include "listings/includes/form_field.html" with field=edit_form.housing_status wrapper_class="group-board-field" %}
-                                                            <div class="group-board-field-grid group-board-field-grid-3">
-                                                                {% include "listings/includes/form_field.html" with field=edit_form.current_group_size wrapper_class="group-board-field" %}
-                                                                {% include "listings/includes/form_field.html" with field=edit_form.open_spots wrapper_class="group-board-field" %}
-                                                                {% include "listings/includes/form_field.html" with field=edit_form.move_in_date wrapper_class="group-board-field" %}
-                                                            </div>
+                                                            <div class="group-board-form-stack">
+                                                                {% include "listings/includes/form_field.html" with field=edit_form.title wrapper_class="group-board-field" %}
+                                                                {% include "listings/includes/form_field.html" with field=edit_form.housing_status wrapper_class="group-board-field" %}
+                                                                <div class="group-board-field-grid group-board-field-grid-3">
+                                                                    {% include "listings/includes/form_field.html" with field=edit_form.current_group_size wrapper_class="group-board-field" %}
+                                                                    {% if edit_form.housing_status.value == "have_home" %}
+                                                                        {% include "listings/includes/form_field.html" with field=edit_form.open_spots wrapper_class="group-board-field js-open-spots-post" %}
+                                                                    {% else %}
+                                                                        {% include "listings/includes/form_field.html" with field=edit_form.open_spots wrapper_class="group-board-field js-open-spots-post" hidden_attr=True %}
+                                                                    {% endif %}
+                                                                    {% include "listings/includes/form_field.html" with field=edit_form.move_in_date wrapper_class="group-board-field" %}
+                                                                </div>
                                                             <div class="group-board-field-grid">
                                                                 {% include "listings/includes/form_field.html" with field=edit_form.budget_min wrapper_class="group-board-field" %}
                                                                 {% include "listings/includes/form_field.html" with field=edit_form.budget_max wrapper_class="group-board-field" %}
@@ -585,7 +589,11 @@
                 {% include "listings/includes/form_field.html" with field=roommate_post_create_form.housing_status wrapper_class="group-board-field" %}
                 <div class="group-board-field-grid group-board-field-grid-3">
                     {% include "listings/includes/form_field.html" with field=roommate_post_create_form.current_group_size wrapper_class="group-board-field" %}
-                    {% include "listings/includes/form_field.html" with field=roommate_post_create_form.open_spots wrapper_class="group-board-field" %}
+                    {% if roommate_post_create_form.housing_status.value == "have_home" %}
+                        {% include "listings/includes/form_field.html" with field=roommate_post_create_form.open_spots wrapper_class="group-board-field js-open-spots-post" %}
+                    {% else %}
+                        {% include "listings/includes/form_field.html" with field=roommate_post_create_form.open_spots wrapper_class="group-board-field js-open-spots-post" hidden_attr=True %}
+                    {% endif %}
                     {% include "listings/includes/form_field.html" with field=roommate_post_create_form.move_in_date wrapper_class="group-board-field" %}
                 </div>
                 <div class="group-board-field-grid">
@@ -604,6 +612,8 @@
     </div>
 </dialog>
 {% endif %}
+
+<script src="{% static 'js/group-match.js' %}"></script>
 
 <script>
 // ── Post expand/collapse ───────────────────────────────────────────────────
