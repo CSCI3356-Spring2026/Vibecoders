@@ -1,6 +1,22 @@
 from django.conf import settings
+from django.core.cache import cache
 
 from communications.selectors import conversation_summary_for_user
+
+
+def global_unread_conversations_count_for_user(user):
+    cache_timeout = getattr(settings, "GLOBAL_UNREAD_COUNT_CACHE_SECONDS", 30)
+    if cache_timeout <= 0:
+        return conversation_summary_for_user(user)["unread_conversations_count"]
+
+    cache_key = f"global-unread-conversations-count:{user.pk}"
+    cached_count = cache.get(cache_key)
+    if cached_count is not None:
+        return cached_count
+
+    unread_count = conversation_summary_for_user(user)["unread_conversations_count"]
+    cache.set(cache_key, unread_count, cache_timeout)
+    return unread_count
 
 
 def branding(request):
@@ -12,7 +28,7 @@ def branding(request):
 
     user = getattr(request, "user", None)
     if getattr(user, "is_authenticated", False):
-        context["global_unread_conversations_count"] = conversation_summary_for_user(user)["unread_conversations_count"]
+        context["global_unread_conversations_count"] = global_unread_conversations_count_for_user(user)
     else:
         context["global_unread_conversations_count"] = 0
 
