@@ -38,7 +38,11 @@
         housingSelect.addEventListener("input", toggleOpenSpots);
     };
 
-    setupOpenSpotsToggle(document.querySelector(".group-board-filter-form"), ".js-open-spots-filter");
-    setupOpenSpotsToggle(document.querySelector(".group-board-post-form"), ".js-open-spots-post");
+    document.querySelectorAll(".group-board-filter-form").forEach((form) => {
+        setupOpenSpotsToggle(form, ".js-open-spots-filter");
+    });
+    document.querySelectorAll(".group-board-post-form").forEach((form) => {
+        setupOpenSpotsToggle(form, ".js-open-spots-post");
+    });
     });
 })();
