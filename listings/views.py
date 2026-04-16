@@ -392,13 +392,13 @@ def _listing_highlight_items(listing):
     return items
 
 
-def _first_form_error(form, default_message):
+def _first_form_error(form, fallback):
     if form.non_field_errors():
         return form.non_field_errors()[0]
     for field_errors in form.errors.values():
         if field_errors:
             return field_errors[0]
-    return default_message
+    return fallback
 
 
 def _roommate_post_board_context(request, *, filter_form=None, post_form=None):
