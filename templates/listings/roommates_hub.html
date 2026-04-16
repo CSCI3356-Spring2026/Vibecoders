@@ -225,12 +225,17 @@
                                     </div>
 
                                     {# Key info chips — always visible #}
-                                    <div class="group-post-compact-chips">
-                                        <span class="app-meta-chip app-meta-chip-neutral">{{ post.get_housing_status_display }}</span>
-                                        <span class="app-meta-chip app-meta-chip-neutral">{{ post.current_group_size }}+{{ post.open_spots }} people</span>
-                                        <span class="app-meta-chip app-meta-chip-neutral">${{ post.budget_min|floatformat:0 }}–${{ post.budget_max|floatformat:0 }}/mo</span>
-                                        <span class="app-meta-chip app-meta-chip-neutral">{{ post.move_in_date|date:"M j" }}</span>
-                                    </div>
+                                                <div class="group-post-compact-chips">
+                                                    <span class="app-meta-chip app-meta-chip-neutral">{{ post.get_housing_status_display }}</span>
+                                                    {% if post.housing_status == "have_home" and post.open_spots %}
+                                                        <span class="app-meta-chip app-meta-chip-neutral">In Group: {{ post.current_group_size }}</span>
+                                                        <span class="app-meta-chip app-meta-chip-neutral">Need: {{ post.open_spots }}</span>
+                                                    {% else %}
+                                                        <span class="app-meta-chip app-meta-chip-neutral">{{ post.current_group_size }} people</span>
+                                                    {% endif %}
+                                                    <span class="app-meta-chip app-meta-chip-neutral">${{ post.budget_min|floatformat:0 }}–${{ post.budget_max|floatformat:0 }}/mo</span>
+                                                    <span class="app-meta-chip app-meta-chip-neutral">{{ post.move_in_date|date:"M j" }}</span>
+                                                </div>
 
                                     {# Actions row — always visible #}
                                     <div class="group-post-actions">
@@ -406,7 +411,12 @@
 
                                             <div class="group-post-compact-chips">
                                                 <span class="app-meta-chip app-meta-chip-neutral">{{ post.get_housing_status_display }}</span>
-                                                <span class="app-meta-chip app-meta-chip-neutral">{{ post.current_group_size }}+{{ post.open_spots }} people</span>
+                                                {% if post.housing_status == "have_home" and post.open_spots %}
+                                                    <span class="app-meta-chip app-meta-chip-neutral">In Group: {{ post.current_group_size }}</span>
+                                                    <span class="app-meta-chip app-meta-chip-neutral">Need: {{ post.open_spots }}</span>
+                                                {% else %}
+                                                    <span class="app-meta-chip app-meta-chip-neutral">{{ post.current_group_size }} people</span>
+                                                {% endif %}
                                                 <span class="app-meta-chip app-meta-chip-neutral">${{ post.budget_min|floatformat:0 }}–${{ post.budget_max|floatformat:0 }}/mo</span>
                                                 <span class="app-meta-chip app-meta-chip-neutral">{{ post.move_in_date|date:"M j" }}</span>
                                             </div>

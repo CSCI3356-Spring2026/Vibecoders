@@ -395,10 +395,12 @@
                                                 <span class="group-post-stat-label">Group now</span>
                                                 <strong>{{ post.current_group_size }}</strong>
                                             </div>
-                                            <div class="group-post-stat">
-                                                <span class="group-post-stat-label">Open spots</span>
-                                                <strong>{% if post.open_spots %}{{ post.open_spots }}{% else %}TBD{% endif %}</strong>
-                                            </div>
+                                            {% if post.housing_status == "have_home" %}
+                                                <div class="group-post-stat">
+                                                    <span class="group-post-stat-label">Open spots</span>
+                                                    <strong>{{ post.open_spots }}</strong>
+                                                </div>
+                                            {% endif %}
                                             <div class="group-post-stat">
                                                 <span class="group-post-stat-label">Budget</span>
                                                 <strong>${{ post.budget_min|floatformat:0 }} - ${{ post.budget_max|floatformat:0 }}</strong>
