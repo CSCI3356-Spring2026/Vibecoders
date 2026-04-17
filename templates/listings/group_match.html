@@ -160,6 +160,7 @@
                                     <div class="group-board-form-stack">
                                         {% include "listings/includes/form_field.html" with field=roommate_post_form.title wrapper_class="group-board-field" %}
                                         {% include "listings/includes/form_field.html" with field=roommate_post_form.housing_status wrapper_class="group-board-field" %}
+                                        {% include "listings/includes/form_field.html" with field=roommate_post_form.address wrapper_class="group-board-field" %}
 
                                         <div class="group-board-field-grid group-board-field-grid-3">
                                             {% include "listings/includes/form_field.html" with field=roommate_post_form.current_group_size wrapper_class="group-board-field" %}
@@ -252,6 +253,7 @@
                                     <div class="group-board-form-stack">
                                         {% include "listings/includes/form_field.html" with field=roommate_group_post_form.title wrapper_class="group-board-field" %}
                                         {% include "listings/includes/form_field.html" with field=roommate_group_post_form.housing_status wrapper_class="group-board-field" %}
+                                        {% include "listings/includes/form_field.html" with field=roommate_group_post_form.address wrapper_class="group-board-field" %}
 
                                         <div class="group-board-field-grid group-board-field-grid-3">
                                             {% include "listings/includes/form_field.html" with field=roommate_group_post_form.current_group_size wrapper_class="group-board-field" %}
@@ -370,7 +372,15 @@
                                                 {% include "includes/user_avatar.html" with user_obj=post.lead_user avatar_class="user-avatar user-avatar-lg" %}
                                                 <div class="identity-copy">
                                                     <p class="group-post-overline">{{ post.ui_owner_meta }}</p>
-                                                    <h3 class="group-post-title">{{ post.title }}</h3>
+                                                    <h3 class="group-post-title">
+                                                        {% if post.linked_listing %}
+                                                            <button class="group-post-title-btn js-toggle-linked-listing" type="button" data-target="#linked-listing-{{ post.pk }}" aria-expanded="false">
+                                                                {{ post.title }}
+                                                            </button>
+                                                        {% else %}
+                                                            {{ post.title }}
+                                                        {% endif %}
+                                                    </h3>
                                                     {% if post.group_id %}
                                                         <p class="group-post-subtitle">{{ post.group.name }}</p>
                                                     {% endif %}
@@ -445,6 +455,12 @@
                                                 {% for highlight in post.ui_highlights %}
                                                     <span>{{ highlight }}</span>
                                                 {% endfor %}
+                                            </div>
+                                        {% endif %}
+
+                                        {% if post.linked_listing %}
+                                            <div id="linked-listing-{{ post.pk }}" class="group-post-linked-listing" hidden>
+                                                {% include "listings/includes/listing_result_card.html" with listing=post.linked_listing %}
                                             </div>
                                         {% endif %}
 

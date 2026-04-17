@@ -466,6 +466,7 @@
                                                             <div class="group-board-form-stack">
                                                                 {% include "listings/includes/form_field.html" with field=edit_form.title wrapper_class="group-board-field" %}
                                                                 {% include "listings/includes/form_field.html" with field=edit_form.housing_status wrapper_class="group-board-field" %}
+                                                                {% include "listings/includes/form_field.html" with field=edit_form.address wrapper_class="group-board-field" %}
                                                                 <div class="group-board-field-grid group-board-field-grid-3">
                                                                     {% include "listings/includes/form_field.html" with field=edit_form.current_group_size wrapper_class="group-board-field" %}
                                                                     {% if edit_form.housing_status.value == "have_home" %}
@@ -597,6 +598,7 @@
             <div class="group-board-form-stack">
                 {% include "listings/includes/form_field.html" with field=roommate_post_create_form.title wrapper_class="group-board-field" %}
                 {% include "listings/includes/form_field.html" with field=roommate_post_create_form.housing_status wrapper_class="group-board-field" %}
+                {% include "listings/includes/form_field.html" with field=roommate_post_create_form.address wrapper_class="group-board-field" %}
                 <div class="group-board-field-grid group-board-field-grid-3">
                     {% include "listings/includes/form_field.html" with field=roommate_post_create_form.current_group_size wrapper_class="group-board-field" %}
                     {% if roommate_post_create_form.housing_status.value == "have_home" %}

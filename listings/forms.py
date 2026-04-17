@@ -406,6 +406,7 @@ class RoommatePostForm(forms.ModelForm):
         fields = [
             "title",
             "housing_status",
+            "address",
             "current_group_size",
             "open_spots",
             "budget_min",
@@ -417,6 +418,7 @@ class RoommatePostForm(forms.ModelForm):
         widgets = {
             "title": forms.TextInput(attrs={"placeholder": "Two BC seniors looking for one more roommate"}),
             "housing_status": forms.Select(attrs={"class": "form-select"}),
+            "address": forms.TextInput(attrs={"placeholder": "123 College Rd, Boston, MA"}),
             "current_group_size": forms.NumberInput(attrs={"min": 1, "max": 8}),
             "open_spots": forms.NumberInput(attrs={"min": 1, "max": 8}),
             "budget_min": forms.NumberInput(attrs={"min": 0, "step": 50, "placeholder": "1200"}),
@@ -436,6 +438,7 @@ class RoommatePostForm(forms.ModelForm):
         labels = {
             "title": "Post title",
             "housing_status": "Housing stage",
+            "address": "Your place address",
             "current_group_size": "People already in the group",
             "open_spots": "Open roommate spots",
             "budget_min": "Budget min / person",
@@ -465,6 +468,7 @@ class RoommatePostForm(forms.ModelForm):
         )
         self.fields["housing_status"].label = housing_label
         self.fields["housing_status"].help_text = housing_help
+        self.fields["address"].help_text = "Required for all new posts. We’ll try to link the listing automatically."
 
         if not self.is_bound and not getattr(self.instance, "pk", None):
             self.fields["move_in_date"].initial = timezone.localdate() + timedelta(days=30)
@@ -518,10 +522,16 @@ class RoommatePostForm(forms.ModelForm):
         move_in_date = cleaned_data.get("move_in_date")
         housing_status = cleaned_data.get("housing_status")
         open_spots = cleaned_data.get("open_spots")
+        address = (cleaned_data.get("address") or "").strip()
+        cleaned_data["address"] = address
         if housing_status == RoommatePost.HOUSING_HAVE_HOME and open_spots is None:
             self.add_error("open_spots", "Add how many open roommate spots you have.")
         if open_spots is not None and open_spots < 1:
             self.add_error("open_spots", "Open roommate spots must be at least 1.")
+        if not address:
+            self.add_error("address", "Add the address so people know where the group wants to live.")
+        if housing_status != RoommatePost.HOUSING_HAVE_HOME:
+            cleaned_data["open_spots"] = open_spots if open_spots else None
         if move_in_date and move_in_date < timezone.localdate():
             self.add_error("move_in_date", "Move-in date must be today or later.")
         return cleaned_data
@@ -536,6 +546,21 @@ class RoommatePostForm(forms.ModelForm):
         elif self.user is not None and instance.author_id is None:
             instance.author = self.user
             instance.group = None
+        instance.address = (self.cleaned_data.get("address") or "").strip()
+        if instance.housing_status == RoommatePost.HOUSING_HAVE_HOME:
+            match = (
+                Listing.objects.filter(
+                    address__iexact=instance.address,
+                    approval_status=Listing.APPROVAL_APPROVED,
+                    status=Listing.STATUS_AVAILABLE,
+                    is_hidden=False,
+                )
+                .order_by("-updated_at")
+                .first()
+            )
+            instance.linked_listing = match
+        else:
+            instance.linked_listing = None
         if commit:
             instance.save()
         return instance

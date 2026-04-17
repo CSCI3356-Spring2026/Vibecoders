@@ -119,6 +119,7 @@ class RoommatePostQuerySet(models.QuerySet):
             "group",
             "group__lead",
             "group__lead__student_profile",
+            "linked_listing",
         ).prefetch_related(
             "author__socialaccount_set",
             "group__lead__socialaccount_set",
@@ -623,6 +624,10 @@ class RoommatePost(models.Model):
     )
     current_group_size = models.PositiveSmallIntegerField(default=1)
     open_spots = models.PositiveSmallIntegerField(default=None, null=True, blank=True)
+    address = models.CharField(max_length=255, blank=True)
+    linked_listing = models.ForeignKey(
+        Listing, null=True, blank=True, on_delete=models.SET_NULL, related_name="roommate_posts"
+    )
     budget_min = models.DecimalField(max_digits=8, decimal_places=0)
     budget_max = models.DecimalField(max_digits=8, decimal_places=0)
     move_in_date = models.DateField(db_index=True)
@@ -661,6 +666,10 @@ class RoommatePost(models.Model):
                     )
                 ),
                 name="roommate_post_open_spots_valid",
+            ),
+            models.CheckConstraint(
+                condition=Q(housing_status=ROOMMATE_POST_HOUSING_NEED_HOME) | ~Q(address=""),
+                name="roommate_post_address_required_for_have_home",
             ),
             models.CheckConstraint(
                 condition=Q(budget_min__gte=0),
