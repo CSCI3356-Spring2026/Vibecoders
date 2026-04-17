@@ -522,6 +522,53 @@ class UserPageTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
 
+    def test_self_public_profile_hides_compatibility_meta(self):
+        self.user.profile_completed_at = timezone.now()
+        self.user.save(update_fields=["profile_completed_at"])
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("users:public_profile", args=[self.user.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "compatible with")
+
+    def test_public_profile_lifestyle_rows_include_match_tier_classes(self):
+        target = User.objects.create_user(username="match", email="match@bc.edu", password="test", first_name="Riley")
+        self._complete_roommate_profile(self.user, first_name="Viewer")
+        self._complete_roommate_profile(target, first_name="Riley")
+
+        my_profile = self.user.student_profile
+        my_profile.messy_level = 3
+        my_profile.noise_level = 3
+        my_profile.guest_level = 3
+        my_profile.bedtime = 22
+        my_profile.drink = 2
+        my_profile.party = 2
+        my_profile.smoke = False
+        my_profile.pets = True
+        my_profile.save()
+
+        target_profile = target.student_profile
+        target_profile.messy_level = 3  # diff 0 -> strong
+        target_profile.noise_level = 4  # diff 1 -> good
+        target_profile.guest_level = 5  # diff 2 -> mid
+        target_profile.drink = 5  # diff 3 -> low
+        target_profile.party = 2
+        target_profile.bedtime = 4  # diff 6 -> poor
+        target_profile.smoke = True  # mismatch -> poor
+        target_profile.pets = True  # match -> strong
+        target_profile.save()
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("users:public_profile", args=[target.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "lifestyle-match-strong")
+        self.assertContains(response, "lifestyle-match-good")
+        self.assertContains(response, "lifestyle-match-mid")
+        self.assertContains(response, "lifestyle-match-low")
+        self.assertContains(response, "lifestyle-match-poor")
+
     def test_direct_message_post_requires_completed_roommate_profile(self):
         target = User.objects.create_user(username="match", email="match@bc.edu", password="test", first_name="Riley")
         target.profile_completed_at = timezone.now()

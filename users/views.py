@@ -57,6 +57,11 @@ POSTS_PER_PAGE = 12
 ROOMMATE_RESULTS_PER_PAGE = 12
 LOGIN_RATE_LIMIT_ERROR = "Too many sign-in attempts. Wait a few minutes and try again."
 FILE_UPLOAD_RATE_LIMIT_ERROR = "Too many file uploads in a short time. Wait a few minutes and try again."
+LIFESTYLE_MATCH_STRONG = "lifestyle-match-strong"
+LIFESTYLE_MATCH_GOOD = "lifestyle-match-good"
+LIFESTYLE_MATCH_MID = "lifestyle-match-mid"
+LIFESTYLE_MATCH_LOW = "lifestyle-match-low"
+LIFESTYLE_MATCH_POOR = "lifestyle-match-poor"
 
 
 def _consume_login_rate_limit(request):
@@ -124,6 +129,48 @@ def _selected_file_flags(user_file):
     if not mime_type:
         return False, False
     return mime_type.startswith("image/"), mime_type == "application/pdf"
+
+
+def _lifestyle_match_class_for_diff(diff):
+    if diff is None:
+        return ""
+    if diff <= 0:
+        return LIFESTYLE_MATCH_STRONG
+    if diff == 1:
+        return LIFESTYLE_MATCH_GOOD
+    if diff == 2:
+        return LIFESTYLE_MATCH_MID
+    if diff == 3:
+        return LIFESTYLE_MATCH_LOW
+    return LIFESTYLE_MATCH_POOR
+
+
+def _bedtime_difference_hours(value_a, value_b):
+    raw_diff = abs(value_a - value_b)
+    return min(raw_diff, 24 - raw_diff)
+
+
+def _lifestyle_match_classes(my_profile, their_profile, *, enabled):
+    if not enabled or my_profile is None or their_profile is None:
+        return {}
+
+    classes = {}
+    for field_name in ("messy_level", "noise_level", "guest_level", "drink", "party"):
+        my_value = getattr(my_profile, field_name)
+        their_value = getattr(their_profile, field_name)
+        if my_value is None or their_value is None:
+            continue
+        classes[field_name] = _lifestyle_match_class_for_diff(abs(my_value - their_value))
+
+    if my_profile.bedtime is not None and their_profile.bedtime is not None:
+        bedtime_diff = _bedtime_difference_hours(my_profile.bedtime, their_profile.bedtime)
+        classes["bedtime"] = _lifestyle_match_class_for_diff(bedtime_diff)
+
+    for field_name in ("smoke", "pets"):
+        matches = getattr(my_profile, field_name) == getattr(their_profile, field_name)
+        classes[field_name] = LIFESTYLE_MATCH_STRONG if matches else LIFESTYLE_MATCH_POOR
+
+    return classes
 
 
 def _accessible_user_file_or_404(user, file_id):
@@ -524,26 +571,31 @@ def public_profile(request, user_id):
     their_profile = getattr(target, "student_profile", None)
     if their_profile is None:
         raise Http404
+    is_self_profile = request.user.id == target.id
     my_profile = getattr(request.user, "student_profile", None)
-    group_profiles = roommate_group_profiles_for_user(request.user)
-    if group_profiles:
-        score = compute_group_compatibility(group_profiles, their_profile) if their_profile else None
-        highlights = group_compatibility_highlights(group_profiles, their_profile)
+    if is_self_profile:
+        score = None
+        highlights = []
+        group_profiles = []
     else:
-        score = compute_compatibility(my_profile, their_profile) if my_profile else None
-        highlights = compatibility_highlights(my_profile, their_profile)
+        group_profiles = roommate_group_profiles_for_user(request.user)
+        if group_profiles:
+            score = compute_group_compatibility(group_profiles, their_profile) if their_profile else None
+            highlights = group_compatibility_highlights(group_profiles, their_profile)
+        else:
+            score = compute_compatibility(my_profile, their_profile) if my_profile else None
+            highlights = compatibility_highlights(my_profile, their_profile)
     existing_direct_conversation = None
     direct_message_form = None
-    if request.user.id != target.id and request.user.can_use_roommate_matching:
+    if not is_self_profile and request.user.can_use_roommate_matching:
         existing_direct_conversation = direct_conversation_between_users(request.user, target)
     has_active_roommate_post = active_roommate_post_for_user(target) is not None
-    can_message_user = (
-        request.user.id != target.id and request.user.can_use_roommate_matching and has_active_roommate_post
-    )
+    can_message_user = not is_self_profile and request.user.can_use_roommate_matching and has_active_roommate_post
     if can_message_user:
         direct_message_form = ConversationMessageForm(
             placeholder="Introduce yourself and compare housing plans.",
         )
+    lifestyle_match_classes = _lifestyle_match_classes(my_profile, their_profile, enabled=not is_self_profile)
     active_group = active_roommate_group_for_user(request.user)
     group_member_ids = set()
     if active_group:
@@ -570,6 +622,8 @@ def public_profile(request, user_id):
             "their_profile": their_profile,
             "score": score,
             "compatibility_highlights": highlights,
+            "show_compatibility": not is_self_profile,
+            "lifestyle_match_classes": lifestyle_match_classes,
             "can_message_user": can_message_user,
             "has_active_roommate_post": has_active_roommate_post,
             "existing_direct_conversation": existing_direct_conversation,

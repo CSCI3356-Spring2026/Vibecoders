@@ -132,6 +132,32 @@
     color: var(--gray-700);
 }
 
+.app-meta-chip[class*="lifestyle-match-"] {
+    border-color: rgba(var(--lifestyle-match-rgb), 0.5);
+    background: rgba(var(--lifestyle-match-rgb), 0.16);
+    color: color-mix(in srgb, rgb(var(--lifestyle-match-rgb)) 42%, var(--gray-900));
+}
+
+.app-meta-chip.lifestyle-match-strong {
+    --lifestyle-match-rgb: 31, 122, 62;
+}
+
+.app-meta-chip.lifestyle-match-good {
+    --lifestyle-match-rgb: 103, 168, 85;
+}
+
+.app-meta-chip.lifestyle-match-mid {
+    --lifestyle-match-rgb: 206, 170, 56;
+}
+
+.app-meta-chip.lifestyle-match-low {
+    --lifestyle-match-rgb: 211, 136, 62;
+}
+
+.app-meta-chip.lifestyle-match-poor {
+    --lifestyle-match-rgb: 183, 74, 68;
+}
+
 .app-layout {
     display: grid;
     grid-template-columns: minmax(0, 304px) minmax(0, 1fr);
