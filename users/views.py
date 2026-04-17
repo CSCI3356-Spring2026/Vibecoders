@@ -44,6 +44,8 @@ from .models import AdminProfile, Role, RoommateGroupInvite, StudentProfile, Use
 from .selectors import (
     accessible_user_files_queryset,
     active_roommate_group_for_user,
+    favorite_roommate_ids_for_user,
+    favorited_people_queryset,
     pending_group_invite_approvals_for_user,
     pending_group_invites_for_user,
     roommate_candidate_results,
@@ -54,6 +56,7 @@ from .session_security import has_recent_auth
 
 FILES_PER_PAGE = 12
 POSTS_PER_PAGE = 12
+FAVORITE_PEOPLE_PER_PAGE = 12
 ROOMMATE_RESULTS_PER_PAGE = 12
 LOGIN_RATE_LIMIT_ERROR = "Too many sign-in attempts. Wait a few minutes and try again."
 FILE_UPLOAD_RATE_LIMIT_ERROR = "Too many file uploads in a short time. Wait a few minutes and try again."
@@ -99,9 +102,11 @@ def _files_redirect(request):
 
 
 def _workspace_summary(user):
+    favorite_people_count = favorited_people_queryset(user).count() if getattr(user, "is_student", False) else 0
     return {
         "listings_count": user.listings.count(),
         "files_count": user.files.count(),
+        "favorite_people_count": favorite_people_count,
         "can_browse_marketplace": user.can_browse_marketplace,
         "can_start_listing_conversations": user.can_start_listing_conversations,
         "has_listing_only_access": user.has_listing_only_access,
@@ -269,11 +274,13 @@ def _dashboard_context(user):
         conversation.ui_counterparty = conversation.counterparty_for(user)
         conversation.ui_has_unread = conversation.has_unread_for(user)
         conversation.ui_context_title = conversation.context_title_for(user)
+    recent_favorite_people = list(favorited_people_queryset(user)[:5]) if getattr(user, "is_student", False) else []
     return {
         **_workspace_summary(user),
         "recent_listings": user.listings.with_related()[:3],
         "recent_files": user.files.all()[:5],
         "recent_conversations": recent_conversations,
+        "recent_favorite_people": recent_favorite_people,
     }
 
 
@@ -409,6 +416,23 @@ def files(request):
 
 @login_required
 @require_GET
+def favorite_people(request):
+    if not request.user.is_student:
+        raise Http404
+
+    favorites = favorited_people_queryset(request.user)
+    favorites_page = get_page(favorites, request.GET.get("page"), FAVORITE_PEOPLE_PER_PAGE)
+    context = {
+        **_workspace_summary(request.user),
+        "favorites": favorites_page,
+        "favorites_total": favorites_page.paginator.count,
+        "pagination_query": preserved_query_suffix(request.GET, "page"),
+    }
+    return render(request, "users/favorite_people.html", context)
+
+
+@login_required
+@require_GET
 @xframe_options_sameorigin
 def file_preview(request, file_id):
     user_file = _accessible_user_file_or_404(request.user, file_id)
@@ -531,10 +555,12 @@ def browse_roommates(request):
         ],
     ).values_list("invitee_id", "status")
     invite_status_map = {invitee_id: status for invitee_id, status in existing_invites}
+    favorite_ids = favorite_roommate_ids_for_user(request.user, [result["user"] for result in page_results])
 
     for result in page_results:
         result["existing_convo"] = existing_convos.get(result["user"].id)
         result["invite_status"] = invite_status_map.get(result["user"].id)
+        result["is_favorited"] = result["user"].id in favorite_ids
 
     filters_active = any([query, gender_filter, smoke_filter, pets_filter, min_score is not None])
 
@@ -614,6 +640,9 @@ def public_profile(request, user_id):
         .values_list("status", flat=True)
         .first()
     )
+    is_favorited = False
+    if not is_self_profile and request.user.is_student:
+        is_favorited = favorited_people_queryset(request.user).filter(favorite_user=target).exists()
     return render(
         request,
         "users/public_profile.html",
@@ -630,6 +659,7 @@ def public_profile(request, user_id):
             "direct_message_form": direct_message_form,
             "active_group": active_group,
             "invite_status": invite_status,
+            "is_favorited": is_favorited,
             "is_in_group": target.id in group_member_ids,
             "group_member_count": group_member_count,
         },
@@ -663,6 +693,35 @@ def send_group_invite(request, user_id):
             messages.success(request, "Invite proposed. Waiting on your group to approve.")
         else:
             messages.success(request, "Group invite sent.")
+    return redirect(next_url)
+
+
+@login_required
+@require_POST
+def toggle_favorite_roommate(request, user_id):
+    if not request.user.is_student:
+        raise Http404
+    User = get_user_model()
+    favorite_user = get_object_or_404(
+        User,
+        id=user_id,
+        role=Role.STUDENT,
+        is_active=True,
+        profile_completed_at__isnull=False,
+    )
+    next_url = safe_next_url(request, request.POST.get("next"), reverse("listings:roommates_hub") + "?tab=people")
+
+    if favorite_user.id == request.user.id:
+        messages.error(request, "You cannot save your own profile.")
+        return redirect(next_url)
+
+    favorite = favorited_people_queryset(request.user).filter(favorite_user=favorite_user).first()
+    if favorite is None:
+        request.user.favorite_roommates.create(favorite_user=favorite_user)
+        messages.success(request, f"Saved {favorite_user.display_name} to your favorites.")
+    else:
+        favorite.delete()
+        messages.success(request, f"Removed {favorite_user.display_name} from your favorites.")
     return redirect(next_url)
 
 

@@ -320,6 +320,13 @@
 
                                     <div class="group-post-actions">
                                         <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:public_profile' result.user.id %}">View profile</a>
+                                        <form method="post" action="{% url 'users:toggle_favorite_roommate' result.user.id %}" style="margin:0">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                            <button class="btn btn-outline-secondary btn-sm" type="submit">
+                                                {% if result.is_favorited %}Saved{% else %}Save{% endif %}
+                                            </button>
+                                        </form>
                                         {% if can_message %}
                                             {% if result.existing_convo %}
                                                 <a class="btn btn-brand btn-sm" href="{% url 'communications:detail' result.existing_convo.id %}">Open chat</a>

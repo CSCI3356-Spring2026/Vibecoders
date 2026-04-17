@@ -18,7 +18,7 @@ from django.urls import reverse
 from PIL import Image
 
 from communications.models import ListingConversation, ListingMessage
-from users.models import Role
+from users.models import FavoriteRoommate, Role
 
 from ..address_signing import sign_address_selection, unsign_address_selection
 from ..models import Listing, ListingFavorite, ListingImage, ListingReport, ListingReview, RoommatePost
@@ -2506,6 +2506,27 @@ class GroupMatchPageTests(ListingTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, matching_post.title)
         self.assertNotContains(response, other_post.title)
+
+    def test_roommates_hub_people_tab_shows_save_button_state(self):
+        self.complete_roommate_profile(self.user)
+        candidate = get_user_model().objects.create_user(
+            username="save-candidate",
+            email="save-candidate@bc.edu",
+            password="testpass123",
+            first_name="Casey",
+        )
+        self.complete_roommate_profile(candidate)
+        self.client.force_login(self.user)
+
+        initial_response = self.client.get(reverse("listings:roommates_hub"), {"tab": "people", "q": "Casey"})
+        FavoriteRoommate.objects.create(user=self.user, favorite_user=candidate)
+        saved_response = self.client.get(reverse("listings:roommates_hub"), {"tab": "people", "q": "Casey"})
+
+        self.assertEqual(initial_response.status_code, 200)
+        self.assertContains(initial_response, f'action="/users/favorite/{candidate.id}/"', html=False)
+        self.assertFalse(initial_response.context["people_results"].object_list[0]["is_favorited"])
+        self.assertEqual(saved_response.status_code, 200)
+        self.assertTrue(saved_response.context["people_results"].object_list[0]["is_favorited"])
 
     def test_roommates_hub_people_tab_results_are_paginated(self):
         self.complete_roommate_profile(self.user)
