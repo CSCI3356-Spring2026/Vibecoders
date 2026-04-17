@@ -11,6 +11,7 @@ from .compatibility import (
     group_compatibility_highlights,
 )
 from .models import (
+    FavoriteRoommate,
     Role,
     RoommateGroupInvite,
     RoommateGroupInviteApproval,
@@ -286,4 +287,24 @@ def pending_group_invite_for_conversation(user, conversation):
             status=RoommateGroupInvite.STATUS_PENDING_INVITEE,
         )
         .first()
+    )
+
+
+def favorited_people_queryset(user):
+    if not getattr(user, "is_authenticated", False):
+        return FavoriteRoommate.objects.none()
+    return FavoriteRoommate.objects.filter(user=user).select_related("favorite_user", "favorite_user__student_profile")
+
+
+def favorite_roommate_ids_for_user(user, candidates):
+    if not getattr(user, "is_authenticated", False):
+        return set()
+    candidate_ids = [candidate.id for candidate in candidates]
+    if not candidate_ids:
+        return set()
+    return set(
+        FavoriteRoommate.objects.filter(user=user, favorite_user_id__in=candidate_ids).values_list(
+            "favorite_user_id",
+            flat=True,
+        )
     )

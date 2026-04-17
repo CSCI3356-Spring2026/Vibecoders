@@ -26,6 +26,7 @@ from users.group_services import save_roommate_group_details
 from users.models import RoommateGroupInvite
 from users.selectors import (
     active_roommate_group_for_user,
+    favorite_roommate_ids_for_user,
     roommate_candidate_results,
     roommate_group_memberships,
     roommate_group_profiles_for_user,
@@ -528,6 +529,7 @@ def _people_tab_context(request):
         status__in=[RoommateGroupInvite.STATUS_PENDING_APPROVAL, RoommateGroupInvite.STATUS_PENDING_INVITEE],
     ).values_list("invitee_id", "status")
     invite_status_map = {invitee_id: status for invitee_id, status in existing_invites}
+    favorite_ids = favorite_roommate_ids_for_user(request.user, [result["user"] for result in page_results])
 
     # Determine if viewer is a group lead and get existing member IDs
     led_group = roommate_group_for_user(request.user)
@@ -542,6 +544,7 @@ def _people_tab_context(request):
         result["existing_convo"] = existing_convos.get(result["user"].id)
         result["invite_status"] = invite_status_map.get(result["user"].id)
         result["already_in_group"] = result["user"].id in existing_member_ids
+        result["is_favorited"] = result["user"].id in favorite_ids
 
     return {
         "people_results": people_results_page,

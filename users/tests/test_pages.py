@@ -13,6 +13,7 @@ from django.utils import timezone
 from communications.models import ListingConversation
 from communications.selectors import accessible_conversations_for_user
 from listings.models import Listing, ListingReport, ListingReview, RoommatePost
+from users.models import FavoriteRoommate
 
 from ..session_security import RECENT_AUTH_SESSION_KEY
 from .helpers import User
@@ -436,6 +437,46 @@ class UserPageTests(TestCase):
         self.assertEqual(results_page.number, 2)
         self.assertEqual(len(results_page.object_list), 1)
 
+    def test_toggle_favorite_roommate_adds_and_removes(self):
+        candidate = User.objects.create_user(username="candidate", email="candidate@bc.edu", password="test")
+        self._complete_roommate_profile(self.user, first_name="Viewer")
+        self._complete_roommate_profile(candidate, first_name="Casey")
+        self.client.force_login(self.user)
+
+        add_response = self.client.post(reverse("users:toggle_favorite_roommate", args=[candidate.id]))
+        remove_response = self.client.post(reverse("users:toggle_favorite_roommate", args=[candidate.id]))
+
+        self.assertEqual(add_response.status_code, 302)
+        self.assertEqual(remove_response.status_code, 302)
+        self.assertFalse(FavoriteRoommate.objects.filter(user=self.user, favorite_user=candidate).exists())
+
+    def test_favorite_people_page_lists_saved_candidates(self):
+        candidate = User.objects.create_user(username="candidate", email="candidate@bc.edu", password="test")
+        self._complete_roommate_profile(self.user, first_name="Viewer")
+        self._complete_roommate_profile(candidate, first_name="Casey")
+        FavoriteRoommate.objects.create(user=self.user, favorite_user=candidate)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("users:favorite_people"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Saved people")
+        self.assertContains(response, candidate.display_name)
+        self.assertContains(response, reverse("users:public_profile", args=[candidate.id]))
+
+    def test_dashboard_shows_saved_people_count(self):
+        candidate = User.objects.create_user(username="candidate", email="candidate@bc.edu", password="test")
+        self._complete_roommate_profile(self.user, first_name="Viewer")
+        self._complete_roommate_profile(candidate, first_name="Casey")
+        FavoriteRoommate.objects.create(user=self.user, favorite_user=candidate)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("users:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Saved people")
+        self.assertEqual(response.context["favorite_people_count"], 1)
+
     def test_public_profile_shows_direct_message_entry_point(self):
         target = User.objects.create_user(username="match", email="match@bc.edu", password="test", first_name="Riley")
         self.user.profile_completed_at = timezone.now()
@@ -568,6 +609,22 @@ class UserPageTests(TestCase):
         self.assertContains(response, "lifestyle-match-mid")
         self.assertContains(response, "lifestyle-match-low")
         self.assertContains(response, "lifestyle-match-poor")
+
+    def test_public_profile_shows_saved_button_state(self):
+        target = User.objects.create_user(username="match", email="match@bc.edu", password="test", first_name="Riley")
+        self._complete_roommate_profile(self.user, first_name="Viewer")
+        self._complete_roommate_profile(target, first_name="Riley")
+        self.client.force_login(self.user)
+
+        initial_response = self.client.get(reverse("users:public_profile", args=[target.id]))
+        FavoriteRoommate.objects.create(user=self.user, favorite_user=target)
+        saved_response = self.client.get(reverse("users:public_profile", args=[target.id]))
+
+        self.assertEqual(initial_response.status_code, 200)
+        self.assertContains(initial_response, f'action="/users/favorite/{target.id}/"', html=False)
+        self.assertFalse(initial_response.context["is_favorited"])
+        self.assertEqual(saved_response.status_code, 200)
+        self.assertTrue(saved_response.context["is_favorited"])
 
     def test_direct_message_post_requires_completed_roommate_profile(self):
         target = User.objects.create_user(username="match", email="match@bc.edu", password="test", first_name="Riley")
