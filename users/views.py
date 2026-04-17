@@ -46,6 +46,7 @@ from .selectors import (
     active_roommate_group_for_user,
     pending_group_invite_approvals_for_user,
     pending_group_invites_for_user,
+    roommate_candidate_results,
     roommate_group_memberships,
     roommate_group_profiles_for_user,
 )
@@ -442,7 +443,6 @@ def upload_avatar(request):
 def browse_roommates(request):
     if not request.user.is_student:
         raise Http404
-    User = get_user_model()
     query = request.GET.get("q", "").strip()
     gender_filter = request.GET.get("gender", "").strip()
     smoke_filter = request.GET.get("smoke", "").strip()
@@ -451,67 +451,21 @@ def browse_roommates(request):
     min_score = int(min_score_raw) if min_score_raw.isdigit() else None
 
     my_profile = getattr(request.user, "student_profile", None)
-    group_profiles = roommate_group_profiles_for_user(request.user)
     active_group = active_roommate_group_for_user(request.user)
     group_memberships = roommate_group_memberships(active_group) if active_group else []
     group_member_ids = {membership.user_id for membership in group_memberships}
 
-    students_qs = (
-        User.objects.filter(
-            role=Role.STUDENT,
-            is_active=True,
-            profile_completed_at__isnull=False,
-        )
-        .exclude(id=request.user.id)
-        .select_related("student_profile")
-        .order_by("first_name", "last_name", "id")
+    results = roommate_candidate_results(
+        request.user,
+        query=query,
+        gender_filter=gender_filter,
+        smoke_filter=smoke_filter,
+        pets_filter=pets_filter,
+        min_score=min_score,
     )
+    for result in results:
+        result["is_in_group"] = result["user"].id in group_member_ids
 
-    if query:
-        students_qs = students_qs.filter(
-            Q(first_name__icontains=query)
-            | Q(last_name__icontains=query)
-            | Q(student_profile__preferred_name__icontains=query)
-        )
-    if gender_filter:
-        students_qs = students_qs.filter(student_profile__gender=gender_filter)
-    if smoke_filter == "yes":
-        students_qs = students_qs.filter(student_profile__smoke=True)
-    elif smoke_filter == "no":
-        students_qs = students_qs.filter(student_profile__smoke=False)
-    if pets_filter == "yes":
-        students_qs = students_qs.filter(student_profile__pets=True)
-    elif pets_filter == "no":
-        students_qs = students_qs.filter(student_profile__pets=False)
-
-    results = []
-    for student in students_qs:
-        their_profile = getattr(student, "student_profile", None)
-        if group_profiles:
-            score = (
-                compute_group_compatibility(group_profiles, their_profile) if group_profiles and their_profile else None
-            )
-            highlights = (
-                group_compatibility_highlights(group_profiles, their_profile)
-                if group_profiles and their_profile
-                else []
-            )
-        else:
-            score = compute_compatibility(my_profile, their_profile) if my_profile and their_profile else None
-            highlights = compatibility_highlights(my_profile, their_profile)
-        if min_score is not None and (score is None or score < min_score):
-            continue
-        results.append(
-            {
-                "user": student,
-                "profile": their_profile,
-                "score": score,
-                "highlights": highlights,
-                "is_in_group": student.id in group_member_ids,
-            }
-        )
-
-    results.sort(key=lambda r: r["score"] if r["score"] is not None else -1, reverse=True)
     results_page = get_page(results, request.GET.get("page"), ROOMMATE_RESULTS_PER_PAGE)
     page_results = list(results_page.object_list)
 
