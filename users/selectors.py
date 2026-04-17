@@ -4,13 +4,78 @@ from django.db.models import Case, Count, IntegerField, Q, Value, When
 from listings.models import Listing, ListingReport, RoommateGroupMembership
 from listings.selectors import listing_reports_queryset_for_admin, with_feedback_summary
 
-from .compatibility import compatibility_highlights, compute_compatibility
+from .compatibility import (
+    compatibility_highlights,
+    compute_compatibility,
+    compute_group_compatibility,
+    group_compatibility_highlights,
+)
 from .models import (
     Role,
     RoommateGroupInvite,
     RoommateGroupInviteApproval,
     UserFile,
 )
+
+
+def roommate_candidate_results(
+    user,
+    *,
+    query="",
+    gender_filter="",
+    smoke_filter="",
+    pets_filter="",
+    min_score=None,
+):
+    """
+    Shared roommate-people ranking used by browse and hub:
+    - Pulls active, completed student profiles (excluding the requester)
+    - Applies basic field filters in SQL
+    - Computes compatibility in Python for ranking and highlights
+    - Returns list of dicts {user, profile, score, highlights}
+    """
+    User = get_user_model()
+    my_profile = getattr(user, "student_profile", None)
+    group_profiles = roommate_group_profiles_for_user(user)
+
+    students_qs = (
+        User.objects.filter(role=Role.STUDENT, is_active=True, profile_completed_at__isnull=False)
+        .exclude(id=user.id)
+        .select_related("student_profile")
+        .order_by("first_name", "last_name", "id")
+    )
+    if query:
+        students_qs = students_qs.filter(
+            Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+            | Q(student_profile__preferred_name__icontains=query)
+        )
+    if gender_filter:
+        students_qs = students_qs.filter(student_profile__gender=gender_filter)
+    if smoke_filter == "yes":
+        students_qs = students_qs.filter(student_profile__smoke=True)
+    elif smoke_filter == "no":
+        students_qs = students_qs.filter(student_profile__smoke=False)
+    if pets_filter == "yes":
+        students_qs = students_qs.filter(student_profile__pets=True)
+    elif pets_filter == "no":
+        students_qs = students_qs.filter(student_profile__pets=False)
+
+    results = []
+    for student in students_qs:
+        their_profile = getattr(student, "student_profile", None)
+        if group_profiles:
+            score = compute_group_compatibility(group_profiles, their_profile) if their_profile else None
+            highlights = group_compatibility_highlights(group_profiles, their_profile) if their_profile else []
+        else:
+            score = compute_compatibility(my_profile, their_profile) if my_profile and their_profile else None
+            highlights = compatibility_highlights(my_profile, their_profile)
+        if min_score is not None and (score is None or score < min_score):
+            continue
+        results.append({"user": student, "profile": their_profile, "score": score, "highlights": highlights})
+
+    results.sort(key=lambda r: r["score"] if r["score"] is not None else -1, reverse=True)
+    return results
 
 
 def admin_listings_queryset(query="", selected_status="", selected_review_status=""):
