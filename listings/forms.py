@@ -457,6 +457,15 @@ class RoommatePostForm(forms.ModelForm):
                 css_class = field.widget.attrs.get("class", "")
                 field.widget.attrs["class"] = f"{css_class} form-control".strip()
 
+        # Make the matching intent explicit: we show the complementary side.
+        housing_label = "Your housing stage (we'll match you with the opposite side)"
+        housing_help = (
+            "Pick your situation. If you already have a place, you'll see people who need one. "
+            "If you still need a place, you'll see groups with room or others also looking."
+        )
+        self.fields["housing_status"].label = housing_label
+        self.fields["housing_status"].help_text = housing_help
+
         if not self.is_bound and not getattr(self.instance, "pk", None):
             self.fields["move_in_date"].initial = timezone.localdate() + timedelta(days=30)
         if self.group is not None:
@@ -590,6 +599,14 @@ class RoommateGroupForm(forms.ModelForm):
 
 
 class RoommatePostFilterForm(forms.Form):
+    HOUSING_FILTER_CHOICES = [
+        ("", "Any stage"),
+        (RoommatePost.HOUSING_HAVE_HOME, "I already have a place (find people who need one)"),
+        (
+            RoommatePost.HOUSING_NEED_HOME,
+            "I need a place (show groups with room or also looking)",
+        ),
+    ]
     OPEN_SPOT_CHOICES = [
         ("", "Any open spots"),
         ("1", "1+ spot"),
@@ -609,9 +626,10 @@ class RoommatePostFilterForm(forms.Form):
     )
     housing_status = forms.ChoiceField(
         required=False,
-        label="Housing stage",
-        choices=[("", "Any stage"), *RoommatePost.HOUSING_CHOICES],
+        label="Who do you want to see?",
+        choices=HOUSING_FILTER_CHOICES,
         widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="We’ll show the opposite side: people who need a place or groups with space.",
     )
     max_budget = forms.DecimalField(
         required=False,
