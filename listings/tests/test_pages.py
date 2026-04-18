@@ -394,6 +394,7 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, "data-listings-page")
         self.assertContains(response, "listing-browser-page")
         self.assertContains(response, "data-listings-workspace")
+        self.assertContains(response, "listing-browser-command-deck")
         self.assertContains(response, "data-listings-filters")
         self.assertContains(response, "data-listings-filter-form")
         self.assertContains(response, "data-listings-filter-menu")
@@ -406,6 +407,7 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, "data-listings-map-root")
         self.assertContains(response, "data-listings-map")
         self.assertContains(response, "data-listings-results")
+        self.assertContains(response, "data-listings-results-summary")
         self.assertContains(response, "data-listings-live-error")
         self.assertContains(response, 'class="form-control listing-filter-search-input"')
         self.assertNotContains(response, "Boston College rentals")
@@ -414,10 +416,10 @@ class ListingPageTests(ListingTestCase):
             'class="btn btn-brand" href="/listings/create/">Create listing</a>',
             html=False,
         )
-        self.assertNotContains(response, ">Reset<", html=False)
+        self.assertContains(response, ">Reset<", html=False)
         self.assertLess(browser_index, results_index)
-        self.assertLess(workspace_index, results_index)
-        self.assertLess(results_index, filters_index)
+        self.assertLess(workspace_index, filters_index)
+        self.assertLess(filters_index, results_index)
         self.assertLess(filters_index, map_index)
         self.assertLess(results_index, map_index)
 
