@@ -729,6 +729,22 @@ class ListingModelTests(ListingTestCase):
         self.assertEqual(first_conversation.id, second_conversation.id)
         self.assertEqual(ListingConversation.objects.filter(conversation_type="direct").count(), 1)
 
+    def test_direct_conversation_model_normalizes_participant_order(self):
+        participant = self.user.__class__.objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="test",
+        )
+
+        conversation = ListingConversation.objects.create(
+            conversation_type=ListingConversation.CONVERSATION_TYPE_DIRECT,
+            owner=participant,
+            participant=self.user,
+        )
+
+        self.assertEqual(conversation.owner_id, self.user.id)
+        self.assertEqual(conversation.participant_id, participant.id)
+
     def test_direct_conversation_payload_uses_roommate_context(self):
         participant = self.user.__class__.objects.create_user(
             username="student",

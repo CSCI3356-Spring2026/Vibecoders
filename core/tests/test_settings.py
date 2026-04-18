@@ -29,6 +29,24 @@ class TestSettingsTests(SimpleTestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Install dj-database-url to use DATABASE_URL.", result.stderr)
 
+    def test_ci_workflow_keeps_existing_quality_gates_and_deploy_check(self):
+        repo_root = Path(__file__).resolve().parents[2]
+        workflow = (repo_root / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+
+        self.assertIn("- run: ruff check .", workflow)
+        self.assertIn("- run: ruff format --check .", workflow)
+        self.assertIn("- run: python manage.py check", workflow)
+        self.assertIn("- run: python manage.py makemigrations --check --dry-run", workflow)
+        self.assertIn("- run: python manage.py test", workflow)
+        self.assertIn("python manage.py check --deploy", workflow)
+        self.assertIn('DJANGO_DEBUG: "false"', workflow)
+        self.assertIn("DJANGO_SECRET_KEY:", workflow)
+        self.assertIn("DJANGO_ALLOWED_HOSTS:", workflow)
+        self.assertIn("DJANGO_CSRF_TRUSTED_ORIGINS:", workflow)
+        self.assertIn("DATABASE_URL:", workflow)
+        self.assertIn("CHANNEL_REDIS_URL:", workflow)
+        self.assertIn("CACHE_REDIS_URL:", workflow)
+
     def _run_settings_import_with_blocked_dj_database_url(self, command, *, database_url=""):
         repo_root = Path(__file__).resolve().parents[2]
         import_blocker = "\n".join(

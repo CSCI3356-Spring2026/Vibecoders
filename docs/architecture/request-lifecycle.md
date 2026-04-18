@@ -103,8 +103,9 @@ sequenceDiagram
 ### Important behaviors
 
 - The map payload is always filtered by current viewport bounds.
-- Public marketplace surfaces show approved listings only, even for admins.
-- Listing-only users see their own inventory rather than the public marketplace.
+- `/listings/`, `/listings/search/`, and normal listing detail are login-gated; the landing page is the only anonymous listing teaser surface.
+- Marketplace surfaces show only listings that satisfy the public visibility rule, including active ownership, even for admins.
+- Listing-only users see their own inventory rather than the marketplace.
 - Favorite state is annotated server-side and reflected in live-search card payloads.
 
 ## 4. Listing Detail, Messaging, Reviews, and Reports

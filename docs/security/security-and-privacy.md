@@ -2,7 +2,7 @@
 
 ## Security Model Overview
 
-Padly is a role-aware web application that handles user identity, private files, public listings,
+Padly is a role-aware web application that handles user identity, private files, login-gated marketplace listings,
 admin workflows, and realtime messaging. The primary security posture is based on:
 
 - verified Google identity
@@ -32,15 +32,16 @@ admin workflows, and realtime messaging. The primary security posture is based o
 
 ### Marketplace
 
-- public browse only shows approved, active listings
-- listing-only users do not browse the public marketplace
-- admins can review private listing states through the admin workspace, not the public marketplace
+- login-gated browse only shows approved listings whose owners remain active
+- listing-only users do not browse the marketplace
+- admins can review private listing states through the admin workspace, not the normal marketplace surface
 
 ### Messaging
 
 - only listing participants may access or send messages in a conversation
 - owners cannot message themselves
 - new conversations require public, messageable listings
+- existing conversations become read-only when either participant is inactive
 
 ### Reviews and reports
 
@@ -57,6 +58,7 @@ admin workflows, and realtime messaging. The primary security posture is based o
 
 - legal acceptance is stored in the session before OAuth completes
 - legal acceptance is persisted to the user record after login
+- inactive accounts are logged out on their next HTTP request
 - stale legal acceptance logs users out
 - recent authentication is required for account deletion
 

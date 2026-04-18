@@ -31,8 +31,9 @@ A listing is public only when all of the following are true:
 - `status == AVAILABLE`
 - `is_hidden == False`
 - `end_date >= today`
+- `owner.is_active == True`
 
-This rule is enforced in `Listing.public_visibility_q()` and used by the public marketplace selectors.
+This rule is enforced in `Listing.public_visibility_q()` and used by the login-gated marketplace selectors plus landing-page teaser queries.
 
 ## Core Models
 
@@ -127,9 +128,11 @@ Current desktop layout:
 ### Important visibility rules
 
 - The current `/listings/`, `/listings/search/`, and listing-detail HTTP surfaces are login-gated even though selector helpers can still produce anonymous/public querysets for shared internal use such as the landing page.
-- Students and admins browse the approved public marketplace.
-- Realtors see their own inventory instead of the public marketplace.
-- Even admins do not see pending or rejected listings on the normal marketplace or map.
+- Anonymous users only see teaser cards on `/`; they do not browse `/listings/` or listing detail.
+- Students and admins browse the approved marketplace.
+- Realtors see their own inventory instead of the marketplace.
+- Public teasers, marketplace results, live search, and normal detail access all hide listings whose owners are inactive.
+- Even admins do not see pending or rejected listings on the normal marketplace or map, though admin-only detail routes still expose those states where intended.
 
 ## Favorites
 
@@ -203,6 +206,12 @@ Legacy roommate browse now redirects into this surface from `/users/browse/`, wh
 - stale posts automatically fall out of the active board once the target move-in date has passed
 - compatibility is computed between the viewer's completed profile and the student leading the post
 - direct roommate messaging still reuses the existing direct conversation flow and only allows new outreach to students with an active roommate post
+
+## Listing Messaging Rules
+
+- New listing inquiries are allowed only when the listing is still publicly messageable under the visibility rule above.
+- Both the listing owner and the student starting the inquiry must have active accounts.
+- Existing threads remain readable when a participant becomes inactive, but new sends are rejected until both sides are active again.
 
 ### Filter behavior
 

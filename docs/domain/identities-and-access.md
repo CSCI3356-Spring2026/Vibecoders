@@ -15,9 +15,9 @@ Padly uses Google OAuth exclusively. Traditional email/password signup and passw
 
 | Role | How it is assigned | Marketplace access | Messaging access | Admin workspace |
 | --- | --- | --- | --- | --- |
-| `student` | Default for configured student domains such as `bc.edu` | Can browse the public marketplace | Can message about listings | No |
+| `student` | Default for configured student domains such as `bc.edu` | Can browse the login-gated marketplace | Can message about listings | No |
 | `realtor` | Default for non-student external domains | Listing-only access to own inventory | Cannot initiate listing conversations | No |
-| `admin` | Explicit promotion only | Can browse marketplace and access admin-only detail paths | Can message about listings | Yes |
+| `admin` | Explicit promotion only | Can browse the login-gated marketplace and access admin-only detail paths | Can message about listings | Yes |
 
 ### Role policy rules
 
@@ -76,6 +76,12 @@ Legal acceptance is versioned by `LEGAL_DOCUMENT_VERSION`.
 - Users with stale acceptance are logged out by middleware and forced back through the review flow.
 - Existing users with current acceptance are not asked again for the same version.
 
+## Inactive Accounts
+
+- `ActiveAccountMiddleware` logs out authenticated users whose accounts are no longer active and redirects them back to login.
+- Listings owned by inactive accounts are removed from landing-page teasers, marketplace results, live search, and normal listing-detail access.
+- Existing inbox threads remain visible to the active counterparty, but sending becomes read-only while either participant is inactive.
+
 ### Files involved
 
 - `users/legal.py`
@@ -102,6 +108,13 @@ Legal acceptance is versioned by `LEGAL_DOCUMENT_VERSION`.
 | --- | --- | --- |
 | `StudentProfile` | student users | roommate and lifestyle questionnaire plus profile basics |
 | `AdminProfile` | admin and realtor users | lightweight profile record used for completion and display |
+
+### Profile lifecycle rules
+
+- Promoting a student to admin creates or updates `AdminProfile` but preserves the existing `StudentProfile` for future reuse.
+- Promoting a user to realtor creates or updates `AdminProfile`, removes `StudentProfile`, and clears `profile_completed_at`.
+- Returning to `student` reuses preserved `StudentProfile` data when it still exists; otherwise a blank student profile is created and completion stays unset until the required fields are filled.
+- `repair_profile_completion_integrity` is the operational command for recalculating `profile_completed_at` from the current role and current profile data.
 
 ## Dashboard and Workspace Access
 

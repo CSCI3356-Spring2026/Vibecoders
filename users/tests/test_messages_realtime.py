@@ -22,13 +22,11 @@ class MessagesRealtimeTests(TransactionTestCase):
             username="owner",
             email="owner@bc.edu",
             password="test",
-            profile_completed_at=timezone.now(),
         )
         self.participant = User.objects.create_user(
             username="student",
             email="student@bc.edu",
             password="test",
-            profile_completed_at=timezone.now(),
         )
         self.outsider = User.objects.create_user(username="outsider", email="outsider@bc.edu", password="test")
         SocialAccount.objects.create(
@@ -52,7 +50,26 @@ class MessagesRealtimeTests(TransactionTestCase):
             participant=self.participant,
         )
 
+    def complete_roommate_profile(self, user):
+        profile = user.student_profile
+        profile.preferred_name = user.first_name or user.username
+        profile.age = 21
+        profile.gender = "woman"
+        profile.major = "Computer Science"
+        profile.bio = "Quiet BC student looking for a good fit."
+        profile.messy_level = 3
+        profile.guest_level = 2
+        profile.bedtime = 23
+        profile.noise_level = 2
+        profile.drink = 2
+        profile.party = 2
+        profile.save()
+        user.profile_completed_at = timezone.now()
+        user.save(update_fields=["profile_completed_at"])
+
     def create_roommate_post(self, author):
+        if author.profile_completed_at is None:
+            self.complete_roommate_profile(author)
         return RoommatePost.objects.create(
             author=author,
             title="Looking for one more roommate",
@@ -146,6 +163,7 @@ class MessagesRealtimeTests(TransactionTestCase):
         async_to_sync(scenario)()
 
     def test_direct_conversation_realtime_payload_uses_direct_context(self):
+        self.complete_roommate_profile(self.owner)
         self.create_roommate_post(self.participant)
         self.direct_conversation, _, _ = start_direct_conversation(self.owner, self.participant, "Want to compare?")
 
