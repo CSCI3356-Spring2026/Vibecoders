@@ -622,9 +622,12 @@
 .listing-map-pane-head {
     position: absolute;
     top: 0.9rem;
-    right: 0.9rem;
+    left: 0.9rem;
     z-index: 8;
-    justify-content: flex-end;
+    display: inline-flex;
+    width: max-content;
+    max-width: calc(100% - 1.8rem);
+    justify-content: flex-start;
     padding: 0.35rem;
     border: 1px solid rgba(var(--gray-700-rgb), 0.14);
     border-radius: 0.85rem;
@@ -637,7 +640,7 @@
 .listing-map-head-actions {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: flex-start;
     gap: 0.4rem;
 }
 
@@ -2128,7 +2131,7 @@
 
     .listing-map-pane-head {
         top: 0.75rem;
-        right: 0.75rem;
+        left: 0.75rem;
         padding: 0.3rem;
     }
 
