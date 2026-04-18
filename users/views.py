@@ -45,6 +45,7 @@ from .selectors import (
     accessible_user_files_queryset,
     active_roommate_group_for_user,
     discover_roommate_people,
+    favorited_people_queryset,
     pending_group_invite_approvals_for_user,
     pending_group_invites_for_user,
     roommate_group_memberships,
@@ -54,9 +55,15 @@ from .session_security import has_recent_auth
 
 FILES_PER_PAGE = 12
 POSTS_PER_PAGE = 12
+FAVORITE_PEOPLE_PER_PAGE = 12
 ROOMMATE_RESULTS_PER_PAGE = 12
 LOGIN_RATE_LIMIT_ERROR = "Too many sign-in attempts. Wait a few minutes and try again."
 FILE_UPLOAD_RATE_LIMIT_ERROR = "Too many file uploads in a short time. Wait a few minutes and try again."
+LIFESTYLE_MATCH_STRONG = "lifestyle-match-strong"
+LIFESTYLE_MATCH_GOOD = "lifestyle-match-good"
+LIFESTYLE_MATCH_MID = "lifestyle-match-mid"
+LIFESTYLE_MATCH_LOW = "lifestyle-match-low"
+LIFESTYLE_MATCH_POOR = "lifestyle-match-poor"
 
 
 def _consume_login_rate_limit(request):
@@ -94,9 +101,11 @@ def _files_redirect(request):
 
 
 def _workspace_summary(user):
+    favorite_people_count = favorited_people_queryset(user).count() if getattr(user, "is_student", False) else 0
     return {
         "listings_count": user.listings.count(),
         "files_count": user.files.count(),
+        "favorite_people_count": favorite_people_count,
         "can_browse_marketplace": user.can_browse_marketplace,
         "can_start_listing_conversations": user.can_start_listing_conversations,
         "has_listing_only_access": user.has_listing_only_access,
@@ -124,6 +133,48 @@ def _selected_file_flags(user_file):
     if not mime_type:
         return False, False
     return mime_type.startswith("image/"), mime_type == "application/pdf"
+
+
+def _lifestyle_match_class_for_diff(diff):
+    if diff is None:
+        return ""
+    if diff <= 0:
+        return LIFESTYLE_MATCH_STRONG
+    if diff == 1:
+        return LIFESTYLE_MATCH_GOOD
+    if diff == 2:
+        return LIFESTYLE_MATCH_MID
+    if diff == 3:
+        return LIFESTYLE_MATCH_LOW
+    return LIFESTYLE_MATCH_POOR
+
+
+def _bedtime_difference_hours(value_a, value_b):
+    raw_diff = abs(value_a - value_b)
+    return min(raw_diff, 24 - raw_diff)
+
+
+def _lifestyle_match_classes(my_profile, their_profile, *, enabled):
+    if not enabled or my_profile is None or their_profile is None:
+        return {}
+
+    classes = {}
+    for field_name in ("messy_level", "noise_level", "guest_level", "drink", "party"):
+        my_value = getattr(my_profile, field_name)
+        their_value = getattr(their_profile, field_name)
+        if my_value is None or their_value is None:
+            continue
+        classes[field_name] = _lifestyle_match_class_for_diff(abs(my_value - their_value))
+
+    if my_profile.bedtime is not None and their_profile.bedtime is not None:
+        bedtime_diff = _bedtime_difference_hours(my_profile.bedtime, their_profile.bedtime)
+        classes["bedtime"] = _lifestyle_match_class_for_diff(bedtime_diff)
+
+    for field_name in ("smoke", "pets"):
+        matches = getattr(my_profile, field_name) == getattr(their_profile, field_name)
+        classes[field_name] = LIFESTYLE_MATCH_STRONG if matches else LIFESTYLE_MATCH_POOR
+
+    return classes
 
 
 def _accessible_user_file_or_404(user, file_id):
@@ -222,11 +273,13 @@ def _dashboard_context(user):
         conversation.ui_counterparty = conversation.counterparty_for(user)
         conversation.ui_has_unread = conversation.has_unread_for(user)
         conversation.ui_context_title = conversation.context_title_for(user)
+    recent_favorite_people = list(favorited_people_queryset(user)[:5]) if getattr(user, "is_student", False) else []
     return {
         **_workspace_summary(user),
         "recent_listings": user.listings.with_related()[:3],
         "recent_files": user.files.all()[:5],
         "recent_conversations": recent_conversations,
+        "recent_favorite_people": recent_favorite_people,
     }
 
 
@@ -361,6 +414,23 @@ def files(request):
 
 @login_required
 @require_GET
+def favorite_people(request):
+    if not request.user.is_student:
+        raise Http404
+
+    favorites = favorited_people_queryset(request.user)
+    favorites_page = get_page(favorites, request.GET.get("page"), FAVORITE_PEOPLE_PER_PAGE)
+    context = {
+        **_workspace_summary(request.user),
+        "favorites": favorites_page,
+        "favorites_total": favorites_page.paginator.count,
+        "pagination_query": preserved_query_suffix(request.GET, "page"),
+    }
+    return render(request, "users/favorite_people.html", context)
+
+
+@login_required
+@require_GET
 @xframe_options_sameorigin
 def file_preview(request, file_id):
     user_file = _accessible_user_file_or_404(request.user, file_id)
@@ -451,7 +521,6 @@ def browse_roommates(request):
         page=request.GET.get("page"),
         per_page=ROOMMATE_RESULTS_PER_PAGE,
     )
-
     return render(
         request,
         "users/browse_roommates.html",
@@ -485,26 +554,31 @@ def public_profile(request, user_id):
     their_profile = getattr(target, "student_profile", None)
     if their_profile is None:
         raise Http404
+    is_self_profile = request.user.id == target.id
     my_profile = getattr(request.user, "student_profile", None)
-    group_profiles = roommate_group_profiles_for_user(request.user)
-    if group_profiles:
-        score = compute_group_compatibility(group_profiles, their_profile) if their_profile else None
-        highlights = group_compatibility_highlights(group_profiles, their_profile)
+    if is_self_profile:
+        score = None
+        highlights = []
+        group_profiles = []
     else:
-        score = compute_compatibility(my_profile, their_profile) if my_profile else None
-        highlights = compatibility_highlights(my_profile, their_profile)
+        group_profiles = roommate_group_profiles_for_user(request.user)
+        if group_profiles:
+            score = compute_group_compatibility(group_profiles, their_profile) if their_profile else None
+            highlights = group_compatibility_highlights(group_profiles, their_profile)
+        else:
+            score = compute_compatibility(my_profile, their_profile) if my_profile else None
+            highlights = compatibility_highlights(my_profile, their_profile)
     existing_direct_conversation = None
     direct_message_form = None
-    if request.user.id != target.id and request.user.can_use_roommate_matching:
+    if not is_self_profile and request.user.can_use_roommate_matching:
         existing_direct_conversation = direct_conversation_between_users(request.user, target)
     has_active_roommate_post = active_roommate_post_for_user(target) is not None
-    can_message_user = (
-        request.user.id != target.id and request.user.can_use_roommate_matching and has_active_roommate_post
-    )
+    can_message_user = not is_self_profile and request.user.can_use_roommate_matching and has_active_roommate_post
     if can_message_user:
         direct_message_form = ConversationMessageForm(
             placeholder="Introduce yourself and compare housing plans.",
         )
+    lifestyle_match_classes = _lifestyle_match_classes(my_profile, their_profile, enabled=not is_self_profile)
     active_group = active_roommate_group_for_user(request.user)
     group_member_ids = set()
     if active_group:
@@ -523,6 +597,9 @@ def public_profile(request, user_id):
         .values_list("status", flat=True)
         .first()
     )
+    is_favorited = False
+    if not is_self_profile and request.user.is_student:
+        is_favorited = favorited_people_queryset(request.user).filter(favorite_user=target).exists()
     return render(
         request,
         "users/public_profile.html",
@@ -531,12 +608,15 @@ def public_profile(request, user_id):
             "their_profile": their_profile,
             "score": score,
             "compatibility_highlights": highlights,
+            "show_compatibility": not is_self_profile,
+            "lifestyle_match_classes": lifestyle_match_classes,
             "can_message_user": can_message_user,
             "has_active_roommate_post": has_active_roommate_post,
             "existing_direct_conversation": existing_direct_conversation,
             "direct_message_form": direct_message_form,
             "active_group": active_group,
             "invite_status": invite_status,
+            "is_favorited": is_favorited,
             "is_in_group": target.id in group_member_ids,
             "group_member_count": group_member_count,
         },
@@ -570,6 +650,35 @@ def send_group_invite(request, user_id):
             messages.success(request, "Invite proposed. Waiting on your group to approve.")
         else:
             messages.success(request, "Group invite sent.")
+    return redirect(next_url)
+
+
+@login_required
+@require_POST
+def toggle_favorite_roommate(request, user_id):
+    if not request.user.is_student:
+        raise Http404
+    User = get_user_model()
+    favorite_user = get_object_or_404(
+        User,
+        id=user_id,
+        role=Role.STUDENT,
+        is_active=True,
+        profile_completed_at__isnull=False,
+    )
+    next_url = safe_next_url(request, request.POST.get("next"), reverse("listings:roommates_hub") + "?tab=people")
+
+    if favorite_user.id == request.user.id:
+        messages.error(request, "You cannot save your own profile.")
+        return redirect(next_url)
+
+    favorite = favorited_people_queryset(request.user).filter(favorite_user=favorite_user).first()
+    if favorite is None:
+        request.user.favorite_roommates.create(favorite_user=favorite_user)
+        messages.success(request, f"Saved {favorite_user.display_name} to your favorites.")
+    else:
+        favorite.delete()
+        messages.success(request, f"Removed {favorite_user.display_name} from your favorites.")
     return redirect(next_url)
 
 

@@ -22,6 +22,15 @@
                         {% if request.user.id == target.id %}
                             <a class="btn btn-brand" href="{% url 'users:profile_setup' %}">Edit Profile</a>
                         {% else %}
+                            {% if request.user.is_student %}
+                                <form method="post" action="{% url 'users:toggle_favorite_roommate' target.id %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <button class="btn btn-outline-secondary" type="submit">
+                                        {% if is_favorited %}Saved{% else %}Save{% endif %}
+                                    </button>
+                                </form>
+                            {% endif %}
                             {% if existing_direct_conversation %}
                                 <a class="btn btn-brand" href="{% url 'communications:detail' existing_direct_conversation.id %}">Open chat</a>
                             {% elif can_message_user %}
@@ -46,29 +55,31 @@
                 </div>
             </div>
 
-            <div class="app-meta mb-4">
-                {% if score is not None %}
-                    {% if score >= 75 %}
-                        <span class="app-meta-chip app-meta-chip-primary">
-                            {{ score }}% compatible with {% if group_member_count|default:0 > 1 %}your group{% else %}you{% endif %}
-                        </span>
-                    {% elif score >= 50 %}
-                        <span class="app-meta-chip app-meta-chip-secondary">
-                            {{ score }}% compatible with {% if group_member_count|default:0 > 1 %}your group{% else %}you{% endif %}
-                        </span>
-                    {% else %}
-                        <span class="app-meta-chip app-meta-chip-neutral">
-                            {{ score }}% compatible with {% if group_member_count|default:0 > 1 %}your group{% else %}you{% endif %}
-                        </span>
+            {% if show_compatibility %}
+                <div class="app-meta mb-4">
+                    {% if score is not None %}
+                        {% if score >= 75 %}
+                            <span class="app-meta-chip app-meta-chip-primary">
+                                {{ score }}% compatible with {% if group_member_count|default:0 > 1 %}your group{% else %}you{% endif %}
+                            </span>
+                        {% elif score >= 50 %}
+                            <span class="app-meta-chip app-meta-chip-secondary">
+                                {{ score }}% compatible with {% if group_member_count|default:0 > 1 %}your group{% else %}you{% endif %}
+                            </span>
+                        {% else %}
+                            <span class="app-meta-chip app-meta-chip-neutral">
+                                {{ score }}% compatible with {% if group_member_count|default:0 > 1 %}your group{% else %}you{% endif %}
+                            </span>
+                        {% endif %}
                     {% endif %}
-                {% endif %}
-                {% if their_profile.gender %}
-                    <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_gender_display }}</span>
-                {% endif %}
-                {% for highlight in compatibility_highlights %}
-                    <span class="app-meta-chip app-meta-chip-neutral">{{ highlight }}</span>
-                {% endfor %}
-            </div>
+                    {% if their_profile.gender %}
+                        <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_gender_display }}</span>
+                    {% endif %}
+                    {% for highlight in compatibility_highlights %}
+                        <span class="app-meta-chip app-meta-chip-neutral">{{ highlight }}</span>
+                    {% endfor %}
+                </div>
+            {% endif %}
 
             {% if their_profile.bio %}
                 <div class="listing-panel mb-4">
@@ -111,30 +122,30 @@
                 <div class="app-compact-list">
 
                     {% if their_profile.messy_level %}
-                        <div class="app-compact-item app-compact-item-static">
+                        <div class="app-compact-item app-compact-item-static {{ lifestyle_match_classes.messy_level }}">
                             <span class="workspace-item-label">Cleanliness</span>
-                            <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_messy_level_display }}</span>
+                            <span class="app-meta-chip app-meta-chip-neutral {{ lifestyle_match_classes.messy_level }}">{{ their_profile.get_messy_level_display }}</span>
                         </div>
                     {% endif %}
 
                     {% if their_profile.noise_level %}
-                        <div class="app-compact-item app-compact-item-static">
+                        <div class="app-compact-item app-compact-item-static {{ lifestyle_match_classes.noise_level }}">
                             <span class="workspace-item-label">Noise level</span>
-                            <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_noise_level_display }}</span>
+                            <span class="app-meta-chip app-meta-chip-neutral {{ lifestyle_match_classes.noise_level }}">{{ their_profile.get_noise_level_display }}</span>
                         </div>
                     {% endif %}
 
                     {% if their_profile.guest_level %}
-                        <div class="app-compact-item app-compact-item-static">
+                        <div class="app-compact-item app-compact-item-static {{ lifestyle_match_classes.guest_level }}">
                             <span class="workspace-item-label">Guests</span>
-                            <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_guest_level_display }}</span>
+                            <span class="app-meta-chip app-meta-chip-neutral {{ lifestyle_match_classes.guest_level }}">{{ their_profile.get_guest_level_display }}</span>
                         </div>
                     {% endif %}
 
                     {% if their_profile.bedtime is not None %}
-                        <div class="app-compact-item app-compact-item-static">
+                        <div class="app-compact-item app-compact-item-static {{ lifestyle_match_classes.bedtime }}">
                             <span class="workspace-item-label">Bedtime</span>
-                            <span class="app-meta-chip app-meta-chip-neutral">
+                            <span class="app-meta-chip app-meta-chip-neutral {{ lifestyle_match_classes.bedtime }}">
                                 {% if their_profile.bedtime < 12 %}
                                     {{ their_profile.bedtime }}:00 AM
                                 {% elif their_profile.bedtime == 12 %}
@@ -147,27 +158,27 @@
                     {% endif %}
 
                     {% if their_profile.drink %}
-                        <div class="app-compact-item app-compact-item-static">
+                        <div class="app-compact-item app-compact-item-static {{ lifestyle_match_classes.drink }}">
                             <span class="workspace-item-label">Drinking</span>
-                            <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_drink_display }}</span>
+                            <span class="app-meta-chip app-meta-chip-neutral {{ lifestyle_match_classes.drink }}">{{ their_profile.get_drink_display }}</span>
                         </div>
                     {% endif %}
 
                     {% if their_profile.party %}
-                        <div class="app-compact-item app-compact-item-static">
+                        <div class="app-compact-item app-compact-item-static {{ lifestyle_match_classes.party }}">
                             <span class="workspace-item-label">Parties</span>
-                            <span class="app-meta-chip app-meta-chip-neutral">{{ their_profile.get_party_display }}</span>
+                            <span class="app-meta-chip app-meta-chip-neutral {{ lifestyle_match_classes.party }}">{{ their_profile.get_party_display }}</span>
                         </div>
                     {% endif %}
 
-                    <div class="app-compact-item app-compact-item-static">
+                    <div class="app-compact-item app-compact-item-static {{ lifestyle_match_classes.smoke }}">
                         <span class="workspace-item-label">Smoking</span>
-                        <span class="app-meta-chip app-meta-chip-neutral">{% if their_profile.smoke %}Yes{% else %}No{% endif %}</span>
+                        <span class="app-meta-chip app-meta-chip-neutral {{ lifestyle_match_classes.smoke }}">{% if their_profile.smoke %}Yes{% else %}No{% endif %}</span>
                     </div>
 
-                    <div class="app-compact-item app-compact-item-static">
+                    <div class="app-compact-item app-compact-item-static {{ lifestyle_match_classes.pets }}">
                         <span class="workspace-item-label">Pets</span>
-                        <span class="app-meta-chip app-meta-chip-neutral">{% if their_profile.pets %}Has/wants pets{% else %}No pets{% endif %}</span>
+                        <span class="app-meta-chip app-meta-chip-neutral {{ lifestyle_match_classes.pets }}">{% if their_profile.pets %}Has/wants pets{% else %}No pets{% endif %}</span>
                     </div>
 
                 </div>

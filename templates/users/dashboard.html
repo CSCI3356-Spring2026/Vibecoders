@@ -57,6 +57,7 @@
                         <a class="btn btn-outline-secondary" href="{% url 'users:posts' %}">My listings</a>
                         {% if request.user.is_student %}
                             <a class="btn btn-outline-secondary" href="{% url 'listings:roommates_hub' %}">Roommates</a>
+                            <a class="btn btn-outline-secondary" href="{% url 'users:favorite_people' %}">Saved people</a>
                         {% endif %}
                         <a class="btn btn-outline-secondary" href="{% url 'listings:create_listing' %}">Create listing</a>
                         <a class="btn btn-outline-secondary" href="{% url 'users:files' %}">Document library</a>
@@ -81,6 +82,12 @@
                     <span class="account-summary-label">Documents</span>
                     <strong class="account-summary-value">{{ files_count }}</strong>
                 </div>
+                {% if request.user.is_student %}
+                    <div class="account-summary-card">
+                        <span class="account-summary-label">Saved people</span>
+                        <strong class="account-summary-value">{{ favorite_people_count }}</strong>
+                    </div>
+                {% endif %}
             </div>
 
             <div class="account-dashboard-layout">
@@ -140,6 +147,33 @@
                                     <p class="app-panel-copy mb-0">No messages.</p>
                                 {% endif %}
                             </section>
+
+                            {% if request.user.is_student %}
+                                <section class="account-activity-column">
+                                    <div class="account-activity-head">
+                                        <h3 class="account-activity-title">Saved people</h3>
+                                        <a class="listing-reset-link" href="{% url 'users:favorite_people' %}">View all</a>
+                                    </div>
+
+                                    {% if recent_favorite_people %}
+                                        <div class="app-compact-list">
+                                            {% for favorite in recent_favorite_people %}
+                                                <a class="app-compact-item" href="{% url 'users:public_profile' favorite.favorite_user_id %}">
+                                                    <span class="app-compact-title">{{ favorite.favorite_user.display_name }}</span>
+                                                    <span class="app-compact-meta">
+                                                        {% if favorite.favorite_user.student_profile.major %}
+                                                            {{ favorite.favorite_user.student_profile.major }} •
+                                                        {% endif %}
+                                                        Saved {{ favorite.created_at|date:"M d, Y" }}
+                                                    </span>
+                                                </a>
+                                            {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        <p class="app-panel-copy mb-0">No saved people yet.</p>
+                                    {% endif %}
+                                </section>
+                            {% endif %}
                         </div>
                     </section>
                 </div>

@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Saved People | {{ site_product_name }}{% endblock %}
+
+{% block content %}
+<section class="app-page">
+    <div class="container">
+        <div class="app-shell">
+            <section class="app-header app-header-shell">
+                <div class="app-header-main">
+                    <div>
+                        <p class="app-kicker">Roommates</p>
+                        <h1 class="app-title">Saved people</h1>
+                        <p class="app-subtitle">Keep track of promising roommate candidates for later.</p>
+                    </div>
+                    <div class="app-actions">
+                        <a class="btn btn-outline-secondary" href="{% url 'users:dashboard' %}">Account</a>
+                        <a class="btn btn-outline-secondary" href="{% url 'listings:roommates_hub' %}?tab=people">Back to people</a>
+                    </div>
+                </div>
+                <div class="app-meta">
+                    <span class="app-meta-chip">{{ favorites_total }} saved profile{{ favorites_total|pluralize }}</span>
+                </div>
+            </section>
+
+            <section class="listing-panel">
+                <div class="app-panel-head">
+                    <div>
+                        <h2 class="app-section-heading">Your list</h2>
+                    </div>
+                </div>
+
+                {% if favorites %}
+                    <div class="app-compact-list">
+                        {% for favorite in favorites %}
+                            <div class="app-compact-item app-compact-item-static">
+                                <span class="app-compact-title">{{ favorite.favorite_user.display_name }}</span>
+                                <span class="app-compact-meta">
+                                    {% if favorite.favorite_user.student_profile.major %}
+                                        {{ favorite.favorite_user.student_profile.major }} •
+                                    {% endif %}
+                                    Saved {{ favorite.created_at|date:"M d, Y" }}
+                                </span>
+                                <div class="app-actions mt-2">
+                                    <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:public_profile' favorite.favorite_user_id %}">
+                                        View profile
+                                    </a>
+                                    <form method="post" action="{% url 'users:toggle_favorite_roommate' favorite.favorite_user_id %}">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                        <button class="btn btn-outline-secondary btn-sm" type="submit">Remove</button>
+                                    </form>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                    {% include "includes/pagination.html" with page_obj=favorites pagination_query=pagination_query %}
+                {% else %}
+                    <div class="app-empty">
+                        <h3 class="app-empty-title">No saved people yet</h3>
+                        <p class="app-empty-copy">Use the save button on the People tab to build your shortlist.</p>
+                        <a class="btn btn-outline-secondary mt-3" href="{% url 'listings:roommates_hub' %}?tab=people">Browse people</a>
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+    </div>
+</section>
+{% endblock %}

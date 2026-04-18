@@ -409,6 +409,50 @@ class RoommateGroupInviteApproval(models.Model):
         return f"InviteApproval({self.invite_id}, {self.member_id})"
 
 
+class FavoriteRoommate(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="favorite_roommates",
+    )
+    favorite_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="favorited_by_students",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["user", "favorite_user"], name="favorite_roommate_unique_pair"),
+            models.CheckConstraint(
+                condition=~models.Q(user=models.F("favorite_user")),
+                name="favorite_roommate_user_ne_favorite_user",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["user", "created_at"], name="favorite_roommate_user_idx"),
+            models.Index(fields=["favorite_user", "created_at"], name="favorite_roommate_target_idx"),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.user_id and self.favorite_user_id and self.user_id == self.favorite_user_id:
+            raise ValidationError({"favorite_user": "You cannot favorite yourself."})
+        if self.user_id and getattr(self.user, "role", None) != Role.STUDENT:
+            raise ValidationError({"user": "Only student accounts can favorite roommate candidates."})
+        if self.favorite_user_id and getattr(self.favorite_user, "role", None) != Role.STUDENT:
+            raise ValidationError({"favorite_user": "Only student profiles can be favorited."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.user_id}->{self.favorite_user_id}"
+
+
 class UserFile(models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="files")
     title = models.CharField(max_length=120, blank=True)
