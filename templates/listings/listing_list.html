@@ -41,43 +41,6 @@
             <section class="listing-browser-shell" data-listings-browser-shell>
                 <section class="listing-browser-workspace" data-listings-workspace>
                     <section class="listing-browser-command-deck">
-                        <div class="listing-browser-command-head">
-                            <div class="listing-browser-command-copy">
-                                <p class="listing-browser-kicker">
-                                    {% if has_listing_only_access %}Inventory map{% else %}Live market map{% endif %}
-                                </p>
-                                <h1 class="listing-browser-title">
-                                    {% if has_listing_only_access %}
-                                        Operate your listings from a fixed command deck.
-                                    {% else %}
-                                        Operate the market from a map-first workspace.
-                                    {% endif %}
-                                </h1>
-                                <p class="listing-browser-count">
-                                    {% if has_listing_only_access %}
-                                        The map stays pinned while the rail and controls update around your active inventory.
-                                    {% else %}
-                                        Horizontal controls keep search open, the listing rail scrolls independently, and the map stays locked in view.
-                                    {% endif %}
-                                </p>
-                            </div>
-                            <div class="listing-browser-command-meta">
-                                <span class="app-meta-chip app-meta-chip-primary">
-                                    {{ listings_total }} {% if has_listing_only_access %}owned{% else %}active{% endif %}
-                                </span>
-                                <span class="app-meta-chip app-meta-chip-secondary">
-                                    {% if active_filters.q or active_filters.min_bedrooms or active_filters.min_bathrooms or active_filters.min_price or active_filters.max_price or active_filters.lease_type or active_filters.max_distance or active_filters.availability_start or active_filters.availability_end or active_filters.has_parking or active_filters.is_furnished or active_filters.allows_pets or active_filters.has_yard or active_filters.saved %}
-                                        Filters active
-                                    {% elif has_listing_only_access %}
-                                        Inventory workspace
-                                    {% else %}
-                                        Map-first browsing
-                                    {% endif %}
-                                </span>
-                                <span class="app-meta-chip app-meta-chip-neutral">Drag map to refresh results</span>
-                            </div>
-                        </div>
-
                         <form
                             class="listing-results-filter-bar listing-results-filter-deck"
                             method="get"
@@ -85,7 +48,7 @@
                             data-listings-filters
                             data-listings-filter-form
                         >
-                            <div class="listing-filter-search-row listing-filter-search-row-deck">
+                            <div class="listing-filter-command-row">
                                 <div class="listing-filter-search-shell">
                                     <label class="visually-hidden" for="filter-query">Search listings</label>
                                     <input
@@ -97,13 +60,8 @@
                                         placeholder="Search by address, neighborhood, or title"
                                     >
                                 </div>
-                                <div class="listing-filter-deck-actions">
-                                    <span class="listing-filter-deck-label">Command deck</span>
-                                    <a class="listing-reset-link" href="{% url 'listings:listing_list' %}">Reset</a>
-                                </div>
-                            </div>
-                            <div class="listing-filter-toolbar-row listing-filter-toolbar-row-deck">
-                                <details class="listing-filter-menu" data-listings-filter-menu data-filter-name="lease">
+                                <div class="listing-filter-toolbar-row listing-filter-toolbar-row-deck">
+                                    <details class="listing-filter-menu" data-listings-filter-menu data-filter-name="lease">
                                     <summary class="listing-filter-trigger">
                                         <span class="listing-filter-trigger-label">Type</span>
                                         <span class="listing-filter-trigger-value" data-listings-filter-summary="lease">Any type</span>
@@ -125,7 +83,7 @@
                                     </div>
                                 </details>
 
-                                <details class="listing-filter-menu" data-listings-filter-menu data-filter-name="beds">
+                                    <details class="listing-filter-menu" data-listings-filter-menu data-filter-name="beds">
                                     <summary class="listing-filter-trigger">
                                         <span class="listing-filter-trigger-label">Beds</span>
                                         <span class="listing-filter-trigger-value" data-listings-filter-summary="beds">Any beds</span>
@@ -147,7 +105,7 @@
                                     </div>
                                 </details>
 
-                                <details class="listing-filter-menu" data-listings-filter-menu data-filter-name="baths">
+                                    <details class="listing-filter-menu" data-listings-filter-menu data-filter-name="baths">
                                     <summary class="listing-filter-trigger">
                                         <span class="listing-filter-trigger-label">Baths</span>
                                         <span class="listing-filter-trigger-value" data-listings-filter-summary="baths">Any baths</span>
@@ -169,7 +127,7 @@
                                     </div>
                                 </details>
 
-                                <details class="listing-filter-menu" data-listings-filter-menu data-filter-name="price">
+                                    <details class="listing-filter-menu" data-listings-filter-menu data-filter-name="price">
                                     <summary class="listing-filter-trigger">
                                         <span class="listing-filter-trigger-label">Price</span>
                                         <span class="listing-filter-trigger-value" data-listings-filter-summary="price">Any price</span>
@@ -210,7 +168,7 @@
                                     </div>
                                 </details>
 
-                                <details class="listing-filter-menu is-align-right" data-listings-filter-menu data-filter-name="filters">
+                                    <details class="listing-filter-menu is-align-right" data-listings-filter-menu data-filter-name="filters">
                                     <summary class="listing-filter-trigger">
                                         <span class="listing-filter-trigger-label">Filters</span>
                                         <span class="listing-filter-trigger-value" data-listings-filter-summary="filters">More</span>
@@ -304,6 +262,10 @@
                                         </div>
                                     </div>
                                 </details>
+                                </div>
+                                <div class="listing-filter-deck-actions">
+                                    <a class="listing-reset-link" href="{% url 'listings:listing_list' %}">Reset</a>
+                                </div>
                             </div>
                         </form>
                     </section>
@@ -311,21 +273,9 @@
                     <div class="listing-browser-main">
                         <aside class="listing-results-pane" data-listings-results data-listings-results-pane>
                             <div class="listing-results-pane-head">
-                                <div>
-                                    <p class="listing-results-kicker">Listings feed</p>
-                                    <h2 class="listing-results-title">
-                                        {% if has_listing_only_access %}Owned listings{% else %}Visible listings{% endif %}
-                                    </h2>
-                                    <p class="listing-results-summary" data-listings-results-summary>
-                                        {{ listings_total }} result{{ listings_total|pluralize }}.
-                                    </p>
-                                </div>
-                                <div class="listing-results-pane-head-actions">
-                                    <span class="app-meta-chip app-meta-chip-neutral">Independent rail scroll</span>
-                                    <span class="app-meta-chip app-meta-chip-secondary">
-                                        {% if has_listing_only_access %}Inventory only{% else %}Viewport synced{% endif %}
-                                    </span>
-                                </div>
+                                <p class="listing-results-summary" data-listings-results-summary>
+                                    {{ listings_total }} result{{ listings_total|pluralize }}.
+                                </p>
                             </div>
 
                             {% if has_listing_only_access %}
@@ -381,16 +331,9 @@
                                 data-default-lat="{{ listing_map_default_lat }}"
                                 data-default-lng="{{ listing_map_default_lng }}"
                             >
-                                <div class="listing-map-pane-head">
-                                    <div class="listing-map-head-copy">
-                                        <p class="listing-map-kicker">Spatial view</p>
-                                        <h2 class="listing-map-title">
-                                            {% if has_listing_only_access %}Inventory map{% else %}Market map{% endif %}
-                                        </h2>
-                                        <p class="listing-map-caption">Pinned to the viewport for continuous browsing.</p>
-                                    </div>
-                                    <div class="listing-map-head-actions">
-                                        {% if listing_map_satellite_enabled %}
+                                {% if listing_map_satellite_enabled %}
+                                    <div class="listing-map-pane-head">
+                                        <div class="listing-map-head-actions">
                                             <div class="listing-map-style-toggle" role="group" aria-label="Map style">
                                                 <button
                                                     class="listing-map-style-button is-active"
@@ -411,14 +354,9 @@
                                                     Satellite
                                                 </button>
                                             </div>
-                                        {% endif %}
+                                        </div>
                                     </div>
-                                </div>
-
-                                <div class="listing-map-status-bar" aria-hidden="true">
-                                    <span class="listing-map-status-pill">Boston College anchor</span>
-                                    <span class="listing-map-status-pill">Live viewport refresh</span>
-                                </div>
+                                {% endif %}
 
                                 <div class="listing-map" data-listing-map-canvas data-listings-map-canvas></div>
 
