@@ -4,10 +4,8 @@ import re
 import requests
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.db.models import Q
 from django.http import Http404, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -15,7 +13,6 @@ from django.views.decorators.http import require_GET, require_POST
 
 from communications.forms import ConversationMessageForm
 from communications.models import ListingConversation
-from communications.selectors import direct_conversations_by_counterparty
 from communications.services import (
     MESSAGE_SEND_RATE_LIMIT_ERROR,
     consume_message_send_rate_limit,
@@ -23,16 +20,14 @@ from communications.services import (
 )
 from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
-from users.compatibility import (
-    compatibility_highlights,
-    compute_compatibility,
-    compute_group_compatibility,
-    group_compatibility_highlights,
-)
 from users.group_services import remove_group_member as remove_roommate_group_member
 from users.group_services import save_roommate_group_details
-from users.models import Role, RoommateGroupInvite
-from users.selectors import active_roommate_group_for_user, roommate_group_memberships, roommate_group_profiles_for_user
+from users.selectors import (
+    active_roommate_group_for_user,
+    discover_roommate_people,
+    roommate_group_memberships,
+    roommate_group_profiles_for_user,
+)
 
 from .address_provider import get_geoapify_autocomplete_config, normalize_geoapify_suggestions
 from .address_signing import sign_address_selection
@@ -507,7 +502,6 @@ def _posts_tab_context(request):
 
 
 def _people_tab_context(request):
-    User = get_user_model()
     query = request.GET.get("q", "").strip()
     gender_filter = request.GET.get("gender", "").strip()
     smoke_filter = request.GET.get("smoke", "").strip()
@@ -515,85 +509,29 @@ def _people_tab_context(request):
     min_score_raw = request.GET.get("min_score", "").strip()
     min_score = int(min_score_raw) if min_score_raw.isdigit() else None
 
-    my_profile = getattr(request.user, "student_profile", None)
-    group_profiles = roommate_group_profiles_for_user(request.user)
-
-    students_qs = (
-        User.objects.filter(role=Role.STUDENT, is_active=True, profile_completed_at__isnull=False)
-        .exclude(id=request.user.id)
-        .select_related("student_profile")
-        .order_by("first_name", "last_name", "id")
+    discovery = discover_roommate_people(
+        request.user,
+        query=query,
+        gender_filter=gender_filter,
+        smoke_filter=smoke_filter,
+        pets_filter=pets_filter,
+        min_score=min_score,
+        page=request.GET.get("page"),
+        per_page=ROOMMATE_PEOPLE_PER_PAGE,
     )
-    if query:
-        students_qs = students_qs.filter(
-            Q(first_name__icontains=query)
-            | Q(last_name__icontains=query)
-            | Q(student_profile__preferred_name__icontains=query)
-        )
-    if gender_filter:
-        students_qs = students_qs.filter(student_profile__gender=gender_filter)
-    if smoke_filter == "yes":
-        students_qs = students_qs.filter(student_profile__smoke=True)
-    elif smoke_filter == "no":
-        students_qs = students_qs.filter(student_profile__smoke=False)
-    if pets_filter == "yes":
-        students_qs = students_qs.filter(student_profile__pets=True)
-    elif pets_filter == "no":
-        students_qs = students_qs.filter(student_profile__pets=False)
-
-    results = []
-    for student in students_qs:
-        their_profile = getattr(student, "student_profile", None)
-        if group_profiles:
-            score = compute_group_compatibility(group_profiles, their_profile) if their_profile else None
-            highlights = group_compatibility_highlights(group_profiles, their_profile) if their_profile else []
-        else:
-            score = compute_compatibility(my_profile, their_profile) if my_profile and their_profile else None
-            highlights = compatibility_highlights(my_profile, their_profile)
-        if min_score is not None and (score is None or score < min_score):
-            continue
-        results.append({"user": student, "profile": their_profile, "score": score, "highlights": highlights})
-    results.sort(key=lambda r: r["score"] if r["score"] is not None else -1, reverse=True)
-    people_results_page = get_page(results, request.GET.get("page"), ROOMMATE_PEOPLE_PER_PAGE)
-    page_results = list(people_results_page.object_list)
-
-    if request.user.can_use_roommate_matching and page_results:
-        existing_convos = direct_conversations_by_counterparty(request.user, [r["user"] for r in page_results])
-    else:
-        existing_convos = {}
-    existing_invites = RoommateGroupInvite.objects.filter(
-        inviter=request.user,
-        invitee__in=[r["user"] for r in page_results],
-        status__in=[RoommateGroupInvite.STATUS_PENDING_APPROVAL, RoommateGroupInvite.STATUS_PENDING_INVITEE],
-    ).values_list("invitee_id", "status")
-    invite_status_map = {invitee_id: status for invitee_id, status in existing_invites}
-
-    # Determine if viewer is a group lead and get existing member IDs
-    led_group = roommate_group_for_user(request.user)
-    is_group_lead = led_group is not None
-    existing_member_ids = (
-        set(RoommateGroupMembership.objects.filter(group=led_group).values_list("user_id", flat=True))
-        if led_group
-        else set()
-    )
-
-    for result in page_results:
-        result["existing_convo"] = existing_convos.get(result["user"].id)
-        result["invite_status"] = invite_status_map.get(result["user"].id)
-        result["already_in_group"] = result["user"].id in existing_member_ids
 
     return {
-        "people_results": people_results_page,
-        "people_results_total": people_results_page.paginator.count,
+        "people_results": discovery["results_page"],
+        "people_results_total": discovery["results_total"],
         "pagination_query": preserved_query_suffix(request.GET, "page"),
-        "has_my_profile": my_profile is not None,
-        "can_message": request.user.can_use_roommate_matching,
-        "is_group_lead": is_group_lead,
+        "has_my_profile": discovery["has_my_profile"],
+        "can_message": discovery["can_message"],
+        "is_group_lead": discovery["is_group_lead"],
         "people_gender_filter": gender_filter,
         "people_smoke_filter": smoke_filter,
         "people_pets_filter": pets_filter,
         "people_min_score": min_score_raw,
-        "people_filters_active": any([query, gender_filter, smoke_filter, pets_filter, min_score is not None]),
+        "people_filters_active": discovery["filters_active"],
     }
 
 
