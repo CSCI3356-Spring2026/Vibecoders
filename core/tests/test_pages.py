@@ -61,6 +61,24 @@ class CorePageTests(TestCase):
         self.assertContains(response, "$1800/mo")
         self.assertContains(response, "https://example.com/owner-avatar.jpg")
 
+    def test_landing_page_hides_inactive_owner_listing_preview(self):
+        owner = get_user_model().objects.create_user(username="owner", email="owner@bc.edu", password="pass12345")
+        owner.listings.create(
+            title="Hidden inactive-owner listing",
+            address="1731 Beacon St",
+            price="1800.00",
+            lease_type="FULL",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 5, 31),
+            approval_status="approved",
+        )
+        owner.is_active = False
+        owner.save(update_fields=["is_active"])
+
+        response = self.client.get(reverse("core:landing"))
+
+        self.assertNotContains(response, "Hidden inactive-owner listing")
+
     def test_realtor_landing_only_surfaces_owned_listings(self):
         realtor = get_user_model().objects.create_user(username="agent", email="agent@gmail.com", password="pass12345")
         realtor.listings.create(

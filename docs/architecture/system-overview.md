@@ -7,7 +7,7 @@ Padly is a housing marketplace tailored to the Boston College community. It comb
 - Google-authenticated user accounts
 - Role-aware access control
 - Listing authoring with verified addresses and media uploads
-- A public marketplace with list and map browsing
+- A login-gated marketplace with list and map browsing plus landing-page teasers
 - Private document storage for users
 - A custom moderation workspace for admins
 - Realtime listing conversations over websockets
@@ -89,7 +89,7 @@ flowchart LR
 - Authentication is Google-only and requires a verified provider email.
 - Legal acceptance is versioned and enforced before login can complete.
 - Profile completion can be enforced before normal app use.
-- Public listings are approved-only, available-only, not hidden, and not expired.
+- Public listings are approved-only, owned by active accounts, available-only, not hidden, and not expired.
 - Resolving a legitimate listing report removes that listing from the public marketplace until it is corrected and reapproved.
 - Listing authoring requires a provider-verified address selection when Geoapify is configured.
 - Private user uploads are never served from raw `/media/` routes.

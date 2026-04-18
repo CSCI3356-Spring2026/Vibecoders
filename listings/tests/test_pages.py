@@ -908,6 +908,50 @@ assert.equal(view.getStyleMode(), "satellite");
         self.assertEqual([item["id"] for item in payload["cards"]], [own_listing.id])
         self.assertEqual([item["id"] for item in payload["markers"]], [own_listing.id])
 
+    def test_live_search_hides_inactive_owner_listings(self):
+        self.create_listing(
+            title="Visible listing",
+            address="140 Commonwealth Ave",
+            latitude=42.3355,
+            longitude=-71.1685,
+        )
+        inactive_owner = get_user_model().objects.create_user(
+            username="inactive-owner-search",
+            email="inactive-owner-search@bc.edu",
+            password="testpass123",
+        )
+        inactive_owner.listings.create(
+            title="Inactive owner listing",
+            address="150 Commonwealth Ave",
+            price="1400.00",
+            lease_type="FULL",
+            start_date=date.today() + timedelta(days=10),
+            end_date=date.today() + timedelta(days=200),
+            property_type="apartment",
+            description="Should be hidden from search.",
+            latitude=42.3356,
+            longitude=-71.1684,
+            approval_status="approved",
+        )
+        inactive_owner.is_active = False
+        inactive_owner.save(update_fields=["is_active"])
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("listings:search"),
+            {
+                "west": "-71.3",
+                "south": "42.2",
+                "east": "-71.0",
+                "north": "42.5",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual([item["title"] for item in payload["cards"]], ["Visible listing"])
+
     @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
     def test_live_search_returns_expected_marker_and_card_payloads(self):
         self.user.first_name = "Casey"
@@ -2170,6 +2214,92 @@ assert.equal(picker.isSelectionComplete(), true);
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, listing.title)
 
+    def test_listing_list_hides_inactive_owner_listing(self):
+        self.create_listing(title="Visible listing")
+        inactive_owner = get_user_model().objects.create_user(
+            username="inactive-owner-list",
+            email="inactive-owner-list@bc.edu",
+            password="testpass123",
+        )
+        inactive_owner.listings.create(
+            title="Inactive owner listing",
+            address="150 Commonwealth Ave",
+            price="1400.00",
+            lease_type="FULL",
+            start_date=date.today() + timedelta(days=10),
+            end_date=date.today() + timedelta(days=200),
+            property_type="apartment",
+            description="Should be hidden from the marketplace.",
+            approval_status="approved",
+        )
+        inactive_owner.is_active = False
+        inactive_owner.save(update_fields=["is_active"])
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Visible listing")
+        self.assertNotContains(response, "Inactive owner listing")
+
+    def test_listing_detail_returns_404_for_inactive_owner_to_marketplace_user(self):
+        owner = get_user_model().objects.create_user(
+            username="inactive-owner-detail",
+            email="inactive-owner-detail@bc.edu",
+            password="testpass123",
+        )
+        listing = owner.listings.create(
+            title="Inactive owner listing",
+            address="150 Commonwealth Ave",
+            price="1400.00",
+            lease_type="FULL",
+            start_date=date.today() + timedelta(days=10),
+            end_date=date.today() + timedelta(days=200),
+            property_type="apartment",
+            description="Should be hidden from normal detail access.",
+            approval_status="approved",
+        )
+        owner.is_active = False
+        owner.save(update_fields=["is_active"])
+        viewer = get_user_model().objects.create_user(username="viewer", email="viewer@bc.edu", password="test")
+        self.client.force_login(viewer)
+
+        response = self.client.get(reverse("listings:detail", args=[listing.pk]))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_admin_can_still_open_inactive_owner_listing_detail(self):
+        owner = get_user_model().objects.create_user(
+            username="inactive-owner-admin-detail",
+            email="inactive-owner-admin-detail@bc.edu",
+            password="testpass123",
+        )
+        listing = owner.listings.create(
+            title="Inactive owner listing",
+            address="150 Commonwealth Ave",
+            price="1400.00",
+            lease_type="FULL",
+            start_date=date.today() + timedelta(days=10),
+            end_date=date.today() + timedelta(days=200),
+            property_type="apartment",
+            description="Admin should still be able to review this detail view.",
+            approval_status="approved",
+        )
+        owner.is_active = False
+        owner.save(update_fields=["is_active"])
+        admin = get_user_model().objects.create_user(
+            username="admin-inactive-detail",
+            email="admin-inactive-detail@bc.edu",
+            password="testpass123",
+            role=Role.ADMIN,
+        )
+        self.client.force_login(admin)
+
+        response = self.client.get(reverse("listings:detail", args=[listing.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, listing.title)
+
     def test_student_can_start_listing_conversation(self):
         student = get_user_model().objects.create_user(username="student", email="student@bc.edu", password="test")
         listing = self.create_listing()
@@ -2283,9 +2413,46 @@ assert.equal(picker.isSelectionComplete(), true);
         listing = self.create_listing(status=Listing.STATUS_TAKEN)
         self.client.force_login(student)
 
-        response = self.client.post(reverse("listings:message_listing", args=[listing.pk]), {"body": "Interested."})
+        response = self.client.post(
+            reverse("listings:message_listing", args=[listing.pk]),
+            {"body": "Interested."},
+            follow=True,
+        )
 
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "This listing is no longer accepting new messages.")
+        self.assertFalse(ListingConversation.objects.exists())
+
+    def test_message_listing_redirects_with_error_for_inactive_owner(self):
+        student = get_user_model().objects.create_user(username="student", email="student@bc.edu", password="test")
+        owner = get_user_model().objects.create_user(
+            username="inactive-owner-message",
+            email="inactive-owner-message@bc.edu",
+            password="testpass123",
+        )
+        listing = owner.listings.create(
+            title="Inactive owner listing",
+            address="150 Commonwealth Ave",
+            price="1400.00",
+            lease_type="FULL",
+            start_date=date.today() + timedelta(days=10),
+            end_date=date.today() + timedelta(days=200),
+            property_type="apartment",
+            description="No new messages should be accepted.",
+            approval_status="approved",
+        )
+        owner.is_active = False
+        owner.save(update_fields=["is_active"])
+        self.client.force_login(student)
+
+        response = self.client.post(
+            reverse("listings:message_listing", args=[listing.pk]),
+            {"body": "Interested."},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "This listing is no longer accepting new messages.")
         self.assertFalse(ListingConversation.objects.exists())
 
     def test_admin_can_start_listing_conversation_for_public_listing(self):
@@ -2455,6 +2622,37 @@ class GroupMatchPageTests(ListingTestCase):
         self.assertContains(response, matching_listing.title)
         self.assertNotContains(response, "Too small listing")
 
+    def test_group_match_page_stays_under_broad_query_budget(self):
+        self.complete_roommate_profile(self.user)
+        self.client.force_login(self.user)
+        for index in range(12):
+            author = get_user_model().objects.create_user(
+                username=f"budget-group-{index}",
+                email=f"budget-group-{index}@bc.edu",
+                password="testpass123",
+                first_name=f"Budget{index:02d}",
+            )
+            self.complete_roommate_profile(author)
+            self.create_roommate_post(
+                author=author,
+                title=f"Budget group post {index}",
+                current_group_size=2,
+                open_spots=1,
+                move_in_date=date.today() + timedelta(days=45),
+            )
+        for index in range(4):
+            self.create_listing(
+                title=f"Budget listing {index}",
+                address=f"{140 + index} Commonwealth Ave",
+                rooms=3,
+            )
+
+        with CaptureQueriesContext(connection) as captured_queries:
+            response = self.client.get(reverse("listings:group_match"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertLessEqual(len(captured_queries), 22)
+
     def test_group_match_page_filters_posts(self):
         self.complete_roommate_profile(self.user)
         self.client.force_login(self.user)
@@ -2494,18 +2692,113 @@ class GroupMatchPageTests(ListingTestCase):
         response = self.client.get(
             reverse("listings:group_match"),
             {
-                "q": "Brighton",
+                "q": "Newton",
                 "housing_status": RoommatePost.HOUSING_HAVE_HOME,
-                "max_budget": 1300,
-                "open_spots_min": 2,
-                "people_in_group": 2,
-                "move_in_by": (date.today() + timedelta(days=60)).isoformat(),
+                "max_budget": 1800,
+                "open_spots_min": 1,
+                "people_in_group": 1,
+                "move_in_by": (date.today() + timedelta(days=120)).isoformat(),
             },
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, matching_post.title)
-        self.assertNotContains(response, other_post.title)
+        self.assertNotContains(response, matching_post.title)
+        self.assertContains(response, other_post.title)
+
+    def test_group_match_page_need_home_filter_still_returns_need_home_posts(self):
+        self.complete_roommate_profile(self.user)
+        self.client.force_login(self.user)
+        need_home_author = get_user_model().objects.create_user(
+            username="need-home-group",
+            email="need-home-group@bc.edu",
+            password="testpass123",
+        )
+        self.complete_roommate_profile(need_home_author)
+        need_home_post = self.create_roommate_post(
+            author=need_home_author,
+            title="Need-home group",
+            housing_status=RoommatePost.HOUSING_NEED_HOME,
+        )
+        have_home_author = get_user_model().objects.create_user(
+            username="have-home-group",
+            email="have-home-group@bc.edu",
+            password="testpass123",
+        )
+        self.complete_roommate_profile(have_home_author)
+        have_home_post = self.create_roommate_post(
+            author=have_home_author,
+            title="Have-home group",
+            housing_status=RoommatePost.HOUSING_HAVE_HOME,
+        )
+
+        response = self.client.get(
+            reverse("listings:group_match"),
+            {"housing_status": RoommatePost.HOUSING_NEED_HOME},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, need_home_post.title)
+        self.assertNotContains(response, have_home_post.title)
+
+    def test_roommates_hub_posts_filter_returns_have_home_posts_without_inversion(self):
+        self.complete_roommate_profile(self.user)
+        self.client.force_login(self.user)
+        need_home_author = get_user_model().objects.create_user(
+            username="need-home-hub",
+            email="need-home-hub@bc.edu",
+            password="testpass123",
+        )
+        self.complete_roommate_profile(need_home_author)
+        need_home_post = self.create_roommate_post(
+            author=need_home_author,
+            title="Need-home post",
+            housing_status=RoommatePost.HOUSING_NEED_HOME,
+        )
+        have_home_author = get_user_model().objects.create_user(
+            username="have-home-hub",
+            email="have-home-hub@bc.edu",
+            password="testpass123",
+        )
+        self.complete_roommate_profile(have_home_author)
+        have_home_post = self.create_roommate_post(
+            author=have_home_author,
+            title="Have-home post",
+            housing_status=RoommatePost.HOUSING_HAVE_HOME,
+        )
+
+        response = self.client.get(
+            reverse("listings:roommates_hub"),
+            {"tab": "posts", "housing_status": RoommatePost.HOUSING_HAVE_HOME},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, need_home_post.title)
+        self.assertContains(response, have_home_post.title)
+
+    def test_roommates_hub_posts_tab_stays_under_broad_query_budget(self):
+        self.complete_roommate_profile(self.user)
+        self.client.force_login(self.user)
+        for index in range(12):
+            author = get_user_model().objects.create_user(
+                username=f"hub-budget-group-{index}",
+                email=f"hub-budget-group-{index}@bc.edu",
+                password="testpass123",
+                first_name=f"HubBudget{index:02d}",
+            )
+            self.complete_roommate_profile(author)
+            self.create_roommate_post(
+                author=author,
+                title=f"Hub budget post {index}",
+                current_group_size=2,
+                open_spots=1,
+                move_in_date=date.today() + timedelta(days=45),
+            )
+
+        with CaptureQueriesContext(connection) as captured_queries:
+            response = self.client.get(reverse("listings:roommates_hub"), {"tab": "posts"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertLessEqual(len(captured_queries), 18)
 
     def test_roommates_hub_people_tab_shows_save_button_state(self):
         self.complete_roommate_profile(self.user)

@@ -12,7 +12,6 @@ from django.db.models import Count, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.utils import timezone
 from django.utils.http import content_disposition_header
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_GET, require_POST
@@ -22,12 +21,12 @@ from communications.selectors import (
     accessible_conversations_for_user,
     conversation_summary_for_user,
     direct_conversation_between_users,
-    direct_conversations_by_counterparty,
 )
 from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
 from listings.selectors import active_roommate_post_for_user, with_feedback_summary
 
+from .admin_state import may_delete
 from .compatibility import (
     compatibility_highlights,
     compute_compatibility,
@@ -41,14 +40,14 @@ from .legal import (
     set_pending_legal_acceptance,
 )
 from .models import AdminProfile, Role, RoommateGroupInvite, StudentProfile, UserFile
+from .profile_integrity import mark_profile_completed_now, profile_satisfies_completion_requirements
 from .selectors import (
     accessible_user_files_queryset,
     active_roommate_group_for_user,
-    favorite_roommate_ids_for_user,
+    discover_roommate_people,
     favorited_people_queryset,
     pending_group_invite_approvals_for_user,
     pending_group_invites_for_user,
-    roommate_candidate_results,
     roommate_group_memberships,
     roommate_group_profiles_for_user,
 )
@@ -316,9 +315,8 @@ def profile_setup(request):
         form = form_class(request.POST, instance=profile)
         if form.is_valid():
             form.save()
-            if not user.profile_completed_at:
-                user.profile_completed_at = timezone.now()
-                user.save(update_fields={"profile_completed_at"})
+            if profile_satisfies_completion_requirements(user):
+                mark_profile_completed_now(user)
             messages.success(request, "Profile completed." if profile_needs_completion else "Profile updated.")
             if next_url:
                 return redirect(next_url)
@@ -474,15 +472,7 @@ def delete_account(request):
         messages.error(request, "Sign in again before deleting your account.")
         return redirect("users:dashboard")
     user = request.user
-    if (
-        user.role == Role.ADMIN
-        and not user.__class__._default_manager.exclude(pk=user.pk)
-        .filter(
-            role=Role.ADMIN,
-            is_active=True,
-        )
-        .exists()
-    ):
+    if not may_delete(user):
         messages.error(request, "You cannot delete the last active admin account.")
         return redirect("users:dashboard")
     logout(request)
@@ -521,66 +511,33 @@ def browse_roommates(request):
     min_score_raw = request.GET.get("min_score", "").strip()
     min_score = int(min_score_raw) if min_score_raw.isdigit() else None
 
-    my_profile = getattr(request.user, "student_profile", None)
-    active_group = active_roommate_group_for_user(request.user)
-    group_memberships = roommate_group_memberships(active_group) if active_group else []
-    group_member_ids = {membership.user_id for membership in group_memberships}
-
-    results = roommate_candidate_results(
+    discovery = discover_roommate_people(
         request.user,
         query=query,
         gender_filter=gender_filter,
         smoke_filter=smoke_filter,
         pets_filter=pets_filter,
         min_score=min_score,
+        page=request.GET.get("page"),
+        per_page=ROOMMATE_RESULTS_PER_PAGE,
     )
-    for result in results:
-        result["is_in_group"] = result["user"].id in group_member_ids
-
-    results_page = get_page(results, request.GET.get("page"), ROOMMATE_RESULTS_PER_PAGE)
-    page_results = list(results_page.object_list)
-
-    # Look up existing direct conversations in one query
-    if request.user.can_use_roommate_matching and page_results:
-        existing_convos = direct_conversations_by_counterparty(request.user, [r["user"] for r in page_results])
-    else:
-        existing_convos = {}
-
-    existing_invites = RoommateGroupInvite.objects.filter(
-        inviter=request.user,
-        invitee__in=[result["user"] for result in page_results],
-        status__in=[
-            RoommateGroupInvite.STATUS_PENDING_APPROVAL,
-            RoommateGroupInvite.STATUS_PENDING_INVITEE,
-        ],
-    ).values_list("invitee_id", "status")
-    invite_status_map = {invitee_id: status for invitee_id, status in existing_invites}
-    favorite_ids = favorite_roommate_ids_for_user(request.user, [result["user"] for result in page_results])
-
-    for result in page_results:
-        result["existing_convo"] = existing_convos.get(result["user"].id)
-        result["invite_status"] = invite_status_map.get(result["user"].id)
-        result["is_favorited"] = result["user"].id in favorite_ids
-
-    filters_active = any([query, gender_filter, smoke_filter, pets_filter, min_score is not None])
-
     return render(
         request,
         "users/browse_roommates.html",
         {
-            "results": results_page,
-            "results_total": results_page.paginator.count,
+            "results": discovery["results_page"],
+            "results_total": discovery["results_total"],
             "pagination_query": preserved_query_suffix(request.GET, "page"),
             "query": query,
             "gender_filter": gender_filter,
             "smoke_filter": smoke_filter,
             "pets_filter": pets_filter,
             "min_score": min_score_raw,
-            "filters_active": filters_active,
-            "has_my_profile": my_profile is not None,
-            "can_message": request.user.can_use_roommate_matching,
-            "active_group": active_group,
-            "group_memberships": group_memberships,
+            "filters_active": discovery["filters_active"],
+            "has_my_profile": discovery["has_my_profile"],
+            "can_message": discovery["can_message"],
+            "active_group": discovery["active_group"],
+            "group_memberships": discovery["group_memberships"],
             "pending_group_approvals": pending_group_invite_approvals_for_user(request.user),
             "pending_group_invites": pending_group_invites_for_user(request.user),
         },

@@ -126,8 +126,16 @@ def reply_conversation(request, conversation_id):
         return redirect("communications:detail", conversation_id=conversation.pk)
     form = ConversationMessageForm(request.POST)
     if form.is_valid():
-        send_conversation_message(conversation, request.user, form.cleaned_data["body"])
-        messages.success(request, "Reply sent.")
+        try:
+            send_conversation_message(conversation, request.user, form.cleaned_data["body"])
+        except ValidationError as exc:
+            if hasattr(exc, "message_dict"):
+                message = next(iter(exc.message_dict.values()))[0]
+            else:
+                message = exc.messages[0]
+            messages.error(request, message)
+        else:
+            messages.success(request, "Reply sent.")
     else:
         messages.error(request, "Enter a message before sending.")
 

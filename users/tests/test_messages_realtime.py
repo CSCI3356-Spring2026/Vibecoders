@@ -22,13 +22,11 @@ class MessagesRealtimeTests(TransactionTestCase):
             username="owner",
             email="owner@bc.edu",
             password="test",
-            profile_completed_at=timezone.now(),
         )
         self.participant = User.objects.create_user(
             username="student",
             email="student@bc.edu",
             password="test",
-            profile_completed_at=timezone.now(),
         )
         self.outsider = User.objects.create_user(username="outsider", email="outsider@bc.edu", password="test")
         SocialAccount.objects.create(
@@ -52,7 +50,26 @@ class MessagesRealtimeTests(TransactionTestCase):
             participant=self.participant,
         )
 
+    def complete_roommate_profile(self, user):
+        profile = user.student_profile
+        profile.preferred_name = user.first_name or user.username
+        profile.age = 21
+        profile.gender = "woman"
+        profile.major = "Computer Science"
+        profile.bio = "Quiet BC student looking for a good fit."
+        profile.messy_level = 3
+        profile.guest_level = 2
+        profile.bedtime = 23
+        profile.noise_level = 2
+        profile.drink = 2
+        profile.party = 2
+        profile.save()
+        user.profile_completed_at = timezone.now()
+        user.save(update_fields=["profile_completed_at"])
+
     def create_roommate_post(self, author):
+        if author.profile_completed_at is None:
+            self.complete_roommate_profile(author)
         return RoommatePost.objects.create(
             author=author,
             title="Looking for one more roommate",
@@ -146,6 +163,7 @@ class MessagesRealtimeTests(TransactionTestCase):
         async_to_sync(scenario)()
 
     def test_direct_conversation_realtime_payload_uses_direct_context(self):
+        self.complete_roommate_profile(self.owner)
         self.create_roommate_post(self.participant)
         self.direct_conversation, _, _ = start_direct_conversation(self.owner, self.participant, "Want to compare?")
 
@@ -344,5 +362,37 @@ class MessagesRealtimeTests(TransactionTestCase):
 
             self.assertEqual(output["type"], "websocket.close")
             self.assertEqual(output["code"], 4401)
+
+        async_to_sync(scenario)()
+
+    def test_websocket_send_returns_error_when_counterparty_is_inactive(self):
+        async def scenario():
+            participant_socket = WebsocketCommunicator(MessagesConsumer.as_asgi(), "/ws/messages/")
+            participant_socket.scope["user"] = self.participant
+
+            connected, _ = await participant_socket.connect()
+            self.assertTrue(connected)
+
+            deactivate_owner = database_sync_to_async(
+                self.owner.__class__._default_manager.filter(pk=self.owner.pk).update
+            )
+            await deactivate_owner(is_active=False)
+
+            await participant_socket.send_json_to(
+                {
+                    "action": "send_message",
+                    "conversation_id": self.conversation.id,
+                    "body": "Still available?",
+                }
+            )
+            payload = await participant_socket.receive_json_from()
+
+            self.assertEqual(payload["type"], "error")
+            self.assertEqual(
+                payload["message"],
+                "This conversation is read-only because one participant no longer has an active account.",
+            )
+
+            await participant_socket.disconnect()
 
         async_to_sync(scenario)()

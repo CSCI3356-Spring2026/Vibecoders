@@ -174,13 +174,9 @@ def filtered_roommate_posts_queryset(
         )
     if housing_status in {value for value, _ in RoommatePost.HOUSING_CHOICES}:
         if housing_status == RoommatePost.HOUSING_HAVE_HOME:
-            queryset = queryset.filter(housing_status=RoommatePost.HOUSING_NEED_HOME)
+            queryset = queryset.filter(housing_status=RoommatePost.HOUSING_HAVE_HOME)
         else:
-            needs_place_q = Q(housing_status=RoommatePost.HOUSING_NEED_HOME)
-            have_home_with_space_q = Q(housing_status=RoommatePost.HOUSING_HAVE_HOME)
-            if people_in_group is not None:
-                have_home_with_space_q &= Q(open_spots__gte=people_in_group)
-            queryset = queryset.filter(needs_place_q | have_home_with_space_q)
+            queryset = queryset.filter(housing_status=housing_status)
     if max_budget is not None:
         queryset = queryset.filter(budget_min__lte=max_budget)
     if move_in_by is not None:

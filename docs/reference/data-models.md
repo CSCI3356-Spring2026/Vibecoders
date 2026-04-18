@@ -7,15 +7,15 @@ This reference summarizes the main persisted models and the rules that matter mo
 | Model | Purpose | Key relations | Important rules |
 | --- | --- | --- | --- |
 | `CustomUser` | primary account model | one-to-one profiles, related listings, files, messages | email unique and normalized; role constrained to `student`, `realtor`, `admin`; non-admin role follows email policy |
-| `StudentProfile` | student roommate/profile questionnaire | one-to-one to `CustomUser` | completion-oriented fields for roommate posts, compatibility, and profile setup |
-| `AdminProfile` | admin/realtor profile record | one-to-one to `CustomUser` | lighter profile schema than student profile |
+| `StudentProfile` | student roommate/profile questionnaire | one-to-one to `CustomUser` | completion-oriented fields for roommate posts, compatibility, and profile setup; preserved across admin promotion for later reuse |
+| `AdminProfile` | admin/realtor profile record | one-to-one to `CustomUser` | lighter profile schema than student profile; required for admin and realtor completion state |
 | `UserFile` | private document library file | belongs to `CustomUser` | per-user capacity enforced; validators inspect file contents; storage delete happens after commit |
 
 ## Listings App
 
 | Model | Purpose | Key relations | Important rules |
 | --- | --- | --- | --- |
-| `Listing` | marketplace listing plus moderation state | belongs to owner; has images, favorites, reviews, reports, conversations | owner immutable; positive price; approved-only public visibility; moderation timestamps and notes tracked |
+| `Listing` | marketplace listing plus moderation state | belongs to owner; has images, favorites, reviews, reports, conversations | owner immutable; positive price; public visibility also requires an active owner; moderation timestamps and notes tracked |
 | `ListingImage` | listing photo | belongs to `Listing` | total image cap enforced; validated as real image content; delete after commit |
 | `ListingFavorite` | saved listing | `user` to `listing` | unique per `(user, listing)`; owner cannot favorite own listing |
 | `ListingReview` | resident review | `author` to `listing` | unique per `(listing, author)`; rating 1-5; student-only at submission time; approved-listing-only; prior conversation required |
@@ -27,7 +27,7 @@ This reference summarizes the main persisted models and the rules that matter mo
 
 | Model | Purpose | Key relations | Important rules |
 | --- | --- | --- | --- |
-| `ListingConversation` | thread about a listing or a roommate match | optional listing plus owner/participant | listing threads unique per `(listing, participant)`; direct threads unique per student pair; owner and participant cannot be same user |
+| `ListingConversation` | thread about a listing or a roommate match | optional listing plus owner/participant | listing threads unique per `(listing, participant)`; direct threads unique per student pair and normalized into a stable owner/participant order; owner and participant cannot be same user |
 | `ListingMessage` | message in conversation | belongs to conversation and sender | sender must be conversation participant; body normalized and length-limited |
 
 ## Listing State and Moderation Fields

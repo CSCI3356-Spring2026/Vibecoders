@@ -120,8 +120,22 @@ class ListingConversation(models.Model):
             ),
         ]
 
+    def _normalize_direct_participants(self):
+        if self.conversation_type != self.CONVERSATION_TYPE_DIRECT:
+            return
+        if not self.owner_id or not self.participant_id:
+            return
+        if self.owner_id <= self.participant_id:
+            return
+
+        owner = self.owner
+        participant = self.participant
+        self.owner = participant
+        self.participant = owner
+
     def clean(self):
         super().clean()
+        self._normalize_direct_participants()
         if self.conversation_type == self.CONVERSATION_TYPE_LISTING and not self.listing_id:
             raise ValidationError({"listing": "Listing conversations require a listing."})
         if self.conversation_type == self.CONVERSATION_TYPE_DIRECT and self.listing_id:

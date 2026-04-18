@@ -13,7 +13,6 @@ from django.views.decorators.http import require_GET, require_POST
 
 from communications.forms import ConversationMessageForm
 from communications.models import ListingConversation
-from communications.selectors import direct_conversations_by_counterparty
 from communications.services import (
     MESSAGE_SEND_RATE_LIMIT_ERROR,
     consume_message_send_rate_limit,
@@ -23,11 +22,9 @@ from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
 from users.group_services import remove_group_member as remove_roommate_group_member
 from users.group_services import save_roommate_group_details
-from users.models import RoommateGroupInvite
 from users.selectors import (
     active_roommate_group_for_user,
-    favorite_roommate_ids_for_user,
-    roommate_candidate_results,
+    discover_roommate_people,
     roommate_group_memberships,
     roommate_group_profiles_for_user,
 )
@@ -61,8 +58,6 @@ from .selectors import (
     filtered_roommate_posts_queryset,
     listing_reviews_queryset,
     marketplace_listings_for_user,
-    messageable_listings_for_user,
-    open_listings_matching_roommate_post,
     roommate_group_for_user,
     roommate_group_post_for_user,
     roommate_post_for_user,
@@ -399,6 +394,36 @@ def _first_form_error(form, fallback):
     return fallback
 
 
+def _message_listing_error_redirect(user, listing):
+    if user.is_bc_admin or listing.owner_id == user.id or listing.is_publicly_active:
+        return redirect("listings:detail", pk=listing.pk)
+    return redirect("listings:listing_list")
+
+
+def _listing_matches_roommate_post(listing, roommate_post):
+    move_in_date = getattr(roommate_post, "move_in_date", None)
+    if move_in_date and (listing.start_date > move_in_date or listing.end_date < move_in_date):
+        return False
+
+    target_size = roommate_post.target_household_size or roommate_post.current_group_size
+    if target_size and (listing.rooms is None or listing.rooms < target_size):
+        return False
+
+    return True
+
+
+def _listing_matches_for_roommate_posts(user, roommate_posts):
+    posts = [post for post in roommate_posts if post is not None]
+    if not posts:
+        return {}
+
+    listing_pool = list(with_favorite_state(marketplace_listings_for_user(user), user))
+    return {
+        post.id: [listing for listing in listing_pool if _listing_matches_roommate_post(listing, post)]
+        for post in posts
+    }
+
+
 def _roommate_post_board_context(request, *, filter_form=None, post_form=None):
     current_post = roommate_post_for_user(request.user)
     current_group = roommate_group_for_user(request.user)
@@ -425,24 +450,31 @@ def _roommate_post_board_context(request, *, filter_form=None, post_form=None):
         people_in_group=filter_data.get("people_in_group"),
     )
     roommate_posts = decorate_roommate_posts_for_user(request.user, roommate_posts, group_profiles=group_profiles)
+    roommate_posts_page = get_page(roommate_posts, request.GET.get("page"), ROOMMATE_POSTS_PER_PAGE)
+    page_posts = list(roommate_posts_page.object_list)
     selected_post = None
     matched_listings = []
     matched_listings_total = 0
     selected_post_id = (request.GET.get("group") or "").strip()
     if selected_post_id.isdigit():
         selected_post = RoommatePost.objects.active().with_related().filter(pk=int(selected_post_id)).first()
-        if selected_post is not None:
-            matched_queryset = open_listings_matching_roommate_post(request.user, selected_post)
-            matched_listings_total = matched_queryset.count()
-            matched_listings = list(matched_queryset[:6])
-            _apply_listing_ui_flags(matched_listings, request.user)
+
+    posts_needing_match_data = list(page_posts)
+    if selected_post is not None and all(post.id != selected_post.id for post in posts_needing_match_data):
+        posts_needing_match_data.append(selected_post)
+    listing_matches_by_post_id = _listing_matches_for_roommate_posts(request.user, posts_needing_match_data)
+
+    if selected_post is not None:
+        selected_post_matches = listing_matches_by_post_id.get(selected_post.id, [])
+        matched_listings_total = len(selected_post_matches)
+        matched_listings = selected_post_matches[:6]
+        _apply_listing_ui_flags(matched_listings, request.user)
 
     group_query_suffix = preserved_query_suffix(request.GET, "page", "group")
-    for post in roommate_posts:
-        post.ui_listing_match_count = open_listings_matching_roommate_post(request.user, post).count()
+    for post in page_posts:
+        post.ui_listing_match_count = len(listing_matches_by_post_id.get(post.id, []))
         post.ui_match_url = f"{reverse('listings:group_match')}?group={post.id}{group_query_suffix}"
         post.ui_is_selected = selected_post is not None and post.id == selected_post.id
-    roommate_posts_page = get_page(roommate_posts, request.GET.get("page"), ROOMMATE_POSTS_PER_PAGE)
 
     if post_form is None:
         post_form = RoommatePostForm(instance=current_post, user=request.user)
@@ -506,58 +538,30 @@ def _people_tab_context(request):
     pets_filter = request.GET.get("pets", "").strip()
     min_score_raw = request.GET.get("min_score", "").strip()
     min_score = int(min_score_raw) if min_score_raw.isdigit() else None
-    my_profile = getattr(request.user, "student_profile", None)
 
-    results = roommate_candidate_results(
+    discovery = discover_roommate_people(
         request.user,
         query=query,
         gender_filter=gender_filter,
         smoke_filter=smoke_filter,
         pets_filter=pets_filter,
         min_score=min_score,
+        page=request.GET.get("page"),
+        per_page=ROOMMATE_PEOPLE_PER_PAGE,
     )
-    people_results_page = get_page(results, request.GET.get("page"), ROOMMATE_PEOPLE_PER_PAGE)
-    page_results = list(people_results_page.object_list)
-
-    if request.user.can_use_roommate_matching and page_results:
-        existing_convos = direct_conversations_by_counterparty(request.user, [r["user"] for r in page_results])
-    else:
-        existing_convos = {}
-    existing_invites = RoommateGroupInvite.objects.filter(
-        inviter=request.user,
-        invitee__in=[r["user"] for r in page_results],
-        status__in=[RoommateGroupInvite.STATUS_PENDING_APPROVAL, RoommateGroupInvite.STATUS_PENDING_INVITEE],
-    ).values_list("invitee_id", "status")
-    invite_status_map = {invitee_id: status for invitee_id, status in existing_invites}
-    favorite_ids = favorite_roommate_ids_for_user(request.user, [result["user"] for result in page_results])
-
-    # Determine if viewer is a group lead and get existing member IDs
-    led_group = roommate_group_for_user(request.user)
-    is_group_lead = led_group is not None
-    existing_member_ids = (
-        set(RoommateGroupMembership.objects.filter(group=led_group).values_list("user_id", flat=True))
-        if led_group
-        else set()
-    )
-
-    for result in page_results:
-        result["existing_convo"] = existing_convos.get(result["user"].id)
-        result["invite_status"] = invite_status_map.get(result["user"].id)
-        result["already_in_group"] = result["user"].id in existing_member_ids
-        result["is_favorited"] = result["user"].id in favorite_ids
 
     return {
-        "people_results": people_results_page,
-        "people_results_total": people_results_page.paginator.count,
+        "people_results": discovery["results_page"],
+        "people_results_total": discovery["results_total"],
         "pagination_query": preserved_query_suffix(request.GET, "page"),
-        "has_my_profile": my_profile is not None,
-        "can_message": request.user.can_use_roommate_matching,
-        "is_group_lead": is_group_lead,
+        "has_my_profile": discovery["has_my_profile"],
+        "can_message": discovery["can_message"],
+        "is_group_lead": discovery["is_group_lead"],
         "people_gender_filter": gender_filter,
         "people_smoke_filter": smoke_filter,
         "people_pets_filter": pets_filter,
         "people_min_score": min_score_raw,
-        "people_filters_active": any([query, gender_filter, smoke_filter, pets_filter, min_score is not None]),
+        "people_filters_active": discovery["filters_active"],
     }
 
 
@@ -996,7 +1000,15 @@ def message_listing(request, pk):
     if not request.user.can_start_listing_conversations:
         return HttpResponseForbidden("Verified student access is required to message about listings.")
 
-    listing = get_object_or_404(messageable_listings_for_user(request.user), pk=pk)
+    listing = accessible_listing_detail_queryset(request.user).filter(pk=pk).first()
+    if listing is None:
+        listing = Listing.objects.with_related().filter(pk=pk).first()
+        if listing is None:
+            raise Http404
+        if not listing.is_publicly_active:
+            messages.error(request, "This listing is no longer accepting new messages.")
+            return _message_listing_error_redirect(request.user, listing)
+        raise Http404
     if listing.owner_id == request.user.id:
         messages.error(request, "You cannot message yourself about your own listing.")
         return redirect("listings:detail", pk=listing.pk)
@@ -1016,7 +1028,7 @@ def message_listing(request, pk):
     else:
         messages.error(request, "Enter a message before sending.")
 
-    return redirect("listings:detail", pk=listing.pk)
+    return _message_listing_error_redirect(request.user, listing)
 
 
 @login_required

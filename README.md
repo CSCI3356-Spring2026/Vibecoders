@@ -5,7 +5,8 @@ Padly is a student housing and subletting marketplace built by Vibecoders for th
 ## Overview
 
 - Google OAuth sign-in with verified-email-based role assignment
-- Marketplace flows for creating, managing, browsing, and messaging about listings
+- Login-gated marketplace flows for creating, managing, browsing, and messaging about listings
+- Anonymous visitors only see public listing teasers on the landing page
 - Roommate discovery with post-based group search, compatibility profiles, and direct student-to-student chat
 - Role model for `Student`, `Realtor`, and `Admin` users
 - Real-time conversations between listing owners and interested renters
@@ -101,9 +102,11 @@ python manage.py test
 ruff check .
 ruff format --check .
 python manage.py set_user_role user@bc.edu admin
+python manage.py repair_profile_completion_integrity
 ```
 
 `set_user_role` is useful after a real user has signed in once and needs elevated access.
+`repair_profile_completion_integrity` recalculates `profile_completed_at` against the current role's required profile data after operational fixes or role-policy changes.
 
 ## Configuration
 
@@ -126,6 +129,10 @@ Common environment variables:
 Listings authoring now fails closed when Geoapify autocomplete is not configured. Users must choose a verified suggestion on create, and freeform addresses are not accepted as a fallback.
 
 Users with stale legal acceptance are routed through the embedded review flow on the login page, where Privacy Policy is reviewed first and Terms of Service second before Google sign-in can continue.
+
+Authenticated users whose accounts are later deactivated are logged out on their next HTTP request. Listings owned by inactive accounts are hidden from landing teasers, marketplace results, live search, and normal listing detail. Existing conversations with inactive counterparties remain visible but become read-only.
+
+Promoting a student to admin preserves the existing `StudentProfile` so a later return to the student role can reuse prior roommate-profile data. Promoting to realtor still removes the student profile and clears completion until the role's required profile is filled again.
 
 Production-only requirements:
 
@@ -156,7 +163,7 @@ daphne vibecoders.asgi:application
 ## Development Standards
 
 - Open pull requests against `main`; do not commit directly to `main`
-- CI runs `ruff check .`, `ruff format --check .`, and `python manage.py test`
+- CI runs `ruff check .`, `ruff format --check .`, `python manage.py check`, a production-like `python manage.py check --deploy`, `python manage.py makemigrations --check --dry-run`, and `python manage.py test`
 - Keep changes scoped to the feature or fix being shipped
 
 ## License

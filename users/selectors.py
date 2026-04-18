@@ -1,6 +1,8 @@
 from django.contrib.auth import get_user_model
 from django.db.models import Case, Count, IntegerField, Q, Value, When
 
+from communications.selectors import direct_conversations_by_counterparty
+from core.utils import get_page
 from listings.models import Listing, ListingReport, RoommateGroupMembership
 from listings.selectors import listing_reports_queryset_for_admin, with_feedback_summary
 
@@ -17,6 +19,8 @@ from .models import (
     RoommateGroupInviteApproval,
     UserFile,
 )
+
+ROOMMATE_DISCOVERY_CANDIDATE_LIMIT = 300
 
 
 def roommate_candidate_results(
@@ -308,3 +312,111 @@ def favorite_roommate_ids_for_user(user, candidates):
             flat=True,
         )
     )
+
+
+def discover_roommate_people(
+    user,
+    *,
+    query="",
+    gender_filter="",
+    smoke_filter="",
+    pets_filter="",
+    min_score=None,
+    page=None,
+    per_page=12,
+):
+    user_model = get_user_model()
+    my_profile = getattr(user, "student_profile", None)
+    group_profiles = roommate_group_profiles_for_user(user)
+    active_group = active_roommate_group_for_user(user)
+    group_memberships = list(roommate_group_memberships(active_group)) if active_group else []
+    group_member_ids = {membership.user_id for membership in group_memberships}
+
+    students_qs = (
+        user_model.objects.filter(
+            role=Role.STUDENT,
+            is_active=True,
+            profile_completed_at__isnull=False,
+        )
+        .exclude(id=user.id)
+        .select_related("student_profile")
+        .order_by("first_name", "last_name", "id")
+    )
+
+    if query:
+        students_qs = students_qs.filter(
+            Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+            | Q(student_profile__preferred_name__icontains=query)
+        )
+    if gender_filter:
+        students_qs = students_qs.filter(student_profile__gender=gender_filter)
+    if smoke_filter == "yes":
+        students_qs = students_qs.filter(student_profile__smoke=True)
+    elif smoke_filter == "no":
+        students_qs = students_qs.filter(student_profile__smoke=False)
+    if pets_filter == "yes":
+        students_qs = students_qs.filter(student_profile__pets=True)
+    elif pets_filter == "no":
+        students_qs = students_qs.filter(student_profile__pets=False)
+
+    results = []
+    for student in students_qs[:ROOMMATE_DISCOVERY_CANDIDATE_LIMIT]:
+        their_profile = getattr(student, "student_profile", None)
+        if group_profiles:
+            score = compute_group_compatibility(group_profiles, their_profile) if their_profile else None
+            highlights = group_compatibility_highlights(group_profiles, their_profile) if their_profile else []
+        else:
+            score = compute_compatibility(my_profile, their_profile) if my_profile and their_profile else None
+            highlights = compatibility_highlights(my_profile, their_profile)
+        if min_score is not None and (score is None or score < min_score):
+            continue
+        results.append(
+            {
+                "user": student,
+                "profile": their_profile,
+                "score": score,
+                "highlights": highlights,
+            }
+        )
+
+    results.sort(key=lambda result: result["score"] if result["score"] is not None else -1, reverse=True)
+    results_page = get_page(results, page, per_page)
+    page_results = list(results_page.object_list)
+
+    if user.can_use_roommate_matching and page_results:
+        existing_convos = direct_conversations_by_counterparty(user, [result["user"] for result in page_results])
+    else:
+        existing_convos = {}
+
+    favorite_ids = favorite_roommate_ids_for_user(user, [result["user"] for result in page_results])
+    invite_status_map = {
+        invitee_id: status
+        for invitee_id, status in RoommateGroupInvite.objects.filter(
+            inviter=user,
+            invitee__in=[result["user"] for result in page_results],
+            status__in=[
+                RoommateGroupInvite.STATUS_PENDING_APPROVAL,
+                RoommateGroupInvite.STATUS_PENDING_INVITEE,
+            ],
+        ).values_list("invitee_id", "status")
+    }
+
+    for result in page_results:
+        is_in_group = result["user"].id in group_member_ids
+        result["existing_convo"] = existing_convos.get(result["user"].id)
+        result["invite_status"] = invite_status_map.get(result["user"].id)
+        result["is_in_group"] = is_in_group
+        result["already_in_group"] = is_in_group
+        result["is_favorited"] = result["user"].id in favorite_ids
+
+    return {
+        "results_page": results_page,
+        "results_total": results_page.paginator.count,
+        "filters_active": any([query, gender_filter, smoke_filter, pets_filter, min_score is not None]),
+        "has_my_profile": my_profile is not None,
+        "can_message": user.can_use_roommate_matching,
+        "active_group": active_group,
+        "group_memberships": group_memberships,
+        "is_group_lead": active_group is not None and active_group.lead_id == user.id,
+    }

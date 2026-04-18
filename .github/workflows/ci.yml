@@ -28,5 +28,15 @@ jobs:
       - run: ruff check .
       - run: ruff format --check .
       - run: python manage.py check
+      - name: Deploy Check
+        env:
+          DJANGO_DEBUG: "false"
+          DJANGO_SECRET_KEY: ci-deploy-secret-key-2026-04-18-long-randomized-placeholder
+          DJANGO_ALLOWED_HOSTS: ci.padly.test
+          DJANGO_CSRF_TRUSTED_ORIGINS: https://ci.padly.test
+          DATABASE_URL: sqlite:////tmp/padly-ci-deploy.sqlite3
+          CHANNEL_REDIS_URL: redis://localhost:6379/1
+          CACHE_REDIS_URL: redis://localhost:6379/2
+        run: python manage.py check --deploy
       - run: python manage.py makemigrations --check --dry-run
       - run: python manage.py test

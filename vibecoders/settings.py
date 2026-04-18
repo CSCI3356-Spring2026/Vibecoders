@@ -64,6 +64,7 @@ LOCAL_DEBUG_COMMANDS = {
     "shell",
     "createsuperuser",
     "set_user_role",
+    "repair_profile_completion_integrity",
 }
 RUNNING_TESTS = "test" in sys.argv
 DEVELOPMENT_SECRET_KEY = "padly-local-dev-secret-key-2026-04-01-keep-out-of-production-only"
@@ -123,6 +124,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
+    "users.middleware.ActiveAccountMiddleware",
     "users.middleware.CurrentLegalAcceptanceMiddleware",
     "users.middleware.ProfileCompletionMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",

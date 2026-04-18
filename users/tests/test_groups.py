@@ -38,6 +38,12 @@ class RoommateGroupTests(TestCase):
         user.profile_completed_at = timezone.now()
         user.save(update_fields=["profile_completed_at"])
 
+    def _browse_result_rows(self, response):
+        return list(response.context["results"].object_list)
+
+    def _hub_people_rows(self, response):
+        return list(response.context["people_results"].object_list)
+
     def test_user_can_send_group_invite_and_accept(self):
         invitee = self.User.objects.create_user(username="invitee", email="invitee@bc.edu", password="test")
         self._complete_profile(invitee)
@@ -187,3 +193,117 @@ class RoommateGroupTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "52% match")
+
+    def test_browse_roommates_and_roommates_hub_people_tab_use_consistent_results(self):
+        strong_match = self.User.objects.create_user(
+            username="strong-match",
+            email="strong-match@bc.edu",
+            password="test",
+            first_name="Alex",
+        )
+        weaker_match = self.User.objects.create_user(
+            username="weaker-match",
+            email="weaker-match@bc.edu",
+            password="test",
+            first_name="Blair",
+        )
+        self._complete_profile(strong_match)
+        self._complete_profile(
+            weaker_match,
+            messy_level=1,
+            guest_level=1,
+            bedtime=0,
+            noise_level=1,
+            smoke=False,
+            drink=1,
+            party=1,
+            pets=False,
+        )
+        self.client.force_login(self.user)
+
+        browse_response = self.client.get(reverse("users:browse_roommates"))
+        hub_response = self.client.get(reverse("listings:roommates_hub"), {"tab": "people"})
+
+        browse_rows = [(row["user"].id, row["score"]) for row in self._browse_result_rows(browse_response)]
+        hub_rows = [(row["user"].id, row["score"]) for row in self._hub_people_rows(hub_response)]
+
+        self.assertEqual(browse_rows, hub_rows)
+
+    def test_people_discovery_candidate_cap_is_honored_across_both_surfaces(self):
+        for index in range(305):
+            candidate = self.User.objects.create_user(
+                username=f"candidate-cap-{index}",
+                email=f"candidate-cap-{index}@bc.edu",
+                password="test",
+                first_name=f"Candidate{index:03d}",
+            )
+            self._complete_profile(candidate)
+
+        self.client.force_login(self.user)
+
+        browse_response = self.client.get(reverse("users:browse_roommates"))
+        hub_response = self.client.get(reverse("listings:roommates_hub"), {"tab": "people"})
+
+        self.assertEqual(browse_response.context["results"].paginator.count, 300)
+        self.assertEqual(hub_response.context["people_results"].paginator.count, 300)
+
+    def test_people_discovery_populates_existing_conversations_and_invite_state_for_page_rows(self):
+        chat_candidate = self.User.objects.create_user(
+            username="chat-candidate",
+            email="chat-candidate@bc.edu",
+            password="test",
+            first_name="Alex",
+        )
+        invite_candidate = self.User.objects.create_user(
+            username="invite-candidate",
+            email="invite-candidate@bc.edu",
+            password="test",
+            first_name="Blair",
+        )
+        member_candidate = self.User.objects.create_user(
+            username="member-candidate",
+            email="member-candidate@bc.edu",
+            password="test",
+            first_name="Casey",
+        )
+        self._complete_profile(chat_candidate)
+        self._complete_profile(invite_candidate)
+        self._complete_profile(member_candidate)
+
+        group = RoommateGroup.objects.create(lead=self.user, name="Crew")
+        RoommateGroupMembership.objects.create(group=group, user=self.user)
+        RoommateGroupMembership.objects.create(group=group, user=member_candidate)
+
+        conversation = ListingConversation.objects.create(
+            conversation_type=ListingConversation.CONVERSATION_TYPE_DIRECT,
+            owner=self.user,
+            participant=chat_candidate,
+        )
+        RoommateGroupInvite.objects.create(
+            group=group,
+            inviter=self.user,
+            invitee=invite_candidate,
+            status=RoommateGroupInvite.STATUS_PENDING_INVITEE,
+        )
+
+        self.client.force_login(self.user)
+
+        browse_response = self.client.get(reverse("users:browse_roommates"))
+        hub_response = self.client.get(reverse("listings:roommates_hub"), {"tab": "people"})
+
+        browse_rows = {row["user"].id: row for row in self._browse_result_rows(browse_response)}
+        hub_rows = {row["user"].id: row for row in self._hub_people_rows(hub_response)}
+
+        self.assertEqual(browse_rows[chat_candidate.id]["existing_convo"].id, conversation.id)
+        self.assertEqual(
+            browse_rows[invite_candidate.id]["invite_status"],
+            RoommateGroupInvite.STATUS_PENDING_INVITEE,
+        )
+        self.assertTrue(browse_rows[member_candidate.id]["is_in_group"])
+
+        self.assertEqual(hub_rows[chat_candidate.id]["existing_convo"].id, conversation.id)
+        self.assertEqual(
+            hub_rows[invite_candidate.id]["invite_status"],
+            RoommateGroupInvite.STATUS_PENDING_INVITEE,
+        )
+        self.assertTrue(hub_rows[member_candidate.id]["already_in_group"])

@@ -283,6 +283,7 @@ class Listing(models.Model):
     @classmethod
     def public_visibility_q(cls, *, as_of=None):
         return Q(
+            owner__is_active=True,
             is_hidden=False,
             approval_status=cls.APPROVAL_APPROVED,
             status=cls.STATUS_AVAILABLE,
@@ -357,7 +358,9 @@ class Listing(models.Model):
     @property
     def is_publicly_active(self):
         return (
-            not self.is_hidden
+            self.owner_id is not None
+            and getattr(self.owner, "is_active", False)
+            and not self.is_hidden
             and self.approval_status == self.APPROVAL_APPROVED
             and self.status == self.STATUS_AVAILABLE
             and self.end_date >= timezone.localdate()

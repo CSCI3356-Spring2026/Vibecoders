@@ -15,6 +15,7 @@ from communications.selectors import accessible_conversations_for_user
 from listings.models import Listing, ListingReport, ListingReview, RoommatePost
 from users.models import FavoriteRoommate
 
+from ..admin_state import may_deactivate, may_lose_admin_access
 from ..session_security import RECENT_AUTH_SESSION_KEY
 from .helpers import User
 
@@ -641,6 +642,22 @@ class UserPageTests(TestCase):
         self.assertEqual(ListingConversation.objects.count(), 0)
         self.assertContains(response, "Complete your roommate profile before messaging matches.")
 
+    @override_settings(AUTHENTICATION_BACKENDS=["django.contrib.auth.backends.AllowAllUsersModelBackend"])
+    def test_inactive_authenticated_user_is_logged_out_on_next_request(self):
+        self.user.is_active = False
+        self.user.save(update_fields=["is_active"])
+        self.client.force_login(self.user)
+
+        response = self.client.get("/users/dashboard/", follow=True)
+
+        final_redirect = response.redirect_chain[-1][0]
+        parsed_redirect = urlsplit(final_redirect)
+
+        self.assertEqual(parsed_redirect.path, "/users/login/")
+        self.assertEqual(parse_qs(parsed_redirect.query).get("next"), ["/users/dashboard/"])
+        self.assertContains(response, "This account is inactive. Sign in with an active account to continue.")
+        self.assertNotIn("_auth_user_id", self.client.session)
+
     def test_stale_legal_acceptance_logs_user_out_until_reaccepted(self):
         self.user.terms_accepted_at = timezone.now()
         self.user.privacy_accepted_at = timezone.now()
@@ -1157,6 +1174,30 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertContains(second_response, "Too many messages sent too quickly. Wait a minute and try again.")
         self.assertEqual(conversation.messages.count(), 1)
 
+    def test_reply_conversation_redirects_with_error_when_direct_counterparty_is_inactive(self):
+        participant = User.objects.create_user(username="student", email="student@bc.edu", password="test")
+        conversation = ListingConversation.objects.create(
+            conversation_type=ListingConversation.CONVERSATION_TYPE_DIRECT,
+            owner=self.user,
+            participant=participant,
+        )
+        participant.is_active = False
+        participant.save(update_fields=["is_active"])
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("communications:reply_conversation", args=[conversation.id]),
+            {"body": "Still looking?"},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "This conversation is read-only because one participant no longer has an active account.",
+        )
+        self.assertEqual(conversation.messages.count(), 0)
+
     def test_admin_nav_includes_admin_dashboard_link(self):
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
         self.client.force_login(admin)
@@ -1529,6 +1570,99 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "You cannot delete the last active admin account.")
         self.assertTrue(User.objects.filter(pk=admin.pk).exists())
+
+    def test_last_active_admin_cannot_lose_admin_access(self):
+        target = User.objects.create_user(
+            username="target-admin",
+            email="target-admin@bc.edu",
+            password="test",
+            role="admin",
+        )
+
+        self.assertFalse(may_lose_admin_access(target))
+
+    def test_admin_can_remove_admin_role_when_another_active_admin_exists(self):
+        acting_admin = User.objects.create_user(
+            username="acting-admin",
+            email="acting-admin@bc.edu",
+            password="test",
+            role="admin",
+        )
+        target = User.objects.create_user(
+            username="target-admin",
+            email="target-admin@bc.edu",
+            password="test",
+            role="admin",
+        )
+        self.client.force_login(acting_admin)
+
+        response = self.client.post(
+            reverse("users:admin_set_role", args=[target.id]),
+            {"action": "restore_default"},
+            follow=False,
+        )
+
+        target.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("users:admin_users"))
+        self.assertEqual(target.role, "student")
+
+    def test_last_active_admin_cannot_be_deactivated(self):
+        target = User.objects.create_user(
+            username="target-admin",
+            email="target-admin@bc.edu",
+            password="test",
+            role="admin",
+        )
+
+        self.assertFalse(may_deactivate(target))
+
+    def test_admin_can_deactivate_admin_when_another_active_admin_exists(self):
+        acting_admin = User.objects.create_user(
+            username="acting-admin",
+            email="acting-admin@bc.edu",
+            password="test",
+            role="admin",
+        )
+        target = User.objects.create_user(
+            username="target-admin",
+            email="target-admin@bc.edu",
+            password="test",
+            role="admin",
+        )
+        self.client.force_login(acting_admin)
+
+        response = self.client.post(
+            reverse("users:admin_toggle_active", args=[target.id]),
+            follow=False,
+        )
+
+        target.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("users:admin_users"))
+        self.assertFalse(target.is_active)
+
+    def test_admin_cannot_change_own_role(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        self.client.force_login(admin)
+
+        response = self.client.post(reverse("users:admin_set_role", args=[admin.id]), {"action": "restore_default"})
+
+        admin.refresh_from_db()
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.content.decode(), "You cannot change your own role.")
+        self.assertEqual(admin.role, "admin")
+
+    def test_admin_cannot_deactivate_own_account(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        self.client.force_login(admin)
+
+        response = self.client.post(reverse("users:admin_toggle_active", args=[admin.id]))
+
+        admin.refresh_from_db()
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.content.decode(), "You cannot deactivate your own account.")
+        self.assertTrue(admin.is_active)
 
     def test_admin_users_page_is_paginated(self):
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")

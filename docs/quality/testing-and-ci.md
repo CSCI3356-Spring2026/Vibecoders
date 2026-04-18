@@ -8,9 +8,12 @@ Current CI on `main` runs:
 ruff check .
 ruff format --check .
 python manage.py check
+python manage.py check --deploy
 python manage.py makemigrations --check --dry-run
 python manage.py test
 ```
+
+The deploy check runs under explicit production-like environment variables in the workflow so security checks execute with `DJANGO_DEBUG=false` and required production settings present.
 
 Workflow location:
 
