@@ -908,6 +908,50 @@ assert.equal(view.getStyleMode(), "satellite");
         self.assertEqual([item["id"] for item in payload["cards"]], [own_listing.id])
         self.assertEqual([item["id"] for item in payload["markers"]], [own_listing.id])
 
+    def test_live_search_hides_inactive_owner_listings(self):
+        self.create_listing(
+            title="Visible listing",
+            address="140 Commonwealth Ave",
+            latitude=42.3355,
+            longitude=-71.1685,
+        )
+        inactive_owner = get_user_model().objects.create_user(
+            username="inactive-owner-search",
+            email="inactive-owner-search@bc.edu",
+            password="testpass123",
+        )
+        inactive_owner.listings.create(
+            title="Inactive owner listing",
+            address="150 Commonwealth Ave",
+            price="1400.00",
+            lease_type="FULL",
+            start_date=date.today() + timedelta(days=10),
+            end_date=date.today() + timedelta(days=200),
+            property_type="apartment",
+            description="Should be hidden from search.",
+            latitude=42.3356,
+            longitude=-71.1684,
+            approval_status="approved",
+        )
+        inactive_owner.is_active = False
+        inactive_owner.save(update_fields=["is_active"])
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("listings:search"),
+            {
+                "west": "-71.3",
+                "south": "42.2",
+                "east": "-71.0",
+                "north": "42.5",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["total"], 1)
+        self.assertEqual([item["title"] for item in payload["cards"]], ["Visible listing"])
+
     @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
     def test_live_search_returns_expected_marker_and_card_payloads(self):
         self.user.first_name = "Casey"
@@ -2170,6 +2214,92 @@ assert.equal(picker.isSelectionComplete(), true);
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, listing.title)
 
+    def test_listing_list_hides_inactive_owner_listing(self):
+        self.create_listing(title="Visible listing")
+        inactive_owner = get_user_model().objects.create_user(
+            username="inactive-owner-list",
+            email="inactive-owner-list@bc.edu",
+            password="testpass123",
+        )
+        inactive_owner.listings.create(
+            title="Inactive owner listing",
+            address="150 Commonwealth Ave",
+            price="1400.00",
+            lease_type="FULL",
+            start_date=date.today() + timedelta(days=10),
+            end_date=date.today() + timedelta(days=200),
+            property_type="apartment",
+            description="Should be hidden from the marketplace.",
+            approval_status="approved",
+        )
+        inactive_owner.is_active = False
+        inactive_owner.save(update_fields=["is_active"])
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:listing_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Visible listing")
+        self.assertNotContains(response, "Inactive owner listing")
+
+    def test_listing_detail_returns_404_for_inactive_owner_to_marketplace_user(self):
+        owner = get_user_model().objects.create_user(
+            username="inactive-owner-detail",
+            email="inactive-owner-detail@bc.edu",
+            password="testpass123",
+        )
+        listing = owner.listings.create(
+            title="Inactive owner listing",
+            address="150 Commonwealth Ave",
+            price="1400.00",
+            lease_type="FULL",
+            start_date=date.today() + timedelta(days=10),
+            end_date=date.today() + timedelta(days=200),
+            property_type="apartment",
+            description="Should be hidden from normal detail access.",
+            approval_status="approved",
+        )
+        owner.is_active = False
+        owner.save(update_fields=["is_active"])
+        viewer = get_user_model().objects.create_user(username="viewer", email="viewer@bc.edu", password="test")
+        self.client.force_login(viewer)
+
+        response = self.client.get(reverse("listings:detail", args=[listing.pk]))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_admin_can_still_open_inactive_owner_listing_detail(self):
+        owner = get_user_model().objects.create_user(
+            username="inactive-owner-admin-detail",
+            email="inactive-owner-admin-detail@bc.edu",
+            password="testpass123",
+        )
+        listing = owner.listings.create(
+            title="Inactive owner listing",
+            address="150 Commonwealth Ave",
+            price="1400.00",
+            lease_type="FULL",
+            start_date=date.today() + timedelta(days=10),
+            end_date=date.today() + timedelta(days=200),
+            property_type="apartment",
+            description="Admin should still be able to review this detail view.",
+            approval_status="approved",
+        )
+        owner.is_active = False
+        owner.save(update_fields=["is_active"])
+        admin = get_user_model().objects.create_user(
+            username="admin-inactive-detail",
+            email="admin-inactive-detail@bc.edu",
+            password="testpass123",
+            role=Role.ADMIN,
+        )
+        self.client.force_login(admin)
+
+        response = self.client.get(reverse("listings:detail", args=[listing.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, listing.title)
+
     def test_student_can_start_listing_conversation(self):
         student = get_user_model().objects.create_user(username="student", email="student@bc.edu", password="test")
         listing = self.create_listing()
@@ -2283,9 +2413,46 @@ assert.equal(picker.isSelectionComplete(), true);
         listing = self.create_listing(status=Listing.STATUS_TAKEN)
         self.client.force_login(student)
 
-        response = self.client.post(reverse("listings:message_listing", args=[listing.pk]), {"body": "Interested."})
+        response = self.client.post(
+            reverse("listings:message_listing", args=[listing.pk]),
+            {"body": "Interested."},
+            follow=True,
+        )
 
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "This listing is no longer accepting new messages.")
+        self.assertFalse(ListingConversation.objects.exists())
+
+    def test_message_listing_redirects_with_error_for_inactive_owner(self):
+        student = get_user_model().objects.create_user(username="student", email="student@bc.edu", password="test")
+        owner = get_user_model().objects.create_user(
+            username="inactive-owner-message",
+            email="inactive-owner-message@bc.edu",
+            password="testpass123",
+        )
+        listing = owner.listings.create(
+            title="Inactive owner listing",
+            address="150 Commonwealth Ave",
+            price="1400.00",
+            lease_type="FULL",
+            start_date=date.today() + timedelta(days=10),
+            end_date=date.today() + timedelta(days=200),
+            property_type="apartment",
+            description="No new messages should be accepted.",
+            approval_status="approved",
+        )
+        owner.is_active = False
+        owner.save(update_fields=["is_active"])
+        self.client.force_login(student)
+
+        response = self.client.post(
+            reverse("listings:message_listing", args=[listing.pk]),
+            {"body": "Interested."},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "This listing is no longer accepting new messages.")
         self.assertFalse(ListingConversation.objects.exists())
 
     def test_admin_can_start_listing_conversation_for_public_listing(self):

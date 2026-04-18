@@ -107,6 +107,19 @@ def _validate_direct_conversation_participants(sender, recipient, *, existing_co
         raise ValidationError({"body": "This user is not currently accepting new roommate messages."})
 
 
+def _validate_conversation_send_access(conversation, sender):
+    if not getattr(sender, "is_authenticated", False) or not getattr(sender, "is_active", False):
+        raise ValidationError({"body": "Active account access is required to send messages."})
+
+    if sender.id not in {conversation.owner_id, conversation.participant_id}:
+        raise ValidationError({"body": "Conversation access denied."})
+
+    if not conversation.owner.is_active or not conversation.participant.is_active:
+        raise ValidationError(
+            {"body": "This conversation is read-only because one participant no longer has an active account."}
+        )
+
+
 def _listing_image_url(conversation):
     primary_image = conversation.listing.primary_image
     if primary_image and primary_image.image:
@@ -280,6 +293,7 @@ def _send_listing_message_locked(conversation, sender, body, *, conversation_cre
 def send_conversation_message(conversation, sender, body, *, conversation_created=False):
     with transaction.atomic():
         locked_conversation = ListingConversation.objects.with_related().select_for_update().get(pk=conversation.pk)
+        _validate_conversation_send_access(locked_conversation, sender)
         message = _send_listing_message_locked(
             locked_conversation,
             sender,

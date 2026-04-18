@@ -346,3 +346,35 @@ class MessagesRealtimeTests(TransactionTestCase):
             self.assertEqual(output["code"], 4401)
 
         async_to_sync(scenario)()
+
+    def test_websocket_send_returns_error_when_counterparty_is_inactive(self):
+        async def scenario():
+            participant_socket = WebsocketCommunicator(MessagesConsumer.as_asgi(), "/ws/messages/")
+            participant_socket.scope["user"] = self.participant
+
+            connected, _ = await participant_socket.connect()
+            self.assertTrue(connected)
+
+            deactivate_owner = database_sync_to_async(
+                self.owner.__class__._default_manager.filter(pk=self.owner.pk).update
+            )
+            await deactivate_owner(is_active=False)
+
+            await participant_socket.send_json_to(
+                {
+                    "action": "send_message",
+                    "conversation_id": self.conversation.id,
+                    "body": "Still available?",
+                }
+            )
+            payload = await participant_socket.receive_json_from()
+
+            self.assertEqual(payload["type"], "error")
+            self.assertEqual(
+                payload["message"],
+                "This conversation is read-only because one participant no longer has an active account.",
+            )
+
+            await participant_socket.disconnect()
+
+        async_to_sync(scenario)()

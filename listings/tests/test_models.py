@@ -9,12 +9,14 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.signing import BadSignature, SignatureExpired
 from django.db import IntegrityError, transaction
 from django.test.utils import override_settings
+from django.utils import timezone
 from PIL import Image
 
 from communications.models import ListingConversation
 from communications.selectors import accessible_conversations_for_user
 from communications.services import (
     delete_conversation_for_user,
+    send_conversation_message,
     send_listing_message,
     serialize_conversation_for_user,
     start_direct_conversation,
@@ -91,6 +93,35 @@ class ListingModelTests(ListingTestCase):
         listings = list(Listing.objects.public())
 
         self.assertEqual([listing.pk for listing in listings], [active_listing.pk])
+
+    def test_public_queryset_excludes_inactive_owner_listings(self):
+        active_listing = self.create_listing(title="Active listing")
+        inactive_owner = self.user.__class__.objects.create_user(
+            username="inactive-owner",
+            email="inactive-owner@bc.edu",
+            password="test",
+        )
+        inactive_listing = inactive_owner.listings.create(
+            title="Inactive owner listing",
+            address="150 Commonwealth Ave",
+            price="1400.00",
+            lease_type="FULL",
+            start_date=date.today() + timedelta(days=30),
+            end_date=date.today() + timedelta(days=300),
+            property_type="apartment",
+            description="Should disappear from public listing queries.",
+            approval_status=Listing.APPROVAL_APPROVED,
+            submitted_for_approval_at=timezone.now(),
+            reviewed_at=timezone.now(),
+            approved_at=timezone.now(),
+        )
+        inactive_owner.is_active = False
+        inactive_owner.save(update_fields=["is_active"])
+
+        listings = list(Listing.objects.public())
+
+        self.assertEqual([listing.pk for listing in listings], [active_listing.pk])
+        self.assertNotIn(inactive_listing.pk, [listing.pk for listing in listings])
 
     def test_public_queryset_excludes_unapproved_listings(self):
         approved_listing = self.create_listing(title="Approved listing")
@@ -624,6 +655,21 @@ class ListingModelTests(ListingTestCase):
 
         self.assertIn("no longer accepting new messages", exc.exception.message_dict["body"][0])
 
+    def test_start_listing_conversation_rejects_inactive_listing_owner(self):
+        participant = self.user.__class__.objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="test",
+        )
+        listing = self.create_listing()
+        listing.owner.is_active = False
+        listing.owner.save(update_fields=["is_active"])
+
+        with self.assertRaises(ValidationError) as exc:
+            start_listing_conversation(listing, participant, "Interested.")
+
+        self.assertIn("no longer accepting new messages", exc.exception.message_dict["body"][0])
+
     def test_counterparty_avatar_url_is_exposed_in_conversation_payload(self):
         participant = self.user.__class__.objects.create_user(
             username="student",
@@ -773,6 +819,28 @@ class ListingModelTests(ListingTestCase):
 
         self.assertFalse(created)
         self.assertEqual(reused_conversation.id, conversation.id)
+
+    def test_send_conversation_message_rejects_inactive_counterparty(self):
+        participant = self.user.__class__.objects.create_user(
+            username="student",
+            email="student@bc.edu",
+            password="test",
+        )
+        conversation = ListingConversation.objects.create(
+            conversation_type=ListingConversation.CONVERSATION_TYPE_DIRECT,
+            owner=self.user,
+            participant=participant,
+        )
+        participant.is_active = False
+        participant.save(update_fields=["is_active"])
+
+        with self.assertRaises(ValidationError) as exc:
+            send_conversation_message(conversation, self.user, "Following up.")
+
+        self.assertIn(
+            "This conversation is read-only because one participant no longer has an active account.",
+            exc.exception.message_dict["body"][0],
+        )
 
     def test_deleting_conversation_hides_it_for_one_user_only(self):
         participant = self.user.__class__.objects.create_user(

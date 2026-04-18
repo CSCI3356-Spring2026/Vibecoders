@@ -1,4 +1,4 @@
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from django.conf import settings
 from django.contrib import messages
@@ -9,6 +9,35 @@ from django.urls import reverse
 from core.utils import safe_next_url
 
 from .legal import mark_legal_review_required
+
+
+def _login_redirect_with_safe_next(request):
+    next_url = safe_next_url(request, request.get_full_path(), "")
+    login_url = reverse("users:login")
+    if not next_url or urlsplit(next_url).path == login_url:
+        return redirect(login_url)
+    return redirect(f"{login_url}?{urlencode({'next': next_url})}")
+
+
+class ActiveAccountMiddleware:
+    inactive_account_message = "This account is inactive. Sign in with an active account to continue."
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        return self.get_response(request)
+
+    def process_view(self, request, view_func, view_args, view_kwargs):
+        user = getattr(request, "user", None)
+        if not getattr(user, "is_authenticated", False):
+            return None
+        if getattr(user, "is_active", False):
+            return None
+
+        logout(request)
+        messages.error(request, self.inactive_account_message)
+        return _login_redirect_with_safe_next(request)
 
 
 class CurrentLegalAcceptanceMiddleware:
@@ -45,11 +74,7 @@ class CurrentLegalAcceptanceMiddleware:
         logout(request)
         mark_legal_review_required(request)
         messages.error(request, self.stale_acceptance_message)
-        next_url = safe_next_url(request, request.get_full_path(), "")
-        login_url = reverse("users:login")
-        if not next_url:
-            return redirect(login_url)
-        return redirect(f"{login_url}?{urlencode({'next': next_url})}")
+        return _login_redirect_with_safe_next(request)
 
 
 class ProfileCompletionMiddleware:

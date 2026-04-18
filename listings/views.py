@@ -63,7 +63,6 @@ from .selectors import (
     filtered_roommate_posts_queryset,
     listing_reviews_queryset,
     marketplace_listings_for_user,
-    messageable_listings_for_user,
     open_listings_matching_roommate_post,
     roommate_group_for_user,
     roommate_group_post_for_user,
@@ -399,6 +398,12 @@ def _first_form_error(form, fallback):
         if field_errors:
             return field_errors[0]
     return fallback
+
+
+def _message_listing_error_redirect(user, listing):
+    if user.is_bc_admin or listing.owner_id == user.id or listing.is_publicly_active:
+        return redirect("listings:detail", pk=listing.pk)
+    return redirect("listings:listing_list")
 
 
 def _roommate_post_board_context(request, *, filter_form=None, post_form=None):
@@ -1027,7 +1032,15 @@ def message_listing(request, pk):
     if not request.user.can_start_listing_conversations:
         return HttpResponseForbidden("Verified student access is required to message about listings.")
 
-    listing = get_object_or_404(messageable_listings_for_user(request.user), pk=pk)
+    listing = accessible_listing_detail_queryset(request.user).filter(pk=pk).first()
+    if listing is None:
+        listing = Listing.objects.with_related().filter(pk=pk).first()
+        if listing is None:
+            raise Http404
+        if not listing.is_publicly_active:
+            messages.error(request, "This listing is no longer accepting new messages.")
+            return _message_listing_error_redirect(request.user, listing)
+        raise Http404
     if listing.owner_id == request.user.id:
         messages.error(request, "You cannot message yourself about your own listing.")
         return redirect("listings:detail", pk=listing.pk)
@@ -1047,7 +1060,7 @@ def message_listing(request, pk):
     else:
         messages.error(request, "Enter a message before sending.")
 
-    return redirect("listings:detail", pk=listing.pk)
+    return _message_listing_error_redirect(request.user, listing)
 
 
 @login_required
