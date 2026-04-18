@@ -58,7 +58,6 @@ from .selectors import (
     filtered_roommate_posts_queryset,
     listing_reviews_queryset,
     marketplace_listings_for_user,
-    open_listings_matching_roommate_post,
     roommate_group_for_user,
     roommate_group_post_for_user,
     roommate_post_for_user,
@@ -401,6 +400,30 @@ def _message_listing_error_redirect(user, listing):
     return redirect("listings:listing_list")
 
 
+def _listing_matches_roommate_post(listing, roommate_post):
+    move_in_date = getattr(roommate_post, "move_in_date", None)
+    if move_in_date and (listing.start_date > move_in_date or listing.end_date < move_in_date):
+        return False
+
+    target_size = roommate_post.target_household_size or roommate_post.current_group_size
+    if target_size and (listing.rooms is None or listing.rooms < target_size):
+        return False
+
+    return True
+
+
+def _listing_matches_for_roommate_posts(user, roommate_posts):
+    posts = [post for post in roommate_posts if post is not None]
+    if not posts:
+        return {}
+
+    listing_pool = list(with_favorite_state(marketplace_listings_for_user(user), user))
+    return {
+        post.id: [listing for listing in listing_pool if _listing_matches_roommate_post(listing, post)]
+        for post in posts
+    }
+
+
 def _roommate_post_board_context(request, *, filter_form=None, post_form=None):
     current_post = roommate_post_for_user(request.user)
     current_group = roommate_group_for_user(request.user)
@@ -427,24 +450,31 @@ def _roommate_post_board_context(request, *, filter_form=None, post_form=None):
         people_in_group=filter_data.get("people_in_group"),
     )
     roommate_posts = decorate_roommate_posts_for_user(request.user, roommate_posts, group_profiles=group_profiles)
+    roommate_posts_page = get_page(roommate_posts, request.GET.get("page"), ROOMMATE_POSTS_PER_PAGE)
+    page_posts = list(roommate_posts_page.object_list)
     selected_post = None
     matched_listings = []
     matched_listings_total = 0
     selected_post_id = (request.GET.get("group") or "").strip()
     if selected_post_id.isdigit():
         selected_post = RoommatePost.objects.active().with_related().filter(pk=int(selected_post_id)).first()
-        if selected_post is not None:
-            matched_queryset = open_listings_matching_roommate_post(request.user, selected_post)
-            matched_listings_total = matched_queryset.count()
-            matched_listings = list(matched_queryset[:6])
-            _apply_listing_ui_flags(matched_listings, request.user)
+
+    posts_needing_match_data = list(page_posts)
+    if selected_post is not None and all(post.id != selected_post.id for post in posts_needing_match_data):
+        posts_needing_match_data.append(selected_post)
+    listing_matches_by_post_id = _listing_matches_for_roommate_posts(request.user, posts_needing_match_data)
+
+    if selected_post is not None:
+        selected_post_matches = listing_matches_by_post_id.get(selected_post.id, [])
+        matched_listings_total = len(selected_post_matches)
+        matched_listings = selected_post_matches[:6]
+        _apply_listing_ui_flags(matched_listings, request.user)
 
     group_query_suffix = preserved_query_suffix(request.GET, "page", "group")
-    for post in roommate_posts:
-        post.ui_listing_match_count = open_listings_matching_roommate_post(request.user, post).count()
+    for post in page_posts:
+        post.ui_listing_match_count = len(listing_matches_by_post_id.get(post.id, []))
         post.ui_match_url = f"{reverse('listings:group_match')}?group={post.id}{group_query_suffix}"
         post.ui_is_selected = selected_post is not None and post.id == selected_post.id
-    roommate_posts_page = get_page(roommate_posts, request.GET.get("page"), ROOMMATE_POSTS_PER_PAGE)
 
     if post_form is None:
         post_form = RoommatePostForm(instance=current_post, user=request.user)

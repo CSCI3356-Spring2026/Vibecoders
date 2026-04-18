@@ -2622,6 +2622,37 @@ class GroupMatchPageTests(ListingTestCase):
         self.assertContains(response, matching_listing.title)
         self.assertNotContains(response, "Too small listing")
 
+    def test_group_match_page_stays_under_broad_query_budget(self):
+        self.complete_roommate_profile(self.user)
+        self.client.force_login(self.user)
+        for index in range(12):
+            author = get_user_model().objects.create_user(
+                username=f"budget-group-{index}",
+                email=f"budget-group-{index}@bc.edu",
+                password="testpass123",
+                first_name=f"Budget{index:02d}",
+            )
+            self.complete_roommate_profile(author)
+            self.create_roommate_post(
+                author=author,
+                title=f"Budget group post {index}",
+                current_group_size=2,
+                open_spots=1,
+                move_in_date=date.today() + timedelta(days=45),
+            )
+        for index in range(4):
+            self.create_listing(
+                title=f"Budget listing {index}",
+                address=f"{140 + index} Commonwealth Ave",
+                rooms=3,
+            )
+
+        with CaptureQueriesContext(connection) as captured_queries:
+            response = self.client.get(reverse("listings:group_match"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertLessEqual(len(captured_queries), 22)
+
     def test_group_match_page_filters_posts(self):
         self.complete_roommate_profile(self.user)
         self.client.force_login(self.user)
@@ -2743,6 +2774,31 @@ class GroupMatchPageTests(ListingTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, need_home_post.title)
         self.assertContains(response, have_home_post.title)
+
+    def test_roommates_hub_posts_tab_stays_under_broad_query_budget(self):
+        self.complete_roommate_profile(self.user)
+        self.client.force_login(self.user)
+        for index in range(12):
+            author = get_user_model().objects.create_user(
+                username=f"hub-budget-group-{index}",
+                email=f"hub-budget-group-{index}@bc.edu",
+                password="testpass123",
+                first_name=f"HubBudget{index:02d}",
+            )
+            self.complete_roommate_profile(author)
+            self.create_roommate_post(
+                author=author,
+                title=f"Hub budget post {index}",
+                current_group_size=2,
+                open_spots=1,
+                move_in_date=date.today() + timedelta(days=45),
+            )
+
+        with CaptureQueriesContext(connection) as captured_queries:
+            response = self.client.get(reverse("listings:roommates_hub"), {"tab": "posts"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertLessEqual(len(captured_queries), 18)
 
     def test_roommates_hub_people_tab_results_are_paginated(self):
         self.complete_roommate_profile(self.user)
