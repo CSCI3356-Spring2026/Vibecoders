@@ -174,7 +174,7 @@ def filtered_roommate_posts_queryset(
         )
     if housing_status in {value for value, _ in RoommatePost.HOUSING_CHOICES}:
         if housing_status == RoommatePost.HOUSING_HAVE_HOME:
-            queryset = queryset.filter(housing_status=RoommatePost.HOUSING_NEED_HOME)
+            queryset = queryset.filter(housing_status=RoommatePost.HOUSING_HAVE_HOME)
         else:
             queryset = queryset.filter(housing_status=housing_status)
     if max_budget is not None:

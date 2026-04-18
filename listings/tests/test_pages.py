@@ -2661,18 +2661,88 @@ class GroupMatchPageTests(ListingTestCase):
         response = self.client.get(
             reverse("listings:group_match"),
             {
-                "q": "Brighton",
+                "q": "Newton",
                 "housing_status": RoommatePost.HOUSING_HAVE_HOME,
-                "max_budget": 1300,
-                "open_spots_min": 2,
-                "people_in_group": 2,
-                "move_in_by": (date.today() + timedelta(days=60)).isoformat(),
+                "max_budget": 1800,
+                "open_spots_min": 1,
+                "people_in_group": 1,
+                "move_in_by": (date.today() + timedelta(days=120)).isoformat(),
             },
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, matching_post.title)
-        self.assertNotContains(response, other_post.title)
+        self.assertNotContains(response, matching_post.title)
+        self.assertContains(response, other_post.title)
+
+    def test_group_match_page_need_home_filter_still_returns_need_home_posts(self):
+        self.complete_roommate_profile(self.user)
+        self.client.force_login(self.user)
+        need_home_author = get_user_model().objects.create_user(
+            username="need-home-group",
+            email="need-home-group@bc.edu",
+            password="testpass123",
+        )
+        self.complete_roommate_profile(need_home_author)
+        need_home_post = self.create_roommate_post(
+            author=need_home_author,
+            title="Need-home group",
+            housing_status=RoommatePost.HOUSING_NEED_HOME,
+        )
+        have_home_author = get_user_model().objects.create_user(
+            username="have-home-group",
+            email="have-home-group@bc.edu",
+            password="testpass123",
+        )
+        self.complete_roommate_profile(have_home_author)
+        have_home_post = self.create_roommate_post(
+            author=have_home_author,
+            title="Have-home group",
+            housing_status=RoommatePost.HOUSING_HAVE_HOME,
+        )
+
+        response = self.client.get(
+            reverse("listings:group_match"),
+            {"housing_status": RoommatePost.HOUSING_NEED_HOME},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, need_home_post.title)
+        self.assertNotContains(response, have_home_post.title)
+
+    def test_roommates_hub_posts_filter_returns_have_home_posts_without_inversion(self):
+        self.complete_roommate_profile(self.user)
+        self.client.force_login(self.user)
+        need_home_author = get_user_model().objects.create_user(
+            username="need-home-hub",
+            email="need-home-hub@bc.edu",
+            password="testpass123",
+        )
+        self.complete_roommate_profile(need_home_author)
+        need_home_post = self.create_roommate_post(
+            author=need_home_author,
+            title="Need-home post",
+            housing_status=RoommatePost.HOUSING_NEED_HOME,
+        )
+        have_home_author = get_user_model().objects.create_user(
+            username="have-home-hub",
+            email="have-home-hub@bc.edu",
+            password="testpass123",
+        )
+        self.complete_roommate_profile(have_home_author)
+        have_home_post = self.create_roommate_post(
+            author=have_home_author,
+            title="Have-home post",
+            housing_status=RoommatePost.HOUSING_HAVE_HOME,
+        )
+
+        response = self.client.get(
+            reverse("listings:roommates_hub"),
+            {"tab": "posts", "housing_status": RoommatePost.HOUSING_HAVE_HOME},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, need_home_post.title)
+        self.assertContains(response, have_home_post.title)
 
     def test_roommates_hub_people_tab_results_are_paginated(self):
         self.complete_roommate_profile(self.user)
