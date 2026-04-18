@@ -12,6 +12,43 @@ from .helpers import User, add_middleware
 
 
 class CustomUserModelTests(TestCase):
+    def _complete_student_profile(self, user, **overrides):
+        profile = user.student_profile
+        defaults = {
+            "preferred_name": user.first_name or user.username,
+            "age": 20,
+            "gender": "male",
+            "major": "Computer Science",
+            "bio": "Easygoing roommate.",
+            "messy_level": 3,
+            "guest_level": 3,
+            "bedtime": 22,
+            "noise_level": 3,
+            "drink": 2,
+            "party": 2,
+        }
+        defaults.update(overrides)
+        for field_name, value in defaults.items():
+            setattr(profile, field_name, value)
+        profile.save()
+        user.profile_completed_at = timezone.now()
+        user.save(update_fields=["profile_completed_at"])
+        return profile
+
+    def _complete_admin_profile(self, user, **overrides):
+        profile = user.admin_profile
+        defaults = {
+            "preferred_name": user.first_name or user.username,
+            "bio": "Manages housing listings.",
+        }
+        defaults.update(overrides)
+        for field_name, value in defaults.items():
+            setattr(profile, field_name, value)
+        profile.save()
+        user.profile_completed_at = timezone.now()
+        user.save(update_fields=["profile_completed_at"])
+        return profile
+
     def test_default_role_is_student(self):
         user = User.objects.create_user(username="stu", email="stu@bc.edu", password="test")
 
@@ -82,6 +119,39 @@ class CustomUserModelTests(TestCase):
         self.assertEqual(user.role, Role.ADMIN)
         self.assertTrue(hasattr(user, "admin_profile"))
 
+    def test_student_profile_survives_admin_promotion(self):
+        user = User.objects.create_user(username="stu-profile", email="stu-profile@bc.edu", password="test")
+        student_profile = self._complete_student_profile(user, preferred_name="Taylor", bio="Student bio.")
+        student_profile_id = student_profile.id
+        completed_at = user.profile_completed_at
+
+        user.set_admin_access(True)
+        user.save(update_fields=["role"])
+        user.refresh_from_db()
+
+        self.assertEqual(user.role, Role.ADMIN)
+        self.assertTrue(StudentProfile.objects.filter(user=user, pk=student_profile_id).exists())
+        self.assertEqual(user.student_profile.preferred_name, "Taylor")
+        self.assertEqual(user.student_profile.bio, "Student bio.")
+        self.assertEqual(user.admin_profile.preferred_name, "Taylor")
+        self.assertEqual(user.admin_profile.bio, "Student bio.")
+        self.assertEqual(user.profile_completed_at, completed_at)
+
+    def test_restored_student_reuses_preserved_student_profile(self):
+        user = User.objects.create_user(username="stu-restore", email="stu-restore@bc.edu", password="test")
+        student_profile = self._complete_student_profile(user, preferred_name="Morgan")
+
+        user.set_admin_access(True)
+        user.save(update_fields=["role"])
+        user.set_admin_access(False)
+        user.save(update_fields=["role"])
+        user.refresh_from_db()
+
+        self.assertEqual(user.role, Role.STUDENT)
+        self.assertEqual(user.student_profile.id, student_profile.id)
+        self.assertEqual(user.student_profile.preferred_name, "Morgan")
+        self.assertIsNotNone(user.profile_completed_at)
+
     def test_partial_email_save_updates_role_policy(self):
         user = User.objects.create_user(username="stu", email="stu@bc.edu", password="test")
 
@@ -124,6 +194,38 @@ class CustomUserModelTests(TestCase):
 
         self.assertFalse(StudentProfile.objects.filter(user=user).exists())
         self.assertTrue(AdminProfile.objects.filter(user=user).exists())
+
+    def test_realtor_role_transition_clears_completion(self):
+        user = User.objects.create_user(username="stu-realtor", email="stu-realtor@bc.edu", password="test")
+        self._complete_student_profile(user)
+
+        user.email = "stu-realtor@gmail.com"
+        user.save(update_fields=["email"])
+        user.refresh_from_db()
+
+        self.assertEqual(user.role, Role.REALTOR)
+        self.assertFalse(StudentProfile.objects.filter(user=user).exists())
+        self.assertTrue(AdminProfile.objects.filter(user=user).exists())
+        self.assertIsNone(user.profile_completed_at)
+
+    def test_student_role_restoration_creates_blank_profile_when_previous_student_profile_was_removed(self):
+        user = User.objects.create_user(username="stu-return", email="stu-return@bc.edu", password="test")
+        self._complete_student_profile(user, preferred_name="Riley")
+
+        user.email = "stu-return@gmail.com"
+        user.save(update_fields=["email"])
+        user.refresh_from_db()
+        self.assertFalse(StudentProfile.objects.filter(user=user).exists())
+
+        user.email = "stu-return@bc.edu"
+        user.save(update_fields=["email"])
+        user.refresh_from_db()
+
+        self.assertEqual(user.role, Role.STUDENT)
+        self.assertTrue(StudentProfile.objects.filter(user=user).exists())
+        self.assertEqual(user.student_profile.preferred_name, "")
+        self.assertEqual(user.student_profile.bio, "")
+        self.assertIsNone(user.profile_completed_at)
 
     def test_str_representation(self):
         user = User.objects.create_user(username="eagle", email="eagle@bc.edu", password="test")

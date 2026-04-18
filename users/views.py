@@ -12,7 +12,6 @@ from django.db.models import Count, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.utils import timezone
 from django.utils.http import content_disposition_header
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_GET, require_POST
@@ -42,6 +41,7 @@ from .legal import (
     set_pending_legal_acceptance,
 )
 from .models import AdminProfile, Role, RoommateGroupInvite, StudentProfile, UserFile
+from .profile_integrity import mark_profile_completed_now, profile_satisfies_completion_requirements
 from .selectors import (
     accessible_user_files_queryset,
     active_roommate_group_for_user,
@@ -262,9 +262,8 @@ def profile_setup(request):
         form = form_class(request.POST, instance=profile)
         if form.is_valid():
             form.save()
-            if not user.profile_completed_at:
-                user.profile_completed_at = timezone.now()
-                user.save(update_fields={"profile_completed_at"})
+            if profile_satisfies_completion_requirements(user):
+                mark_profile_completed_now(user)
             messages.success(request, "Profile completed." if profile_needs_completion else "Profile updated.")
             if next_url:
                 return redirect(next_url)

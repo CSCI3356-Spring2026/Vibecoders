@@ -51,6 +51,82 @@ class SetUserRoleCommandTests(TestCase):
             call_command("set_user_role", "nobody@bc.edu", "admin", stderr=StringIO())
 
 
+class RepairProfileCompletionIntegrityCommandTests(TestCase):
+    def _complete_student_profile(self, user, **overrides):
+        profile = user.student_profile
+        defaults = {
+            "preferred_name": user.first_name or user.username,
+            "age": 20,
+            "gender": "male",
+            "major": "Computer Science",
+            "bio": "Easygoing roommate.",
+            "messy_level": 3,
+            "guest_level": 3,
+            "bedtime": 22,
+            "noise_level": 3,
+            "drink": 2,
+            "party": 2,
+        }
+        defaults.update(overrides)
+        for field_name, value in defaults.items():
+            setattr(profile, field_name, value)
+        profile.save()
+
+    def _complete_admin_profile(self, user, **overrides):
+        profile = user.admin_profile
+        defaults = {
+            "preferred_name": user.first_name or user.username,
+            "bio": "Manages listings near campus.",
+        }
+        defaults.update(overrides)
+        for field_name, value in defaults.items():
+            setattr(profile, field_name, value)
+        profile.save()
+
+    def test_repair_command_clears_false_positive_completion_and_preserves_valid_completion(self):
+        incomplete_admin = User.objects.create_user(
+            username="incomplete-admin",
+            email="incomplete-admin@bc.edu",
+            password="test",
+            role=Role.ADMIN,
+        )
+        incomplete_admin.profile_completed_at = timezone.now()
+        incomplete_admin.save(update_fields=["profile_completed_at"])
+
+        complete_student = User.objects.create_user(
+            username="complete-student",
+            email="complete-student@bc.edu",
+            password="test",
+        )
+        self._complete_student_profile(complete_student)
+        valid_timestamp = timezone.now()
+        complete_student.profile_completed_at = valid_timestamp
+        complete_student.save(update_fields=["profile_completed_at"])
+
+        output = StringIO()
+
+        call_command("repair_profile_completion_integrity", stdout=output)
+
+        incomplete_admin.refresh_from_db()
+        complete_student.refresh_from_db()
+        self.assertIsNone(incomplete_admin.profile_completed_at)
+        self.assertEqual(complete_student.profile_completed_at, valid_timestamp)
+        self.assertIn("Profile completions cleared: 1", output.getvalue())
+        self.assertIn("Profile completions set: 0", output.getvalue())
+
+    def test_repair_command_sets_completion_when_current_profile_is_complete(self):
+        student = User.objects.create_user(username="set-student", email="set-student@bc.edu", password="test")
+        self._complete_student_profile(student)
+
+        output = StringIO()
+
+        call_command("repair_profile_completion_integrity", stdout=output)
+
+        student.refresh_from_db()
+        self.assertIsNotNone(student.profile_completed_at)
+        self.assertIn("Profile completions set: 1", output.getvalue())
+
+
 class RepairRoommateGroupIntegrityCommandTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="leader", email="leader@bc.edu", password="test")
