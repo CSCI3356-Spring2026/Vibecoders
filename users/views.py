@@ -28,6 +28,7 @@ from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
 from listings.selectors import active_roommate_post_for_user, with_feedback_summary
 
+from .admin_state import may_delete
 from .compatibility import (
     compatibility_highlights,
     compute_compatibility,
@@ -402,15 +403,7 @@ def delete_account(request):
         messages.error(request, "Sign in again before deleting your account.")
         return redirect("users:dashboard")
     user = request.user
-    if (
-        user.role == Role.ADMIN
-        and not user.__class__._default_manager.exclude(pk=user.pk)
-        .filter(
-            role=Role.ADMIN,
-            is_active=True,
-        )
-        .exists()
-    ):
+    if not may_delete(user):
         messages.error(request, "You cannot delete the last active admin account.")
         return redirect("users:dashboard")
     logout(request)

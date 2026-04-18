@@ -1426,6 +1426,126 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertContains(response, "You cannot delete the last active admin account.")
         self.assertTrue(User.objects.filter(pk=admin.pk).exists())
 
+    @override_settings(AUTHENTICATION_BACKENDS=["django.contrib.auth.backends.AllowAllUsersModelBackend"])
+    def test_admin_cannot_remove_last_active_admin_role(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        target = User.objects.create_user(
+            username="target-admin",
+            email="target-admin@bc.edu",
+            password="test",
+            role="admin",
+        )
+        admin.is_active = False
+        admin.save(update_fields=["is_active"])
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            reverse("users:admin_set_role", args=[target.id]),
+            {"action": "restore_default"},
+            follow=True,
+        )
+
+        target.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "You cannot remove admin access from the last active admin.")
+        self.assertEqual(target.role, "admin")
+
+    def test_admin_can_remove_admin_role_when_another_active_admin_exists(self):
+        acting_admin = User.objects.create_user(
+            username="acting-admin",
+            email="acting-admin@bc.edu",
+            password="test",
+            role="admin",
+        )
+        target = User.objects.create_user(
+            username="target-admin",
+            email="target-admin@bc.edu",
+            password="test",
+            role="admin",
+        )
+        self.client.force_login(acting_admin)
+
+        response = self.client.post(
+            reverse("users:admin_set_role", args=[target.id]),
+            {"action": "restore_default"},
+            follow=False,
+        )
+
+        target.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("users:admin_users"))
+        self.assertEqual(target.role, "student")
+
+    @override_settings(AUTHENTICATION_BACKENDS=["django.contrib.auth.backends.AllowAllUsersModelBackend"])
+    def test_admin_cannot_deactivate_last_active_admin(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        target = User.objects.create_user(
+            username="target-admin",
+            email="target-admin@bc.edu",
+            password="test",
+            role="admin",
+        )
+        admin.is_active = False
+        admin.save(update_fields=["is_active"])
+        self.client.force_login(admin)
+
+        response = self.client.post(
+            reverse("users:admin_toggle_active", args=[target.id]),
+            follow=True,
+        )
+
+        target.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "You cannot deactivate the last active admin account.")
+        self.assertTrue(target.is_active)
+
+    def test_admin_can_deactivate_admin_when_another_active_admin_exists(self):
+        acting_admin = User.objects.create_user(
+            username="acting-admin",
+            email="acting-admin@bc.edu",
+            password="test",
+            role="admin",
+        )
+        target = User.objects.create_user(
+            username="target-admin",
+            email="target-admin@bc.edu",
+            password="test",
+            role="admin",
+        )
+        self.client.force_login(acting_admin)
+
+        response = self.client.post(
+            reverse("users:admin_toggle_active", args=[target.id]),
+            follow=False,
+        )
+
+        target.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("users:admin_users"))
+        self.assertFalse(target.is_active)
+
+    def test_admin_cannot_change_own_role(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        self.client.force_login(admin)
+
+        response = self.client.post(reverse("users:admin_set_role", args=[admin.id]), {"action": "restore_default"})
+
+        admin.refresh_from_db()
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.content.decode(), "You cannot change your own role.")
+        self.assertEqual(admin.role, "admin")
+
+    def test_admin_cannot_deactivate_own_account(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        self.client.force_login(admin)
+
+        response = self.client.post(reverse("users:admin_toggle_active", args=[admin.id]))
+
+        admin.refresh_from_db()
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.content.decode(), "You cannot deactivate your own account.")
+        self.assertTrue(admin.is_active)
+
     def test_admin_users_page_is_paginated(self):
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
         for index in range(21):

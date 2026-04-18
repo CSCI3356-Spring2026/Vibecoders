@@ -20,6 +20,7 @@ from listings.models import Listing, ListingReport
 from listings.report_services import update_listing_report
 from listings.selectors import listing_reports_queryset_for_admin, listing_reviews_queryset, with_feedback_summary
 
+from .admin_state import may_deactivate, may_lose_admin_access
 from .models import Role
 from .selectors import admin_dashboard_metrics, admin_listings_queryset, admin_reports_queryset, admin_users_queryset
 
@@ -438,6 +439,9 @@ def admin_set_role(request, user_id):
     if action == "grant_admin":
         user_obj.set_admin_access(True)
     elif action == "restore_default":
+        if not may_lose_admin_access(user_obj):
+            messages.error(request, "You cannot remove admin access from the last active admin.")
+            return redirect("users:admin_users")
         user_obj.set_admin_access(False)
     else:
         return HttpResponseForbidden("Invalid role action.")
@@ -453,6 +457,10 @@ def admin_toggle_active(request, user_id):
     user_obj = get_object_or_404(user_model, id=user_id)
     if user_obj.id == request.user.id:
         return HttpResponseForbidden("You cannot deactivate your own account.")
+
+    if user_obj.is_active and not may_deactivate(user_obj):
+        messages.error(request, "You cannot deactivate the last active admin account.")
+        return redirect("users:admin_users")
 
     user_obj.is_active = not user_obj.is_active
     user_obj.save(update_fields=["is_active"])
