@@ -8,9 +8,11 @@ This document lists the environment variables used by Padly's runtime configurat
 | --- | --- | --- | --- |
 | `DJANGO_DEBUG` | auto-enabled for common local commands | No | toggles debug mode |
 | `DJANGO_SECRET_KEY` | stable local fallback in debug only | Yes | Django secret key |
-| `DJANGO_ALLOWED_HOSTS` | `127.0.0.1,localhost,testserver` in debug | Yes | host allowlist |
-| `DJANGO_CSRF_TRUSTED_ORIGINS` | empty | Usually | trusted CSRF origins |
+| `DJANGO_ALLOWED_HOSTS` | `127.0.0.1,localhost,testserver` in debug or `RENDER_EXTERNAL_HOSTNAME` on Render | Usually | host allowlist |
+| `DJANGO_CSRF_TRUSTED_ORIGINS` | empty or `RENDER_EXTERNAL_URL` on Render | Usually | trusted CSRF origins |
 | `DJANGO_LOG_LEVEL` | `INFO` | No | root logging level |
+| `DJANGO_STATIC_ROOT` | `<BASE_DIR>/staticfiles` | No | collected static asset output path |
+| `DJANGO_MEDIA_ROOT` | `<BASE_DIR>/media` | No | uploaded media root path |
 
 ## Proxy and Host Handling
 
@@ -19,6 +21,8 @@ This document lists the environment variables used by Padly's runtime configurat
 | `DJANGO_TRUST_X_FORWARDED_PROTO` | `false` | enables `SECURE_PROXY_SSL_HEADER` |
 | `DJANGO_USE_X_FORWARDED_HOST` | `false` | uses forwarded host header |
 | `DJANGO_TRUST_X_FORWARDED_FOR` | `false` | trusts `X-Forwarded-For` for rate-limit identity |
+
+Render also provides `RENDER_EXTERNAL_HOSTNAME` and `RENDER_EXTERNAL_URL`. Padly uses those as fallbacks for `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` when the explicit Django variables are blank.
 
 ## Branding and Policy
 
@@ -42,6 +46,7 @@ This document lists the environment variables used by Padly's runtime configurat
 | Variable | Default | Required in production | Purpose |
 | --- | --- | --- | --- |
 | `CHANNEL_REDIS_URL` | empty in debug | Yes | Redis channel-layer connection |
+| `CACHE_REDIS_URL` | empty in debug | Yes | Redis cache connection for rate limits and unread counters |
 
 ## Listing Media and Map Experience
 

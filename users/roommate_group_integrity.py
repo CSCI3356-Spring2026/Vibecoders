@@ -1,9 +1,7 @@
 from django.db import transaction
 from django.utils import timezone
 
-from listings.models import RoommateGroup, RoommateGroupMembership
-
-from .models import RoommateGroupInvite
+from roommates.models import RoommateGroup, RoommateGroupInvite, RoommateGroupMembership
 
 ACTIVE_INVITE_STATUSES = [
     RoommateGroupInvite.STATUS_PENDING_APPROVAL,

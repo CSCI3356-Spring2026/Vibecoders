@@ -5,16 +5,17 @@
 {% block body_class %}listing-detail-body{% endblock %}
 
 {% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/listings.css' %}">
     {% if commute_map_enabled %}
-        <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.css">
+        <link rel="stylesheet" href="{% static 'vendor/maplibre/maplibre-gl.css' %}">
     {% endif %}
 {% endblock %}
 
 {% block extra_js %}
-    {% if commute_payload %}
-        {{ commute_payload|json_script:"listing-commute-payload" }}
+    {% if commute_config %}
+        {{ commute_config|json_script:"listing-commute-config" }}
         {% if commute_map_enabled %}
-            <script src="https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.js"></script>
+            <script src="{% static 'vendor/maplibre/maplibre-gl.js' %}"></script>
         {% endif %}
         <script type="module" src="{% static 'js/listing-commute.js' %}"></script>
     {% endif %}
@@ -66,7 +67,14 @@
                                         aria-pressed="{% if is_favorited %}true{% else %}false{% endif %}"
                                         aria-label="{% if is_favorited %}Remove saved listing{% else %}Save listing{% endif %}"
                                     >
-                                        <span class="listing-favorite-button-icon" aria-hidden="true"></span>
+                                        <svg
+                                            class="listing-favorite-button-icon"
+                                            aria-hidden="true"
+                                            viewBox="0 0 16 20"
+                                            fill="none"
+                                        >
+                                            <path d="M4 2.75A1.25 1.25 0 0 1 5.25 1.5h5.5A1.25 1.25 0 0 1 12 2.75V15.5l-4-2.6-4 2.6V2.75Z"></path>
+                                        </svg>
                                         <span class="listing-favorite-button-label">{% if is_favorited %}Saved{% else %}Save{% endif %}</span>
                                     </button>
                                 </form>
@@ -157,7 +165,7 @@
                     </div>
                     {% if commute_distance_miles %}
                         <div class="listing-detail-fact-pill">
-                            <strong>{{ commute_distance_miles }}</strong>
+                            <strong>{{ commute_distance_miles|floatformat:1 }}</strong>
                             <span>mi to campus</span>
                         </div>
                     {% endif %}
@@ -223,6 +231,25 @@
             </section>
         {% endif %}
 
+        {% if listing.is_archived %}
+            <section class="listing-detail-review-banner">
+                <div class="listing-detail-review-banner-copy">
+                    <strong>Listing archived</strong>
+                    <span>This listing is off the marketplace and read-only.</span>
+                </div>
+                <div class="listing-detail-review-banner-meta">
+                    <span>{{ listing.archived_at|date:"M d, Y" }}</span>
+                    <span>{{ listing.get_archive_reason_display }}</span>
+                    {% if listing.archived_by %}
+                        <span>{{ listing.archived_by.display_name }}</span>
+                    {% endif %}
+                </div>
+                {% if listing.approval_notes %}
+                    <p class="listing-detail-review-banner-notes">{{ listing.approval_notes }}</p>
+                {% endif %}
+            </section>
+        {% endif %}
+
         <div class="listing-detail-layout">
             <div class="listing-detail-main">
                 <section class="listing-detail-panel listing-detail-panel-section" id="overview">
@@ -261,57 +288,58 @@
                             {% if commute_distance_miles %}
                                 <div class="listing-detail-data-row">
                                     <span>Distance to campus</span>
-                                    <strong>{{ commute_distance_miles }} mi</strong>
+                                    <strong>{{ commute_distance_miles|floatformat:1 }} mi</strong>
                                 </div>
                             {% endif %}
                         </div>
                     </div>
                 </section>
 
-                {% if commute_payload %}
+                {% if not listing.is_archived and listing.has_map_coordinates %}
                     <section class="listing-detail-panel listing-detail-panel-section" id="commute" data-listing-commute>
                         <div class="listing-detail-panel-head">
                             <div>
                                 <h2 class="listing-results-title">Commute to Boston College</h2>
-                                <p class="listing-detail-panel-copy">Estimated travel time from this listing to campus.</p>
+                                <p class="listing-detail-panel-copy">Route-backed travel time from this listing to campus.</p>
                             </div>
                         </div>
-                        <div class="listing-detail-commute-grid">
-                            <div class="listing-detail-commute-summary">
-                                <div class="listing-detail-commute-stat">
-                                    <span class="listing-detail-feature-label">Distance</span>
-                                    <strong>{{ commute_payload.distance_miles }} mi</strong>
-                                </div>
-                                <div class="listing-detail-commute-stat">
-                                    <span class="listing-detail-feature-label">Estimated time</span>
-                                    <strong data-commute-minutes>
-                                        {% for mode in commute_payload.modes %}
-                                            {% if mode.value == commute_payload.default_mode %}{{ mode.display }}{% endif %}
-                                        {% endfor %}
-                                    </strong>
-                                </div>
-                                <label class="listing-detail-commute-control" for="listing-commute-mode">
-                                    <span class="listing-detail-feature-label">Travel mode</span>
-                                    <select class="form-select" id="listing-commute-mode" data-commute-mode-select>
-                                        {% for mode in commute_payload.modes %}
-                                            <option value="{{ mode.value }}"{% if mode.value == commute_payload.default_mode %} selected{% endif %}>
-                                                {{ mode.label }}
-                                            </option>
-                                        {% endfor %}
-                                    </select>
-                                </label>
-                            </div>
-                            {% if commute_map_enabled %}
-                                <div class="listing-detail-commute-map-shell">
-                                    <div class="listing-map-frame listing-detail-commute-map-frame">
-                                        <div class="listing-map listing-detail-commute-map" data-commute-map></div>
+                        {% if commute_available %}
+                            <div class="listing-detail-commute-grid">
+                                <div class="listing-detail-commute-summary">
+                                    <div class="listing-detail-commute-stat">
+                                        <span class="listing-detail-feature-label">Route distance</span>
+                                        <strong data-commute-distance>Loading…</strong>
                                     </div>
-                                    <p class="listing-map-note listing-detail-commute-map-note" data-commute-map-note>
-                                        Route to Boston College.
-                                    </p>
+                                    <div class="listing-detail-commute-stat">
+                                        <span class="listing-detail-feature-label">Travel time</span>
+                                        <strong data-commute-minutes>Loading…</strong>
+                                    </div>
+                                    <label class="listing-detail-commute-control" for="listing-commute-mode">
+                                        <span class="listing-detail-feature-label">Travel mode</span>
+                                        <select class="form-select" id="listing-commute-mode" data-commute-mode-select>
+                                            <option value="walking" selected>Walking</option>
+                                            <option value="transit">Train / transit</option>
+                                            <option value="driving">Driving</option>
+                                        </select>
+                                    </label>
                                 </div>
-                            {% endif %}
-                        </div>
+                                {% if commute_map_enabled %}
+                                    <div class="listing-detail-commute-map-shell">
+                                        <div class="listing-map-frame listing-detail-commute-map-frame">
+                                            <div class="listing-map listing-detail-commute-map" data-commute-map></div>
+                                        </div>
+                                        <p class="listing-detail-commute-map-note" data-commute-map-note>
+                                            Loading route map.
+                                        </p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <div class="app-empty">
+                                <h3 class="app-empty-title">Commute unavailable</h3>
+                                <p class="app-empty-copy">Route-backed commute data is unavailable for this listing right now.</p>
+                            </div>
+                        {% endif %}
                     </section>
                 {% endif %}
 
@@ -571,7 +599,14 @@
                         </div>
                     </div>
 
-                    {% if listing.owner_id == request.user.id %}
+                    {% if listing.is_archived %}
+                        <p class="listing-detail-panel-copy">This listing is archived and no longer accepts new marketplace actions.</p>
+                        {% if existing_conversation %}
+                            <a class="btn btn-outline-secondary w-100" href="{% url 'communications:detail' existing_conversation.id %}">
+                                {% if existing_conversation.ui_has_unread %}Open unread conversation{% else %}Open existing conversation{% endif %}
+                            </a>
+                        {% endif %}
+                    {% elif listing.owner_id == request.user.id %}
                         <p class="listing-detail-panel-copy">You posted this listing.</p>
                     {% elif request.user.can_start_listing_conversations %}
                         {% if existing_conversation %}

@@ -13,6 +13,7 @@ urlpatterns = [
     path("admin-listings/", admin_views.admin_listings, name="admin_listings"),
     path("admin-listings/<int:listing_id>/", admin_views.admin_listing_detail, name="admin_listing_detail"),
     path("admin-listings/<int:listing_id>/review/", admin_views.admin_review_listing, name="admin_review_listing"),
+    path("admin-listings/<int:listing_id>/archive/", admin_views.admin_archive_listing, name="admin_archive_listing"),
     path("admin-listings/<int:listing_id>/delete/", admin_views.admin_delete_listing, name="admin_delete_listing"),
     path("admin-reports/", admin_views.admin_reports, name="admin_reports"),
     path("admin-reports/<int:report_id>/status/", admin_views.admin_update_report, name="admin_update_report"),

@@ -1,5 +1,6 @@
 import logging
 import re
+from urllib.parse import urlencode
 
 import requests
 from django.conf import settings
@@ -18,10 +19,10 @@ from communications.services import (
     consume_message_send_rate_limit,
     start_listing_conversation,
 )
+from core.media import normalize_public_media_subpath, public_file_response
 from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
-from users.group_services import remove_group_member as remove_roommate_group_member
-from users.group_services import save_roommate_group_details
+from roommates import views as roommate_views
 from users.selectors import (
     active_roommate_group_for_user,
     discover_roommate_people,
@@ -31,7 +32,7 @@ from users.selectors import (
 
 from .address_provider import get_geoapify_autocomplete_config, normalize_geoapify_suggestions
 from .address_signing import sign_address_selection
-from .commute import commute_payload_for_listing, listing_distance_to_bc_miles
+from .commute import commute_available_for_listing, commute_payload_for_listing, listing_distance_to_bc_miles
 from .filtering import BEDROOMS_FILTER_MIN, PRICE_FILTER_MAX, PRICE_FILTER_MIN, apply_listing_filters
 from .form_services import handle_listing_form_submission, validation_message
 from .forms import (
@@ -43,16 +44,17 @@ from .forms import (
     RoommatePostForm,
 )
 from .geocoding import BOSTON_COLLEGE_LATITUDE, BOSTON_COLLEGE_LONGITUDE
+from .lifecycle import archive_listing as archive_listing_record
 from .models import (
     Listing,
     ListingFavorite,
+    ListingImage,
     ListingReport,
     ListingReview,
-    RoommateGroupMembership,
     RoommatePost,
 )
 from .roommate_post_service import decorate_roommate_posts_for_user
-from .search_payloads import listing_card_payload, listing_marker_payload
+from .search_payloads import listing_marker_payload
 from .selectors import (
     accessible_listing_detail_queryset,
     filtered_roommate_posts_queryset,
@@ -68,6 +70,7 @@ from .selectors import (
 logger = logging.getLogger(__name__)
 
 LISTINGS_PER_PAGE = 12
+LISTING_MARKER_LIMIT = 250
 ROOMMATE_POSTS_PER_PAGE = 12
 ROOMMATE_PEOPLE_PER_PAGE = 12
 ADDRESS_AUTOCOMPLETE_MIN_QUERY_LENGTH = 3
@@ -136,12 +139,10 @@ def _listing_form_context(form, *, is_edit, back_url_name, back_label, listing=N
 
 
 def _listing_initial_payload(listings, *, total):
-    cards = [listing_card_payload(listing) for listing in listings]
     markers = [listing_marker_payload(listing) for listing in listings if listing.has_map_coordinates]
     return {
         "total": total,
         "markers": markers,
-        "cards": cards,
     }
 
 
@@ -165,14 +166,11 @@ def _listing_commute_map_payload():
     if not settings.LISTING_MAPS_ENABLED:
         return None
 
-    api_key = getattr(settings, "LISTING_GEOAPIFY_API_KEY", "").strip()
     style_url = _listing_map_style_url()
-    if not api_key or not style_url:
+    if not style_url:
         return None
 
     return {
-        "api_key": api_key,
-        "routing_url": "https://api.geoapify.com/v1/routing",
         "style_url": style_url,
     }
 
@@ -191,6 +189,18 @@ def _autocomplete_auth_required_response():
 
 def _autocomplete_rate_limit_response():
     return JsonResponse({"results": [], "error": ADDRESS_AUTOCOMPLETE_RATE_LIMIT_ERROR}, status=429)
+
+
+@require_GET
+def public_listing_photo(request, path):
+    image_name = f"listing_photos/{normalize_public_media_subpath(path)}"
+    listing_image = get_object_or_404(ListingImage.objects.select_related("listing"), image=image_name)
+    listing_is_accessible = (
+        accessible_listing_detail_queryset(request.user).filter(pk=listing_image.listing_id).exists()
+    )
+    if not listing_is_accessible:
+        raise Http404("File not found.")
+    return public_file_response(listing_image.image, cache_seconds=3600)
 
 
 def _consume_address_autocomplete_rate_limit(request):
@@ -303,6 +313,7 @@ def listing_list(request):
             "query": active_filters["q"],
         }
         context["listing_search_url"] = reverse("listings:search")
+        context["listing_results_url"] = reverse("listings:results")
         context["listing_map_style_url"] = listing_map_style_url
         context["listing_map_satellite_style_url"] = listing_map_satellite_style_url if satellite_map_enabled else ""
         context["listing_map_satellite_enabled"] = satellite_map_enabled
@@ -311,11 +322,21 @@ def listing_list(request):
     return render(request, "listings/listing_list.html", context)
 
 
+def _listing_results_context(request, listings_page, *, pagination_query):
+    return {
+        "listings": listings_page,
+        "listings_total": listings_page.paginator.count,
+        "pagination_query": pagination_query,
+        "results_path": reverse("listings:results"),
+    }
+
+
 def _can_favorite_listing(user, listing):
     return (
         getattr(user, "is_authenticated", False)
         and getattr(user, "can_browse_marketplace", False)
         and listing.owner_id != getattr(user, "id", None)
+        and listing.is_publicly_active
     )
 
 
@@ -331,13 +352,17 @@ def _can_review_listing(user, listing):
     return (
         _can_leave_listing_feedback(user)
         and listing.owner_id != getattr(user, "id", None)
-        and listing.is_approved
+        and listing.is_publicly_active
         and listing.conversations.filter(participant_id=getattr(user, "id", None)).exists()
     )
 
 
 def _can_report_listing(user, listing):
-    return _can_leave_listing_feedback(user) and listing.owner_id != getattr(user, "id", None) and listing.is_approved
+    return (
+        _can_leave_listing_feedback(user)
+        and listing.owner_id != getattr(user, "id", None)
+        and listing.is_publicly_active
+    )
 
 
 def _consume_listing_report_rate_limit(user):
@@ -599,224 +624,100 @@ def _mypost_tab_context(
 @login_required
 @require_GET
 def roommates_hub(request):
-    if not request.user.is_student:
-        raise Http404
-
-    tab = request.GET.get("tab", "posts")
-    if tab not in ("posts", "people", "mypost"):
-        tab = "posts"
-
-    personal_post = roommate_post_for_user(request.user)
-    has_any_post = personal_post is not None or roommate_group_post_for_user(request.user) is not None
-    context = {
-        "tab": tab,
-        "can_manage_roommate_post": True,
-        "current_roommate_post": personal_post,
-        "has_any_roommate_post": has_any_post,
-        # Always include the create form — the create dialog is outside the tab blocks
-        "roommate_post_create_form": RoommatePostForm(user=request.user),
-        "show_create_modal": False,
-        "edit_error_pk": None,
-        "my_posts_with_forms": [],
-    }
-    if tab == "posts":
-        context.update(_posts_tab_context(request))
-    elif tab == "people":
-        context.update(_people_tab_context(request))
-    else:
-        context.update(_mypost_tab_context(request))
-    return render(request, "listings/roommates_hub.html", context)
+    target_tab = request.GET.get("tab", "posts")
+    if target_tab == "mypost":
+        target_tab = "groups"
+    redirect_url = f"{reverse('roommates:hub')}?{urlencode({'tab': target_tab})}"
+    if target_tab == "posts" and request.GET.get("q"):
+        redirect_url = f"{reverse('roommates:hub')}?{request.GET.urlencode()}"
+    return redirect(redirect_url)
 
 
 @login_required
 @require_GET
 def group_match(request):
-    if not request.user.is_student:
-        return HttpResponseForbidden("Student access is required to use roommate posts.")
-
-    return render(request, "listings/group_match.html", _roommate_post_board_context(request))
+    query = request.GET.copy()
+    query["tab"] = "posts"
+    return redirect(f"{reverse('roommates:hub')}?{query.urlencode()}")
 
 
 @login_required
 @require_POST
 def save_roommate_post(request):
-    if not request.user.is_student:
-        return HttpResponseForbidden("Student access is required to use roommate posts.")
-
-    current_post = roommate_post_for_user(request.user)
-    was_active = bool(current_post and current_post.is_active)
-    form = RoommatePostForm(request.POST, instance=current_post, user=request.user)
-    if form.is_valid():
-        form.save()
-        if current_post is None:
-            messages.success(request, "Roommate post published.")
-        elif was_active:
-            messages.success(request, "Roommate post updated.")
-        else:
-            messages.success(request, "Roommate post reactivated.")
-        return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
-
-    messages.error(request, _first_form_error(form, "Review the highlighted roommate post fields and try again."))
-    context = {
-        "tab": "mypost",
-        "can_manage_roommate_post": True,
-        "current_roommate_post": current_post,
-    }
-    context.update(_mypost_tab_context(request, create_form=form, show_create_modal=True))
-    return render(request, "listings/roommates_hub.html", context)
+    return roommate_views.save_roommate_post(request)
 
 
 @login_required
 @require_POST
 def save_roommate_group(request):
-    if not request.user.is_student:
-        return HttpResponseForbidden("Student access is required to use roommate posts.")
-
-    current_group = roommate_group_for_user(request.user)
-    form = RoommateGroupForm(request.POST, instance=current_group, user=request.user)
-    if form.is_valid():
-        save_roommate_group_details(
-            lead=request.user,
-            group=current_group,
-            name=form.cleaned_data["name"],
-            description=form.cleaned_data["description"],
-        )
-        messages.success(request, "Roommate group saved.")
-        return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
-
-    messages.error(request, _first_form_error(form, "Review the highlighted roommate group fields and try again."))
-    return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
+    return roommate_views.save_roommate_group(request)
 
 
 @login_required
 @require_POST
 def save_group_roommate_post(request):
-    if not request.user.is_student:
-        return HttpResponseForbidden("Student access is required to use roommate posts.")
-
-    current_group = roommate_group_for_user(request.user)
-    if current_group is None:
-        messages.error(request, "Create your roommate group before publishing a group post.")
-        return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
-
-    current_post = roommate_group_post_for_user(request.user)
-    was_active = bool(current_post and current_post.is_active)
-    form = RoommatePostForm(request.POST, instance=current_post, user=request.user, group=current_group)
-    if form.is_valid():
-        form.save()
-        if current_post is None:
-            messages.success(request, "Group roommate post published.")
-        elif was_active:
-            messages.success(request, "Group roommate post updated.")
-        else:
-            messages.success(request, "Group roommate post reactivated.")
-        return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
-
-    messages.error(request, _first_form_error(form, "Review the highlighted group post fields and try again."))
-    return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
+    return roommate_views.save_group_roommate_post(request)
 
 
 @login_required
 @require_POST
 def deactivate_roommate_post(request):
-    if not request.user.is_student:
-        return HttpResponseForbidden("Student access is required to use roommate posts.")
-
-    roommate_post = roommate_post_for_user(request.user)
-    if roommate_post is not None and roommate_post.is_active:
-        roommate_post.is_active = False
-        roommate_post.save(update_fields=["is_active", "updated_at"])
-        messages.success(request, "Roommate post paused.")
-    return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
+    return roommate_views.deactivate_roommate_post(request)
 
 
 @login_required
 @require_POST
 def deactivate_group_roommate_post(request):
-    if not request.user.is_student:
-        return HttpResponseForbidden("Student access is required to use roommate posts.")
-
-    roommate_post = roommate_group_post_for_user(request.user)
-    if roommate_post is not None and roommate_post.is_active:
-        roommate_post.is_active = False
-        roommate_post.save(update_fields=["is_active", "updated_at"])
-        messages.success(request, "Group roommate post paused.")
-    return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
+    return roommate_views.deactivate_group_roommate_post(request)
 
 
 @login_required
 @require_POST
 def edit_roommate_post(request, pk):
-    if not request.user.is_student:
-        return HttpResponseForbidden("Student access is required.")
-
-    post = get_object_or_404(RoommatePost, pk=pk)
-    current_group = roommate_group_for_user(request.user)
-    if post.author_id != request.user.id and (current_group is None or post.group_id != current_group.pk):
-        return HttpResponseForbidden("You cannot edit this post.")
-
-    grp = current_group if post.group_id else None
-    form = RoommatePostForm(request.POST, instance=post, user=request.user, group=grp)
-    if form.is_valid():
-        form.save()
-        messages.success(request, "Post updated.")
-        return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
-
-    messages.error(request, _first_form_error(form, "Review the highlighted fields and try again."))
-    context = {
-        "tab": "mypost",
-        "can_manage_roommate_post": True,
-        "current_roommate_post": roommate_post_for_user(request.user),
-    }
-    context.update(_mypost_tab_context(request, edit_forms_by_pk={post.pk: form}, edit_error_pk=post.pk))
-    return render(request, "listings/roommates_hub.html", context)
+    return roommate_views.edit_roommate_post(request, pk)
 
 
 @login_required
 @require_POST
 def delete_roommate_post(request, pk):
-    if not request.user.is_student:
-        return HttpResponseForbidden("Student access is required.")
-
-    post = get_object_or_404(RoommatePost, pk=pk)
-    current_group = roommate_group_for_user(request.user)
-    if post.author_id != request.user.id and (current_group is None or post.group_id != current_group.pk):
-        return HttpResponseForbidden("You cannot delete this post.")
-
-    post.delete()
-    messages.success(request, "Post deleted.")
-    return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
+    return roommate_views.delete_roommate_post(request, pk)
 
 
 @login_required
 @require_POST
 def remove_group_member(request, member_pk):
-    if not request.user.is_student:
-        raise Http404
-    membership = get_object_or_404(RoommateGroupMembership, pk=member_pk)
-    removed_name = membership.user.display_name
-    try:
-        remove_roommate_group_member(acting_user=request.user, membership=membership)
-    except ValidationError as exc:
-        messages.error(request, exc.messages[0])
-        return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
-    messages.success(request, f"Removed {removed_name} from the group.")
-    return redirect(reverse("listings:roommates_hub") + "?tab=mypost")
+    return roommate_views.remove_group_member(request, member_pk)
 
 
 @login_required
 @require_GET
 def listing_search(request):
-    base_queryset = with_favorite_state(searchable_marketplace_listings_for_user(request.user), request.user)
+    base_queryset = searchable_marketplace_listings_for_user(request.user)
     listings, _ = apply_listing_filters(base_queryset, request.GET, viewport_required=True)
-    listings = _apply_listing_ui_flags(list(listings), request.user)
+    listings_total = listings.count()
+    listings = list(listings[:LISTING_MARKER_LIMIT])
     return JsonResponse(
         {
-            "total": len(listings),
+            "total": listings_total,
+            "truncated": listings_total > LISTING_MARKER_LIMIT,
             "markers": [listing_marker_payload(listing) for listing in listings],
-            "cards": [listing_card_payload(listing) for listing in listings],
         }
     )
+
+
+@login_required
+@require_GET
+def listing_results(request):
+    base_queryset = with_favorite_state(marketplace_listings_for_user(request.user), request.user)
+    listings, _ = apply_listing_filters(base_queryset, request.GET, include_viewport=False)
+    listings_page = get_page(listings, request.GET.get("page"), LISTINGS_PER_PAGE)
+    listings_page.object_list = _apply_listing_ui_flags(list(listings_page.object_list), request.user)
+    context = _listing_results_context(
+        request,
+        listings_page,
+        pagination_query=preserved_query_suffix(request.GET, "page"),
+    )
+    return render(request, "listings/includes/results_fragment.html", context)
 
 
 @login_required
@@ -837,14 +738,11 @@ def listing_detail(request, pk):
         and listing.owner_id != request.user.id
         and listing.is_publicly_active
     )
-    commute_payload = commute_payload_for_listing(listing)
-    commute_distance_miles = commute_payload["distance_miles"] if commute_payload else None
+    commute_distance_miles = listing_distance_to_bc_miles(listing)
     commute_map_payload = _listing_commute_map_payload()
-    commute_map_enabled = bool(
-        commute_payload and commute_map_payload and commute_payload.get("origin") and commute_payload.get("destination")
-    )
-    if commute_map_enabled:
-        commute_payload["map"] = commute_map_payload
+    commute_endpoint_url = reverse("listings:commute", args=[listing.pk]) if not listing.is_archived else ""
+    commute_available = bool(commute_available_for_listing(listing) and not listing.is_archived)
+    commute_map_enabled = bool(commute_available and commute_map_payload)
     review_requires_contact = (
         _can_leave_listing_feedback(request.user)
         and listing.owner_id != request.user.id
@@ -912,8 +810,17 @@ def listing_detail(request, pk):
         "can_review_listing": can_review_listing,
         "can_report_listing": can_report_listing,
         "review_requires_contact": review_requires_contact,
-        "commute_payload": commute_payload,
+        "commute_available": commute_available,
+        "commute_endpoint_url": commute_endpoint_url,
         "commute_distance_miles": commute_distance_miles,
+        "commute_config": {
+            "endpoint_url": commute_endpoint_url,
+            "default_mode": "walking",
+            "map": commute_map_payload,
+        }
+        if commute_available
+        else None,
+        "commute_map_payload": commute_map_payload,
         "commute_map_enabled": commute_map_enabled,
         "listing_highlight_items": _listing_highlight_items(listing),
         "amenity_items": _split_listing_detail_items(listing.amenities),
@@ -921,6 +828,32 @@ def listing_detail(request, pk):
         "security_feature_items": _split_listing_detail_items(listing.security_features),
     }
     return render(request, "listings/listing_detail.html", context)
+
+
+@login_required
+@require_GET
+def listing_commute(request, pk):
+    listing = get_object_or_404(accessible_listing_detail_queryset(request.user), pk=pk)
+    if listing.is_archived:
+        raise Http404
+    if not commute_available_for_listing(listing):
+        return JsonResponse(
+            {"available": False, "message": "Route-backed commute is unavailable for this listing."},
+            status=503,
+        )
+
+    try:
+        payload = commute_payload_for_listing(listing)
+    except (requests.RequestException, ValueError, TypeError) as exc:
+        logger.warning("Commute lookup failed for listing %s (%s).", listing.pk, type(exc).__name__)
+        return JsonResponse({"available": False, "message": "Commute details are unavailable right now."}, status=503)
+
+    if payload is None:
+        return JsonResponse(
+            {"available": False, "message": "Route-backed commute is unavailable for this listing."},
+            status=503,
+        )
+    return JsonResponse(payload)
 
 
 @login_required
@@ -1053,6 +986,9 @@ def create_listing(request):
 @login_required
 def edit_listing(request, pk):
     listing = get_object_or_404(Listing, pk=pk, owner=request.user)
+    if listing.is_archived:
+        messages.info(request, "Archived listings are read-only.")
+        return redirect("listings:detail", pk=listing.pk)
     if request.method == "POST":
         form = ListingForm(request.POST, request.FILES, instance=listing)
         listing = handle_listing_form_submission(form=form, owner=request.user)
@@ -1076,7 +1012,17 @@ def edit_listing(request, pk):
 
 @login_required
 @require_POST
-def delete_listing(request, pk):
+def archive_listing(request, pk):
     listing = get_object_or_404(Listing, pk=pk, owner=request.user)
-    listing.delete()
+    archive_listing_record(
+        listing,
+        actor=request.user,
+        reason=Listing.ARCHIVE_REASON_OWNER,
+    )
     return redirect("users:posts")
+
+
+@login_required
+@require_POST
+def delete_listing(request, pk):
+    return archive_listing(request, pk)

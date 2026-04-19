@@ -36,10 +36,11 @@ Long-form engineering and operations documentation lives under [`docs/`](docs/RE
 
 ## Stack
 
-- Python 3.12+
+- Python 3.12
 - Django 5.2
 - Django Channels + Daphne
 - Django Allauth with Google provider
+- WhiteNoise for production static assets
 - Bootstrap 5 with custom CSS/JS
 - SQLite by default
 - Ruff for linting and formatting
@@ -103,10 +104,12 @@ ruff check .
 ruff format --check .
 python manage.py set_user_role user@bc.edu admin
 python manage.py repair_profile_completion_integrity
+python manage.py seed_demo_data
 ```
 
 `set_user_role` is useful after a real user has signed in once and needs elevated access.
 `repair_profile_completion_integrity` recalculates `profile_completed_at` against the current role's required profile data after operational fixes or role-policy changes.
+`seed_demo_data` builds a realistic local demo environment and caches remote listing photos under gitignored `var/demo_seed/`.
 
 ## Configuration
 
@@ -139,8 +142,13 @@ Production-only requirements:
 - `DJANGO_DEBUG=false`
 - `DJANGO_SECRET_KEY`
 - `CHANNEL_REDIS_URL`
-- `DJANGO_ALLOWED_HOSTS`
-- `DJANGO_CSRF_TRUSTED_ORIGINS`
+- `CACHE_REDIS_URL`
+- `DATABASE_URL`
+
+Recommended production configuration:
+
+- `DJANGO_ALLOWED_HOSTS` and `DJANGO_CSRF_TRUSTED_ORIGINS` when using custom domains
+- `DJANGO_MEDIA_ROOT` when storing uploads outside the default repo-local `media/` path
 
 Optional proxy-aware production settings:
 
@@ -157,7 +165,11 @@ daphne vibecoders.asgi:application
 ```
 
 - Redis is required for production channels.
-- The repo defaults to SQLite and local media storage; a real production deployment should move to a managed database and shared/object-backed media storage.
+- The repo now includes a Render-ready `build.sh`, `.python-version`, and `render.yaml`.
+- Static assets are collected into `STATIC_ROOT` and served in production by WhiteNoise.
+- Render health checks can target `/healthz/` instead of the marketing landing page.
+- Render deployments can keep uploaded media on a persistent disk by pointing `DJANGO_MEDIA_ROOT` at the disk mount path.
+- The repo defaults to SQLite and local media storage in development; long-term production scale still benefits from managed/object-backed media storage.
 - Private user uploads are intentionally served through authenticated views, not raw `/media/` routes.
 
 ## Development Standards

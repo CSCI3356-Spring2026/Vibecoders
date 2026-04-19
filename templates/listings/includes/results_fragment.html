@@ -1,0 +1,46 @@
+<div data-listings-results-content>
+    <div class="listing-results-pane-head">
+        <p class="listing-results-summary" data-listings-results-summary>
+            {{ listings_total }} result{{ listings_total|pluralize }}.
+        </p>
+    </div>
+
+    <div class="listing-results-scroll">
+        <div
+            class="listing-results-grid"
+            data-listings-results-list
+            data-favorite-csrf-token="{{ csrf_token }}"
+            data-favorite-next-url="{{ request.get_full_path }}"
+            {% if not listings %}hidden{% endif %}
+        >
+            {% for listing in listings %}
+                {% include "listings/includes/listing_result_card.html" with listing=listing %}
+            {% endfor %}
+        </div>
+
+        <div class="app-empty listing-results-empty" data-listings-empty-state{% if listings %} hidden{% endif %}>
+            <h3 class="app-empty-title">No listings match these filters.</h3>
+            <p class="app-empty-copy">Change filters to see more results.</p>
+        </div>
+
+        {% if listings.paginator.num_pages > 1 %}
+            <div data-listings-pagination>
+                <div class="app-pagination">
+                    {% if listings.has_previous %}
+                        <a class="btn btn-outline-secondary" href="{{ results_path }}?page={{ listings.previous_page_number }}{{ pagination_query }}">Previous</a>
+                    {% else %}
+                        <span class="btn btn-outline-secondary disabled">Previous</span>
+                    {% endif %}
+
+                    <span class="app-pagination-label">Page {{ listings.number }} of {{ listings.paginator.num_pages }}</span>
+
+                    {% if listings.has_next %}
+                        <a class="btn btn-outline-secondary" href="{{ results_path }}?page={{ listings.next_page_number }}{{ pagination_query }}">Next</a>
+                    {% else %}
+                        <span class="btn btn-outline-secondary disabled">Next</span>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>

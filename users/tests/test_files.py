@@ -1,4 +1,6 @@
+import io
 import tempfile
+from urllib.parse import urlsplit
 
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
@@ -6,6 +8,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils.http import content_disposition_header
+from PIL import Image
 
 from ..models import UserFile
 from .helpers import User
@@ -15,11 +18,29 @@ class UserFilesViewTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="eagle", email="eagle@bc.edu", password="test")
 
+    def make_image_upload(self, name="avatar.png"):
+        buffer = io.BytesIO()
+        Image.new("RGB", (4, 4), color="white").save(buffer, format="PNG")
+        return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/png")
+
     def test_login_required(self):
         response = self.client.get(reverse("users:files"))
 
         self.assertEqual(response.status_code, 302)
         self.assertIn("/accounts/login/", response.url)
+
+    def test_uploaded_avatar_media_route_is_public_but_scoped_to_known_avatar_files(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                self.user.uploaded_avatar = self.make_image_upload("profile.png")
+                self.user.save(update_fields=["uploaded_avatar"])
+
+                response = self.client.get(urlsplit(self.user.uploaded_avatar.url).path)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(response["Cache-Control"], "public, max-age=300")
+        self.assertEqual(response["Content-Type"], "image/png")
 
     def test_upload_creates_file(self):
         self.client.force_login(self.user)

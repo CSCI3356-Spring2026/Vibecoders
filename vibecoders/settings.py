@@ -65,12 +65,19 @@ LOCAL_DEBUG_COMMANDS = {
     "createsuperuser",
     "set_user_role",
     "repair_profile_completion_integrity",
+    "repair_roommate_group_integrity",
+    "seed_listings",
+    "seed_roommate_posts",
+    "seed_demo_data",
 }
 RUNNING_TESTS = "test" in sys.argv
 DEVELOPMENT_SECRET_KEY = "padly-local-dev-secret-key-2026-04-01-keep-out-of-production-only"
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env_bool("DJANGO_DEBUG", any(command in sys.argv for command in LOCAL_DEBUG_COMMANDS))
+DJANGO_ADMIN_ENABLED = env_bool("DJANGO_ADMIN_ENABLED", DEBUG)
+RENDER_EXTERNAL_HOSTNAME = os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip()
+RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL", "").strip()
 
 configured_secret_key = os.getenv("DJANGO_SECRET_KEY", "").strip()
 if configured_secret_key:
@@ -84,12 +91,20 @@ else:
 configured_allowed_hosts = env_list("DJANGO_ALLOWED_HOSTS", "")
 if configured_allowed_hosts:
     ALLOWED_HOSTS = configured_allowed_hosts
+elif RENDER_EXTERNAL_HOSTNAME:
+    ALLOWED_HOSTS = [RENDER_EXTERNAL_HOSTNAME]
 elif DEBUG:
     ALLOWED_HOSTS = ["127.0.0.1", "localhost", "testserver"]
 else:
     raise ImproperlyConfigured("Set DJANGO_ALLOWED_HOSTS when running with DJANGO_DEBUG=false.")
 
-CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", "")
+configured_csrf_trusted_origins = env_list("DJANGO_CSRF_TRUSTED_ORIGINS", "")
+if configured_csrf_trusted_origins:
+    CSRF_TRUSTED_ORIGINS = configured_csrf_trusted_origins
+elif RENDER_EXTERNAL_URL:
+    CSRF_TRUSTED_ORIGINS = [RENDER_EXTERNAL_URL]
+else:
+    CSRF_TRUSTED_ORIGINS = []
 
 
 # Application definition
@@ -106,6 +121,7 @@ INSTALLED_APPS = [
     "core",
     "communications",
     "listings",
+    "roommates",
     "users",
     "django.contrib.sites",  # Required by allauth
     # Allauth
@@ -129,6 +145,8 @@ MIDDLEWARE = [
     "users.middleware.ProfileCompletionMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+if not DEBUG:
+    MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
 
 # Deny framing globally. Authenticated file previews opt into same-origin framing explicitly.
 X_FRAME_OPTIONS = "DENY"
@@ -226,9 +244,21 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT = Path(os.getenv("DJANGO_STATIC_ROOT", str(BASE_DIR / "staticfiles"))).resolve()
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_ROOT = Path(os.getenv("DJANGO_MEDIA_ROOT", str(BASE_DIR / "media"))).resolve()
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": (
+            "django.contrib.staticfiles.storage.StaticFilesStorage"
+            if DEBUG
+            else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        ),
+    },
+}
 LISTING_IMAGE_MAX_BYTES = env_int("LISTING_IMAGE_MAX_BYTES", 5 * 1024 * 1024)
 LISTING_IMAGE_UPLOAD_LIMIT = env_int("LISTING_IMAGE_UPLOAD_LIMIT", 10)
 LISTING_IMAGE_TOTAL_LIMIT = env_int("LISTING_IMAGE_TOTAL_LIMIT", 20)
@@ -247,6 +277,10 @@ LISTING_GEOAPIFY_AUTOCOMPLETE_URL = os.getenv(
 LISTING_GEOAPIFY_AUTOCOMPLETE_URL = (
     LISTING_GEOAPIFY_AUTOCOMPLETE_URL or "https://api.geoapify.com/v1/geocode/autocomplete"
 )
+LISTING_GEOAPIFY_ROUTING_URL = os.getenv("LISTING_GEOAPIFY_ROUTING_URL", "https://api.geoapify.com/v1/routing").strip()
+LISTING_GEOAPIFY_ROUTING_URL = LISTING_GEOAPIFY_ROUTING_URL or "https://api.geoapify.com/v1/routing"
+LISTING_GEOAPIFY_ROUTING_TIMEOUT_SECONDS = max(1, env_int("LISTING_GEOAPIFY_ROUTING_TIMEOUT_SECONDS", 6))
+LISTING_COMMUTE_CACHE_TTL_SECONDS = max(60, env_int("LISTING_COMMUTE_CACHE_TTL_SECONDS", 900))
 LISTING_GEOAPIFY_MAP_STYLE_URL = os.getenv("LISTING_GEOAPIFY_MAP_STYLE_URL", "").strip()
 if not LISTING_GEOAPIFY_MAP_STYLE_URL and LISTING_GEOAPIFY_API_KEY:
     LISTING_GEOAPIFY_MAP_STYLE_URL = (
@@ -284,10 +318,10 @@ STUDENT_EMAIL_DOMAINS = env_list("STUDENT_EMAIL_DOMAINS", "bc.edu")
 # These settings are required by allauth and are used to configure the authentication process
 SITE_ID = 1
 
-AUTHENTICATION_BACKENDS = [
-    "django.contrib.auth.backends.ModelBackend",  # Django admin and permissions
-    "allauth.account.auth_backends.AuthenticationBackend",  # Allauth
-]
+AUTHENTICATION_BACKENDS = []
+if DJANGO_ADMIN_ENABLED:
+    AUTHENTICATION_BACKENDS.append("django.contrib.auth.backends.ModelBackend")
+AUTHENTICATION_BACKENDS.append("allauth.account.auth_backends.AuthenticationBackend")
 
 # Allauth config — regular signup/login disabled; Google OAuth only
 SOCIALACCOUNT_ONLY = True

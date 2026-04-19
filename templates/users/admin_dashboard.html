@@ -1,128 +1,301 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Admin Dashboard | {{ site_product_name }}{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/admin.css' %}">
+{% endblock %}
 
 {% block content %}
 <section class="app-page admin-dashboard">
     <div class="container">
         <div class="app-shell">
-            <div class="admin-header listing-panel">
-                <div>
-                    <p class="app-kicker">Admin Dashboard</p>
-                    <h1 class="app-title">Overview</h1>
-                    <p class="app-subtitle">Listings, reports, and users.</p>
+            <section class="admin-command-hero listing-panel">
+                <div class="admin-command-hero-main">
+                    <div class="admin-command-copy">
+                        <p class="app-kicker">Admin Workspace</p>
+                        <h1 class="app-title">Operations console</h1>
+                        <p class="app-subtitle">
+                            Review backlog, incident pressure, user intake, and conversation activity from one place.
+                        </p>
+                        <div class="admin-command-chips">
+                            <span class="admin-command-chip">{{ live_marketplace_listings }} live listing{{ live_marketplace_listings|pluralize }}</span>
+                            <span class="admin-command-chip">{{ active_incidents }} active incident{{ active_incidents|pluralize }}</span>
+                            <span class="admin-command-chip">{{ active_users }} active user{{ active_users|pluralize }}</span>
+                        </div>
+                    </div>
+                    <div class="admin-command-actions">
+                        <a class="admin-command-link" href="{% url 'users:admin_listings' %}?review_status=pending">
+                            <span class="admin-command-link-label">Review Queue</span>
+                            <strong class="admin-command-link-value">{{ pending_review_listings }}</strong>
+                            <span class="admin-command-link-meta">Listings waiting for a decision</span>
+                        </a>
+                        <a class="admin-command-link" href="{% url 'users:admin_reports' %}">
+                            <span class="admin-command-link-label">Incident Desk</span>
+                            <strong class="admin-command-link-value">{{ active_incidents }}</strong>
+                            <span class="admin-command-link-meta">Open and in-review reports</span>
+                        </a>
+                        <a class="admin-command-link" href="{% url 'users:admin_users' %}">
+                            <span class="admin-command-link-label">User Desk</span>
+                            <strong class="admin-command-link-value">{{ total_users }}</strong>
+                            <span class="admin-command-link-meta">Access, roles, and account health</span>
+                        </a>
+                    </div>
                 </div>
-                <div class="admin-header-meta">
-                    <span class="admin-meta-chip">Total listings: {{ total_listings }}</span>
-                </div>
-            </div>
+            </section>
 
             <div class="app-layout">
                 {% include "includes/admin_sidebar.html" with active_section="dashboard" %}
 
-                <div class="app-main">
-                    <div class="listing-panel admin-stat-panel">
-                        <div class="admin-stat-grid">
-                            <div class="admin-stat-card admin-stat-card-primary">
-                                <span class="admin-stat-label">Total Listings</span>
-                                <span class="admin-stat-value">{{ total_listings }}</span>
-                            </div>
-                            <div class="admin-stat-card admin-stat-card-accent">
-                                <span class="admin-stat-label">Pending Review</span>
-                                <span class="admin-stat-value">{{ pending_review_listings }}</span>
-                            </div>
-                            <div class="admin-stat-card admin-stat-card-secondary">
-                                <span class="admin-stat-label">Verified Listings</span>
-                                <span class="admin-stat-value">{{ approved_listings }}</span>
-                            </div>
-                            <div class="admin-stat-card admin-stat-card-warm">
-                                <span class="admin-stat-label">Open Reports</span>
-                                <span class="admin-stat-value">{{ open_reports }}</span>
-                            </div>
+                <div class="app-main admin-workspace">
+                    <section class="listing-panel admin-kpi-panel">
+                        <div class="admin-kpi-grid">
+                            <article class="admin-kpi-card admin-kpi-card-primary">
+                                <span class="admin-kpi-label">Total Listings</span>
+                                <strong class="admin-kpi-value">{{ total_listings }}</strong>
+                                <span class="admin-kpi-meta">{{ approval_rate }}% approved</span>
+                            </article>
+                            <article class="admin-kpi-card admin-kpi-card-secondary">
+                                <span class="admin-kpi-label">Live Marketplace</span>
+                                <strong class="admin-kpi-value">{{ live_marketplace_listings }}</strong>
+                                <span class="admin-kpi-meta">{{ marketplace_live_rate }}% of listing inventory</span>
+                            </article>
+                            <article class="admin-kpi-card admin-kpi-card-accent">
+                                <span class="admin-kpi-label">Pending Review</span>
+                                <strong class="admin-kpi-value">{{ pending_review_listings }}</strong>
+                                <span class="admin-kpi-meta">{{ listings_last_7_days }} new in the last 7 days</span>
+                            </article>
+                            <article class="admin-kpi-card admin-kpi-card-warm">
+                                <span class="admin-kpi-label">Active Incidents</span>
+                                <strong class="admin-kpi-value">{{ active_incidents }}</strong>
+                                <span class="admin-kpi-meta">{{ incident_rate }}% of listing inventory impacted</span>
+                            </article>
+                            <article class="admin-kpi-card">
+                                <span class="admin-kpi-label">Total Users</span>
+                                <strong class="admin-kpi-value">{{ total_users }}</strong>
+                                <span class="admin-kpi-meta">{{ active_user_rate }}% currently active</span>
+                            </article>
+                            <article class="admin-kpi-card">
+                                <span class="admin-kpi-label">New Users</span>
+                                <strong class="admin-kpi-value">{{ new_users_last_7_days }}</strong>
+                                <span class="admin-kpi-meta">Joined in the last 7 days</span>
+                            </article>
+                            <article class="admin-kpi-card">
+                                <span class="admin-kpi-label">Conversations</span>
+                                <strong class="admin-kpi-value">{{ total_conversations }}</strong>
+                                <span class="admin-kpi-meta">{{ direct_conversations }} direct, {{ listing_conversations }} listing</span>
+                            </article>
+                            <article class="admin-kpi-card">
+                                <span class="admin-kpi-label">Messages</span>
+                                <strong class="admin-kpi-value">{{ total_messages }}</strong>
+                                <span class="admin-kpi-meta">{{ messages_last_7_days }} this week • {{ messages_per_conversation }} avg/thread</span>
+                            </article>
                         </div>
-                    </div>
+                    </section>
 
-                    <div class="listing-panel admin-stat-panel">
-                        <div class="admin-stat-grid">
-                            <div class="admin-stat-card admin-stat-card-primary">
-                                <span class="admin-stat-label">Students</span>
-                                <span class="admin-stat-value">{{ student_users }}</span>
-                            </div>
-                            <div class="admin-stat-card admin-stat-card-accent">
-                                <span class="admin-stat-label">Reports In Review</span>
-                                <span class="admin-stat-value">{{ reports_in_review }}</span>
-                            </div>
-                            <div class="admin-stat-card admin-stat-card-secondary">
-                                <span class="admin-stat-label">Rejected Listings</span>
-                                <span class="admin-stat-value">{{ rejected_listings }}</span>
-                            </div>
-                            <div class="admin-stat-card admin-stat-card-warm">
-                                <span class="admin-stat-label">Conversations</span>
-                                <span class="admin-stat-value">{{ total_conversations }}</span>
-                            </div>
+                    <div class="admin-surface-grid">
+                        <div class="admin-main-stack">
+                            <section class="listing-panel admin-queue-panel">
+                                <div class="admin-table-head">
+                                    <div>
+                                        <p class="admin-panel-kicker">Moderation Queue</p>
+                                        <h2 class="app-section-heading">Listings needing attention</h2>
+                                    </div>
+                                    <span class="admin-table-count">{{ filtered_listings_count }} filtered result{{ filtered_listings_count|pluralize }}</span>
+                                </div>
+
+                                {% include "includes/admin_listing_filters.html" %}
+
+                                {% if priority_listings %}
+                                    <div class="table-responsive">
+                                        <table class="table align-middle admin-table-grid">
+                                            <thead>
+                                                <tr>
+                                                    <th scope="col">Property</th>
+                                                    <th scope="col">Owner</th>
+                                                    <th scope="col">Queue State</th>
+                                                    <th scope="col">Signals</th>
+                                                    <th scope="col">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for listing in priority_listings %}
+                                                    <tr>
+                                                        <td>
+                                                            <div class="admin-property">
+                                                                <div class="admin-property-title">${{ listing.price|floatformat:0 }}/mo</div>
+                                                                <div class="admin-property-meta">
+                                                                    {{ listing.rooms }} bed · {{ listing.bathrooms|floatformat:1 }} bath · {{ listing.get_status_display }}
+                                                                </div>
+                                                                <div class="admin-property-sub">{{ listing.title }} · {{ listing.address }}</div>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div class="admin-poster">
+                                                                <div class="admin-poster-name">{{ listing.owner.get_full_name|default:listing.owner.username }}</div>
+                                                                <div class="admin-poster-email">{{ listing.owner.email }}</div>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div class="admin-queue-state">
+                                                                <span class="admin-status-pill {% if listing.approval_status == 'pending' %}is-pending{% elif listing.approval_status == 'approved' %}is-approved{% else %}is-muted{% endif %}">
+                                                                    {{ listing.get_approval_status_display }}
+                                                                </span>
+                                                                <div class="admin-list-meta">
+                                                                    {% if listing.submitted_for_approval_at %}
+                                                                        Submitted {{ listing.submitted_for_approval_at|date:"M d, Y" }}
+                                                                    {% else %}
+                                                                        Draft workflow
+                                                                    {% endif %}
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div class="admin-poster">
+                                                                <div class="admin-poster-name">{{ listing.review_count }} review{{ listing.review_count|pluralize }}</div>
+                                                                <div class="admin-poster-email">{{ listing.open_report_count }} open report{{ listing.open_report_count|pluralize }}</div>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div class="admin-user-actions">
+                                                                <a class="btn btn-brand btn-sm" href="{% url 'users:admin_listing_detail' listing.id %}">
+                                                                    {% if listing.approval_status == 'pending' %}Review now{% else %}Open{% endif %}
+                                                                </a>
+                                                                <a class="btn btn-outline-secondary btn-sm" href="{% url 'listings:detail' listing.id %}">Public view</a>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <p class="app-panel-copy mb-0">No listings match the current filters.</p>
+                                {% endif %}
+                            </section>
                         </div>
-                    </div>
 
-                    {% include "includes/admin_listing_filters.html" %}
+                        <aside class="admin-side-stack">
+                            <section class="listing-panel admin-feed-panel">
+                                <div class="admin-table-head">
+                                    <div>
+                                        <p class="admin-panel-kicker">Queue Health</p>
+                                        <h2 class="app-section-heading">Priority queues</h2>
+                                    </div>
+                                </div>
+                                <div class="admin-priority-list">
+                                    <a class="admin-priority-item" href="{% url 'users:admin_listings' %}?review_status=pending">
+                                        <div>
+                                            <div class="admin-priority-title">Pending approvals</div>
+                                            <div class="admin-list-meta">Listings waiting on moderation</div>
+                                        </div>
+                                        <strong class="admin-priority-count">{{ pending_review_listings }}</strong>
+                                    </a>
+                                    <a class="admin-priority-item" href="{% url 'users:admin_reports' %}?status=open">
+                                        <div>
+                                            <div class="admin-priority-title">Open reports</div>
+                                            <div class="admin-list-meta">New incidents not yet triaged</div>
+                                        </div>
+                                        <strong class="admin-priority-count">{{ open_reports }}</strong>
+                                    </a>
+                                    <a class="admin-priority-item" href="{% url 'users:admin_reports' %}?status=in_review">
+                                        <div>
+                                            <div class="admin-priority-title">Reports in review</div>
+                                            <div class="admin-list-meta">Cases currently being worked</div>
+                                        </div>
+                                        <strong class="admin-priority-count">{{ reports_in_review }}</strong>
+                                    </a>
+                                    <a class="admin-priority-item" href="{% url 'users:admin_users' %}?active=inactive">
+                                        <div>
+                                            <div class="admin-priority-title">Inactive accounts</div>
+                                            <div class="admin-list-meta">Users needing activation review</div>
+                                        </div>
+                                        <strong class="admin-priority-count">{{ inactive_users }}</strong>
+                                    </a>
+                                </div>
+                            </section>
 
-                    <div class="listing-panel admin-table">
-                        <div class="admin-table-head">
-                            <h2 class="app-section-heading">Recent Listings</h2>
-                            <span class="admin-table-count">{{ filtered_listings_count }} results</span>
-                        </div>
-
-                        {% if listings %}
-                            <div class="table-responsive">
-                                <table class="table align-middle admin-table-grid">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col">Property</th>
-                                            <th scope="col">Posted By</th>
-                                            <th scope="col">Review</th>
-                                            <th scope="col">Signals</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for listing in listings %}
-                                            <tr>
-                                                <td>
-                                                    <div class="admin-property">
-                                                        <div class="admin-property-title">
-                                                            ${{ listing.price|floatformat:0 }}/mo
-                                                        </div>
-                                                        <div class="admin-property-meta">
-                                                            {{ listing.rooms }} Bed, {{ listing.bathrooms|floatformat:1 }} Bath
-                                                        </div>
-                                                        <div class="admin-property-sub">
-                                                            {{ listing.title }} · {{ listing.address }}
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div class="admin-poster">
-                                                        <div class="admin-poster-name">{{ listing.owner.get_full_name|default:listing.owner.username }}</div>
-                                                        <div class="admin-poster-email">{{ listing.owner.email }}</div>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <span class="admin-status-pill {% if listing.approval_status == 'pending' %}is-pending{% elif listing.approval_status == 'approved' %}is-approved{% else %}is-muted{% endif %}">
-                                                        {{ listing.get_approval_status_display }}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <div class="admin-poster">
-                                                        <div class="admin-poster-name">{{ listing.review_count }} review{{ listing.review_count|pluralize }}</div>
-                                                        <div class="admin-poster-email">{{ listing.open_report_count }} open report{{ listing.open_report_count|pluralize }}</div>
-                                                    </div>
-                                                </td>
-                                            </tr>
+                            <section class="listing-panel admin-feed-panel">
+                                <div class="admin-table-head">
+                                    <div>
+                                        <p class="admin-panel-kicker">Incidents</p>
+                                        <h2 class="app-section-heading">Recent reports</h2>
+                                    </div>
+                                    <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:admin_reports' %}">Open desk</a>
+                                </div>
+                                {% if recent_reports %}
+                                    <div class="admin-feed-list">
+                                        {% for report in recent_reports %}
+                                            <a class="admin-feed-item" href="{% url 'users:admin_listing_detail' report.listing.id %}">
+                                                <div class="admin-feed-copy">
+                                                    <div class="admin-feed-title">{{ report.listing.title }}</div>
+                                                    <div class="admin-feed-meta">{{ report.get_reason_display }} · {{ report.reporter.display_name }}</div>
+                                                </div>
+                                                <span class="admin-feed-status admin-feed-status-{{ report.status }}">{{ report.get_status_display }}</span>
+                                            </a>
                                         {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                        {% else %}
-                            <p class="app-panel-copy mb-0">No listings match the current filters.</p>
-                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <p class="app-panel-copy mb-0">No open incidents right now.</p>
+                                {% endif %}
+                            </section>
+
+                            <section class="listing-panel admin-feed-panel">
+                                <div class="admin-table-head">
+                                    <div>
+                                        <p class="admin-panel-kicker">User Intake</p>
+                                        <h2 class="app-section-heading">Newest accounts</h2>
+                                    </div>
+                                    <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:admin_users' %}">User management</a>
+                                </div>
+                                {% if recent_users %}
+                                    <div class="admin-feed-list">
+                                        {% for managed_user in recent_users %}
+                                            <a class="admin-feed-item" href="{% url 'users:admin_user_detail' managed_user.id %}">
+                                                <div class="admin-feed-copy">
+                                                    <div class="admin-feed-title">{{ managed_user.display_name }}</div>
+                                                    <div class="admin-feed-meta">{{ managed_user.email }}</div>
+                                                </div>
+                                                <span class="admin-feed-status admin-feed-status-user">{{ managed_user.display_role }}</span>
+                                            </a>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <p class="app-panel-copy mb-0">No user activity yet.</p>
+                                {% endif %}
+                            </section>
+
+                            <section class="listing-panel admin-feed-panel">
+                                <div class="admin-table-head">
+                                    <div>
+                                        <p class="admin-panel-kicker">Message Activity</p>
+                                        <h2 class="app-section-heading">Recent traffic</h2>
+                                    </div>
+                                </div>
+                                {% if recent_messages %}
+                                    <div class="admin-feed-list">
+                                        {% for message in recent_messages %}
+                                            <div class="admin-feed-item admin-feed-item-static">
+                                                <div class="admin-feed-copy">
+                                                    <div class="admin-feed-title">
+                                                        {% if message.conversation.is_direct %}
+                                                            Direct roommate chat
+                                                        {% else %}
+                                                            {{ message.conversation.listing.title }}
+                                                        {% endif %}
+                                                    </div>
+                                                    <div class="admin-feed-meta">{{ message.sender.display_name }} · {{ message.created_at|date:"M d, Y · P" }}</div>
+                                                    <div class="admin-feed-preview">{{ message.body|truncatewords:16 }}</div>
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <p class="app-panel-copy mb-0">No message activity yet.</p>
+                                {% endif %}
+                            </section>
+                        </aside>
                     </div>
                 </div>
             </div>

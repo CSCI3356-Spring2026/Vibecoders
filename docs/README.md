@@ -53,6 +53,7 @@ SQLite plus local media by default in development.
 
 - [Local Development](operations/local-development.md)
 - [Deployment and Configuration](operations/deployment-and-configuration.md)
+- [Deploying Padly on Render](operations/render-deployment.md)
 - [Runbooks](operations/runbooks.md)
 
 ### Security

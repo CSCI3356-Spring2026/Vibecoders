@@ -416,7 +416,8 @@ class UserPageTests(TestCase):
 
         response = self.client.get(reverse("users:browse_roommates"))
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], f"{reverse('roommates:hub')}?tab=people")
 
     def test_browse_roommates_people_results_are_paginated(self):
         self._complete_roommate_profile(self.user, first_name="Viewer")
@@ -430,10 +431,10 @@ class UserPageTests(TestCase):
 
         self.client.force_login(self.user)
 
-        response = self.client.get(reverse("users:browse_roommates"), {"page": "2"})
+        response = self.client.get(reverse("users:browse_roommates"), {"page": "2"}, follow=True)
 
         self.assertEqual(response.status_code, 200)
-        results_page = response.context["results"]
+        results_page = response.context["people_results"]
         self.assertEqual(results_page.paginator.count, 13)
         self.assertEqual(results_page.number, 2)
         self.assertEqual(len(results_page.object_list), 1)
@@ -460,10 +461,15 @@ class UserPageTests(TestCase):
 
         response = self.client.get(reverse("users:favorite_people"))
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Saved people")
-        self.assertContains(response, candidate.display_name)
-        self.assertContains(response, reverse("users:public_profile", args=[candidate.id]))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], f"{reverse('roommates:hub')}?tab=people&saved=1")
+
+        followed_response = self.client.get(reverse("users:favorite_people"), follow=True)
+
+        self.assertEqual(followed_response.status_code, 200)
+        self.assertContains(followed_response, "Roommates")
+        self.assertContains(followed_response, candidate.display_name)
+        self.assertContains(followed_response, reverse("roommates:public_profile", args=[candidate.id]))
 
     def test_dashboard_shows_saved_people_count(self):
         candidate = User.objects.create_user(username="candidate", email="candidate@bc.edu", password="test")
@@ -506,6 +512,8 @@ class UserPageTests(TestCase):
         self.assertContains(response, "Message Riley")
         self.assertContains(response, reverse("communications:start_direct_conversation", args=[target.id]))
         self.assertContains(response, "Start chat")
+        self.assertContains(response, "css/profile-public.css")
+        self.assertContains(response, "profile-public-hero")
 
     def test_user_can_start_direct_conversation_from_public_profile(self):
         target = User.objects.create_user(username="match", email="match@bc.edu", password="test", first_name="Riley")
@@ -622,7 +630,11 @@ class UserPageTests(TestCase):
         saved_response = self.client.get(reverse("users:public_profile", args=[target.id]))
 
         self.assertEqual(initial_response.status_code, 200)
-        self.assertContains(initial_response, f'action="/users/favorite/{target.id}/"', html=False)
+        self.assertContains(
+            initial_response,
+            f'action="{reverse("roommates:toggle_favorite_roommate", args=[target.id])}"',
+            html=False,
+        )
         self.assertFalse(initial_response.context["is_favorited"])
         self.assertEqual(saved_response.status_code, 200)
         self.assertTrue(saved_response.context["is_favorited"])
@@ -678,6 +690,24 @@ class UserPageTests(TestCase):
         self.assertContains(response, "data-legal-review-form")
         self.assertContains(response, "Accept and continue with Google")
         self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_missing_legal_acceptance_timestamps_are_non_compliant(self):
+        self.user.terms_accepted_at = None
+        self.user.privacy_accepted_at = None
+        self.user.legal_policy_version = settings.LEGAL_DOCUMENT_VERSION
+        self.user.save(update_fields=["terms_accepted_at", "privacy_accepted_at", "legal_policy_version"])
+        self.client.force_login(self.user)
+
+        response = self.client.get("/users/dashboard/", follow=True)
+
+        final_redirect = response.redirect_chain[-1][0]
+        parsed_redirect = urlsplit(final_redirect)
+
+        self.assertEqual(parsed_redirect.path, "/users/login/")
+        self.assertEqual(parse_qs(parsed_redirect.query).get("next"), ["/users/dashboard/"])
+        self.assertContains(
+            response, "Review and accept the latest Terms of Service and Privacy Policy before continuing."
+        )
 
     def test_account_dashboard_no_longer_allows_self_assigning_role(self):
         self.client.force_login(self.user)
@@ -1021,7 +1051,7 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertContains(response, "View profile")
         self.assertContains(response, "Direct chat")
 
-    def test_opening_conversation_marks_it_read_for_current_user(self):
+    def test_posting_read_mark_marks_conversation_read_for_current_user(self):
         listing = self.user.listings.create(
             title="My listing",
             address="140 Commonwealth Ave",
@@ -1040,12 +1070,36 @@ assert.equal(root.classList.contains("is-open"), false);
         conversation.add_message(sender=participant, body="Interested.")
         self.client.force_login(self.user)
 
+        response = self.client.post(reverse("communications:read_conversation", args=[conversation.id]))
+
+        self.assertEqual(response.status_code, 204)
+        conversation.refresh_from_db()
+        self.assertFalse(conversation.owner_has_unread_messages)
+
+    def test_opening_conversation_does_not_mark_it_read_on_get(self):
+        listing = self.user.listings.create(
+            title="My listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status="approved",
+        )
+        participant = User.objects.create_user(username="student-read", email="student-read@bc.edu", password="test")
+        conversation = ListingConversation.objects.create(
+            listing=listing,
+            owner=self.user,
+            participant=participant,
+        )
+        conversation.add_message(sender=participant, body="Interested.")
+        self.client.force_login(self.user)
+
         response = self.client.get(reverse("communications:detail", args=[conversation.id]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "0 unread")
         conversation.refresh_from_db()
-        self.assertFalse(conversation.owner_has_unread_messages)
+        self.assertTrue(conversation.owner_has_unread_messages)
 
     def test_message_thread_is_paginated_to_latest_messages(self):
         listing = self.user.listings.create(
@@ -1207,6 +1261,39 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertContains(response, "/users/admin-dashboard/")
         self.assertContains(response, "Admin Dashboard")
 
+    def test_admin_dashboard_surfaces_operational_sections_and_recent_activity(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        owner = User.objects.create_user(username="owner", email="owner@bc.edu", password="test")
+        reporter = User.objects.create_user(username="reporter", email="reporter@bc.edu", password="test")
+        listing = owner.listings.create(
+            title="Queue listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status=Listing.APPROVAL_APPROVED,
+        )
+        ListingReport.objects.create(
+            listing=listing,
+            reporter=reporter,
+            reason=ListingReport.REASON_SPAM,
+            details="Suspicious duplicate.",
+        )
+        self.client.force_login(admin)
+
+        response = self.client.get(reverse("users:admin_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Operations console")
+        self.assertContains(response, "Priority queues")
+        self.assertContains(response, "Recent reports")
+        self.assertContains(response, "Newest accounts")
+        self.assertContains(response, "Recent traffic")
+        self.assertContains(response, "Queue listing")
+        self.assertContains(response, "owner@bc.edu")
+        self.assertContains(response, "reporter@bc.edu")
+
     def test_admin_listings_page_is_paginated(self):
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
         owner = User.objects.create_user(username="owner", email="owner@bc.edu", password="test")
@@ -1350,7 +1437,9 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertEqual(report.reviewed_by, admin)
         listing.refresh_from_db()
         self.assertEqual(listing.approval_status, Listing.APPROVAL_REJECTED)
-        self.assertFalse(listing.is_hidden)
+        self.assertTrue(listing.is_hidden)
+        self.assertTrue(listing.is_archived)
+        self.assertEqual(listing.archive_reason, Listing.ARCHIVE_REASON_REPORT)
         queue_response = self.client.get(reverse("users:admin_reports"))
         self.assertNotContains(queue_response, "Reported listing")
 
@@ -1699,7 +1788,10 @@ assert.equal(root.classList.contains("is-open"), false);
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], reverse("users:admin_listings"))
-        self.assertFalse(owner.listings.filter(pk=listing.pk).exists())
+        listing.refresh_from_db()
+        self.assertTrue(owner.listings.filter(pk=listing.pk).exists())
+        self.assertTrue(listing.is_archived)
+        self.assertEqual(listing.archive_reason, Listing.ARCHIVE_REASON_ADMIN)
 
     def test_logout_page_uses_custom_ui(self):
         self.client.force_login(self.user)

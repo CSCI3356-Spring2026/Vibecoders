@@ -1,6 +1,11 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Manage Listings | {{ site_product_name }}{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/admin.css' %}">
+{% endblock %}
 
 {% block content %}
 <section class="app-page admin-dashboard">
@@ -85,8 +90,10 @@
                                                     <div class="admin-user-actions">
                                                         <a class="btn btn-brand btn-sm" href="{% url 'users:admin_listing_detail' listing.id %}">Review</a>
                                                         <a class="btn btn-outline-secondary btn-sm" href="{% url 'listings:detail' listing.pk %}">Public view</a>
-                                                        {% url 'users:admin_delete_listing' listing.id as admin_delete_listing_url %}
-                                                        {% include "includes/inline_confirm.html" with trigger_label="Remove" prompt_text="Remove this listing?" action_url=admin_delete_listing_url trigger_button_class="btn btn-outline-secondary btn-sm" confirm_label="Confirm remove" extra_hidden_name="next" extra_hidden_value=request.get_full_path %}
+                                                        {% if not listing.is_archived %}
+                                                            {% url 'users:admin_archive_listing' listing.id as admin_archive_listing_url %}
+                                                            {% include "includes/inline_confirm.html" with trigger_label="Archive" prompt_text="Archive this listing?" action_url=admin_archive_listing_url trigger_button_class="btn btn-outline-secondary btn-sm" confirm_label="Confirm archive" extra_hidden_name="next" extra_hidden_value=request.get_full_path %}
+                                                        {% endif %}
                                                     </div>
                                                 </td>
                                             </tr>

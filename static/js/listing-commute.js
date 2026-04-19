@@ -1,32 +1,8 @@
-const payloadElement = document.getElementById("listing-commute-payload");
+const payloadElement = document.getElementById("listing-commute-config");
 const root = document.querySelector("[data-listing-commute]");
 
-const ROUTING_MODES = {
-    walking: "walk",
-    transit: "transit",
-    driving: "drive",
-};
-
-function formatRouteDuration(seconds) {
-    const totalMinutes = Math.max(1, Math.round(Number(seconds || 0) / 60));
-    if (totalMinutes < 60) {
-        return `${totalMinutes} min`;
-    }
-
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return minutes ? `${hours} hr ${minutes} min` : `${hours} hr`;
-}
-
-function midpoint(origin, destination) {
-    return [
-        (Number(origin.lng) + Number(destination.lng)) / 2,
-        (Number(origin.lat) + Number(destination.lat)) / 2,
-    ];
-}
-
-function createCommuteMap({ map: mapConfig, origin, destination }, mapElement, noteElement) {
-    if (!mapConfig?.style_url || !origin || !destination || typeof maplibregl === "undefined" || !mapElement) {
+function createCommuteMap(mapConfig, mapElement) {
+    if (!mapConfig?.style_url || typeof maplibregl === "undefined" || !mapElement) {
         return null;
     }
 
@@ -35,30 +11,15 @@ function createCommuteMap({ map: mapConfig, origin, destination }, mapElement, n
         type: "FeatureCollection",
         features: [],
     };
+    let markersAdded = false;
 
     const map = new maplibregl.Map({
         container: mapElement,
         style: mapConfig.style_url,
-        center: midpoint(origin, destination),
+        center: [-71.1685, 42.3355],
         zoom: 12,
         attributionControl: false,
     });
-
-    const buildMarker = (color) =>
-        new maplibregl.Marker({
-            color,
-            scale: 0.85,
-        });
-
-    buildMarker("#d9392e").setLngLat([origin.lng, origin.lat]).addTo(map);
-    buildMarker("#1761c2").setLngLat([destination.lng, destination.lat]).addTo(map);
-
-    const applyViewport = () => {
-        const bounds = new maplibregl.LngLatBounds();
-        bounds.extend([origin.lng, origin.lat]);
-        bounds.extend([destination.lng, destination.lat]);
-        map.fitBounds(bounds, { padding: 36, maxZoom: 13, duration: 0 });
-    };
 
     const ensureRouteLayer = () => {
         if (!map.getSource(routeSourceId)) {
@@ -86,117 +47,127 @@ function createCommuteMap({ map: mapConfig, origin, destination }, mapElement, n
         }
     };
 
-    map.on("load", () => {
-        ensureRouteLayer();
-        applyViewport();
-    });
+    map.on("load", ensureRouteLayer);
     map.on("style.load", () => {
         ensureRouteLayer();
         map.getSource(routeSourceId)?.setData(currentRouteData);
-        applyViewport();
     });
 
     return {
-        async renderRoute(modeValue) {
-            const routeMode = ROUTING_MODES[modeValue];
-            if (!routeMode) {
-                if (noteElement) {
-                    noteElement.textContent = "Route preview unavailable for this travel mode.";
-                }
-                return null;
-            }
-
-            if (noteElement) {
-                noteElement.textContent = "Loading route map.";
-            }
-
-            const params = new URLSearchParams({
-                waypoints: `${origin.lat},${origin.lng}|${destination.lat},${destination.lng}`,
-                mode: routeMode,
-                format: "geojson",
-                apiKey: mapConfig.api_key,
-            });
-            const response = await fetch(`${mapConfig.routing_url}?${params.toString()}`);
-            if (!response.ok) {
-                throw new Error(`Routing request failed with status ${response.status}`);
-            }
-
-            const routePayload = await response.json();
-            const feature = routePayload?.features?.[0];
-            if (!feature?.geometry) {
-                throw new Error("Routing payload did not include geometry.");
-            }
-
+        renderRoute(routeGeometry, origin, destination) {
             currentRouteData = {
                 type: "FeatureCollection",
-                features: [feature],
+                features: routeGeometry
+                    ? [
+                          {
+                              type: "Feature",
+                              geometry: routeGeometry,
+                              properties: {},
+                          },
+                      ]
+                    : [],
             };
             map.getSource(routeSourceId)?.setData(currentRouteData);
-            applyViewport();
 
-            if (noteElement) {
-                noteElement.textContent = "Route to Boston College.";
+            if (!markersAdded && origin && destination) {
+                new maplibregl.Marker({ color: "#d9392e", scale: 0.85 })
+                    .setLngLat([origin.lng, origin.lat])
+                    .addTo(map);
+                new maplibregl.Marker({ color: "#1761c2", scale: 0.85 })
+                    .setLngLat([destination.lng, destination.lat])
+                    .addTo(map);
+                markersAdded = true;
             }
 
-            return feature.properties || {};
+            const bounds = new maplibregl.LngLatBounds();
+            bounds.extend([origin.lng, origin.lat]);
+            bounds.extend([destination.lng, destination.lat]);
+            map.fitBounds(bounds, { padding: 36, maxZoom: 13, duration: 0 });
+
         },
     };
 }
 
 if (payloadElement && root) {
-    const payload = JSON.parse(payloadElement.textContent || "{}");
+    const config = JSON.parse(payloadElement.textContent || "{}");
     const modeSelect = root.querySelector("[data-commute-mode-select]");
     const minutesValue = root.querySelector("[data-commute-minutes]");
+    const distanceValue = root.querySelector("[data-commute-distance]");
     const mapElement = root.querySelector("[data-commute-map]");
     const mapNote = root.querySelector("[data-commute-map-note]");
-    const modes = new Map((payload.modes || []).map((mode) => [mode.value, mode]));
-    const commuteMap = createCommuteMap(payload, mapElement, mapNote);
-    let activeRequestId = 0;
+    const commuteMap = createCommuteMap(config.map, mapElement);
+    let payload = null;
 
-    const setMinutes = (value) => {
-        if (minutesValue) {
-            minutesValue.textContent = value || "Unavailable";
+    const setMapNote = (message, { hidden = false } = {}) => {
+        if (!mapNote) {
+            return;
         }
+        mapNote.textContent = message;
+        mapNote.hidden = hidden;
     };
 
-    const applyMode = async (modeValue) => {
-        const selectedMode = modes.get(modeValue) || modes.get(payload.default_mode);
-        if (!selectedMode) {
+    const setUnavailable = (message) => {
+        if (minutesValue) {
+            minutesValue.textContent = "Unavailable";
+        }
+        if (distanceValue) {
+            distanceValue.textContent = "Unavailable";
+        }
+        setMapNote(message);
+    };
+
+    const applyMode = (modeValue) => {
+        const route = payload?.routes?.[modeValue] || payload?.routes?.[payload?.default_mode];
+        if (!route) {
+            setUnavailable("Route-backed commute is unavailable right now.");
             return;
         }
 
-        setMinutes(selectedMode.display);
-        if (!commuteMap) {
+        if (minutesValue) {
+            minutesValue.textContent = route.display || "Unavailable";
+        }
+        if (distanceValue) {
+            distanceValue.textContent = route.distance_miles ? `${route.distance_miles} mi` : "Unavailable";
+        }
+        setMapNote("", { hidden: true });
+        commuteMap?.renderRoute(route.geometry, payload.origin, payload.destination);
+    };
+
+    const syncModeOptions = () => {
+        if (!(modeSelect instanceof HTMLSelectElement) || !Array.isArray(payload?.modes)) {
             return;
         }
+        modeSelect.innerHTML = payload.modes
+            .map((mode) => `<option value="${mode.value}">${mode.label}</option>`)
+            .join("");
+        modeSelect.value = payload.default_mode || "walking";
+    };
 
-        activeRequestId += 1;
-        const requestId = activeRequestId;
-
+    const loadCommute = async () => {
+        setMapNote("Loading route map.");
         try {
-            const route = await commuteMap.renderRoute(selectedMode.value);
-            if (requestId !== activeRequestId) {
-                return;
+            const response = await fetch(config.endpoint_url, {
+                headers: {
+                    Accept: "application/json",
+                },
+            });
+            if (!response.ok) {
+                throw new Error(`Commute request failed with status ${response.status}`);
             }
 
-            if (route?.time) {
-                setMinutes(formatRouteDuration(route.time));
-            }
+            payload = await response.json();
+            syncModeOptions();
+            applyMode(modeSelect?.value || payload.default_mode || "walking");
         } catch {
-            if (requestId !== activeRequestId) {
-                return;
-            }
-
-            if (mapNote) {
-                mapNote.textContent = "Live route data is unavailable right now. Showing the estimate above.";
-            }
+            setUnavailable("Route-backed commute data is unavailable right now.");
         }
     };
 
     if (modeSelect instanceof HTMLSelectElement) {
-        applyMode(modeSelect.value || payload.default_mode);
         modeSelect.addEventListener("change", () => {
             applyMode(modeSelect.value);
         });
     }
+
+    loadCommute();
 }

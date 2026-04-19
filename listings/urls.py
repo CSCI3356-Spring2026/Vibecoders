@@ -7,6 +7,7 @@ app_name = "listings"
 urlpatterns = [
     path("", views.listing_list, name="listing_list"),
     path("search/", views.listing_search, name="search"),
+    path("results/", views.listing_results, name="results"),
     path("address-suggestions/", views.address_suggestions, name="address_suggestions"),
     path("roommates/", views.roommates_hub, name="roommates_hub"),
     path("roommates/post/", views.save_roommate_post, name="save_roommate_post"),
@@ -27,6 +28,7 @@ urlpatterns = [
         views.deactivate_group_roommate_post,
         name="deactivate_group_roommate_post_legacy",
     ),
+    path("<int:pk>/commute/", views.listing_commute, name="commute"),
     path("<int:pk>/", views.listing_detail, name="detail"),
     path("<int:pk>/review/", views.submit_listing_review, name="submit_review"),
     path("<int:pk>/report/", views.report_listing, name="report_listing"),
@@ -34,5 +36,6 @@ urlpatterns = [
     path("<int:pk>/favorite/", views.toggle_favorite, name="toggle_favorite"),
     path("create/", views.create_listing, name="create_listing"),
     path("edit/<int:pk>/", views.edit_listing, name="edit_listing"),
+    path("archive/<int:pk>/", views.archive_listing, name="archive_listing"),
     path("delete/<int:pk>/", views.delete_listing, name="delete_listing"),
 ]

@@ -56,8 +56,8 @@
                         <a class="btn btn-outline-secondary" href="{% url 'communications:messages' %}">Inbox</a>
                         <a class="btn btn-outline-secondary" href="{% url 'users:posts' %}">My listings</a>
                         {% if request.user.is_student %}
-                            <a class="btn btn-outline-secondary" href="{% url 'listings:roommates_hub' %}">Roommates</a>
-                            <a class="btn btn-outline-secondary" href="{% url 'users:favorite_people' %}">Saved people</a>
+                            <a class="btn btn-outline-secondary" href="{% url 'roommates:hub' %}">Roommates</a>
+                            <a class="btn btn-outline-secondary" href="{% url 'roommates:hub' %}?tab=people&saved=1">Saved people</a>
                         {% endif %}
                         <a class="btn btn-outline-secondary" href="{% url 'listings:create_listing' %}">Create listing</a>
                         <a class="btn btn-outline-secondary" href="{% url 'users:files' %}">Document library</a>

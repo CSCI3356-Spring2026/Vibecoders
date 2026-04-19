@@ -20,6 +20,7 @@
     data-current-user-id="{{ request.user.id }}"
     data-selected-conversation-id="{% if selected_conversation %}{{ selected_conversation.id }}{% endif %}"
     data-conversation-url-template="{% url 'communications:detail' 0 %}"
+    data-read-url-template="{% url 'communications:read_conversation' 0 %}"
     data-thread-page="{% if thread_messages_page %}{{ thread_messages_page.number }}{% else %}1{% endif %}"
     data-total-conversations-count="{{ conversations_total }}"
     data-total-unread-count="{{ unread_conversations_count }}"
@@ -108,7 +109,7 @@
                             <div class="messages-thread-toolbar-actions">
                                 <span class="app-meta-chip messages-status-chip is-connecting" data-message-connection>Connecting…</span>
                                 {% if selected_conversation.is_direct %}
-                                    <a class="btn btn-outline-secondary" href="{% url 'users:public_profile' selected_conversation.ui_counterparty.id %}">View profile</a>
+                                    <a class="btn btn-outline-secondary" href="{% url 'roommates:public_profile' selected_conversation.ui_counterparty.id %}">View profile</a>
                                 {% else %}
                                     <a class="btn btn-outline-secondary" href="{% url 'listings:detail' selected_conversation.listing.id %}">View listing</a>
                                 {% endif %}
@@ -119,7 +120,7 @@
 
                         <div class="messages-thread-context">
                             {% if selected_conversation.is_direct %}
-                                <a class="messages-thread-context-card" href="{% url 'users:public_profile' selected_conversation.ui_counterparty.id %}">
+                                <a class="messages-thread-context-card" href="{% url 'roommates:public_profile' selected_conversation.ui_counterparty.id %}">
                                     <div class="messages-thread-context-media">
                                         {% include "includes/user_avatar.html" with user_obj=selected_conversation.ui_counterparty avatar_class="messages-thread-user-avatar user-avatar user-avatar-md" %}
                                     </div>
@@ -142,12 +143,12 @@
                                             <p class="messages-thread-context-address">Accept to match as a group.</p>
                                         </div>
                                         <div class="messages-thread-context-meta">
-                                            <form method="post" action="{% url 'users:accept_group_invite' pending_group_invite.id %}">
+                                            <form method="post" action="{% url 'roommates:accept_group_invite' pending_group_invite.id %}">
                                                 {% csrf_token %}
                                                 <input type="hidden" name="next" value="{{ request.get_full_path }}">
                                                 <button class="btn btn-brand btn-sm" type="submit">Accept invite</button>
                                             </form>
-                                            <form method="post" action="{% url 'users:decline_group_invite' pending_group_invite.id %}">
+                                            <form method="post" action="{% url 'roommates:decline_group_invite' pending_group_invite.id %}">
                                                 {% csrf_token %}
                                                 <input type="hidden" name="next" value="{{ request.get_full_path }}">
                                                 <button class="btn btn-outline-secondary btn-sm" type="submit">Decline</button>
@@ -190,7 +191,7 @@
                                                 <span class="message-timestamp">{{ message.created_at|date:"M d, Y g:i A" }}</span>
                                             </div>
                                             <div class="message-bubble{% if message.sender_id == request.user.id %} is-outbound{% else %} is-inbound{% endif %}">
-                                                <div class="message-bubble-body">{{ message.body|linebreaksbr }}</div>
+                                                <div class="message-bubble-body">{{ message.body }}</div>
                                             </div>
                                         </div>
                                     </div>

@@ -4,10 +4,12 @@
     justify-content: center;
     gap: 0.35rem;
     min-height: 2.55rem;
+    padding: 0.56rem 0.92rem;
+    border-width: 1px;
     border-radius: var(--radius-sm);
     font-size: 0.88rem;
     font-weight: 600;
-    line-height: 1.1;
+    line-height: 1.2;
     letter-spacing: 0.02em;
     text-align: center;
     white-space: nowrap;
@@ -17,8 +19,9 @@
 
 .btn-sm {
     min-height: 2rem;
-    padding: 0.32rem 0.72rem;
+    padding: 0.42rem 0.72rem;
     font-size: 0.84rem;
+    line-height: 1.15;
 }
 
 .btn-brand {

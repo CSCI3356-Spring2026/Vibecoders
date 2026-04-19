@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -29,15 +30,145 @@ class TestSettingsTests(SimpleTestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Install dj-database-url to use DATABASE_URL.", result.stderr)
 
-    def test_ci_workflow_keeps_existing_quality_gates_and_deploy_check(self):
+    def test_settings_disable_raw_admin_backend_when_admin_is_disabled(self):
+        result = self._run_python_subprocess(
+            "import json; import vibecoders.settings as settings; print(json.dumps(settings.AUTHENTICATION_BACKENDS))",
+            extra_env={"DJANGO_ADMIN_ENABLED": "false"},
+        )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        backends = json.loads(result.stdout)
+        self.assertNotIn("django.contrib.auth.backends.ModelBackend", backends)
+        self.assertIn("allauth.account.auth_backends.AuthenticationBackend", backends)
+
+    def test_seed_demo_data_is_treated_as_local_debug_command(self):
+        result = self._run_python_subprocess(
+            "import sys; sys.argv = ['manage.py', 'seed_demo_data']; "
+            "import vibecoders.settings as settings; "
+            "print(settings.DEBUG)",
+            extra_env={"DJANGO_DEBUG": None},
+        )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(result.stdout.strip(), "True")
+
+    def test_root_urls_mount_admin_only_when_enabled(self):
+        urlpatterns_command = "".join(
+            [
+                "import json; import django; django.setup(); ",
+                "import vibecoders.urls as urls; ",
+                "print(json.dumps([",
+                "getattr(pattern.pattern, '_route', str(pattern.pattern)) ",
+                "for pattern in urls.urlpatterns",
+                "]))",
+            ]
+        )
+        disabled_result = self._run_python_subprocess(
+            urlpatterns_command,
+            extra_env={"DJANGO_ADMIN_ENABLED": "false"},
+        )
+        enabled_result = self._run_python_subprocess(
+            urlpatterns_command,
+            extra_env={"DJANGO_ADMIN_ENABLED": "true"},
+        )
+
+        self.assertEqual(disabled_result.returncode, 0, msg=disabled_result.stderr)
+        self.assertEqual(enabled_result.returncode, 0, msg=enabled_result.stderr)
+        self.assertNotIn("admin/", json.loads(disabled_result.stdout))
+        self.assertIn("admin/", json.loads(enabled_result.stdout))
+
+    def test_production_settings_enable_whitenoise_manifest_storage(self):
+        result = self._run_python_subprocess(
+            (
+                "import json; import vibecoders.settings as settings; "
+                "print(json.dumps({'middleware': settings.MIDDLEWARE[:2], "
+                "'staticfiles_backend': settings.STORAGES['staticfiles']['BACKEND']}))"
+            ),
+            extra_env={
+                "DJANGO_DEBUG": "false",
+                "DJANGO_SECRET_KEY": "test-secret",
+                "DJANGO_ALLOWED_HOSTS": "padly.example.com",
+                "DATABASE_URL": "postgresql://user:pass@localhost:5432/padly",
+                "CHANNEL_REDIS_URL": "redis://localhost:6379/0",
+                "CACHE_REDIS_URL": "redis://localhost:6379/1",
+            },
+        )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["middleware"][0], "django.middleware.security.SecurityMiddleware")
+        self.assertEqual(payload["middleware"][1], "whitenoise.middleware.WhiteNoiseMiddleware")
+        self.assertEqual(
+            payload["staticfiles_backend"],
+            "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        )
+
+    def test_render_defaults_cover_allowed_hosts_and_csrf_when_explicit_values_are_missing(self):
+        result = self._run_python_subprocess(
+            (
+                "import json; import vibecoders.settings as settings; "
+                "print(json.dumps({'allowed_hosts': settings.ALLOWED_HOSTS, "
+                "'csrf_origins': settings.CSRF_TRUSTED_ORIGINS}))"
+            ),
+            extra_env={
+                "DJANGO_DEBUG": "false",
+                "DJANGO_SECRET_KEY": "test-secret",
+                "DJANGO_ALLOWED_HOSTS": "",
+                "DJANGO_CSRF_TRUSTED_ORIGINS": "",
+                "RENDER_EXTERNAL_HOSTNAME": "padly.onrender.com",
+                "RENDER_EXTERNAL_URL": "https://padly.onrender.com",
+                "DATABASE_URL": "postgresql://user:pass@localhost:5432/padly",
+                "CHANNEL_REDIS_URL": "redis://localhost:6379/0",
+                "CACHE_REDIS_URL": "redis://localhost:6379/1",
+            },
+        )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["allowed_hosts"], ["padly.onrender.com"])
+        self.assertEqual(payload["csrf_origins"], ["https://padly.onrender.com"])
+
+    def test_render_deployment_artifacts_are_checked_in(self):
+        repo_root = Path(__file__).resolve().parents[2]
+        python_version_path = repo_root / ".python-version"
+        build_script_path = repo_root / "build.sh"
+        render_yaml_path = repo_root / "render.yaml"
+
+        self.assertTrue(python_version_path.exists())
+        self.assertEqual(python_version_path.read_text(encoding="utf-8").strip(), "3.12.5")
+
+        self.assertTrue(build_script_path.exists())
+        self.assertTrue(os.access(build_script_path, os.X_OK))
+        build_script = build_script_path.read_text(encoding="utf-8")
+        self.assertIn("pip install -r requirements.txt", build_script)
+        self.assertIn("python manage.py check --deploy", build_script)
+        self.assertIn("python manage.py collectstatic --no-input", build_script)
+
+        self.assertTrue(render_yaml_path.exists())
+        render_yaml = render_yaml_path.read_text(encoding="utf-8")
+        self.assertIn("buildCommand: ./build.sh", render_yaml)
+        self.assertIn("preDeployCommand: python manage.py migrate", render_yaml)
+        self.assertIn("startCommand: daphne -b 0.0.0.0 -p $PORT vibecoders.asgi:application", render_yaml)
+        self.assertIn("healthCheckPath: /healthz/", render_yaml)
+        self.assertIn("DJANGO_MEDIA_ROOT", render_yaml)
+        self.assertIn("mountPath: /var/data/padly-media", render_yaml)
+
+    def test_ci_workflow_keeps_quality_gates_lockfile_check_and_e2e_job(self):
         repo_root = Path(__file__).resolve().parents[2]
         workflow = (repo_root / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
+        self.assertIn("name: Unit and Checks", workflow)
+        self.assertIn("name: Browser E2E", workflow)
+        self.assertIn("needs: unit", workflow)
+        self.assertIn("- run: pip install -r requirements.txt", workflow)
+        self.assertIn("- run: pip-compile --quiet --dry-run --strip-extras requirements.in", workflow)
         self.assertIn("- run: ruff check .", workflow)
         self.assertIn("- run: ruff format --check .", workflow)
         self.assertIn("- run: python manage.py check", workflow)
         self.assertIn("- run: python manage.py makemigrations --check --dry-run", workflow)
         self.assertIn("- run: python manage.py test", workflow)
+        self.assertIn("- run: python -m playwright install --with-deps chromium", workflow)
+        self.assertIn("- run: python manage.py test e2e_tests", workflow)
         self.assertIn("python manage.py check --deploy", workflow)
         self.assertIn('DJANGO_DEBUG: "false"', workflow)
         self.assertIn("DJANGO_SECRET_KEY:", workflow)
@@ -81,3 +212,24 @@ class TestSettingsTests(SimpleTestCase):
                 env=env,
                 text=True,
             )
+
+    def _run_python_subprocess(self, command, *, extra_env=None):
+        repo_root = Path(__file__).resolve().parents[2]
+        env = os.environ.copy()
+        env["DJANGO_DEBUG"] = "true"
+        env["DJANGO_SETTINGS_MODULE"] = "vibecoders.settings"
+        env["PYTHONPATH"] = str(repo_root)
+        for key, value in (extra_env or {}).items():
+            if value is None:
+                env.pop(key, None)
+            else:
+                env[key] = value
+
+        return subprocess.run(
+            [sys.executable, "-c", command],
+            capture_output=True,
+            check=False,
+            cwd=repo_root,
+            env=env,
+            text=True,
+        )

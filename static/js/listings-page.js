@@ -21,7 +21,7 @@ function readJsonScript(id, fallback) {
     }
 }
 
-function buildSearchParams(form, bounds) {
+function buildSearchParams(form, bounds, { includeViewport = true } = {}) {
     const params = new URLSearchParams();
     const formData = new FormData(form);
 
@@ -32,10 +32,12 @@ function buildSearchParams(form, bounds) {
         }
     }
 
-    params.set("west", String(bounds.west));
-    params.set("south", String(bounds.south));
-    params.set("east", String(bounds.east));
-    params.set("north", String(bounds.north));
+    if (includeViewport && bounds) {
+        params.set("west", String(bounds.west));
+        params.set("south", String(bounds.south));
+        params.set("east", String(bounds.east));
+        params.set("north", String(bounds.north));
+    }
     return params;
 }
 
@@ -256,6 +258,7 @@ export function bootstrapListingsPage() {
     const resultsRoot = root.querySelector("[data-listings-results]");
     const mapStyleToggles = Array.from(root.querySelectorAll("[data-listings-map-style-toggle]"));
     const searchUrl = root.dataset.listingsSearchUrl || mapRoot?.dataset.listingsSearchUrl || "";
+    const resultsUrl = root.dataset.listingsResultsUrl || "";
     const defaultMapStyleUrl =
         root.dataset.listingsMapDefaultStyleUrl ||
         root.dataset.listingsMapStyleUrl ||
@@ -267,23 +270,24 @@ export function bootstrapListingsPage() {
     const initialPayload = readJsonScript("listing-page-initial-payload", {
         total: 0,
         markers: [],
-        cards: [],
     });
     const initialState = readJsonScript("listing-page-initial-state", {
         selected_listing_id: "",
         query: "",
     });
 
-    if (!form || !mapRoot || !resultsRoot || !searchUrl) {
+    if (!form || !mapRoot || !resultsRoot || !searchUrl || !resultsUrl) {
         return;
     }
 
     const resultsView = createListingsResults(resultsRoot);
     const filterToolbar = createListingsFilterToolbar(root, form);
     const state = {
-        latestRequestId: 0,
+        latestMarkerRequestId: 0,
+        latestResultsRequestId: 0,
         requestTimer: null,
-        requestController: null,
+        markerRequestController: null,
+        resultsRequestController: null,
         selectedListingId: initialState.selected_listing_id ? String(initialState.selected_listing_id) : "",
     };
     const mapView = createListingsMapView({
@@ -301,7 +305,7 @@ export function bootstrapListingsPage() {
             mapView.setSelectedListing(state.selectedListingId);
         },
         onViewportChange() {
-            scheduleSearch();
+            scheduleMarkerRefresh();
         },
     });
 
@@ -313,8 +317,10 @@ export function bootstrapListingsPage() {
         });
     };
 
-    const syncSelection = (payload) => {
-        const hasSelectedCard = payload.cards.some((card) => String(card.id) === state.selectedListingId);
+    const syncSelection = () => {
+        const hasSelectedCard =
+            state.selectedListingId &&
+            resultsRoot.querySelector(`[data-listing-card][data-listing-id="${state.selectedListingId}"]`);
         if (!hasSelectedCard) {
             state.selectedListingId = "";
             root.dataset.selectedListingId = "";
@@ -324,23 +330,23 @@ export function bootstrapListingsPage() {
         mapView.setSelectedListing(state.selectedListingId);
     };
 
-    const runSearch = async () => {
+    const runMarkerSearch = async () => {
         const bounds = mapView.getBounds();
         if (!bounds) {
             return;
         }
 
-        state.latestRequestId += 1;
-        const requestId = state.latestRequestId;
-        state.requestController?.abort();
-        state.requestController = new AbortController();
+        state.latestMarkerRequestId += 1;
+        const requestId = state.latestMarkerRequestId;
+        state.markerRequestController?.abort();
+        state.markerRequestController = new AbortController();
 
         try {
             const response = await fetch(`${searchUrl}?${buildSearchParams(form, bounds).toString()}`, {
                 headers: {
                     Accept: "application/json",
                 },
-                signal: state.requestController.signal,
+                signal: state.markerRequestController.signal,
             });
 
             if (!response.ok) {
@@ -348,17 +354,15 @@ export function bootstrapListingsPage() {
             }
 
             const payload = await response.json();
-            if (requestId !== state.latestRequestId) {
+            if (requestId !== state.latestMarkerRequestId) {
                 return;
             }
 
             resultsView?.clearError();
-            resultsView?.render(payload, { query: currentQuery(form) });
-            resultsView?.hidePagination();
             mapView.renderMarkers(payload.markers);
-            syncSelection(payload);
+            syncSelection();
         } catch (error) {
-            if (error.name === "AbortError" || requestId !== state.latestRequestId) {
+            if (error.name === "AbortError" || requestId !== state.latestMarkerRequestId) {
                 return;
             }
 
@@ -366,12 +370,56 @@ export function bootstrapListingsPage() {
         }
     };
 
-    const scheduleSearch = (delay = SEARCH_DEBOUNCE_MS) => {
+    const runResultsSearch = async (targetUrl = "") => {
+        state.latestResultsRequestId += 1;
+        const requestId = state.latestResultsRequestId;
+        state.resultsRequestController?.abort();
+        state.resultsRequestController = new AbortController();
+
+        const requestUrl = targetUrl || `${resultsUrl}?${buildSearchParams(form, null, { includeViewport: false }).toString()}`;
+
+        try {
+            const response = await fetch(requestUrl, {
+                headers: {
+                    Accept: "text/html",
+                },
+                signal: state.resultsRequestController.signal,
+            });
+            if (!response.ok) {
+                throw new Error(`Results failed with status ${response.status}`);
+            }
+
+            const html = await response.text();
+            if (requestId !== state.latestResultsRequestId) {
+                return;
+            }
+
+            resultsView?.clearError();
+            resultsView?.replaceContent(html);
+            syncSelection();
+        } catch (error) {
+            if (error.name === "AbortError" || requestId !== state.latestResultsRequestId) {
+                return;
+            }
+            resultsView?.showError(LIVE_SEARCH_ERROR_MESSAGE);
+        }
+    };
+
+    const scheduleFilterRefresh = (delay = SEARCH_DEBOUNCE_MS) => {
         if (state.requestTimer) {
             window.clearTimeout(state.requestTimer);
         }
         state.requestTimer = window.setTimeout(() => {
-            runSearch();
+            void Promise.all([runMarkerSearch(), runResultsSearch()]);
+        }, delay);
+    };
+
+    const scheduleMarkerRefresh = (delay = SEARCH_DEBOUNCE_MS) => {
+        if (state.requestTimer) {
+            window.clearTimeout(state.requestTimer);
+        }
+        state.requestTimer = window.setTimeout(() => {
+            void runMarkerSearch();
         }, delay);
     };
 
@@ -382,15 +430,23 @@ export function bootstrapListingsPage() {
 
     form.addEventListener("submit", (event) => {
         event.preventDefault();
-        scheduleSearch(0);
+        scheduleFilterRefresh(0);
     });
     form.addEventListener("input", (event) => {
         filterToolbar?.handleInput(event);
-        scheduleSearch();
+        scheduleFilterRefresh();
     });
     form.addEventListener("change", (event) => {
         filterToolbar?.handleChange(event);
-        scheduleSearch();
+        scheduleFilterRefresh();
+    });
+    resultsRoot.addEventListener("click", (event) => {
+        const href = resultsView?.paginationHrefForEvent(event);
+        if (!href) {
+            return;
+        }
+        event.preventDefault();
+        void runResultsSearch(href);
     });
 
     mapStyleToggles.forEach((button) => {

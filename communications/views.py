@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -72,12 +73,7 @@ def messages_inbox(request, conversation_id=None):
             selected_conversation = first_conversation
 
     if selected_conversation:
-        mark_conversation_read(selected_conversation, request.user)
         _decorate_conversation_for_user(selected_conversation, request.user)
-        selected_conversation.ui_has_unread = False
-        for conversation in conversations_page.object_list:
-            if conversation.id == selected_conversation.id:
-                conversation.ui_has_unread = False
 
     reply_placeholder = "Ask about timing, availability, rent, or next steps."
     if selected_conversation and selected_conversation.is_direct:
@@ -115,6 +111,14 @@ def messages_inbox(request, conversation_id=None):
         "pending_group_invite": pending_group_invite,
     }
     return render(request, "communications/messages.html", context)
+
+
+@login_required
+@require_POST
+def read_conversation(request, conversation_id):
+    conversation = _accessible_conversation_or_404(request.user, conversation_id)
+    mark_conversation_read(conversation, request.user)
+    return HttpResponse(status=204)
 
 
 @login_required

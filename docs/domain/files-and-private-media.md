@@ -1,15 +1,16 @@
 # Files and Private Media
 
-## Two Different Media Domains
+## Three Different Media Domains
 
-Padly stores two distinct classes of uploads:
+Padly stores three distinct classes of uploads:
 
 | Media type | Model | Visibility | Delivery path |
 | --- | --- | --- | --- |
-| Listing photos | `ListingImage` | Public for approved listings | Development-only direct route for listing photos; rendered on marketplace/detail pages |
+| Listing photos | `ListingImage` | Public only when the listing itself is accessible | App-served `/media/listing_photos/<path>` route with listing-access checks |
+| Uploaded avatars | `CustomUser.uploaded_avatar` | Public while attached to a user profile | App-served `/media/avatars/<path>` route for known avatar files |
 | User document library files | `UserFile` | Private | Authenticated preview/download views only |
 
-These two media domains have different access and privacy rules and should not be treated interchangeably.
+These media domains have different access and privacy rules and should not be treated interchangeably.
 
 ## Listing Photos
 
@@ -24,14 +25,30 @@ These two media domains have different access and privacy rules and should not b
 
 ### Serving behavior
 
-- In development only, `vibecoders/urls.py` exposes `media/listing_photos/<path>`
-- This exception is limited to listing photos
-- Private user uploads are not served this way
+- Padly exposes `media/listing_photos/<path>` in all environments
+- The route resolves the `ListingImage` record first, then applies the same access rules as listing detail
+- Anonymous users can fetch photos only for public listings
+- Owners, admins, and otherwise-authorized viewers can fetch non-public listing photos through the same route
+- Private user uploads are still not served this way
 
 ### Deletion behavior
 
 - `ListingImage` registers a post-delete hook
 - storage deletion happens inside `transaction.on_commit()`
+
+## Uploaded Avatars
+
+### Storage and validation
+
+- Stored under `media/avatars/`
+- Uploaded through the profile setup flow
+- Validated by the avatar form and image field handling already used by `users.views.upload_avatar`
+
+### Serving behavior
+
+- Padly exposes `media/avatars/<path>` in all environments
+- The route only serves files still referenced by `CustomUser.uploaded_avatar`
+- This route is intentionally narrower than a blanket `/media/` file server
 
 ## Private Document Library
 
@@ -72,16 +89,18 @@ Only images and PDFs are previewable inline.
 
 ## Access Rules
 
-| Actor | Listing photos | Private user files |
-| --- | --- | --- |
-| Anonymous user | Can see public listing photos in marketplace/detail pages | No access |
-| Owner | Can manage their own listing photos and private files | Full access to own files |
-| Admin | Can review listing photos in admin surfaces | Can access user files through authenticated admin-enabled selectors/views |
+| Actor | Listing photos | Uploaded avatars | Private user files |
+| --- | --- | --- | --- |
+| Anonymous user | Can see public listing photos in marketplace/detail pages | Can load avatars already attached to a user profile | No access |
+| Owner | Can manage their own listing photos and private files | Can replace their own uploaded avatar | Full access to own files |
+| Admin | Can review listing photos in admin surfaces | Can inspect user avatars through normal product/admin surfaces | Can access user files through authenticated admin-enabled selectors/views |
 
 ## Operational Caveats
 
 - Padly uses local media storage by default in development.
-- Production should move both public and private media to shared or object-backed storage.
+- Production can use a Render persistent disk by pointing `DJANGO_MEDIA_ROOT` at the disk mount path.
+- Private document-library files remain app-served even when public listing media also lives on disk.
+- Long-term production scale still favors shared or object-backed storage instead of a single-instance disk.
 - Cleanup is commit-aware, but blob writes can still orphan files if an outer transaction rolls back after storage writes have already happened. That is an operational limitation to keep in mind when evolving upload workflows.
 
 ## Rules to Preserve

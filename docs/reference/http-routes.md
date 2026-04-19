@@ -15,13 +15,19 @@
 | `/listings/` | `listings.urls` |
 | `/admin/` | Django admin |
 
-In debug mode only, listing photos are also served from `media/listing_photos/<path>`.
+Padly also exposes these narrow media routes in every environment:
+
+| Route | View | Auth | Purpose |
+| --- | --- | --- | --- |
+| `/media/listing_photos/<path>` | `listings.views.public_listing_photo` | conditional by listing visibility | serve listing images without exposing a blanket media root |
+| `/media/avatars/<path>` | `users.views.public_avatar` | public | serve uploaded profile avatars still attached to a user |
 
 ## Core Routes
 
 | Route | View | Auth | Purpose |
 | --- | --- | --- | --- |
 | `/` | `core.views.landing` | optional | landing page |
+| `/healthz/` | `core.views.healthz` | optional | lightweight Render health check endpoint |
 | `/welcome/` | `core.views.welcome` | required | post-login redirect target |
 | `/terms/` | `core.views.terms_of_service` | optional | Terms of Service |
 | `/privacy/` | `core.views.privacy_policy` | optional | Privacy Policy |

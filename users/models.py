@@ -9,6 +9,8 @@ from django.db import models, transaction
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
 
+from roommates import models as roommate_models
+
 from .profile_images import profile_image_url_from_data
 from .validators import validate_user_upload
 
@@ -292,165 +294,9 @@ class AdminProfile(models.Model):
         return f"AdminProfile({self.user.username})"
 
 
-# DEPRECATED — use listings.RoommateGroup
-class RoommateGroup(models.Model):
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="created_roommate_groups",
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ["-updated_at", "-created_at"]
-
-    @property
-    def member_count(self):
-        return self.memberships.count()
-
-    def __str__(self):
-        return f"RoommateGroup({self.pk})"
-
-
-# DEPRECATED — use listings.RoommateGroupMembership
-class RoommateGroupMember(models.Model):
-    group = models.ForeignKey(RoommateGroup, on_delete=models.CASCADE, related_name="memberships")
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="legacy_roommate_groups")
-    joined_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["joined_at"]
-        constraints = [
-            models.UniqueConstraint(fields=["group", "user"], name="roommate_group_member_unique"),
-        ]
-        indexes = [
-            models.Index(fields=["user", "joined_at"], name="roommate_group_member_user_idx"),
-        ]
-
-    def __str__(self):
-        return f"{self.user} in group {self.group_id}"
-
-
-class RoommateGroupInvite(models.Model):
-    STATUS_PENDING_APPROVAL = "pending_approval"
-    STATUS_PENDING_INVITEE = "pending_invitee"
-    STATUS_ACCEPTED = "accepted"
-    STATUS_REJECTED = "rejected"
-    STATUS_CANCELLED = "cancelled"
-    STATUS_CHOICES = [
-        (STATUS_PENDING_APPROVAL, "Awaiting group approval"),
-        (STATUS_PENDING_INVITEE, "Awaiting invitee response"),
-        (STATUS_ACCEPTED, "Accepted"),
-        (STATUS_REJECTED, "Rejected"),
-        (STATUS_CANCELLED, "Cancelled"),
-    ]
-
-    group = models.ForeignKey("listings.RoommateGroup", on_delete=models.CASCADE, related_name="invites")
-    inviter = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="sent_roommate_group_invites",
-    )
-    invitee = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="received_roommate_group_invites",
-    )
-    conversation = models.ForeignKey(
-        "communications.ListingConversation",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="roommate_group_invites",
-    )
-    status = models.CharField(max_length=24, choices=STATUS_CHOICES, default=STATUS_PENDING_APPROVAL, db_index=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    responded_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["group", "invitee"],
-                condition=models.Q(status__in=["pending_approval", "pending_invitee"]),
-                name="roommate_group_invite_active_unique",
-            ),
-        ]
-        indexes = [
-            models.Index(fields=["invitee", "status", "created_at"], name="rg_invite_in_idx"),
-            models.Index(fields=["group", "status", "created_at"], name="rg_invite_group_idx"),
-        ]
-
-    def __str__(self):
-        return f"Invite {self.pk} to {self.invitee_id} ({self.status})"
-
-
-class RoommateGroupInviteApproval(models.Model):
-    invite = models.ForeignKey(RoommateGroupInvite, on_delete=models.CASCADE, related_name="approvals")
-    member = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="roommate_group_invite_approvals",
-    )
-    approved = models.BooleanField(null=True)
-    responded_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(fields=["invite", "member"], name="roommate_group_invite_approval_unique"),
-        ]
-        indexes = [
-            models.Index(fields=["member", "responded_at"], name="rg_invite_approval_mem_idx"),
-        ]
-
-    def __str__(self):
-        return f"InviteApproval({self.invite_id}, {self.member_id})"
-
-
-class FavoriteRoommate(models.Model):
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="favorite_roommates",
-    )
-    favorite_user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="favorited_by_students",
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-        constraints = [
-            models.UniqueConstraint(fields=["user", "favorite_user"], name="favorite_roommate_unique_pair"),
-            models.CheckConstraint(
-                condition=~models.Q(user=models.F("favorite_user")),
-                name="favorite_roommate_user_ne_favorite_user",
-            ),
-        ]
-        indexes = [
-            models.Index(fields=["user", "created_at"], name="favorite_roommate_user_idx"),
-            models.Index(fields=["favorite_user", "created_at"], name="favorite_roommate_target_idx"),
-        ]
-
-    def clean(self):
-        super().clean()
-        if self.user_id and self.favorite_user_id and self.user_id == self.favorite_user_id:
-            raise ValidationError({"favorite_user": "You cannot favorite yourself."})
-        if self.user_id and getattr(self.user, "role", None) != Role.STUDENT:
-            raise ValidationError({"user": "Only student accounts can favorite roommate candidates."})
-        if self.favorite_user_id and getattr(self.favorite_user, "role", None) != Role.STUDENT:
-            raise ValidationError({"favorite_user": "Only student profiles can be favorited."})
-
-    def save(self, *args, **kwargs):
-        self.full_clean()
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"{self.user_id}->{self.favorite_user_id}"
+FavoriteRoommate = roommate_models.FavoriteRoommate
+RoommateGroupInvite = roommate_models.RoommateGroupInvite
+RoommateGroupInviteApproval = roommate_models.RoommateGroupInviteApproval
 
 
 class UserFile(models.Model):

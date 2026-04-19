@@ -9,6 +9,8 @@ from django.db.models.signals import post_delete
 from django.dispatch import receiver
 from django.utils import timezone
 
+from roommates import models as roommate_models
+
 from .validators import validate_listing_image
 
 LISTING_STATUS_AVAILABLE = "AVAILABLE"
@@ -38,6 +40,14 @@ LISTING_APPROVAL_CHOICES = [
     (LISTING_APPROVAL_PENDING, "Pending review"),
     (LISTING_APPROVAL_APPROVED, "Approved"),
     (LISTING_APPROVAL_REJECTED, "Rejected"),
+]
+LISTING_ARCHIVE_REASON_OWNER = "owner"
+LISTING_ARCHIVE_REASON_ADMIN = "admin"
+LISTING_ARCHIVE_REASON_REPORT = "report"
+LISTING_ARCHIVE_REASON_CHOICES = [
+    (LISTING_ARCHIVE_REASON_OWNER, "Owner archived"),
+    (LISTING_ARCHIVE_REASON_ADMIN, "Admin archived"),
+    (LISTING_ARCHIVE_REASON_REPORT, "Archived from report"),
 ]
 LISTING_REPORT_STATUS_OPEN = "open"
 LISTING_REPORT_STATUS_IN_REVIEW = "in_review"
@@ -160,11 +170,15 @@ class Listing(models.Model):
     APPROVAL_PENDING = LISTING_APPROVAL_PENDING
     APPROVAL_APPROVED = LISTING_APPROVAL_APPROVED
     APPROVAL_REJECTED = LISTING_APPROVAL_REJECTED
+    ARCHIVE_REASON_OWNER = LISTING_ARCHIVE_REASON_OWNER
+    ARCHIVE_REASON_ADMIN = LISTING_ARCHIVE_REASON_ADMIN
+    ARCHIVE_REASON_REPORT = LISTING_ARCHIVE_REASON_REPORT
 
     LEASE_TYPES = LISTING_LEASE_TYPES
     STATUS_CHOICES = LISTING_STATUS_CHOICES
     PROPERTY_TYPES = LISTING_PROPERTY_TYPES
     APPROVAL_CHOICES = LISTING_APPROVAL_CHOICES
+    ARCHIVE_REASON_CHOICES = LISTING_ARCHIVE_REASON_CHOICES
 
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="listings")
     title = models.CharField(max_length=200)
@@ -213,6 +227,15 @@ class Listing(models.Model):
         related_name="reviewed_listings",
     )
     approval_notes = models.TextField(blank=True)
+    archived_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    archived_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="archived_listings",
+    )
+    archive_reason = models.CharField(max_length=16, choices=ARCHIVE_REASON_CHOICES, blank=True)
     is_hidden = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     objects = ListingQuerySet.as_manager()
@@ -224,6 +247,8 @@ class Listing(models.Model):
             models.Index(fields=["owner", "created_at"], name="listing_owner_idx"),
             models.Index(fields=["status", "created_at"], name="listing_status_idx"),
             models.Index(fields=["approval_status", "created_at"], name="listing_approval_idx"),
+            models.Index(fields=["archived_at", "created_at"], name="listing_archived_idx"),
+            models.Index(fields=["latitude", "longitude"], name="listing_lat_lng_idx"),
         ]
         constraints = [
             models.CheckConstraint(
@@ -285,6 +310,7 @@ class Listing(models.Model):
         return Q(
             owner__is_active=True,
             is_hidden=False,
+            archived_at__isnull=True,
             approval_status=cls.APPROVAL_APPROVED,
             status=cls.STATUS_AVAILABLE,
             end_date__gte=as_of or timezone.localdate(),
@@ -361,6 +387,7 @@ class Listing(models.Model):
             self.owner_id is not None
             and getattr(self.owner, "is_active", False)
             and not self.is_hidden
+            and self.archived_at is None
             and self.approval_status == self.APPROVAL_APPROVED
             and self.status == self.STATUS_AVAILABLE
             and self.end_date >= timezone.localdate()
@@ -385,6 +412,10 @@ class Listing(models.Model):
     @property
     def is_verified(self):
         return self.is_approved and self.approved_at is not None
+
+    @property
+    def is_archived(self):
+        return self.archived_at is not None
 
     def submit_for_approval(self):
         self.approval_status = self.APPROVAL_PENDING
@@ -414,13 +445,41 @@ class Listing(models.Model):
         if self.submitted_for_approval_at is None:
             self.submitted_for_approval_at = reviewed_at
 
+    def archive(self, *, by_user, reason, notes=""):
+        if reason not in {
+            self.ARCHIVE_REASON_OWNER,
+            self.ARCHIVE_REASON_ADMIN,
+            self.ARCHIVE_REASON_REPORT,
+        }:
+            raise ValidationError({"archive_reason": "Choose a valid archive reason."})
+
+        archived_at = timezone.now()
+        self.archived_at = archived_at
+        self.archived_by = by_user
+        self.archive_reason = reason
+        self.is_hidden = True
+
+        cleaned_notes = (notes or "").strip()
+        if reason == self.ARCHIVE_REASON_REPORT:
+            self.approval_status = self.APPROVAL_REJECTED
+            self.reviewed_by = by_user
+            self.reviewed_at = archived_at
+            self.approved_at = None
+            self.approval_notes = cleaned_notes
+            if self.submitted_for_approval_at is None:
+                self.submitted_for_approval_at = archived_at
+        elif cleaned_notes:
+            self.approval_notes = cleaned_notes
+
+    def archive_from_report(self, *, reviewer, notes=""):
+        self.archive(
+            by_user=reviewer,
+            reason=self.ARCHIVE_REASON_REPORT,
+            notes=notes,
+        )
+
     def close_from_report(self, *, reviewer, notes=""):
-        reviewed_at = timezone.now()
-        self.approval_status = self.APPROVAL_REJECTED
-        self.reviewed_by = reviewer
-        self.reviewed_at = reviewed_at
-        self.approved_at = None
-        self.approval_notes = notes.strip()
+        self.archive_from_report(reviewer=reviewer, notes=notes)
 
 
 class ListingImage(models.Model):
@@ -507,256 +566,9 @@ class ListingFavorite(models.Model):
         return f"{self.user_id} favorited listing {self.listing_id}"
 
 
-class RoommateGroup(models.Model):
-    lead = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="led_roommate_group")
-    name = models.CharField(max_length=120)
-    description = models.TextField(blank=True)
-    members = models.ManyToManyField(
-        settings.AUTH_USER_MODEL,
-        through="RoommateGroupMembership",
-        related_name="roommate_groups",
-    )
-    is_active = models.BooleanField(default=True, db_index=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ["-updated_at", "-created_at"]
-        indexes = [
-            models.Index(fields=["is_active", "updated_at"], name="roommate_group_active_idx"),
-        ]
-
-    def __str__(self):
-        return self.name
-
-    @property
-    def member_count(self):
-        prefetched = getattr(self, "_prefetched_objects_cache", {})
-        members = prefetched.get("members")
-        if members is not None:
-            return len(members)
-        return self.members.count()
-
-    @property
-    def member_names(self):
-        prefetched = getattr(self, "_prefetched_objects_cache", {})
-        members = prefetched.get("members")
-        if members is None:
-            members = self.members.all()
-        return [member.display_name for member in members]
-
-    def clean(self):
-        super().clean()
-        if not self.lead_id:
-            return
-        user_model = get_user_model()
-        if not user_model._default_manager.filter(
-            pk=self.lead_id,
-            role="student",
-            is_active=True,
-            profile_completed_at__isnull=False,
-        ).exists():
-            raise ValidationError({"name": "Only students with completed roommate profiles can lead a group."})
-
-    def save(self, *args, **kwargs):
-        self.full_clean()
-        super().save(*args, **kwargs)
-
-
-class RoommateGroupMembership(models.Model):
-    group = models.ForeignKey(RoommateGroup, on_delete=models.CASCADE, related_name="memberships")
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="roommate_memberships")
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["created_at", "id"]
-        constraints = [
-            models.UniqueConstraint(fields=["group", "user"], name="roommate_group_membership_unique"),
-            models.UniqueConstraint(fields=["user"], name="roommate_group_membership_one_group_per_user"),
-        ]
-        indexes = [
-            models.Index(fields=["group", "created_at"], name="roommate_group_member_idx"),
-            models.Index(fields=["user", "created_at"], name="roommate_group_user_idx"),
-        ]
-
-    def clean(self):
-        super().clean()
-        if not self.user_id:
-            return
-        user_model = get_user_model()
-        if not user_model._default_manager.filter(
-            pk=self.user_id,
-            role="student",
-            is_active=True,
-            profile_completed_at__isnull=False,
-        ).exists():
-            raise ValidationError({"user": "Only students with completed roommate profiles can join a group."})
-
-    def save(self, *args, **kwargs):
-        self.full_clean()
-        super().save(*args, **kwargs)
-
-
-class RoommatePost(models.Model):
-    HOUSING_HAVE_HOME = ROOMMATE_POST_HOUSING_HAVE_HOME
-    HOUSING_NEED_HOME = ROOMMATE_POST_HOUSING_NEED_HOME
-    HOUSING_CHOICES = ROOMMATE_POST_HOUSING_CHOICES
-
-    author = models.OneToOneField(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name="roommate_post",
-        null=True,
-        blank=True,
-    )
-    group = models.OneToOneField(
-        RoommateGroup,
-        on_delete=models.CASCADE,
-        related_name="roommate_post",
-        null=True,
-        blank=True,
-    )
-    title = models.CharField(max_length=120)
-    description = models.TextField()
-    housing_status = models.CharField(
-        max_length=16,
-        choices=HOUSING_CHOICES,
-        default=HOUSING_NEED_HOME,
-        db_index=True,
-    )
-    current_group_size = models.PositiveSmallIntegerField(default=1)
-    open_spots = models.PositiveSmallIntegerField(default=None, null=True, blank=True)
-    budget_min = models.DecimalField(max_digits=8, decimal_places=0)
-    budget_max = models.DecimalField(max_digits=8, decimal_places=0)
-    move_in_date = models.DateField(db_index=True)
-    neighborhoods = models.CharField(max_length=240, blank=True)
-    is_active = models.BooleanField(default=True, db_index=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    objects = RoommatePostQuerySet.as_manager()
-
-    class Meta:
-        ordering = ["-updated_at", "-created_at"]
-        indexes = [
-            models.Index(fields=["is_active", "updated_at"], name="roommate_post_active_idx"),
-            models.Index(fields=["housing_status", "move_in_date"], name="roommate_post_housing_idx"),
-        ]
-        constraints = [
-            models.CheckConstraint(
-                condition=(Q(author__isnull=False) & Q(group__isnull=True))
-                | (Q(author__isnull=True) & Q(group__isnull=False)),
-                name="roommate_post_exactly_one_owner",
-            ),
-            models.CheckConstraint(
-                condition=Q(housing_status__in=ROOMMATE_POST_HOUSING_VALUES),
-                name="roommate_post_housing_status_valid",
-            ),
-            models.CheckConstraint(
-                condition=Q(current_group_size__gte=1),
-                name="roommate_post_group_size_gte_one",
-            ),
-            models.CheckConstraint(
-                condition=(
-                    Q(housing_status=ROOMMATE_POST_HOUSING_HAVE_HOME, open_spots__gte=1)
-                    | (
-                        Q(housing_status__in=[ROOMMATE_POST_HOUSING_NEED_HOME])
-                        & (Q(open_spots__isnull=True) | Q(open_spots__gte=1))
-                    )
-                ),
-                name="roommate_post_open_spots_valid",
-            ),
-            models.CheckConstraint(
-                condition=Q(budget_min__gte=0),
-                name="roommate_post_budget_min_gte_zero",
-            ),
-            models.CheckConstraint(
-                condition=Q(budget_max__gte=0),
-                name="roommate_post_budget_max_gte_zero",
-            ),
-            models.CheckConstraint(
-                condition=Q(budget_max__gte=F("budget_min")),
-                name="roommate_post_budget_max_gte_min",
-            ),
-        ]
-
-    def __str__(self):
-        return f"{self.title} ({self.owner_display_name})"
-
-    @property
-    def target_household_size(self):
-        if self.open_spots is None:
-            return None
-        return self.current_group_size + self.open_spots
-
-    @property
-    def owner_user(self):
-        if self.group_id:
-            return self.group.lead
-        return self.author
-
-    @property
-    def owner_display_name(self):
-        if self.group_id:
-            return self.group.name
-        if self.author_id:
-            return self.author.display_name
-        return ""
-
-    @property
-    def lead_user(self):
-        return self.owner_user
-
-    @property
-    def member_users(self):
-        if self.group_id:
-            prefetched = getattr(self.group, "_prefetched_objects_cache", {})
-            members = prefetched.get("members")
-            return list(members) if members is not None else list(self.group.members.all())
-        return [self.author] if self.author_id else []
-
-    @property
-    def neighborhoods_list(self):
-        return [item.strip() for item in self.neighborhoods.split(",") if item.strip()]
-
-    def clean(self):
-        super().clean()
-        if bool(self.author_id) == bool(self.group_id):
-            raise ValidationError({"title": "Choose either an individual post owner or a group owner."})
-
-        user_model = get_user_model()
-        if (
-            self.author_id
-            and not user_model._default_manager.filter(
-                pk=self.author_id,
-                role="student",
-                is_active=True,
-                profile_completed_at__isnull=False,
-            ).exists()
-        ):
-            raise ValidationError({"title": "Only students with completed roommate profiles can post."})
-        if self.group_id:
-            if not RoommateGroup.objects.filter(
-                pk=self.group_id,
-                is_active=True,
-                lead__role="student",
-                lead__is_active=True,
-                lead__profile_completed_at__isnull=False,
-            ).exists():
-                raise ValidationError({"title": "Only active student groups with completed profiles can post."})
-            self.current_group_size = self.group.member_count
-
-        if self.budget_min is not None and self.budget_max is not None and self.budget_min > self.budget_max:
-            raise ValidationError({"budget_max": "Budget max must be greater than or equal to budget min."})
-        if self.housing_status == self.HOUSING_HAVE_HOME and self.open_spots is None:
-            raise ValidationError({"open_spots": "Add how many open roommate spots you have."})
-        if self.open_spots is not None and self.open_spots < 1:
-            raise ValidationError({"open_spots": "Open roommate spots must be at least 1."})
-        if self.move_in_date and self.move_in_date < timezone.localdate():
-            raise ValidationError({"move_in_date": "Move-in date must be today or later."})
-
-    def save(self, *args, **kwargs):
-        self.full_clean()
-        super().save(*args, **kwargs)
+RoommateGroup = roommate_models.RoommateGroup
+RoommateGroupMembership = roommate_models.RoommateGroupMembership
+RoommatePost = roommate_models.RoommatePost
 
 
 class ListingReview(models.Model):
@@ -794,7 +606,12 @@ class ListingReview(models.Model):
                 listing_owner_id = Listing.objects.filter(pk=self.listing_id).values_list("owner_id", flat=True).first()
             if self.author_id and listing_owner_id == self.author_id:
                 raise ValidationError({"comment": "You cannot review your own listing."})
-            if not Listing.objects.filter(pk=self.listing_id, approval_status=Listing.APPROVAL_APPROVED).exists():
+            if not Listing.objects.filter(
+                pk=self.listing_id,
+                approval_status=Listing.APPROVAL_APPROVED,
+                archived_at__isnull=True,
+                is_hidden=False,
+            ).exists():
                 raise ValidationError({"comment": "Only approved listings can receive public reviews."})
             if self.author_id and not self.listing.conversations.filter(participant_id=self.author_id).exists():
                 raise ValidationError({"comment": "Contact the lister before leaving a resident review."})
@@ -881,7 +698,12 @@ class ListingReport(models.Model):
                 listing_owner_id = Listing.objects.filter(pk=self.listing_id).values_list("owner_id", flat=True).first()
             if self.reporter_id and listing_owner_id == self.reporter_id:
                 raise ValidationError({"details": "You cannot report your own listing."})
-            if not Listing.objects.filter(pk=self.listing_id, approval_status=Listing.APPROVAL_APPROVED).exists():
+            if not Listing.objects.filter(
+                pk=self.listing_id,
+                approval_status=Listing.APPROVAL_APPROVED,
+                archived_at__isnull=True,
+                is_hidden=False,
+            ).exists():
                 raise ValidationError({"details": "Only approved listings can be reported."})
         if self.status in {self.STATUS_RESOLVED, self.STATUS_DISMISSED} and not (self.resolution_notes or "").strip():
             raise ValidationError({"resolution_notes": "Add resolution notes before closing a report."})

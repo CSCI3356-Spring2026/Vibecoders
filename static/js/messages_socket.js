@@ -7,6 +7,7 @@ export function createMessagesSocket({
     onPayload,
     onErrorMessage,
     onAuthExpired,
+    onConnectionLost,
 }) {
     let socket = null;
     let reconnectAttempts = 0;
@@ -64,6 +65,7 @@ export function createMessagesSocket({
                 return;
             }
 
+            onConnectionLost?.();
             if (reconnectTimerId) {
                 return;
             }

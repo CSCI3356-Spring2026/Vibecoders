@@ -1,4 +1,5 @@
 from django.contrib.auth.decorators import login_required
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
 
 from listings.selectors import marketplace_listings_for_user
@@ -29,3 +30,9 @@ def terms_of_service(request):
 
 def privacy_policy(request):
     return render(request, "core/privacy_policy.html")
+
+
+def healthz(request):
+    response = JsonResponse({"status": "ok"})
+    response["Cache-Control"] = "no-store"
+    return response

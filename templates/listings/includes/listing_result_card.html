@@ -19,14 +19,15 @@
         </div>
         <div class="listing-card-body">
             <div class="listing-card-topline">
-                <div class="listing-card-badges">
+                <div class="listing-card-meta-row">
                     {% if listing.is_verified %}
-                        <span class="listing-card-verified">Verified</span>
+                        <span class="listing-card-meta-chip is-verified">Verified</span>
                     {% endif %}
-                    <span class="listing-card-badge">{{ listing.get_lease_type_display }}</span>
-                    <span class="listing-card-chip">{{ listing.get_property_type_display }}</span>
+                    <span class="listing-card-meta-chip">{{ listing.get_lease_type_display }}</span>
+                    <span class="listing-card-meta-chip {% if listing.status == 'AVAILABLE' %}is-available{% elif listing.status == 'PENDING' %}is-pending{% else %}is-taken{% endif %}">
+                        {{ listing.get_status_display }}
+                    </span>
                 </div>
-                <span class="listing-card-status {% if listing.status == 'AVAILABLE' %}is-available{% elif listing.status == 'PENDING' %}is-pending{% else %}is-taken{% endif %}">{{ listing.get_status_display }}</span>
             </div>
             <div class="listing-card-price-row">
                 <span class="listing-card-price">${{ listing.price|floatformat:0 }}/mo</span>
@@ -66,7 +67,14 @@
                 aria-pressed="{% if listing.is_favorited %}true{% else %}false{% endif %}"
                 aria-label="{% if listing.is_favorited %}Remove saved listing{% else %}Save listing{% endif %}"
             >
-                <span class="listing-favorite-button-icon" aria-hidden="true"></span>
+                <svg
+                    class="listing-favorite-button-icon"
+                    aria-hidden="true"
+                    viewBox="0 0 16 20"
+                    fill="none"
+                >
+                    <path d="M4 2.75A1.25 1.25 0 0 1 5.25 1.5h5.5A1.25 1.25 0 0 1 12 2.75V15.5l-4-2.6-4 2.6V2.75Z"></path>
+                </svg>
                 <span class="listing-favorite-button-label">{% if listing.is_favorited %}Saved{% else %}Save{% endif %}</span>
             </button>
         </form>

@@ -10,7 +10,7 @@
     <a class="{{ link_class|default:'nav-button' }}" href="{% url 'users:posts' %}">My Listings</a>
 {% endif %}
 {% if request.user.is_authenticated and request.user.is_student %}
-    <a class="{{ link_class|default:'nav-button' }}" href="{% url 'listings:roommates_hub' %}">Roommates</a>
+    <a class="{{ link_class|default:'nav-button' }}" href="{% url 'roommates:hub' %}">Roommates</a>
 {% endif %}
 {% if request.user.is_authenticated %}
     <a

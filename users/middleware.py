@@ -62,13 +62,18 @@ class CurrentLegalAcceptanceMiddleware:
         if not getattr(user, "is_authenticated", False):
             return None
 
-        if not getattr(user, "terms_accepted_at", None) or not getattr(user, "privacy_accepted_at", None):
-            return None
-        if user.has_current_legal_acceptance:
-            return None
-
         resolver_match = getattr(request, "resolver_match", None)
-        if resolver_match and resolver_match.view_name in self.allowed_view_names:
+        if resolver_match:
+            if settings.DJANGO_ADMIN_ENABLED and resolver_match.app_name == "admin":
+                return None
+            if resolver_match.view_name in self.allowed_view_names:
+                return None
+
+        if (
+            getattr(user, "terms_accepted_at", None)
+            and getattr(user, "privacy_accepted_at", None)
+            and user.has_current_legal_acceptance
+        ):
             return None
 
         logout(request)

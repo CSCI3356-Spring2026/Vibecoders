@@ -39,7 +39,11 @@ class RoommateGroupTests(TestCase):
         user.save(update_fields=["profile_completed_at"])
 
     def _browse_result_rows(self, response):
-        return list(response.context["results"].object_list)
+        try:
+            page = response.context["results"]
+        except KeyError:
+            page = response.context["people_results"]
+        return list(page.object_list)
 
     def _hub_people_rows(self, response):
         return list(response.context["people_results"].object_list)
@@ -189,7 +193,7 @@ class RoommateGroupTests(TestCase):
         RoommateGroupMembership.objects.create(group=group, user=buddy)
 
         self.client.force_login(self.user)
-        response = self.client.get(reverse("users:browse_roommates"), {"q": "Casey"})
+        response = self.client.get(reverse("users:browse_roommates"), {"q": "Casey"}, follow=True)
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "52% match")
@@ -221,8 +225,8 @@ class RoommateGroupTests(TestCase):
         )
         self.client.force_login(self.user)
 
-        browse_response = self.client.get(reverse("users:browse_roommates"))
-        hub_response = self.client.get(reverse("listings:roommates_hub"), {"tab": "people"})
+        browse_response = self.client.get(reverse("users:browse_roommates"), follow=True)
+        hub_response = self.client.get(reverse("roommates:hub"), {"tab": "people"})
 
         browse_rows = [(row["user"].id, row["score"]) for row in self._browse_result_rows(browse_response)]
         hub_rows = [(row["user"].id, row["score"]) for row in self._hub_people_rows(hub_response)]
@@ -241,10 +245,10 @@ class RoommateGroupTests(TestCase):
 
         self.client.force_login(self.user)
 
-        browse_response = self.client.get(reverse("users:browse_roommates"))
-        hub_response = self.client.get(reverse("listings:roommates_hub"), {"tab": "people"})
+        browse_response = self.client.get(reverse("users:browse_roommates"), follow=True)
+        hub_response = self.client.get(reverse("roommates:hub"), {"tab": "people"})
 
-        self.assertEqual(browse_response.context["results"].paginator.count, 300)
+        self.assertEqual(browse_response.context["people_results"].paginator.count, 300)
         self.assertEqual(hub_response.context["people_results"].paginator.count, 300)
 
     def test_people_discovery_populates_existing_conversations_and_invite_state_for_page_rows(self):
@@ -288,8 +292,8 @@ class RoommateGroupTests(TestCase):
 
         self.client.force_login(self.user)
 
-        browse_response = self.client.get(reverse("users:browse_roommates"))
-        hub_response = self.client.get(reverse("listings:roommates_hub"), {"tab": "people"})
+        browse_response = self.client.get(reverse("users:browse_roommates"), follow=True)
+        hub_response = self.client.get(reverse("roommates:hub"), {"tab": "people"})
 
         browse_rows = {row["user"].id: row for row in self._browse_result_rows(browse_response)}
         hub_rows = {row["user"].id: row for row in self._hub_people_rows(hub_response)}
@@ -299,7 +303,7 @@ class RoommateGroupTests(TestCase):
             browse_rows[invite_candidate.id]["invite_status"],
             RoommateGroupInvite.STATUS_PENDING_INVITEE,
         )
-        self.assertTrue(browse_rows[member_candidate.id]["is_in_group"])
+        self.assertTrue(browse_rows[member_candidate.id]["already_in_group"])
 
         self.assertEqual(hub_rows[chat_candidate.id]["existing_convo"].id, conversation.id)
         self.assertEqual(
