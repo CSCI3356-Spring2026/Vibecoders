@@ -67,7 +67,33 @@ def _student_profile_frequency_boolean_field(name):
     return field
 
 
+def _student_profile_frequency_column_types(schema_editor):
+    if schema_editor.connection.vendor == "postgresql":
+        with schema_editor.connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT column_name, data_type
+                FROM information_schema.columns
+                WHERE table_name = %s
+                  AND column_name IN (%s, %s)
+                """,
+                ["users_studentprofile", "drink", "party"],
+            )
+            return {column_name: (data_type or "").lower() for column_name, data_type in cursor.fetchall()}
+
+    if schema_editor.connection.vendor == "sqlite":
+        with schema_editor.connection.cursor() as cursor:
+            cursor.execute("PRAGMA table_info(users_studentprofile)")
+            return {row[1]: (row[2] or "").lower() for row in cursor.fetchall() if row[1] in {"drink", "party"}}
+
+    return {}
+
+
 def _migrate_student_profile_frequency_fields(apps, schema_editor):
+    column_types = _student_profile_frequency_column_types(schema_editor)
+    if column_types and all("bool" not in column_type for column_type in column_types.values()):
+        return
+
     if schema_editor.connection.vendor == "postgresql":
         schema_editor.execute(
             """
@@ -106,17 +132,21 @@ def _migrate_student_profile_frequency_fields(apps, schema_editor):
     )
     schema_editor.alter_field(
         student_model,
-        student_model._meta.get_field("drink"),
+        _student_profile_frequency_boolean_field("drink"),
         _student_profile_frequency_choice_field("drink"),
     )
     schema_editor.alter_field(
         student_model,
-        student_model._meta.get_field("party"),
+        _student_profile_frequency_boolean_field("party"),
         _student_profile_frequency_choice_field("party"),
     )
 
 
 def _reverse_student_profile_frequency_fields(apps, schema_editor):
+    column_types = _student_profile_frequency_column_types(schema_editor)
+    if column_types and all("bool" in column_type for column_type in column_types.values()):
+        return
+
     if schema_editor.connection.vendor == "postgresql":
         schema_editor.execute(
             """
@@ -155,12 +185,12 @@ def _reverse_student_profile_frequency_fields(apps, schema_editor):
     )
     schema_editor.alter_field(
         student_model,
-        student_model._meta.get_field("drink"),
+        _student_profile_frequency_choice_field("drink"),
         _student_profile_frequency_boolean_field("drink"),
     )
     schema_editor.alter_field(
         student_model,
-        student_model._meta.get_field("party"),
+        _student_profile_frequency_choice_field("party"),
         _student_profile_frequency_boolean_field("party"),
     )
 

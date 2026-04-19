@@ -43,8 +43,8 @@ class Migration(migrations.Migration):
                 ("bedtime", models.PositiveSmallIntegerField(blank=True, null=True)),
                 ("noise_level", models.PositiveSmallIntegerField(blank=True, null=True)),
                 ("smoke", models.BooleanField(default=False)),
-                ("drink", models.BooleanField(blank=True, null=True)),
-                ("party", models.BooleanField(blank=True, null=True)),
+                ("drink", models.PositiveSmallIntegerField(blank=True, null=True)),
+                ("party", models.PositiveSmallIntegerField(blank=True, null=True)),
                 ("pets", models.BooleanField(default=False)),
                 (
                     "user",
