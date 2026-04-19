@@ -9,7 +9,7 @@ services:
     healthCheckPath: /healthz/
     buildCommand: ./build.sh
     preDeployCommand: python manage.py migrate
-    startCommand: daphne -b 0.0.0.0 -p $PORT vibecoders.asgi:application
+    startCommand: ./start.sh
     disk:
       name: media
       mountPath: /var/data/padly-media

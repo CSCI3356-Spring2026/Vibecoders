@@ -166,6 +166,7 @@ daphne vibecoders.asgi:application
 
 - Redis is required for production channels.
 - The repo now includes a Render-ready `build.sh`, `.python-version`, and `render.yaml`.
+- The repo also includes `start.sh`, which runs migrations before Daphne starts. This is the free-plan fallback when Render pre-deploy commands are unavailable.
 - Static assets are collected into `STATIC_ROOT` and served in production by WhiteNoise.
 - Render health checks can target `/healthz/` instead of the marketing landing page.
 - Render deployments can keep uploaded media on a persistent disk by pointing `DJANGO_MEDIA_ROOT` at the disk mount path.
