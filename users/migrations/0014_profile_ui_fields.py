@@ -51,6 +51,22 @@ def _migrate_profile_fields(apps, schema_editor):
         profile.save(update_fields=["gender", "gender_other"])
 
 
+def _student_profile_frequency_choice_field(name):
+    field = models.PositiveSmallIntegerField(
+        blank=True,
+        null=True,
+        choices=[(1, "Never"), (2, "Rarely"), (3, "Sometimes"), (4, "Often"), (5, "Daily")],
+    )
+    field.set_attributes_from_name(name)
+    return field
+
+
+def _student_profile_frequency_boolean_field(name):
+    field = models.BooleanField(default=False)
+    field.set_attributes_from_name(name)
+    return field
+
+
 def _migrate_student_profile_frequency_fields(apps, schema_editor):
     if schema_editor.connection.vendor == "postgresql":
         schema_editor.execute(
@@ -72,6 +88,7 @@ def _migrate_student_profile_frequency_fields(apps, schema_editor):
         )
         return
 
+    student_model = apps.get_model("users", "StudentProfile")
     schema_editor.execute(
         """
         UPDATE users_studentprofile
@@ -86,6 +103,16 @@ def _migrate_student_profile_frequency_fields(apps, schema_editor):
                 ELSE NULL
             END
         """
+    )
+    schema_editor.alter_field(
+        student_model,
+        student_model._meta.get_field("drink"),
+        _student_profile_frequency_choice_field("drink"),
+    )
+    schema_editor.alter_field(
+        student_model,
+        student_model._meta.get_field("party"),
+        _student_profile_frequency_choice_field("party"),
     )
 
 
@@ -110,6 +137,7 @@ def _reverse_student_profile_frequency_fields(apps, schema_editor):
         )
         return
 
+    student_model = apps.get_model("users", "StudentProfile")
     schema_editor.execute(
         """
         UPDATE users_studentprofile
@@ -124,6 +152,16 @@ def _reverse_student_profile_frequency_fields(apps, schema_editor):
                 ELSE 0
             END
         """
+    )
+    schema_editor.alter_field(
+        student_model,
+        student_model._meta.get_field("drink"),
+        _student_profile_frequency_boolean_field("drink"),
+    )
+    schema_editor.alter_field(
+        student_model,
+        student_model._meta.get_field("party"),
+        _student_profile_frequency_boolean_field("party"),
     )
 
 
@@ -210,20 +248,12 @@ class Migration(migrations.Migration):
                 migrations.AlterField(
                     model_name="studentprofile",
                     name="drink",
-                    field=models.PositiveSmallIntegerField(
-                        blank=True,
-                        null=True,
-                        choices=[(1, "Never"), (2, "Rarely"), (3, "Sometimes"), (4, "Often"), (5, "Daily")],
-                    ),
+                    field=_student_profile_frequency_choice_field("drink"),
                 ),
                 migrations.AlterField(
                     model_name="studentprofile",
                     name="party",
-                    field=models.PositiveSmallIntegerField(
-                        blank=True,
-                        null=True,
-                        choices=[(1, "Never"), (2, "Rarely"), (3, "Sometimes"), (4, "Often"), (5, "Daily")],
-                    ),
+                    field=_student_profile_frequency_choice_field("party"),
                 ),
             ],
         ),

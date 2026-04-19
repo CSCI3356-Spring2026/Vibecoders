@@ -22,7 +22,9 @@ try:
 except ImportError:  # pragma: no cover - exercised via subprocess tests.
     dj_database_url = None
 
-load_dotenv()
+RUNNING_TESTS = "test" in sys.argv
+if os.getenv("DJANGO_DISABLE_DOTENV", "").strip().lower() not in {"1", "true", "yes", "on"} and not RUNNING_TESTS:
+    load_dotenv()
 
 
 def env_bool(name, default=False):
@@ -70,7 +72,6 @@ LOCAL_DEBUG_COMMANDS = {
     "seed_roommate_posts",
     "seed_demo_data",
 }
-RUNNING_TESTS = "test" in sys.argv
 DEVELOPMENT_SECRET_KEY = "padly-local-dev-secret-key-2026-04-01-keep-out-of-production-only"
 
 # SECURITY WARNING: don't run with debug turned on in production!
