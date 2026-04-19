@@ -469,6 +469,173 @@
     align-content: start;
 }
 
+.rmhub-people-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(17.5rem, 1fr));
+    gap: 0.9rem;
+}
+
+.rmhub-person-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    min-height: 100%;
+    padding: 1rem;
+    border: 1px solid rgba(var(--gray-700-rgb), 0.12);
+    border-radius: 1rem;
+    background:
+        radial-gradient(circle at top right, rgba(var(--primary-rgb), 0.08), transparent 12rem),
+        linear-gradient(180deg, rgba(var(--white-rgb), 1), rgba(var(--gray-100-rgb), 0.34));
+    box-shadow: 0 10px 24px rgba(var(--gray-900-rgb), 0.05);
+    transition:
+        transform 140ms ease,
+        border-color 140ms ease,
+        box-shadow 140ms ease;
+}
+
+.rmhub-person-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(var(--primary-rgb), 0.18);
+    box-shadow: 0 18px 32px rgba(var(--gray-900-rgb), 0.08);
+}
+
+.rmhub-person-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.rmhub-person-identity {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    min-width: 0;
+    color: inherit;
+    text-decoration: none;
+}
+
+.rmhub-person-identity:hover {
+    text-decoration: none;
+}
+
+.rmhub-person-avatar {
+    border-color: rgba(var(--primary-rgb), 0.18);
+    background: rgba(var(--primary-rgb), 0.08);
+}
+
+.rmhub-person-copy {
+    display: grid;
+    gap: 0.18rem;
+    min-width: 0;
+}
+
+.rmhub-person-name {
+    margin: 0;
+    color: var(--text-strong);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.rmhub-person-subtitle {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.84rem;
+    line-height: 1.45;
+}
+
+.rmhub-person-score {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    min-height: 1.7rem;
+    padding: 0.32rem 0.6rem;
+    border: 1px solid rgba(var(--gray-700-rgb), 0.12);
+    border-radius: 999px;
+    background: rgba(var(--white-rgb), 0.9);
+    color: var(--gray-700);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+}
+
+.rmhub-person-score.is-strong {
+    border-color: rgba(var(--primary-rgb), 0.22);
+    background: rgba(var(--primary-rgb), 0.1);
+    color: var(--primary-600);
+}
+
+.rmhub-person-score.is-good {
+    border-color: rgba(var(--secondary-rgb), 0.2);
+    background: rgba(var(--secondary-rgb), 0.1);
+    color: var(--secondary-600);
+}
+
+.rmhub-person-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.rmhub-person-fact {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.6rem;
+    padding: 0.24rem 0.5rem;
+    border: 1px solid rgba(var(--gray-700-rgb), 0.1);
+    border-radius: 999px;
+    background: rgba(var(--gray-100-rgb), 0.72);
+    color: var(--gray-700);
+    font-size: 0.74rem;
+    font-weight: 600;
+}
+
+.rmhub-person-bio {
+    margin: 0;
+    color: var(--text-default);
+    font-size: 0.88rem;
+    line-height: 1.58;
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+}
+
+.rmhub-person-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: auto;
+}
+
+.rmhub-person-actions form {
+    display: flex;
+    margin: 0;
+}
+
+.rmhub-person-message-form {
+    margin-top: 0.05rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid rgba(var(--gray-700-rgb), 0.1);
+}
+
+.rmhub-person-message-form .form-control {
+    min-height: 6rem;
+    border-color: rgba(var(--gray-700-rgb), 0.12);
+    border-radius: var(--radius-md);
+    background: rgba(var(--gray-100-rgb), 0.42);
+    box-shadow: none;
+}
+
+.rmhub-person-message-form .form-control:focus {
+    border-color: rgba(var(--primary-rgb), 0.28);
+    background: rgba(var(--white-rgb), 0.98);
+    box-shadow: 0 0 0 3px var(--focus-ring-color);
+}
+
 /* ── My-post card actions ────────────────────────────────────────────────── */
 .rmhub-mypost-card-actions {
     display: flex;
@@ -642,5 +809,18 @@
 
     .rmhub-dialog-panel {
         max-height: 92vh;
+    }
+
+    .rmhub-person-head {
+        flex-direction: column;
+    }
+
+    .rmhub-person-score {
+        align-self: flex-start;
+    }
+
+    .rmhub-person-actions .btn,
+    .rmhub-person-actions form {
+        width: 100%;
     }
 }

@@ -1,7 +1,7 @@
 const payloadElement = document.getElementById("listing-commute-config");
 const root = document.querySelector("[data-listing-commute]");
 
-function createCommuteMap(mapConfig, mapElement, noteElement) {
+function createCommuteMap(mapConfig, mapElement) {
     if (!mapConfig?.style_url || typeof maplibregl === "undefined" || !mapElement) {
         return null;
     }
@@ -84,9 +84,6 @@ function createCommuteMap(mapConfig, mapElement, noteElement) {
             bounds.extend([destination.lng, destination.lat]);
             map.fitBounds(bounds, { padding: 36, maxZoom: 13, duration: 0 });
 
-            if (noteElement) {
-                noteElement.textContent = "Route to Boston College.";
-            }
         },
     };
 }
@@ -98,8 +95,16 @@ if (payloadElement && root) {
     const distanceValue = root.querySelector("[data-commute-distance]");
     const mapElement = root.querySelector("[data-commute-map]");
     const mapNote = root.querySelector("[data-commute-map-note]");
-    const commuteMap = createCommuteMap(config.map, mapElement, mapNote);
+    const commuteMap = createCommuteMap(config.map, mapElement);
     let payload = null;
+
+    const setMapNote = (message, { hidden = false } = {}) => {
+        if (!mapNote) {
+            return;
+        }
+        mapNote.textContent = message;
+        mapNote.hidden = hidden;
+    };
 
     const setUnavailable = (message) => {
         if (minutesValue) {
@@ -108,9 +113,7 @@ if (payloadElement && root) {
         if (distanceValue) {
             distanceValue.textContent = "Unavailable";
         }
-        if (mapNote) {
-            mapNote.textContent = message;
-        }
+        setMapNote(message);
     };
 
     const applyMode = (modeValue) => {
@@ -126,6 +129,7 @@ if (payloadElement && root) {
         if (distanceValue) {
             distanceValue.textContent = route.distance_miles ? `${route.distance_miles} mi` : "Unavailable";
         }
+        setMapNote("", { hidden: true });
         commuteMap?.renderRoute(route.geometry, payload.origin, payload.destination);
     };
 
@@ -140,6 +144,7 @@ if (payloadElement && root) {
     };
 
     const loadCommute = async () => {
+        setMapNote("Loading route map.");
         try {
             const response = await fetch(config.endpoint_url, {
                 headers: {

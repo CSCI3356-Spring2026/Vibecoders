@@ -512,6 +512,8 @@ class UserPageTests(TestCase):
         self.assertContains(response, "Message Riley")
         self.assertContains(response, reverse("communications:start_direct_conversation", args=[target.id]))
         self.assertContains(response, "Start chat")
+        self.assertContains(response, "css/profile-public.css")
+        self.assertContains(response, "profile-public-hero")
 
     def test_user_can_start_direct_conversation_from_public_profile(self):
         target = User.objects.create_user(username="match", email="match@bc.edu", password="test", first_name="Riley")
@@ -1258,6 +1260,39 @@ assert.equal(root.classList.contains("is-open"), false);
 
         self.assertContains(response, "/users/admin-dashboard/")
         self.assertContains(response, "Admin Dashboard")
+
+    def test_admin_dashboard_surfaces_operational_sections_and_recent_activity(self):
+        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+        owner = User.objects.create_user(username="owner", email="owner@bc.edu", password="test")
+        reporter = User.objects.create_user(username="reporter", email="reporter@bc.edu", password="test")
+        listing = owner.listings.create(
+            title="Queue listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status=Listing.APPROVAL_APPROVED,
+        )
+        ListingReport.objects.create(
+            listing=listing,
+            reporter=reporter,
+            reason=ListingReport.REASON_SPAM,
+            details="Suspicious duplicate.",
+        )
+        self.client.force_login(admin)
+
+        response = self.client.get(reverse("users:admin_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Operations console")
+        self.assertContains(response, "Priority queues")
+        self.assertContains(response, "Recent reports")
+        self.assertContains(response, "Newest accounts")
+        self.assertContains(response, "Recent traffic")
+        self.assertContains(response, "Queue listing")
+        self.assertContains(response, "owner@bc.edu")
+        self.assertContains(response, "reporter@bc.edu")
 
     def test_admin_listings_page_is_paginated(self):
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")

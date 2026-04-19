@@ -12,7 +12,6 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from communications.models import ListingConversation, ListingMessage
 from communications.selectors import user_related_conversations_queryset, user_related_messages_queryset
 from core.utils import get_page, preserved_query_suffix, safe_next_url
 from listings.forms import AdminListingApprovalForm, AdminListingReportResolutionForm
@@ -23,7 +22,7 @@ from listings.selectors import listing_reports_queryset_for_admin, listing_revie
 
 from .admin_state import may_deactivate, may_lose_admin_access
 from .models import Role
-from .selectors import admin_dashboard_metrics, admin_listings_queryset, admin_reports_queryset, admin_users_queryset
+from .selectors import admin_dashboard_snapshot, admin_listings_queryset, admin_reports_queryset, admin_users_queryset
 
 ADMIN_LISTINGS_PER_PAGE = 20
 ADMIN_USERS_PER_PAGE = 20
@@ -190,20 +189,13 @@ def admin_dashboard(request):
     query = request.GET.get("q", "").strip()
     selected_status = request.GET.get("status", "").strip()
     selected_review_status = request.GET.get("review_status", "").strip()
-    listings_qs = admin_listings_queryset(
+    metrics = admin_dashboard_snapshot(
         query=query,
         selected_status=selected_status,
         selected_review_status=selected_review_status,
     )
-
-    filtered_listings_count = listings_qs.count()
-    metrics = admin_dashboard_metrics()
     context = {
-        "listings": listings_qs[:10],
-        "filtered_listings_count": filtered_listings_count,
         **metrics,
-        "total_conversations": ListingConversation.objects.count(),
-        "total_messages": ListingMessage.objects.count(),
         "query": query,
         "selected_status": selected_status,
         "selected_review_status": selected_review_status,

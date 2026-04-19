@@ -1,0 +1,358 @@
+.profile-public-page {
+    position: relative;
+}
+
+.profile-public-shell {
+    display: grid;
+    gap: 1rem;
+}
+
+.profile-public-hero {
+    position: relative;
+    overflow: hidden;
+    padding: 1.3rem;
+    border: 1px solid rgba(var(--gray-700-rgb), 0.12);
+    border-radius: 1.25rem;
+    background: rgba(var(--white-rgb), 0.98);
+    box-shadow: 0 18px 34px rgba(var(--gray-900-rgb), 0.05);
+}
+
+.profile-public-hero::before,
+.profile-public-hero::after {
+    content: none;
+    position: absolute;
+    border-radius: 999px;
+    pointer-events: none;
+}
+
+.profile-public-hero::before {
+    top: -8rem;
+    right: -4rem;
+    width: 16rem;
+    height: 16rem;
+    background: rgba(var(--primary-rgb), 0.08);
+}
+
+.profile-public-hero::after {
+    bottom: -7rem;
+    left: -5rem;
+    width: 14rem;
+    height: 14rem;
+    background: rgba(var(--secondary-rgb), 0.08);
+}
+
+.profile-public-hero-main,
+.profile-public-compatibility {
+    position: relative;
+    z-index: 1;
+}
+
+.profile-public-hero-main {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.4rem;
+}
+
+.profile-public-identity {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-width: 0;
+}
+
+.profile-public-avatar {
+    --avatar-size: 5.5rem;
+    border-color: rgba(var(--white-rgb), 0.92);
+    box-shadow:
+        0 16px 28px rgba(var(--gray-900-rgb), 0.12),
+        0 0 0 4px rgba(var(--white-rgb), 0.5);
+}
+
+.profile-public-copy {
+    display: grid;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+.profile-public-kicker,
+.profile-public-panel-kicker,
+.profile-public-score-label {
+    margin: 0;
+    color: var(--primary-600);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.profile-public-title {
+    margin: 0;
+    color: var(--gray-900);
+    font-size: clamp(1.85rem, 4vw, 2.5rem);
+    font-weight: 800;
+    line-height: 1.02;
+    letter-spacing: -0.05em;
+}
+
+.profile-public-subtitle {
+    margin: 0;
+    color: var(--gray-700);
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.profile-public-facts,
+.profile-public-highlight-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.profile-public-facts {
+    margin-top: 0.25rem;
+}
+
+.profile-public-fact,
+.profile-public-highlight-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.8rem;
+    padding: 0.28rem 0.65rem;
+    border: 1px solid rgba(var(--gray-700-rgb), 0.12);
+    border-radius: 999px;
+    background: rgba(var(--white-rgb), 0.84);
+    color: var(--gray-700);
+    font-size: 0.76rem;
+    font-weight: 700;
+}
+
+.profile-public-actions {
+    display: grid;
+    gap: 0.55rem;
+    min-width: min(16rem, 100%);
+}
+
+.profile-public-actions form {
+    display: flex;
+}
+
+.profile-public-actions .btn {
+    width: 100%;
+    justify-content: center;
+}
+
+.profile-public-compatibility {
+    display: grid;
+    grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr);
+    gap: 0.85rem;
+    margin-top: 1rem;
+}
+
+.profile-public-score {
+    display: grid;
+    gap: 0.14rem;
+    align-content: start;
+    padding: 0.95rem 1rem;
+    border: 1px solid rgba(var(--gray-700-rgb), 0.12);
+    border-radius: 1rem;
+    background: rgba(var(--white-rgb), 0.82);
+}
+
+.profile-public-score.is-strong {
+    border-color: rgba(var(--primary-rgb), 0.26);
+    background: rgba(var(--primary-rgb), 0.08);
+}
+
+.profile-public-score.is-good {
+    border-color: rgba(var(--secondary-rgb), 0.24);
+    background: rgba(var(--secondary-rgb), 0.08);
+}
+
+.profile-public-score-value {
+    color: var(--gray-900);
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.06em;
+    line-height: 1;
+}
+
+.profile-public-score-copy {
+    color: var(--gray-700);
+    font-size: 0.88rem;
+    line-height: 1.45;
+}
+
+.profile-public-content {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(18rem, 0.9fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+.profile-public-main,
+.profile-public-side {
+    display: grid;
+    gap: 1rem;
+}
+
+.profile-public-panel {
+    padding: 1.15rem 1.2rem;
+    border: 1px solid rgba(var(--gray-700-rgb), 0.1);
+    border-radius: 1rem;
+    background: rgba(var(--white-rgb), 0.98);
+    box-shadow: 0 12px 26px rgba(var(--gray-900-rgb), 0.04);
+}
+
+.profile-public-panel-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.85rem;
+}
+
+.profile-public-panel-note {
+    max-width: 15rem;
+    margin: 0;
+    color: var(--gray-500);
+    font-size: 0.8rem;
+    line-height: 1.5;
+    text-align: right;
+}
+
+.profile-public-bio,
+.profile-public-empty-copy {
+    margin: 0;
+    color: var(--gray-700);
+    font-size: 0.95rem;
+    line-height: 1.72;
+}
+
+.profile-public-empty-copy {
+    color: var(--gray-500);
+}
+
+.profile-public-message-form .form-control {
+    min-height: 8rem;
+    border-radius: 0.95rem;
+    background: rgba(var(--white-rgb), 0.94);
+}
+
+.profile-public-lifestyle-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.profile-public-lifestyle-card {
+    --lifestyle-match-rgb: var(--gray-700-rgb);
+    display: grid;
+    gap: 0.28rem;
+    min-height: 7rem;
+    padding: 0.95rem;
+    border: 1px solid rgba(var(--gray-700-rgb), 0.1);
+    border-radius: 0.95rem;
+    background: rgba(var(--white-rgb), 0.88);
+    transition:
+        transform 140ms ease,
+        border-color 140ms ease,
+        box-shadow 140ms ease,
+        background-color 140ms ease;
+}
+
+.profile-public-lifestyle-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(var(--gray-700-rgb), 0.16);
+    box-shadow: 0 12px 24px rgba(var(--gray-900-rgb), 0.06);
+}
+
+.profile-public-lifestyle-card[class*="lifestyle-match-"] {
+    border-color: rgba(var(--lifestyle-match-rgb), 0.28);
+    background: rgba(var(--lifestyle-match-rgb), 0.1);
+}
+
+.profile-public-lifestyle-card.lifestyle-match-strong {
+    --lifestyle-match-rgb: 31, 122, 62;
+}
+
+.profile-public-lifestyle-card.lifestyle-match-good {
+    --lifestyle-match-rgb: 103, 168, 85;
+}
+
+.profile-public-lifestyle-card.lifestyle-match-mid {
+    --lifestyle-match-rgb: 206, 170, 56;
+}
+
+.profile-public-lifestyle-card.lifestyle-match-low {
+    --lifestyle-match-rgb: 211, 136, 62;
+}
+
+.profile-public-lifestyle-card.lifestyle-match-poor {
+    --lifestyle-match-rgb: 183, 74, 68;
+}
+
+.profile-public-lifestyle-label {
+    color: var(--gray-700);
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.profile-public-lifestyle-value {
+    color: var(--gray-900);
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1.35;
+}
+
+@media (max-width: 991px) {
+    .profile-public-hero-main,
+    .profile-public-content,
+    .profile-public-compatibility {
+        grid-template-columns: 1fr;
+    }
+
+    .profile-public-hero-main {
+        display: grid;
+    }
+
+    .profile-public-actions {
+        min-width: 0;
+        grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    }
+
+    .profile-public-panel-note {
+        max-width: none;
+        text-align: left;
+    }
+}
+
+@media (max-width: 767px) {
+    .profile-public-hero {
+        padding: 1rem;
+        border-radius: 1rem;
+    }
+
+    .profile-public-identity {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .profile-public-avatar {
+        --avatar-size: 4.9rem;
+    }
+
+    .profile-public-panel {
+        padding: 1rem;
+    }
+
+    .profile-public-panel-head {
+        flex-direction: column;
+    }
+
+    .profile-public-lifestyle-grid {
+        grid-template-columns: 1fr;
+    }
+}

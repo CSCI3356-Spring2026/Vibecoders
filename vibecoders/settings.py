@@ -65,6 +65,10 @@ LOCAL_DEBUG_COMMANDS = {
     "createsuperuser",
     "set_user_role",
     "repair_profile_completion_integrity",
+    "repair_roommate_group_integrity",
+    "seed_listings",
+    "seed_roommate_posts",
+    "seed_demo_data",
 }
 RUNNING_TESTS = "test" in sys.argv
 DEVELOPMENT_SECRET_KEY = "padly-local-dev-secret-key-2026-04-01-keep-out-of-production-only"

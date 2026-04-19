@@ -304,37 +304,56 @@
                 {# ──────── People tab ──────── #}
                 {% elif tab == "people" %}
                     {% if people_results %}
-                        <div class="group-post-list">
+                        <div class="rmhub-people-grid">
                             {% for result in people_results %}
-                                <article class="group-post-card">
-                                    <div class="group-post-head">
-                                        <div class="identity-row group-post-identity">
-                                            {% include "includes/user_avatar.html" with user_obj=result.user avatar_class="user-avatar user-avatar-lg" %}
-                                            <div class="identity-copy">
-                                                <a class="group-post-title" href="{% url 'roommates:public_profile' result.user.id %}">
+                                <article class="rmhub-person-card">
+                                    <div class="rmhub-person-head">
+                                        <a class="rmhub-person-identity" href="{% url 'roommates:public_profile' result.user.id %}">
+                                            {% include "includes/user_avatar.html" with user_obj=result.user avatar_class="user-avatar user-avatar-lg rmhub-person-avatar" %}
+                                            <div class="rmhub-person-copy">
+                                                <p class="rmhub-person-name">
                                                     {{ result.user.display_name }}
-                                                </a>
-                                                {% if result.profile.major %}
-                                                    <p class="group-post-subtitle">{{ result.profile.major }}</p>
-                                                {% endif %}
+                                                </p>
+                                                <p class="rmhub-person-subtitle">
+                                                    {% if result.profile.major %}
+                                                        {{ result.profile.major }}
+                                                    {% else %}
+                                                        Boston College student
+                                                    {% endif %}
+                                                </p>
                                             </div>
-                                        </div>
+                                        </a>
                                         {% if result.score is not None %}
-                                            <span class="app-meta-chip {% if result.score >= 75 %}app-meta-chip-primary{% elif result.score >= 50 %}app-meta-chip-secondary{% else %}app-meta-chip-neutral{% endif %}">
+                                            <span class="rmhub-person-score {% if result.score >= 75 %}is-strong{% elif result.score >= 50 %}is-good{% else %}is-neutral{% endif %}">
                                                 {{ result.score }}% match
                                             </span>
                                         {% elif has_my_profile %}
-                                            <span class="app-meta-chip app-meta-chip-neutral">No score yet</span>
+                                            <span class="rmhub-person-score is-neutral">No score yet</span>
                                         {% endif %}
                                     </div>
 
-                                    {% if result.profile.bio %}
-                                        <p class="group-post-body">{{ result.profile.bio }}</p>
-                                    {% endif %}
+                                    <div class="rmhub-person-facts">
+                                        {% if result.profile.age %}
+                                            <span class="rmhub-person-fact">Age {{ result.profile.age }}</span>
+                                        {% endif %}
+                                        {% if result.profile.gender %}
+                                            <span class="rmhub-person-fact">{{ result.profile.get_gender_display }}</span>
+                                        {% endif %}
+                                        <span class="rmhub-person-fact">{% if result.profile.smoke %}Smoking okay{% else %}No smoking{% endif %}</span>
+                                        <span class="rmhub-person-fact">{% if result.profile.pets %}Pets okay{% else %}No pets{% endif %}</span>
+                                    </div>
 
-                                    <div class="group-post-actions">
+                                    <p class="rmhub-person-bio">
+                                        {% if result.profile.bio %}
+                                            {{ result.profile.bio }}
+                                        {% else %}
+                                            No bio yet. Open the profile to learn more about their routine and housing plans.
+                                        {% endif %}
+                                    </p>
+
+                                    <div class="rmhub-person-actions">
                                         <a class="btn btn-outline-secondary btn-sm" href="{% url 'roommates:public_profile' result.user.id %}">View profile</a>
-                                        <form method="post" action="{% url 'roommates:toggle_favorite_roommate' result.user.id %}" style="margin:0">
+                                        <form method="post" action="{% url 'roommates:toggle_favorite_roommate' result.user.id %}">
                                             {% csrf_token %}
                                             <input type="hidden" name="next" value="{{ request.get_full_path }}">
                                             <button class="btn btn-outline-secondary btn-sm" type="submit">
@@ -368,7 +387,7 @@
                                     </div>
 
                                     {% if can_message and not result.existing_convo %}
-                                        <div class="group-board-message-form" id="msg-{{ result.user.id }}" hidden>
+                                        <div class="rmhub-person-message-form" id="msg-{{ result.user.id }}" hidden>
                                             <form method="post" action="{% url 'communications:start_direct_conversation' result.user.id %}">
                                                 {% csrf_token %}
                                                 <textarea

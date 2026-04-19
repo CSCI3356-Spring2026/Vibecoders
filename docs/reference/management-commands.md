@@ -1,6 +1,42 @@
 # Management Commands
 
-## Project-Specific Command
+## Project-Specific Commands
+
+### `seed_demo_data`
+
+Purpose:
+
+- create a realistic local Padly demo environment across users, listings, roommate flows, inbox threads, reports, and private files
+- download and cache reusable listing photos into a gitignored local bundle under `var/demo_seed/`
+- recreate the same demo namespace on repeat runs without depending on checked-in media
+
+Usage:
+
+```bash
+python manage.py seed_demo_data
+python manage.py seed_demo_data --skip-image-downloads
+python manage.py seed_demo_data --refresh-photo-cache
+python manage.py seed_demo_data --reference-date 2026-09-01
+```
+
+Options:
+
+- `--bundle-root <path>`: override the local cache/bundle directory; defaults to `var/demo_seed/`
+- `--skip-image-downloads`: require an already-populated local photo cache instead of downloading source images again
+- `--refresh-photo-cache`: re-download and re-normalize the source listing images
+- `--reference-date YYYY-MM-DD`: anchor generated lease windows and roommate move-in dates
+
+Notes:
+
+- this command is intentionally limited to `DJANGO_DEBUG=true`
+- the bundle root is local-only and already ignored by the repository because it lives under `var/`
+- the summary files are written to `var/demo_seed/seed_summary.json` and `var/demo_seed/seed_summary.txt`
+- the seeded admin account is for local raw `/admin/` access only when `DJANGO_ADMIN_ENABLED=true`; the product login flow remains Google OAuth
+
+Implementation:
+
+- `core/management/commands/seed_demo_data.py`
+- `core/demo_seed.py`
 
 ### `set_user_role`
 
@@ -77,6 +113,5 @@ when changing settings, auth, middleware, proxy behavior, or other security-sens
 
 ## Notes
 
-- There is currently one custom project command checked into the repository: `set_user_role`.
-- Some older references mention a demo listing seed command, but no checked-in custom listing management command currently ships in this working tree.
+- The older `seed_listings` and `seed_roommate_posts` commands remain narrow development helpers. `seed_demo_data` is now the canonical full-environment seeding flow.
 - Any future custom operational commands should be added here when introduced.

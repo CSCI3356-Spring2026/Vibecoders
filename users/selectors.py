@@ -1,6 +1,10 @@
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.db.models import Case, Count, IntegerField, Q, Value, When
+from django.utils import timezone
 
+from communications.models import ListingConversation, ListingMessage
 from communications.selectors import direct_conversations_by_counterparty
 from core.utils import get_page
 from listings.models import Listing, ListingReport, RoommateGroupMembership
@@ -21,6 +25,12 @@ from .models import (
 )
 
 ROOMMATE_DISCOVERY_CANDIDATE_LIMIT = 300
+
+
+def _percentage(numerator, denominator):
+    if not denominator:
+        return 0
+    return round((numerator / denominator) * 100)
 
 
 def roommate_candidate_results(
@@ -175,6 +185,90 @@ def admin_dashboard_metrics():
         **user_metrics,
         **report_metrics,
     }
+
+
+def admin_dashboard_snapshot(*, query="", selected_status="", selected_review_status=""):
+    user_model = get_user_model()
+    now = timezone.now()
+    today = timezone.localdate()
+    weekly_cutoff = now - timedelta(days=7)
+    listings_qs = admin_listings_queryset(
+        query=query,
+        selected_status=selected_status,
+        selected_review_status=selected_review_status,
+    )
+    reports_qs = admin_reports_queryset()
+    recent_users_qs = user_model.objects.order_by("-date_joined", "-id")
+    recent_messages_qs = ListingMessage.objects.select_related(
+        "sender",
+        "conversation",
+        "conversation__listing",
+        "conversation__owner",
+        "conversation__participant",
+    ).order_by("-created_at")
+
+    metrics = admin_dashboard_metrics()
+    metrics.update(
+        Listing.objects.aggregate(
+            live_marketplace_listings=Count(
+                "id",
+                filter=Q(
+                    archived_at__isnull=True,
+                    approval_status=Listing.APPROVAL_APPROVED,
+                    is_hidden=False,
+                    status=Listing.STATUS_AVAILABLE,
+                    end_date__gte=today,
+                ),
+            ),
+            archived_listings=Count("id", filter=Q(archived_at__isnull=False)),
+            listings_last_7_days=Count("id", filter=Q(created_at__gte=weekly_cutoff)),
+        )
+    )
+    metrics.update(
+        user_model.objects.aggregate(
+            total_users=Count("id"),
+            active_users=Count("id", filter=Q(is_active=True)),
+            inactive_users=Count("id", filter=Q(is_active=False)),
+            new_users_last_7_days=Count("id", filter=Q(date_joined__gte=weekly_cutoff)),
+        )
+    )
+    metrics.update(
+        ListingReport.objects.aggregate(
+            resolved_reports=Count("id", filter=Q(status=ListingReport.STATUS_RESOLVED)),
+            reports_last_7_days=Count("id", filter=Q(created_at__gte=weekly_cutoff)),
+        )
+    )
+
+    total_conversations = ListingConversation.objects.count()
+    total_messages = ListingMessage.objects.count()
+    active_incidents = metrics["open_reports"] + metrics["reports_in_review"]
+
+    metrics.update(
+        {
+            "total_conversations": total_conversations,
+            "total_messages": total_messages,
+            "messages_last_7_days": ListingMessage.objects.filter(created_at__gte=weekly_cutoff).count(),
+            "direct_conversations": ListingConversation.objects.filter(
+                conversation_type=ListingConversation.CONVERSATION_TYPE_DIRECT
+            ).count(),
+            "listing_conversations": ListingConversation.objects.filter(
+                conversation_type=ListingConversation.CONVERSATION_TYPE_LISTING
+            ).count(),
+            "filtered_listings_count": listings_qs.count(),
+            "approval_rate": _percentage(metrics["approved_listings"], metrics["total_listings"]),
+            "marketplace_live_rate": _percentage(metrics["live_marketplace_listings"], metrics["total_listings"]),
+            "incident_rate": _percentage(active_incidents, metrics["total_listings"]),
+            "active_user_rate": _percentage(metrics["active_users"], metrics["total_users"]),
+            "messages_per_conversation": round(total_messages / total_conversations, 1) if total_conversations else 0,
+            "active_incidents": active_incidents,
+            "priority_listings": list(listings_qs[:8]),
+            "review_queue": list(admin_listings_queryset(selected_review_status=Listing.APPROVAL_PENDING)[:5]),
+            "recent_reports": list(reports_qs[:5]),
+            "recent_users": list(recent_users_qs[:5]),
+            "recent_messages": list(recent_messages_qs[:6]),
+        }
+    )
+    return metrics
 
 
 def accessible_user_files_queryset(user):

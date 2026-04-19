@@ -62,6 +62,8 @@ export function createListingsMapView({
     onViewportChange,
 }) {
     const canvas = root?.querySelector("[data-listings-map-canvas]");
+    const markerDocument =
+        root?.ownerDocument || canvas?.ownerDocument || (typeof document !== "undefined" ? document : null);
     const resolvedDefaultStyleUrl = defaultStyleUrl || root?.dataset.listingsMapDefaultStyleUrl || "";
     const resolvedSatelliteStyleUrl = satelliteStyleUrl || root?.dataset.listingsMapSatelliteStyleUrl || "";
 
@@ -94,6 +96,7 @@ export function createListingsMapView({
     let hasAppliedInitialViewport = false;
     let markers = Array.isArray(initialMarkers) ? initialMarkers : [];
     let activeListingId = selectedListingId ? String(selectedListingId) : "";
+    const htmlMarkers = new Map();
 
     const map = new maplibregl.Map({
         container: canvas,
@@ -101,8 +104,103 @@ export function createListingsMapView({
         center: [defaultLng, defaultLat],
         zoom: 12,
     });
+    const canRenderHtmlMarkers = Boolean(markerDocument) && typeof maplibregl.Marker === "function";
 
     const sourceData = () => markerFeatureCollection(markers, activeListingId);
+
+    const setHtmlMarkerSelectedState = (markerRecord, selected) => {
+        markerRecord.element.classList.toggle("is-selected", selected);
+        markerRecord.element.setAttribute("aria-pressed", selected ? "true" : "false");
+    };
+
+    const removeHtmlMarker = (markerId) => {
+        const markerRecord = htmlMarkers.get(markerId);
+        if (!markerRecord) {
+            return;
+        }
+        markerRecord.marker.remove();
+        htmlMarkers.delete(markerId);
+    };
+
+    const renderedPointFeatures = () => {
+        if (typeof map.queryRenderedFeatures === "function") {
+            return map.queryRenderedFeatures(undefined, { layers: [POINT_LAYER_ID] }) || [];
+        }
+        return sourceData().features.filter((feature) => !Object.hasOwn(feature.properties || {}, "point_count"));
+    };
+
+    const createHtmlMarkerRecord = (feature) => {
+        const markerId = String(feature.properties?.id || "");
+        const price = feature.properties?.price || "";
+        const title = feature.properties?.title || "Listing";
+        const element = markerDocument.createElement("button");
+        element.type = "button";
+        element.classList.add("listing-map-marker");
+        element.dataset.listingId = markerId;
+        element.setAttribute("aria-label", `${title}, ${price} per month`);
+
+        const label = markerDocument.createElement("span");
+        label.classList.add("listing-map-marker-label");
+        label.textContent = price;
+        element.append(label);
+
+        element.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            activeListingId = markerId;
+            updateSource();
+            syncHtmlMarkers();
+            onMarkerSelect?.(markerId);
+        });
+
+        const marker = new maplibregl.Marker({
+            element,
+            anchor: "bottom",
+        })
+            .setLngLat(feature.geometry.coordinates)
+            .addTo(map);
+
+        const markerRecord = { element, label, marker };
+        setHtmlMarkerSelectedState(markerRecord, markerId === activeListingId);
+        return markerRecord;
+    };
+
+    const syncHtmlMarkers = () => {
+        if (!canRenderHtmlMarkers || !mapLoaded) {
+            return;
+        }
+
+        const visibleMarkerIds = new Set();
+        renderedPointFeatures().forEach((feature) => {
+            const markerId = String(feature.properties?.id || "");
+            const coordinates = feature.geometry?.coordinates;
+            if (!markerId || !Array.isArray(coordinates) || visibleMarkerIds.has(markerId)) {
+                return;
+            }
+
+            visibleMarkerIds.add(markerId);
+            let markerRecord = htmlMarkers.get(markerId);
+            if (!markerRecord) {
+                markerRecord = createHtmlMarkerRecord(feature);
+                htmlMarkers.set(markerId, markerRecord);
+            } else {
+                markerRecord.marker.setLngLat(coordinates);
+                markerRecord.label.textContent = feature.properties?.price || "";
+                markerRecord.element.dataset.listingId = markerId;
+                markerRecord.element.setAttribute(
+                    "aria-label",
+                    `${feature.properties?.title || "Listing"}, ${feature.properties?.price || ""} per month`,
+                );
+            }
+            setHtmlMarkerSelectedState(markerRecord, markerId === activeListingId);
+        });
+
+        Array.from(htmlMarkers.keys()).forEach((markerId) => {
+            if (!visibleMarkerIds.has(markerId)) {
+                removeHtmlMarker(markerId);
+            }
+        });
+    };
 
     const ensureLayers = () => {
         if (!map.getSource(MARKER_SOURCE_ID)) {
@@ -122,17 +220,19 @@ export function createListingsMapView({
                 source: MARKER_SOURCE_ID,
                 filter: ["has", "point_count"],
                 paint: {
-                    "circle-color": "#1761c2",
+                    "circle-color": "#ffffff",
                     "circle-radius": [
                         "step",
                         ["get", "point_count"],
-                        18,
+                        19,
                         10,
-                        22,
+                        23,
                         25,
-                        26,
+                        27,
                     ],
-                    "circle-opacity": 0.92,
+                    "circle-opacity": 0.98,
+                    "circle-stroke-width": 2.5,
+                    "circle-stroke-color": "#d9392e",
                 },
             });
         }
@@ -149,7 +249,7 @@ export function createListingsMapView({
                     "text-size": 12,
                 },
                 paint: {
-                    "text-color": "#ffffff",
+                    "text-color": "#19212b",
                 },
             });
         }
@@ -161,15 +261,11 @@ export function createListingsMapView({
                 source: MARKER_SOURCE_ID,
                 filter: ["!", ["has", "point_count"]],
                 paint: {
-                    "circle-color": [
-                        "case",
-                        ["get", "selected"],
-                        "#1761c2",
-                        "#ffffff",
-                    ],
-                    "circle-radius": 20,
-                    "circle-stroke-width": 2,
-                    "circle-stroke-color": "#d9392e",
+                    "circle-color": "#ffffff",
+                    "circle-radius": 1,
+                    "circle-opacity": 0,
+                    "circle-stroke-width": 0,
+                    "circle-stroke-opacity": 0,
                 },
             });
         }
@@ -186,12 +282,8 @@ export function createListingsMapView({
                     "text-size": 11,
                 },
                 paint: {
-                    "text-color": [
-                        "case",
-                        ["get", "selected"],
-                        "#ffffff",
-                        "#19212b",
-                    ],
+                    "text-color": "#19212b",
+                    "text-opacity": 0,
                 },
             });
         }
@@ -249,6 +341,7 @@ export function createListingsMapView({
 
             activeListingId = String(listingId);
             updateSource();
+            syncHtmlMarkers();
             onMarkerSelect?.(listingId);
         });
 
@@ -271,6 +364,7 @@ export function createListingsMapView({
         ensureLayers();
         updateSource();
         applyViewportToMarkers();
+        syncHtmlMarkers();
     };
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
@@ -280,6 +374,7 @@ export function createListingsMapView({
     });
     map.on("style.load", handleMapStyleReady);
     map.on("moveend", () => {
+        syncHtmlMarkers();
         onViewportChange?.();
     });
 
@@ -304,6 +399,7 @@ export function createListingsMapView({
             markers = Array.isArray(nextMarkers) ? nextMarkers : [];
             updateSource();
             applyViewportToMarkers();
+            syncHtmlMarkers();
         },
         setStyleMode(mode) {
             const nextMode = mode === "satellite" && resolvedSatelliteStyleUrl ? "satellite" : "map";
@@ -318,6 +414,7 @@ export function createListingsMapView({
         setSelectedListing(listingId) {
             activeListingId = listingId ? String(listingId) : "";
             updateSource();
+            syncHtmlMarkers();
         },
     };
 }

@@ -103,10 +103,12 @@ ruff check .
 ruff format --check .
 python manage.py set_user_role user@bc.edu admin
 python manage.py repair_profile_completion_integrity
+python manage.py seed_demo_data
 ```
 
 `set_user_role` is useful after a real user has signed in once and needs elevated access.
 `repair_profile_completion_integrity` recalculates `profile_completed_at` against the current role's required profile data after operational fixes or role-policy changes.
+`seed_demo_data` builds a realistic local demo environment and caches remote listing photos under gitignored `var/demo_seed/`.
 
 ## Configuration
 

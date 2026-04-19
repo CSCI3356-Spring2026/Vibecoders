@@ -41,6 +41,17 @@ class TestSettingsTests(SimpleTestCase):
         self.assertNotIn("django.contrib.auth.backends.ModelBackend", backends)
         self.assertIn("allauth.account.auth_backends.AuthenticationBackend", backends)
 
+    def test_seed_demo_data_is_treated_as_local_debug_command(self):
+        result = self._run_python_subprocess(
+            "import sys; sys.argv = ['manage.py', 'seed_demo_data']; "
+            "import vibecoders.settings as settings; "
+            "print(settings.DEBUG)",
+            extra_env={"DJANGO_DEBUG": None},
+        )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(result.stdout.strip(), "True")
+
     def test_root_urls_mount_admin_only_when_enabled(self):
         urlpatterns_command = "".join(
             [
@@ -133,7 +144,10 @@ class TestSettingsTests(SimpleTestCase):
         env["DJANGO_SETTINGS_MODULE"] = "vibecoders.settings"
         env["PYTHONPATH"] = str(repo_root)
         for key, value in (extra_env or {}).items():
-            env[key] = value
+            if value is None:
+                env.pop(key, None)
+            else:
+                env[key] = value
 
         return subprocess.run(
             [sys.executable, "-c", command],

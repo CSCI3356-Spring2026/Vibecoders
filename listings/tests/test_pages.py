@@ -493,6 +493,100 @@ class MockSource {{
     }}
 }}
 
+class MockClassList {{
+    constructor(node) {{
+        this.node = node;
+        this.tokens = new Set();
+    }}
+
+    add(...tokens) {{
+        tokens.forEach((token) => this.tokens.add(token));
+        this._sync();
+    }}
+
+    remove(...tokens) {{
+        tokens.forEach((token) => this.tokens.delete(token));
+        this._sync();
+    }}
+
+    toggle(token, force) {{
+        if (force === true) {{
+            this.tokens.add(token);
+        }} else if (force === false) {{
+            this.tokens.delete(token);
+        }} else if (this.tokens.has(token)) {{
+            this.tokens.delete(token);
+        }} else {{
+            this.tokens.add(token);
+        }}
+        this._sync();
+        return this.tokens.has(token);
+    }}
+
+    contains(token) {{
+        return this.tokens.has(token);
+    }}
+
+    _sync() {{
+        this.node.className = Array.from(this.tokens).join(" ");
+    }}
+}}
+
+class MockElement {{
+    constructor(tagName) {{
+        this.tagName = tagName.toUpperCase();
+        this.children = [];
+        this.dataset = {{}};
+        this.attributes = {{}};
+        this.className = "";
+        this.classList = new MockClassList(this);
+        this.listeners = {{}};
+        this.textContent = "";
+        this.type = "";
+    }}
+
+    append(child) {{
+        this.children.push(child);
+        child.parentNode = this;
+    }}
+
+    setAttribute(name, value) {{
+        this.attributes[name] = String(value);
+    }}
+
+    getAttribute(name) {{
+        return this.attributes[name] ?? null;
+    }}
+
+    addEventListener(name, handler) {{
+        this.listeners[name] = handler;
+    }}
+}}
+
+class MockMarker {{
+    static instances = [];
+
+    constructor(config = {{}}) {{
+        this.element = config.element ?? null;
+        this.anchor = config.anchor ?? "";
+        MockMarker.instances.push(this);
+    }}
+
+    setLngLat(lngLat) {{
+        this.lngLat = lngLat;
+        return this;
+    }}
+
+    addTo(map) {{
+        this.map = map;
+        return this;
+    }}
+
+    remove() {{
+        this.removed = true;
+    }}
+}}
+
 class MockMap {{
     constructor() {{
         this.handlers = {{}};
@@ -541,6 +635,13 @@ class MockMap {{
         return this.canvas;
     }}
 
+    queryRenderedFeatures(_geometry, options = {{}}) {{
+        if (!options.layers?.includes("listings-points")) {{
+            return [];
+        }}
+        return this.sources["listings-markers"]?.data?.features ?? [];
+    }}
+
     setCenter() {{}}
     setZoom() {{}}
     fitBounds() {{}}
@@ -557,6 +658,7 @@ class MockMap {{
 
 globalThis.maplibregl = {{
     Map: MockMap,
+    Marker: MockMarker,
     NavigationControl: class {{}},
     LngLatBounds: class {{
         constructor() {{
@@ -566,6 +668,12 @@ globalThis.maplibregl = {{
         extend(point) {{
             this.points.push(point);
         }}
+    }},
+}};
+
+globalThis.document = {{
+    createElement(tagName) {{
+        return new MockElement(tagName);
     }},
 }};
 
@@ -593,11 +701,20 @@ assert.equal(Boolean(globalThis.__map.getLayer("listings-clusters")), true);
 assert.equal(Boolean(globalThis.__map.getLayer("listings-cluster-count")), true);
 assert.equal(Boolean(globalThis.__map.getLayer("listings-points")), true);
 assert.equal(Boolean(globalThis.__map.getLayer("listings-point-labels")), true);
+assert.equal(globalThis.__map.getLayer("listings-clusters").paint["circle-color"], "#ffffff");
+assert.equal(globalThis.__map.getLayer("listings-clusters").paint["circle-stroke-color"], "#d9392e");
+assert.equal(globalThis.__map.getLayer("listings-cluster-count").paint["text-color"], "#19212b");
+assert.equal(globalThis.__map.getLayer("listings-points").paint["circle-opacity"], 0);
+assert.equal(globalThis.__map.getLayer("listings-point-labels").paint["text-opacity"], 0);
+assert.equal(MockMarker.instances.length, 1);
+assert.equal(MockMarker.instances[0].element.classList.contains("listing-map-marker"), true);
 view.setSelectedListing(1);
 view.setStyleMode("satellite");
 globalThis.__map.handlers["style.load"]();
 
 assert.equal(source.setDataCalls[source.setDataCalls.length - 1].features[0].properties.selected, true);
+assert.equal(MockMarker.instances[0].element.classList.contains("is-selected"), true);
+assert.equal(MockMarker.instances[0].element.getAttribute("aria-pressed"), "true");
 assert.equal(typeof globalThis.__map.styleCalls[0], "object");
 assert.equal(globalThis.__map.styleCalls[0].sources.satellite.type, "raster");
 assert.equal(globalThis.__map.styleCalls[0].layers[0].id, "satellite");
@@ -638,6 +755,8 @@ assert.equal(view.getStyleMode(), "satellite");
         self.assertContains(response, f'data-listing-id="{listing.id}"')
         self.assertContains(response, f'data-listing-detail-url="{detail_url}"')
         self.assertContains(response, 'data-listing-selected="false"')
+        self.assertContains(response, "listing-card-meta-chip")
+        self.assertNotContains(response, "listing-card-chip")
         self.assertNotContains(response, "listing-map-popup-link")
 
     def test_listing_page_exposes_empty_state_container_for_zero_results(self):
@@ -994,8 +1113,9 @@ assert.equal(view.getStyleMode(), "satellite");
         self.assertContains(results_response, "Beacon apartment")
         self.assertContains(results_response, "1731 Beacon St")
         self.assertContains(results_response, "$1800/mo")
+        self.assertContains(results_response, "listing-card-meta-row")
         self.assertContains(results_response, "Full Lease")
-        self.assertContains(results_response, "House")
+        self.assertContains(results_response, "Available")
         self.assertContains(results_response, "3 bd")
         self.assertContains(results_response, "1.5 ba")
         self.assertContains(results_response, "980 sqft")
@@ -2111,6 +2231,8 @@ assert.equal(picker.isSelectionComplete(), true);
         self.assertContains(response, "data-listing-commute")
         self.assertContains(response, "data-commute-map")
         self.assertContains(response, "data-commute-map-note")
+        self.assertContains(response, 'class="listing-detail-commute-map-note"')
+        self.assertNotContains(response, "listing-map-note listing-detail-commute-map-note")
         self.assertContains(response, 'id="listing-commute-config"')
         self.assertContains(response, "vendor/maplibre/maplibre-gl.js")
         self.assertTrue(response.context["commute_map_enabled"])
@@ -2118,6 +2240,187 @@ assert.equal(picker.isSelectionComplete(), true);
             response.context["commute_config"]["endpoint_url"],
             reverse("listings:commute", args=[listing.pk]),
         )
+
+    def test_listing_commute_script_hides_map_note_after_route_load(self):
+        module_url = (Path(__file__).resolve().parents[2] / "static/js/listing-commute.js").as_uri()
+        script = f"""
+import assert from "node:assert/strict";
+
+class MockElement {{
+    constructor() {{
+        this.hidden = false;
+        this.textContent = "";
+        this.value = "";
+        this.innerHTML = "";
+        this.listeners = {{}};
+    }}
+
+    addEventListener(type, handler) {{
+        this.listeners[type] = handler;
+    }}
+}}
+
+class MockSelectElement extends MockElement {{}}
+
+class MockSource {{
+    constructor(config) {{
+        this.data = config.data;
+    }}
+
+    setData(data) {{
+        this.data = data;
+    }}
+}}
+
+class MockMap {{
+    constructor() {{
+        this.handlers = {{}};
+        this.sources = {{}};
+        this.layers = {{}};
+        globalThis.__commuteMap = this;
+    }}
+
+    on(name, handler) {{
+        this.handlers[name] = handler;
+    }}
+
+    addSource(id, config) {{
+        this.sources[id] = new MockSource(config);
+    }}
+
+    getSource(id) {{
+        return this.sources[id] ?? null;
+    }}
+
+    addLayer(layer) {{
+        this.layers[layer.id] = layer;
+    }}
+
+    getLayer(id) {{
+        return this.layers[id] ?? null;
+    }}
+
+    fitBounds(bounds, config) {{
+        this.bounds = bounds;
+        this.fitBoundsConfig = config;
+    }}
+}}
+
+class MockMarker {{
+    setLngLat(lngLat) {{
+        this.lngLat = lngLat;
+        return this;
+    }}
+
+    addTo(map) {{
+        this.map = map;
+        return this;
+    }}
+}}
+
+globalThis.HTMLSelectElement = MockSelectElement;
+globalThis.maplibregl = {{
+    Map: MockMap,
+    Marker: MockMarker,
+    LngLatBounds: class {{
+        constructor() {{
+            this.points = [];
+        }}
+
+        extend(point) {{
+            this.points.push(point);
+        }}
+    }},
+}};
+
+const modeSelect = new MockSelectElement();
+modeSelect.value = "walking";
+const minutesValue = new MockElement();
+const distanceValue = new MockElement();
+const mapElement = new MockElement();
+const mapNote = new MockElement();
+mapNote.textContent = "Loading route map.";
+
+const root = {{
+    querySelector(selector) {{
+        return {{
+            "[data-commute-mode-select]": modeSelect,
+            "[data-commute-minutes]": minutesValue,
+            "[data-commute-distance]": distanceValue,
+            "[data-commute-map]": mapElement,
+            "[data-commute-map-note]": mapNote,
+        }}[selector] ?? null;
+    }},
+}};
+
+const payloadElement = {{
+    textContent: JSON.stringify({{
+        endpoint_url: "/listings/1/commute/",
+        map: {{
+            style_url: "https://maps.example.com/style.json",
+        }},
+    }}),
+}};
+
+globalThis.document = {{
+    getElementById(id) {{
+        return id === "listing-commute-config" ? payloadElement : null;
+    }},
+    querySelector(selector) {{
+        return selector === "[data-listing-commute]" ? root : null;
+    }},
+}};
+
+globalThis.fetch = async (url) => {{
+    globalThis.__fetchUrl = url;
+    return {{
+        ok: true,
+        async json() {{
+            return {{
+                default_mode: "walking",
+                modes: [
+                    {{ value: "walking", label: "Walking" }},
+                    {{ value: "driving", label: "Driving" }},
+                ],
+                origin: {{ lat: 42.3477, lng: -71.1538 }},
+                destination: {{ lat: 42.3355, lng: -71.1685 }},
+                routes: {{
+                    walking: {{
+                        display: "16 min",
+                        distance_miles: "1.2",
+                        geometry: {{
+                            type: "LineString",
+                            coordinates: [
+                                [-71.1538, 42.3477],
+                                [-71.1685, 42.3355],
+                            ],
+                        }},
+                    }},
+                }},
+            }};
+        }},
+    }};
+}};
+
+await import({module_url!r});
+globalThis.__commuteMap.handlers.load?.();
+await new Promise((resolve) => setTimeout(resolve, 0));
+
+assert.equal(globalThis.__fetchUrl, "/listings/1/commute/");
+assert.equal(minutesValue.textContent, "16 min");
+assert.equal(distanceValue.textContent, "1.2 mi");
+assert.equal(mapNote.hidden, true);
+assert.equal(mapNote.textContent, "");
+"""
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            cwd=Path(__file__).resolve().parents[2],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
 
     def test_listing_detail_renders_gallery_hooks_when_multiple_images_exist(self):
         listing = self.create_listing()
@@ -2919,6 +3222,25 @@ class GroupMatchPageTests(ListingTestCase):
         self.assertFalse(initial_response.context["people_results"].object_list[0]["is_favorited"])
         self.assertEqual(saved_response.status_code, 200)
         self.assertTrue(saved_response.context["people_results"].object_list[0]["is_favorited"])
+
+    def test_roommates_hub_people_tab_renders_directory_grid(self):
+        self.complete_roommate_profile(self.user)
+        candidate = get_user_model().objects.create_user(
+            username="directory-candidate",
+            email="directory-candidate@bc.edu",
+            password="testpass123",
+            first_name="Casey",
+        )
+        self.complete_roommate_profile(candidate)
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("roommates:hub"), {"tab": "people", "q": "Casey"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "rmhub-people-grid")
+        self.assertContains(response, "rmhub-person-card")
+        self.assertContains(response, "rmhub-person-actions")
+        self.assertNotContains(response, "group-post-list")
 
     def test_roommates_hub_people_tab_results_are_paginated(self):
         self.complete_roommate_profile(self.user)
