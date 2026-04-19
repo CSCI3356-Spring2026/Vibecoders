@@ -1,8 +1,8 @@
 from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
-from django.views.static import serve
 
+from listings import views as listing_views
 from users import views as user_views
 
 urlpatterns = [
@@ -19,18 +19,7 @@ urlpatterns = [
 if settings.DJANGO_ADMIN_ENABLED:
     urlpatterns.insert(0, path("admin/", admin.site.urls))
 
-if settings.DEBUG:
-    # Listing images need a simple dev-time media route, but private user uploads must stay behind
-    # authenticated preview/download views instead of being served directly.
-    urlpatterns += [
-        path(
-            "media/listing_photos/<path:path>",
-            serve,
-            {"document_root": settings.MEDIA_ROOT / "listing_photos"},
-        ),
-        path(
-            "media/avatars/<path:path>",
-            serve,
-            {"document_root": settings.MEDIA_ROOT / "avatars"},
-        ),
-    ]
+urlpatterns += [
+    path("media/listing_photos/<path:path>", listing_views.public_listing_photo),
+    path("media/avatars/<path:path>", user_views.public_avatar),
+]

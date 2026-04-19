@@ -24,6 +24,13 @@ class CorePageTests(TestCase):
         self.assertContains(response, 'rel="icon"')
         self.assertContains(response, "images/padly-mark.svg")
 
+    def test_healthz_returns_uncached_ok_status(self):
+        response = self.client.get(reverse("core:healthz"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "ok"})
+        self.assertEqual(response["Cache-Control"], "no-store")
+
     def test_landing_page_exposes_listing_search(self):
         response = self.client.get(reverse("core:landing"))
 

@@ -20,6 +20,7 @@ from communications.selectors import (
     accessible_conversations_for_user,
     conversation_summary_for_user,
 )
+from core.media import normalize_public_media_subpath, public_file_response
 from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
 from listings.selectors import with_feedback_summary
@@ -31,7 +32,7 @@ from .legal import (
     is_legal_review_required,
     set_pending_legal_acceptance,
 )
-from .models import AdminProfile, Role, StudentProfile, UserFile
+from .models import AdminProfile, CustomUser, Role, StudentProfile, UserFile
 from .profile_integrity import mark_profile_completed_now, profile_satisfies_completion_requirements
 from .selectors import (
     accessible_user_files_queryset,
@@ -182,6 +183,13 @@ def _preview_content_type_or_404(user_file):
     if content_type == "application/pdf" or content_type.startswith("image/"):
         return content_type
     raise Http404("Preview not available.")
+
+
+@require_GET
+def public_avatar(request, path):
+    image_name = f"avatars/{normalize_public_media_subpath(path)}"
+    user = get_object_or_404(CustomUser.objects.filter(uploaded_avatar=image_name))
+    return public_file_response(user.uploaded_avatar, cache_seconds=300)
 
 
 def _apply_private_file_response_headers(response):

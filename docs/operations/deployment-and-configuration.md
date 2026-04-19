@@ -1,26 +1,33 @@
 # Deployment and Configuration
 
+For a step-by-step Render-specific deployment runbook, see [Deploying Padly on Render](render-deployment.md).
+
 ## Production Requirements
 
 Padly is a Django ASGI application with websockets. A production deployment should assume:
 
 - ASGI runtime, not WSGI, for the live application
 - Redis-backed channel layer
+- Redis-backed cache for rate limits and unread counters
 - explicit host and proxy configuration
 - managed database instead of SQLite
-- shared or object-backed media storage
+- WhiteNoise or another production static-file layer
+- persistent or object-backed media storage
 
 ## Required Production Environment
 
 These settings must be provided when `DJANGO_DEBUG=false`:
 
 - `DJANGO_SECRET_KEY`
-- `DJANGO_ALLOWED_HOSTS`
+- `DATABASE_URL`
 - `CHANNEL_REDIS_URL`
+- `CACHE_REDIS_URL`
 
 Recommended supporting configuration:
 
+- `DJANGO_ALLOWED_HOSTS`
 - `DJANGO_CSRF_TRUSTED_ORIGINS`
+- `DJANGO_MEDIA_ROOT`
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
 - `LISTING_GEOAPIFY_API_KEY`
@@ -37,6 +44,10 @@ daphne vibecoders.asgi:application
 
 - HTTP through Django
 - websocket traffic through `AllowedHostsOriginValidator` and `AuthMiddlewareStack`
+
+Recommended Render health check path:
+
+- `/healthz/`
 
 ## Security-Sensitive Settings
 
@@ -103,11 +114,14 @@ Satellite mode can use:
 
 - SQLite database
 - local filesystem media
+- repo-local `staticfiles/` output for collected static assets
 
 ### Production recommendation
 
 - move to a real database platform
-- move media to shared or object-backed storage
+- serve static files with WhiteNoise from collected `STATIC_ROOT`
+- on Render, mount a persistent disk and point `DJANGO_MEDIA_ROOT` at it
+- move media to shared or object-backed storage when you need horizontal scale or zero-downtime deploys
 - treat private file delivery separately from public listing imagery
 
 ## Logging
@@ -127,11 +141,12 @@ Admin moderation actions also emit operational logs for approvals, rejections, a
 2. Configure Google OAuth credentials for the deployed origin.
 3. Configure Redis and run the ASGI app.
 4. Configure Geoapify if listing authoring and map-first browse are enabled.
-5. Verify secure cookie and proxy settings.
+5. Verify secure cookie, proxy, and static/media settings.
 6. Run:
    - `ruff check .`
    - `ruff format --check .`
    - `python manage.py check --deploy`
    - `python manage.py makemigrations --check --dry-run`
    - `python manage.py test`
-7. Confirm private user files are still served only through authenticated views.
+7. Confirm listing photos and uploaded avatars still resolve through Padly's guarded media routes.
+8. Confirm private user files are still served only through authenticated views.

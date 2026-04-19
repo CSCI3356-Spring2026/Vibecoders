@@ -1,0 +1,62 @@
+services:
+  - type: web
+    name: padly-web
+    runtime: python
+    plan: starter
+    region: oregon
+    numInstances: 1
+    autoDeployTrigger: checksPass
+    healthCheckPath: /healthz/
+    buildCommand: ./build.sh
+    preDeployCommand: python manage.py migrate
+    startCommand: daphne -b 0.0.0.0 -p $PORT vibecoders.asgi:application
+    disk:
+      name: media
+      mountPath: /var/data/padly-media
+      sizeGB: 10
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.5
+      - key: DJANGO_DEBUG
+        value: "false"
+      - key: DJANGO_USE_X_FORWARDED_HOST
+        value: "true"
+      - key: DJANGO_TRUST_X_FORWARDED_PROTO
+        value: "true"
+      - key: DJANGO_MEDIA_ROOT
+        value: /var/data/padly-media
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: padly-db
+          property: connectionString
+      - key: CHANNEL_REDIS_URL
+        fromService:
+          type: keyvalue
+          name: padly-kv
+          property: connectionString
+      - key: CACHE_REDIS_URL
+        fromService:
+          type: keyvalue
+          name: padly-kv
+          property: connectionString
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: LISTING_GEOAPIFY_API_KEY
+        sync: false
+
+  - type: keyvalue
+    name: padly-kv
+    plan: starter
+    region: oregon
+    ipAllowList: []
+
+databases:
+  - name: padly-db
+    plan: basic-256mb
+    region: oregon
+    databaseName: padly
+    user: padly

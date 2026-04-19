@@ -19,6 +19,7 @@ from communications.services import (
     consume_message_send_rate_limit,
     start_listing_conversation,
 )
+from core.media import normalize_public_media_subpath, public_file_response
 from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
 from roommates import views as roommate_views
@@ -47,6 +48,7 @@ from .lifecycle import archive_listing as archive_listing_record
 from .models import (
     Listing,
     ListingFavorite,
+    ListingImage,
     ListingReport,
     ListingReview,
     RoommatePost,
@@ -187,6 +189,18 @@ def _autocomplete_auth_required_response():
 
 def _autocomplete_rate_limit_response():
     return JsonResponse({"results": [], "error": ADDRESS_AUTOCOMPLETE_RATE_LIMIT_ERROR}, status=429)
+
+
+@require_GET
+def public_listing_photo(request, path):
+    image_name = f"listing_photos/{normalize_public_media_subpath(path)}"
+    listing_image = get_object_or_404(ListingImage.objects.select_related("listing"), image=image_name)
+    listing_is_accessible = (
+        accessible_listing_detail_queryset(request.user).filter(pk=listing_image.listing_id).exists()
+    )
+    if not listing_is_accessible:
+        raise Http404("File not found.")
+    return public_file_response(listing_image.image, cache_seconds=3600)
 
 
 def _consume_address_autocomplete_rate_limit(request):

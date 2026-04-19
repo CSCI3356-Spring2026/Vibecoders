@@ -4,6 +4,7 @@ import tempfile
 from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import urlsplit
 
 import requests
 from allauth.socialaccount.models import SocialAccount
@@ -2441,6 +2442,52 @@ assert.equal(mapNote.textContent, "");
         self.assertContains(response, "listing-detail-gallery-topbar")
         self.assertContains(response, "listing-detail-intro")
         self.assertContains(response, "js/listing-detail-gallery.js")
+
+    def test_public_listing_image_route_serves_public_listing_photos_to_anonymous_users(self):
+        listing = self.create_listing()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                listing_image = ListingImage.objects.create(listing=listing, image=self.make_image_upload("public.png"))
+
+                response = self.client.get(urlsplit(listing_image.versioned_url).path)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["X-Content-Type-Options"], "nosniff")
+        self.assertEqual(response["Cache-Control"], "public, max-age=3600")
+        self.assertEqual(response["Content-Type"], "image/png")
+
+    def test_public_listing_image_route_matches_listing_detail_access_rules(self):
+        listing = self.create_listing(
+            approval_status=Listing.APPROVAL_PENDING,
+            reviewed_at=None,
+            approved_at=None,
+        )
+        owner = listing.owner
+        admin = get_user_model().objects.create_user(
+            username="image-admin",
+            email="image-admin@bc.edu",
+            password="testpass123",
+            role=Role.ADMIN,
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                listing_image = ListingImage.objects.create(
+                    listing=listing,
+                    image=self.make_image_upload("pending.png"),
+                )
+                image_path = urlsplit(listing_image.versioned_url).path
+
+                anonymous_response = self.client.get(image_path)
+                self.client.force_login(owner)
+                owner_response = self.client.get(image_path)
+                self.client.force_login(admin)
+                admin_response = self.client.get(image_path)
+
+        self.assertEqual(anonymous_response.status_code, 404)
+        self.assertEqual(owner_response.status_code, 200)
+        self.assertEqual(admin_response.status_code, 200)
 
     def test_edit_listing_rejects_total_image_limit(self):
         listing = self.create_listing()
