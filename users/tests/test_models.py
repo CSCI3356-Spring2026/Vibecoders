@@ -313,21 +313,23 @@ class CustomUserModelTests(TestCase):
 
 
 class HistoricalMigrationTests(SimpleTestCase):
-    def test_profile_ui_fields_data_backfill_runs_before_type_casts(self):
+    def test_profile_ui_fields_use_custom_database_conversion_for_boolean_frequency_fields(self):
         migration_module = import_module("users.migrations.0014_profile_ui_fields")
         operations = migration_module.Migration.operations
 
-        runpython_index = next(index for index, op in enumerate(operations) if isinstance(op, migrations.RunPython))
-        drink_alter_index = next(
-            index
-            for index, op in enumerate(operations)
-            if isinstance(op, migrations.AlterField) and op.model_name == "studentprofile" and op.name == "drink"
-        )
-        party_alter_index = next(
-            index
-            for index, op in enumerate(operations)
-            if isinstance(op, migrations.AlterField) and op.model_name == "studentprofile" and op.name == "party"
-        )
+        frequency_operation = next(op for op in operations if isinstance(op, migrations.SeparateDatabaseAndState))
+        self.assertTrue(any(isinstance(op, migrations.RunPython) for op in frequency_operation.database_operations))
 
-        self.assertLess(runpython_index, drink_alter_index)
-        self.assertLess(runpython_index, party_alter_index)
+        state_altered_fields = {
+            (op.model_name, op.name)
+            for op in frequency_operation.state_operations
+            if isinstance(op, migrations.AlterField)
+        }
+        top_level_altered_fields = {
+            (op.model_name, op.name) for op in operations if isinstance(op, migrations.AlterField)
+        }
+
+        self.assertIn(("studentprofile", "drink"), state_altered_fields)
+        self.assertIn(("studentprofile", "party"), state_altered_fields)
+        self.assertNotIn(("studentprofile", "drink"), top_level_altered_fields)
+        self.assertNotIn(("studentprofile", "party"), top_level_altered_fields)

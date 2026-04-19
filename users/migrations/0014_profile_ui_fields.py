@@ -34,30 +34,97 @@ def _migrate_profile_fields(apps, schema_editor):
 
     for profile in student_model.objects.all():
         gender, gender_other = _normalize_gender(profile.gender)
-        if gender or gender_other:
-            profile.gender = gender
-            if gender_other:
-                profile.gender_other = gender_other
-
-        if profile.drink is not None:
-            if profile.drink in (True, 1):
-                profile.drink = 4
-            elif profile.drink in (False, 0):
-                profile.drink = 1
-        if profile.party is not None:
-            if profile.party in (True, 1):
-                profile.party = 4
-            elif profile.party in (False, 0):
-                profile.party = 1
-        profile.save(update_fields=["gender", "gender_other", "drink", "party"])
+        if not gender and not gender_other:
+            continue
+        profile.gender = gender
+        if gender_other:
+            profile.gender_other = gender_other
+        profile.save(update_fields=["gender", "gender_other"])
 
     for profile in admin_model.objects.all():
         gender, gender_other = _normalize_gender(profile.gender)
-        if gender or gender_other:
-            profile.gender = gender
-            if gender_other:
-                profile.gender_other = gender_other
+        if not gender and not gender_other:
+            continue
+        profile.gender = gender
+        if gender_other:
+            profile.gender_other = gender_other
         profile.save(update_fields=["gender", "gender_other"])
+
+
+def _migrate_student_profile_frequency_fields(apps, schema_editor):
+    if schema_editor.connection.vendor == "postgresql":
+        schema_editor.execute(
+            """
+            ALTER TABLE users_studentprofile
+            ALTER COLUMN drink TYPE smallint
+            USING CASE
+                WHEN drink IS TRUE THEN 4
+                WHEN drink IS FALSE THEN 1
+                ELSE NULL
+            END,
+            ALTER COLUMN party TYPE smallint
+            USING CASE
+                WHEN party IS TRUE THEN 4
+                WHEN party IS FALSE THEN 1
+                ELSE NULL
+            END
+            """
+        )
+        return
+
+    schema_editor.execute(
+        """
+        UPDATE users_studentprofile
+        SET drink = CASE
+                WHEN drink = 1 THEN 4
+                WHEN drink = 0 THEN 1
+                ELSE NULL
+            END,
+            party = CASE
+                WHEN party = 1 THEN 4
+                WHEN party = 0 THEN 1
+                ELSE NULL
+            END
+        """
+    )
+
+
+def _reverse_student_profile_frequency_fields(apps, schema_editor):
+    if schema_editor.connection.vendor == "postgresql":
+        schema_editor.execute(
+            """
+            ALTER TABLE users_studentprofile
+            ALTER COLUMN drink TYPE boolean
+            USING CASE
+                WHEN drink IS NULL THEN NULL
+                WHEN drink >= 4 THEN TRUE
+                ELSE FALSE
+            END,
+            ALTER COLUMN party TYPE boolean
+            USING CASE
+                WHEN party IS NULL THEN NULL
+                WHEN party >= 4 THEN TRUE
+                ELSE FALSE
+            END
+            """
+        )
+        return
+
+    schema_editor.execute(
+        """
+        UPDATE users_studentprofile
+        SET drink = CASE
+                WHEN drink IS NULL THEN NULL
+                WHEN drink >= 4 THEN 1
+                ELSE 0
+            END,
+            party = CASE
+                WHEN party IS NULL THEN NULL
+                WHEN party >= 4 THEN 1
+                ELSE 0
+            END
+        """
+    )
 
 
 class Migration(migrations.Migration):
@@ -132,22 +199,32 @@ class Migration(migrations.Migration):
                 choices=[(1, "Silent"), (2, "Quiet"), (3, "Neutral"), (4, "Loud"), (5, "Very loud")],
             ),
         ),
-        migrations.AlterField(
-            model_name="studentprofile",
-            name="drink",
-            field=models.PositiveSmallIntegerField(
-                blank=True,
-                null=True,
-                choices=[(1, "Never"), (2, "Rarely"), (3, "Sometimes"), (4, "Often"), (5, "Daily")],
-            ),
-        ),
-        migrations.AlterField(
-            model_name="studentprofile",
-            name="party",
-            field=models.PositiveSmallIntegerField(
-                blank=True,
-                null=True,
-                choices=[(1, "Never"), (2, "Rarely"), (3, "Sometimes"), (4, "Often"), (5, "Daily")],
-            ),
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                migrations.RunPython(
+                    _migrate_student_profile_frequency_fields,
+                    _reverse_student_profile_frequency_fields,
+                ),
+            ],
+            state_operations=[
+                migrations.AlterField(
+                    model_name="studentprofile",
+                    name="drink",
+                    field=models.PositiveSmallIntegerField(
+                        blank=True,
+                        null=True,
+                        choices=[(1, "Never"), (2, "Rarely"), (3, "Sometimes"), (4, "Often"), (5, "Daily")],
+                    ),
+                ),
+                migrations.AlterField(
+                    model_name="studentprofile",
+                    name="party",
+                    field=models.PositiveSmallIntegerField(
+                        blank=True,
+                        null=True,
+                        choices=[(1, "Never"), (2, "Rarely"), (3, "Sometimes"), (4, "Often"), (5, "Daily")],
+                    ),
+                ),
+            ],
         ),
     ]
