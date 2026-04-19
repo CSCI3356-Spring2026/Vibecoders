@@ -16,16 +16,21 @@ from django.core.asgi import get_asgi_application
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "vibecoders.settings")
 
-from .routing import websocket_urlpatterns
-
 django_asgi_app = get_asgi_application()
+
+
+def _websocket_urlpatterns():
+    from .routing import websocket_urlpatterns
+
+    return websocket_urlpatterns
+
 
 application = ProtocolTypeRouter(
     {
         "http": django_asgi_app,
         "websocket": AllowedHostsOriginValidator(
             AuthMiddlewareStack(
-                URLRouter(websocket_urlpatterns),
+                URLRouter(_websocket_urlpatterns()),
             )
         ),
     }
