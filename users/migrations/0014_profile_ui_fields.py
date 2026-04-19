@@ -76,6 +76,7 @@ class Migration(migrations.Migration):
             name="gender_other",
             field=models.CharField(blank=True, max_length=120),
         ),
+        migrations.RunPython(_migrate_profile_fields, migrations.RunPython.noop),
         migrations.AlterField(
             model_name="studentprofile",
             name="gender",
@@ -149,5 +150,4 @@ class Migration(migrations.Migration):
                 choices=[(1, "Never"), (2, "Rarely"), (3, "Sometimes"), (4, "Often"), (5, "Daily")],
             ),
         ),
-        migrations.RunPython(_migrate_profile_fields, migrations.RunPython.noop),
     ]

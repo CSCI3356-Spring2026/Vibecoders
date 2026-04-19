@@ -22,6 +22,7 @@ Relevant deployment files now in source control:
 
 - [`/.python-version`](../../.python-version)
 - [`/build.sh`](../../build.sh)
+- [`/start.sh`](../../start.sh)
 - [`/render.yaml`](../../render.yaml)
 - [`/vibecoders/settings.py`](../../vibecoders/settings.py)
 - [`/vibecoders/urls.py`](../../vibecoders/urls.py)
@@ -106,7 +107,7 @@ That Blueprint configures:
 - `healthCheckPath: /healthz/`
 - `buildCommand: ./build.sh`
 - `preDeployCommand: python manage.py migrate`
-- `startCommand: daphne -b 0.0.0.0 -p $PORT vibecoders.asgi:application`
+- `startCommand: ./start.sh`
 - `PYTHON_VERSION=3.12.5`
 - `DJANGO_DEBUG=false`
 - `DJANGO_MEDIA_ROOT=/var/data/padly-media`
@@ -129,7 +130,7 @@ If you prefer to create the service manually instead of using the Blueprint:
 - Health check path: `/healthz/`
 - Build command: `./build.sh`
 - Pre-deploy command: `python manage.py migrate`
-- Start command: `daphne -b 0.0.0.0 -p $PORT vibecoders.asgi:application`
+- Start command: `./start.sh`
 
 ### Database
 
@@ -173,6 +174,15 @@ Optional but recommended when using custom domains:
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | include your custom HTTPS origins |
 
 If those two Django variables are blank, Padly falls back to Render's default `onrender.com` host and origin for first deploys.
+
+## Free Plan Fallback
+
+Render's pre-deploy command is a paid-plan feature. On the free plan, use [`/start.sh`](../../start.sh) as the service start command so Padly runs:
+
+- `python manage.py migrate --noinput`
+- then Daphne
+
+This is less clean than a real pre-deploy phase, but it is the correct workaround when the service cannot use Render's paid deployment step.
 
 ## Google OAuth Checklist
 

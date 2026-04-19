@@ -132,6 +132,7 @@ class TestSettingsTests(SimpleTestCase):
         repo_root = Path(__file__).resolve().parents[2]
         python_version_path = repo_root / ".python-version"
         build_script_path = repo_root / "build.sh"
+        start_script_path = repo_root / "start.sh"
         render_yaml_path = repo_root / "render.yaml"
 
         self.assertTrue(python_version_path.exists())
@@ -144,11 +145,17 @@ class TestSettingsTests(SimpleTestCase):
         self.assertIn("python manage.py check --deploy", build_script)
         self.assertIn("python manage.py collectstatic --no-input", build_script)
 
+        self.assertTrue(start_script_path.exists())
+        self.assertTrue(os.access(start_script_path, os.X_OK))
+        start_script = start_script_path.read_text(encoding="utf-8")
+        self.assertIn("python manage.py migrate --noinput", start_script)
+        self.assertIn('exec daphne -b 0.0.0.0 -p "${PORT:?PORT is required}" vibecoders.asgi:application', start_script)
+
         self.assertTrue(render_yaml_path.exists())
         render_yaml = render_yaml_path.read_text(encoding="utf-8")
         self.assertIn("buildCommand: ./build.sh", render_yaml)
         self.assertIn("preDeployCommand: python manage.py migrate", render_yaml)
-        self.assertIn("startCommand: daphne -b 0.0.0.0 -p $PORT vibecoders.asgi:application", render_yaml)
+        self.assertIn("startCommand: ./start.sh", render_yaml)
         self.assertIn("healthCheckPath: /healthz/", render_yaml)
         self.assertIn("DJANGO_MEDIA_ROOT", render_yaml)
         self.assertIn("mountPath: /var/data/padly-media", render_yaml)
