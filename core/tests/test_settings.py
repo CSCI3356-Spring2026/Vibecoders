@@ -153,6 +153,23 @@ class TestSettingsTests(SimpleTestCase):
         self.assertIn("DJANGO_MEDIA_ROOT", render_yaml)
         self.assertIn("mountPath: /var/data/padly-media", render_yaml)
 
+    def test_asgi_application_imports_cleanly_with_production_like_environment(self):
+        result = self._run_python_subprocess(
+            "import vibecoders.asgi; print('ok')",
+            extra_env={
+                "DJANGO_DEBUG": "false",
+                "DJANGO_SECRET_KEY": "padly-production-secret-key-2026-04-19-render-check-12345",
+                "DJANGO_ALLOWED_HOSTS": "padly.example.com",
+                "DJANGO_CSRF_TRUSTED_ORIGINS": "https://padly.example.com",
+                "DATABASE_URL": "postgresql://user:pass@localhost:5432/padly",
+                "CHANNEL_REDIS_URL": "redis://localhost:6379/0",
+                "CACHE_REDIS_URL": "redis://localhost:6379/1",
+            },
+        )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(result.stdout.strip(), "ok")
+
     def test_ci_workflow_keeps_quality_gates_lockfile_check_and_e2e_job(self):
         repo_root = Path(__file__).resolve().parents[2]
         workflow = (repo_root / ".github/workflows/ci.yml").read_text(encoding="utf-8")
