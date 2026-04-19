@@ -1,7 +1,9 @@
+from importlib import import_module
+
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth.signals import user_logged_in
-from django.db import IntegrityError
-from django.test import TestCase
+from django.db import IntegrityError, migrations
+from django.test import SimpleTestCase, TestCase
 from django.test.client import RequestFactory
 from django.utils import timezone
 
@@ -308,3 +310,24 @@ class CustomUserModelTests(TestCase):
         user.refresh_from_db()
 
         self.assertEqual(user.profile_image_url, "https://example.com/google-avatar.jpg")
+
+
+class HistoricalMigrationTests(SimpleTestCase):
+    def test_profile_ui_fields_data_backfill_runs_before_type_casts(self):
+        migration_module = import_module("users.migrations.0014_profile_ui_fields")
+        operations = migration_module.Migration.operations
+
+        runpython_index = next(index for index, op in enumerate(operations) if isinstance(op, migrations.RunPython))
+        drink_alter_index = next(
+            index
+            for index, op in enumerate(operations)
+            if isinstance(op, migrations.AlterField) and op.model_name == "studentprofile" and op.name == "drink"
+        )
+        party_alter_index = next(
+            index
+            for index, op in enumerate(operations)
+            if isinstance(op, migrations.AlterField) and op.model_name == "studentprofile" and op.name == "party"
+        )
+
+        self.assertLess(runpython_index, drink_alter_index)
+        self.assertLess(runpython_index, party_alter_index)
