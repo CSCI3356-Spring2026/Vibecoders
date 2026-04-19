@@ -222,11 +222,12 @@ class TestSettingsTests(SimpleTestCase):
 
             env = os.environ.copy()
             env["DJANGO_DEBUG"] = "true"
+            env["DJANGO_DISABLE_DOTENV"] = "1"
             env["PYTHONPATH"] = os.pathsep.join([temp_dir, str(repo_root)])
             if database_url:
                 env["DATABASE_URL"] = database_url
             else:
-                env.pop("DATABASE_URL", None)
+                env["DATABASE_URL"] = ""
 
             return subprocess.run(
                 [sys.executable, "-c", command],
@@ -241,6 +242,7 @@ class TestSettingsTests(SimpleTestCase):
         repo_root = Path(__file__).resolve().parents[2]
         env = os.environ.copy()
         env["DJANGO_DEBUG"] = "true"
+        env["DJANGO_DISABLE_DOTENV"] = "1"
         env["DJANGO_SETTINGS_MODULE"] = "vibecoders.settings"
         env["PYTHONPATH"] = str(repo_root)
         for key, value in (extra_env or {}).items():
