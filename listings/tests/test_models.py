@@ -512,7 +512,7 @@ class ListingModelTests(ListingTestCase):
         self.assertIsNone(report.reviewed_at)
         self.assertEqual(report.resolution_notes, "")
 
-    def test_report_resolution_does_not_permanently_hide_reapproved_listing(self):
+    def test_report_resolution_archives_listing_and_preserves_moderation_notes(self):
         reviewer = self.user.__class__.objects.create_user(
             username="report-resolution-reviewer",
             email="report-resolution-reviewer@bc.edu",
@@ -538,21 +538,17 @@ class ListingModelTests(ListingTestCase):
             resolution_notes="Removed from the marketplace while we investigate.",
         )
         report.save()
-        listing.close_from_report(reviewer=reviewer, notes="Removed from the marketplace while we investigate.")
+        listing.archive_from_report(reviewer=reviewer, notes="Removed from the marketplace while we investigate.")
         listing.save()
         listing.refresh_from_db()
 
-        self.assertFalse(listing.is_hidden)
+        self.assertTrue(listing.is_hidden)
+        self.assertTrue(listing.is_archived)
         self.assertFalse(listing.is_publicly_active)
-
-        listing.submit_for_approval()
-        listing.save()
-        listing.approve(reviewer=reviewer, notes="Approved after remediation.")
-        listing.save()
-        listing.refresh_from_db()
-
-        self.assertTrue(listing.is_approved)
-        self.assertTrue(listing.is_publicly_active)
+        self.assertEqual(listing.archive_reason, Listing.ARCHIVE_REASON_REPORT)
+        self.assertEqual(listing.approval_status, Listing.APPROVAL_REJECTED)
+        self.assertEqual(listing.approval_notes, "Removed from the marketplace while we investigate.")
+        self.assertEqual(listing.archived_by, reviewer)
 
     def test_update_listing_report_records_note_when_status_is_unchanged(self):
         reviewer = self.user.__class__.objects.create_user(

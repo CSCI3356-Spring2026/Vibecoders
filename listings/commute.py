@@ -1,6 +1,10 @@
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from math import asin, cos, radians, sin, sqrt
 
+import requests
+from django.conf import settings
+from django.core.cache import cache
+
 from .geocoding import BOSTON_COLLEGE_LATITUDE, BOSTON_COLLEGE_LONGITUDE
 
 COMMUTE_MODE_WALKING = "walking"
@@ -12,13 +16,13 @@ COMMUTE_MODE_CHOICES = (
     (COMMUTE_MODE_TRANSIT, "Train / transit"),
     (COMMUTE_MODE_DRIVING, "Driving"),
 )
+COMMUTE_ROUTE_MODES = {
+    COMMUTE_MODE_WALKING: "walk",
+    COMMUTE_MODE_TRANSIT: "transit",
+    COMMUTE_MODE_DRIVING: "drive",
+}
 
 EARTH_RADIUS_MILES = 3958.8
-MODE_FACTORS = {
-    COMMUTE_MODE_WALKING: {"route_multiplier": 1.18, "speed_mph": 3.1, "fixed_minutes": 0},
-    COMMUTE_MODE_TRANSIT: {"route_multiplier": 1.32, "speed_mph": 15.5, "fixed_minutes": 8},
-    COMMUTE_MODE_DRIVING: {"route_multiplier": 1.28, "speed_mph": 17.5, "fixed_minutes": 4},
-}
 
 
 def _rounded_decimal(value):
@@ -75,50 +79,116 @@ def listing_distance_to_bc_miles(listing):
     return _coerce_decimal(getattr(listing, "distance_to_campus", None))
 
 
-def estimate_commute_minutes(distance_miles, mode):
-    base_distance = _coerce_decimal(distance_miles)
-    config = MODE_FACTORS.get(mode)
-    if base_distance is None or base_distance < 0 or config is None:
+def routed_commute_enabled():
+    return bool(getattr(settings, "LISTING_GEOAPIFY_API_KEY", "").strip())
+
+
+def commute_available_for_listing(listing):
+    return routed_commute_enabled() and getattr(listing, "has_map_coordinates", False)
+
+
+def _geoapify_routing_url():
+    return getattr(settings, "LISTING_GEOAPIFY_ROUTING_URL", "https://api.geoapify.com/v1/routing").strip()
+
+
+def _commute_cache_key(listing_id, mode):
+    return f"listing-commute:{listing_id}:{mode}"
+
+
+def _seconds_to_display(seconds):
+    total_minutes = max(1, round(float(seconds or 0) / 60))
+    if total_minutes < 60:
+        return f"{total_minutes} min"
+
+    hours = total_minutes // 60
+    minutes = total_minutes % 60
+    return f"{hours} hr {minutes} min" if minutes else f"{hours} hr"
+
+
+def _meters_to_miles(value):
+    if value in (None, ""):
+        return None
+    try:
+        meters = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+    return (meters * Decimal("0.000621371")).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+
+
+def _fetch_route_for_mode(listing, mode):
+    route_mode = COMMUTE_ROUTE_MODES.get(mode)
+    if route_mode is None:
         return None
 
-    route_distance = base_distance * Decimal(str(config["route_multiplier"]))
-    moving_minutes = (route_distance / Decimal(str(config["speed_mph"]))) * Decimal("60")
-    total_minutes = moving_minutes + Decimal(str(config["fixed_minutes"]))
-    rounded_up = total_minutes.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
-    return max(1, int(rounded_up))
+    cache_key = _commute_cache_key(listing.pk, mode)
+    cached_payload = cache.get(cache_key)
+    if cached_payload is not None:
+        return cached_payload
+
+    response = requests.get(
+        _geoapify_routing_url(),
+        params={
+            "waypoints": f"{listing.latitude},{listing.longitude}|{BOSTON_COLLEGE_LATITUDE},{BOSTON_COLLEGE_LONGITUDE}",
+            "mode": route_mode,
+            "format": "geojson",
+            "apiKey": settings.LISTING_GEOAPIFY_API_KEY,
+        },
+        timeout=getattr(settings, "LISTING_GEOAPIFY_ROUTING_TIMEOUT_SECONDS", 6),
+    )
+    response.raise_for_status()
+    route_payload = response.json()
+    feature = route_payload.get("features", [{}])[0]
+    properties = feature.get("properties") or {}
+    geometry = feature.get("geometry")
+    time_seconds = properties.get("time")
+    if geometry is None or time_seconds in (None, ""):
+        raise ValueError("Routing payload missing geometry or travel time.")
+
+    payload = {
+        "mode": mode,
+        "label": dict(COMMUTE_MODE_CHOICES)[mode],
+        "time_seconds": int(time_seconds),
+        "display": _seconds_to_display(time_seconds),
+        "distance_miles": str(_meters_to_miles(properties.get("distance")) or ""),
+        "geometry": geometry,
+    }
+    cache.set(cache_key, payload, timeout=getattr(settings, "LISTING_COMMUTE_CACHE_TTL_SECONDS", 900))
+    return payload
 
 
 def commute_payload_for_listing(listing):
+    if not commute_available_for_listing(listing):
+        return None
+
     distance_miles = listing_distance_to_bc_miles(listing)
     if distance_miles is None:
         return None
-
     normalized_distance = _rounded_decimal(distance_miles)
-    modes = []
-    for value, label in COMMUTE_MODE_CHOICES:
-        minutes = estimate_commute_minutes(normalized_distance, value)
-        modes.append(
-            {
-                "value": value,
-                "label": label,
-                "minutes": minutes,
-                "display": f"{minutes} min" if minutes is not None else "Unavailable",
-            }
-        )
+    routes = {}
+    for value, _label in COMMUTE_MODE_CHOICES:
+        routes[value] = _fetch_route_for_mode(listing, value)
 
-    payload = {
+    return {
+        "available": True,
         "destination_label": "Boston College",
         "distance_miles": f"{normalized_distance}",
         "default_mode": COMMUTE_DEFAULT_MODE,
-        "modes": modes,
-    }
-    if getattr(listing, "has_map_coordinates", False):
-        payload["origin"] = {
+        "modes": [
+            {
+                "value": mode,
+                "label": route["label"],
+                "display": route["display"],
+                "distance_miles": route["distance_miles"],
+            }
+            for mode, route in routes.items()
+        ],
+        "routes": routes,
+        "origin": {
             "lat": float(listing.latitude),
             "lng": float(listing.longitude),
-        }
-        payload["destination"] = {
+        },
+        "destination": {
             "lat": BOSTON_COLLEGE_LATITUDE,
             "lng": BOSTON_COLLEGE_LONGITUDE,
-        }
-    return payload
+        },
+    }

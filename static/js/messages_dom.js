@@ -3,6 +3,7 @@ import { buildUserAvatar } from "./messages_avatar.js";
 
 export function createMessagesUi(root) {
     const conversationUrlTemplate = root.dataset.conversationUrlTemplate || "";
+    const readUrlTemplate = root.dataset.readUrlTemplate || "";
     const currentUserId = Number(root.dataset.currentUserId || 0);
     const selectedConversationId = Number(root.dataset.selectedConversationId || 0);
     const currentThreadPage = Number(root.dataset.threadPage || 1);
@@ -22,12 +23,19 @@ export function createMessagesUi(root) {
     const characterCount = root.querySelector("[data-message-count]");
     let totalConversations = Number(root.dataset.totalConversationsCount || 0);
     let unreadConversations = Number(root.dataset.totalUnreadCount || 0);
+    let pendingClientMessageId = "";
 
     const conversationUrl = (conversationId) => {
         if (!conversationUrlTemplate.includes("/0/")) {
             return "#";
         }
         return conversationUrlTemplate.replace("/0/", `/${conversationId}/`);
+    };
+    const readUrl = (conversationId) => {
+        if (!readUrlTemplate.includes("/0/")) {
+            return "";
+        }
+        return readUrlTemplate.replace("/0/", `/${conversationId}/`);
     };
     const conversationListController = createConversationListController({
         conversationList,
@@ -101,6 +109,31 @@ export function createMessagesUi(root) {
         renderUnreadCount();
     };
 
+    const setPendingSend = (clientMessageId) => {
+        pendingClientMessageId = clientMessageId || "";
+        if (replyInput) {
+            replyInput.readOnly = Boolean(pendingClientMessageId);
+        }
+        updateComposeState();
+        if (deliveryState && pendingClientMessageId) {
+            deliveryState.textContent = "Sending…";
+        }
+    };
+
+    const failPendingSend = () => {
+        if (!pendingClientMessageId) {
+            return;
+        }
+        pendingClientMessageId = "";
+        if (replyInput) {
+            replyInput.readOnly = false;
+        }
+        updateComposeState();
+        if (deliveryState) {
+            deliveryState.textContent = "Draft preserved. Send again when ready.";
+        }
+    };
+
     const setConnectionState = (state) => {
         const config = {
             connecting: {
@@ -138,6 +171,9 @@ export function createMessagesUi(root) {
         if (deliveryState) {
             deliveryState.textContent = config.deliveryText;
         }
+        if (state !== "live") {
+            failPendingSend();
+        }
     };
 
     const updateComposeState = () => {
@@ -154,7 +190,7 @@ export function createMessagesUi(root) {
         }
 
         if (replySubmit) {
-            replySubmit.disabled = trimmedLength === 0;
+            replySubmit.disabled = Boolean(pendingClientMessageId) || trimmedLength === 0;
         }
     };
 
@@ -245,6 +281,19 @@ export function createMessagesUi(root) {
         }
     };
 
+    const markSelectedConversationReadLocally = () => {
+        if (!selectedConversationId) {
+            return;
+        }
+        const activeItem = conversationList?.querySelector(`[data-conversation-id="${selectedConversationId}"]`);
+        if (!activeItem?.querySelector('[data-role="conversation-unread"]')) {
+            return;
+        }
+        unreadConversations = Math.max(0, unreadConversations - 1);
+        renderUnreadCount();
+        conversationListController.markUnread(activeItem, false);
+    };
+
     const handleMessageCreated = (payload, options = {}) => {
         clearError();
         applySummaryDelta(payload.summary);
@@ -257,12 +306,24 @@ export function createMessagesUi(root) {
         if (currentThreadPage === 1) {
             appendMessageBubble(payload.message);
 
+            if (
+                payload.message.sender_id === currentUserId
+                && payload.message.client_message_id
+                && payload.message.client_message_id === pendingClientMessageId
+            ) {
+                pendingClientMessageId = "";
+                if (replyInput) {
+                    replyInput.readOnly = false;
+                }
+                clearReplyInput();
+                if (deliveryState) {
+                    deliveryState.textContent = "Live updates on.";
+                }
+            }
+
             if (payload.message.sender_id !== currentUserId) {
                 options.onSelectedInboundMessage?.();
-                const activeItem = conversationList?.querySelector(
-                    `[data-conversation-id="${selectedConversationId}"]`
-                );
-                conversationListController.markUnread(activeItem, false);
+                markSelectedConversationReadLocally();
             }
             return;
         }
@@ -284,6 +345,7 @@ export function createMessagesUi(root) {
 
     return {
         websocketPath: root.dataset.websocketPath || "",
+        readUrl,
         currentUserId,
         selectedConversationId,
         currentThreadPage,
@@ -298,6 +360,9 @@ export function createMessagesUi(root) {
         clearError,
         setConnectionState,
         updateComposeState,
+        setPendingSend,
+        failPendingSend,
+        markSelectedConversationReadLocally,
         handleConversationRead,
         handleMessageCreated,
         getReplyBody,

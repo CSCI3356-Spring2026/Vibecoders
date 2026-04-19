@@ -1,6 +1,11 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}User Detail | {{ site_product_name }}{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/admin.css' %}">
+{% endblock %}
 
 {% block content %}
 <section class="app-page admin-dashboard">

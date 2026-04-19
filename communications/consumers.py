@@ -63,8 +63,12 @@ class MessagesConsumer(AsyncJsonWebsocketConsumer):
             return
 
         body = content.get("body", "")
+        client_message_id = content.get("client_message_id", "")
+        if client_message_id and (not isinstance(client_message_id, str) or len(client_message_id) > 64):
+            await self.send_json({"type": "error", "message": "A valid client message id is required."})
+            return
         try:
-            sent = await self._send_message(conversation_id, body)
+            sent = await self._send_message(conversation_id, body, client_message_id)
         except ValidationError as exc:
             if hasattr(exc, "message_dict"):
                 message = exc.message_dict.get("body", exc.messages)[0]
@@ -87,11 +91,11 @@ class MessagesConsumer(AsyncJsonWebsocketConsumer):
             await self.send_json({"type": "error", "message": "Conversation not found."})
 
     @database_sync_to_async
-    def _send_message(self, conversation_id, body):
+    def _send_message(self, conversation_id, body, client_message_id):
         conversation = ListingConversation.objects.visible_to(self.user).only("id").filter(id=conversation_id).first()
         if conversation is None:
             return False
-        send_conversation_message(conversation, self.user, body)
+        send_conversation_message(conversation, self.user, body, client_message_id=client_message_id)
         return True
 
     @database_sync_to_async

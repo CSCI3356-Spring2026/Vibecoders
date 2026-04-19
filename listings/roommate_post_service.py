@@ -73,7 +73,7 @@ def decorate_roommate_posts_for_user(user, roommate_posts, *, group_profiles=Non
         post.ui_score_variant = _score_variant(score)
         post.ui_highlights = highlights
         post.ui_profile_url = reverse(
-            "users:public_profile",
+            "roommates:public_profile",
             args=[post.lead_user.id if post.lead_user else conversation_key],
         )
         post.ui_can_message = (

@@ -13,6 +13,16 @@ from .models import (
 ACTIVE_REPORT_STATUSES = [ListingReport.STATUS_OPEN, ListingReport.STATUS_IN_REVIEW]
 
 
+def _archived_listing_conversation_exists(user):
+    from communications.models import ListingConversation
+
+    return Exists(
+        ListingConversation.objects.visible_to(user).filter(
+            listing_id=OuterRef("pk"),
+        )
+    )
+
+
 def with_feedback_summary(queryset):
     return queryset.annotate(
         average_rating=Avg("reviews__rating"),
@@ -23,6 +33,15 @@ def with_feedback_summary(queryset):
             distinct=True,
         ),
     )
+
+
+def _marketplace_listing_scope(user):
+    public_listings = Listing.objects.public()
+    if not getattr(user, "is_authenticated", False):
+        return public_listings
+    if user.can_browse_marketplace:
+        return public_listings
+    return Listing.objects.filter(owner=user)
 
 
 def listing_reviews_queryset(listing):
@@ -64,16 +83,13 @@ def listing_reports_queryset_for_admin(*, listing=None):
 
 
 def marketplace_listings_for_user(user):
-    public_listings = with_feedback_summary(Listing.objects.with_related().public()).order_by("-created_at")
-    if not getattr(user, "is_authenticated", False):
-        return public_listings
-    if user.can_browse_marketplace:
-        return public_listings
-    return with_feedback_summary(Listing.objects.with_related().filter(owner=user)).order_by("-created_at")
+    return with_feedback_summary(_marketplace_listing_scope(user).with_related()).order_by("-created_at")
 
 
 def searchable_marketplace_listings_for_user(user):
-    return marketplace_listings_for_user(user).filter(latitude__isnull=False, longitude__isnull=False)
+    return (
+        _marketplace_listing_scope(user).filter(latitude__isnull=False, longitude__isnull=False).order_by("-created_at")
+    )
 
 
 def accessible_listing_detail_queryset(user):
@@ -82,8 +98,16 @@ def accessible_listing_detail_queryset(user):
         return base_queryset.public()
     if user.is_bc_admin:
         return base_queryset
+    archived_conversation_exists = _archived_listing_conversation_exists(user)
     if user.can_browse_marketplace:
-        return base_queryset.filter(Q(owner=user) | Listing.public_visibility_q())
+        return base_queryset.annotate(has_visible_conversation=archived_conversation_exists).filter(
+            Q(owner=user)
+            | Listing.public_visibility_q()
+            | Q(
+                archived_at__isnull=False,
+                has_visible_conversation=True,
+            )
+        )
     return base_queryset.filter(owner=user)
 
 

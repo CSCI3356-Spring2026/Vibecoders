@@ -1,4 +1,5 @@
 from django.apps import AppConfig
+from django.conf import settings
 
 
 class UsersConfig(AppConfig):
@@ -7,3 +8,8 @@ class UsersConfig(AppConfig):
 
     def ready(self):
         from . import signals  # noqa: F401
+
+        if settings.RUNNING_TESTS:
+            from .test_client import patch_test_clients
+
+            patch_test_clients()

@@ -16,6 +16,7 @@ from communications.models import ListingConversation, ListingMessage
 from communications.selectors import user_related_conversations_queryset, user_related_messages_queryset
 from core.utils import get_page, preserved_query_suffix, safe_next_url
 from listings.forms import AdminListingApprovalForm, AdminListingReportResolutionForm
+from listings.lifecycle import archive_listing
 from listings.models import Listing, ListingReport
 from listings.report_services import update_listing_report
 from listings.selectors import listing_reports_queryset_for_admin, listing_reviews_queryset, with_feedback_summary
@@ -292,15 +293,25 @@ def admin_review_listing(request, listing_id):
 
 @admin_required_view
 @require_POST
-def admin_delete_listing(request, listing_id):
+def admin_archive_listing(request, listing_id):
     listing = get_object_or_404(Listing, id=listing_id)
-    listing.delete()
+    archive_listing(
+        listing,
+        actor=request.user,
+        reason=Listing.ARCHIVE_REASON_ADMIN,
+    )
     redirect_to = safe_next_url(
         request,
         request.POST.get("next"),
         reverse("users:admin_listings"),
     )
     return redirect(redirect_to)
+
+
+@admin_required_view
+@require_POST
+def admin_delete_listing(request, listing_id):
+    return admin_archive_listing(request, listing_id)
 
 
 @admin_required_view

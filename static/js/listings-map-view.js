@@ -1,22 +1,3 @@
-function escapeHtml(value) {
-    return String(value ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#39;");
-}
-
-function buildMarkerElement(markerData) {
-    const element = document.createElement("button");
-    element.type = "button";
-    element.className = "listing-map-marker";
-    element.innerHTML = `<span class="listing-map-marker-label">${escapeHtml(markerData.price)}</span>`;
-    element.setAttribute("aria-label", `${markerData.title} ${markerData.price}`);
-    element.setAttribute("aria-pressed", "false");
-    return element;
-}
-
 function builtInSatelliteStyle() {
     return {
         version: 8,
@@ -40,9 +21,33 @@ function builtInSatelliteStyle() {
     };
 }
 
-function setMarkerSelectedState(element, isSelected) {
-    element.classList.toggle("is-selected", isSelected);
-    element.setAttribute("aria-pressed", isSelected ? "true" : "false");
+const MARKER_SOURCE_ID = "listings-markers";
+const CLUSTER_LAYER_ID = "listings-clusters";
+const CLUSTER_COUNT_LAYER_ID = "listings-cluster-count";
+const POINT_LAYER_ID = "listings-points";
+const LABEL_LAYER_ID = "listings-point-labels";
+
+function markerFeature(markerData, activeListingId) {
+    return {
+        type: "Feature",
+        geometry: {
+            type: "Point",
+            coordinates: [markerData.lng, markerData.lat],
+        },
+        properties: {
+            id: String(markerData.id),
+            price: markerData.price,
+            title: markerData.title,
+            selected: String(markerData.id) === activeListingId,
+        },
+    };
+}
+
+function markerFeatureCollection(markers, activeListingId) {
+    return {
+        type: "FeatureCollection",
+        features: (Array.isArray(markers) ? markers : []).map((marker) => markerFeature(marker, activeListingId)),
+    };
 }
 
 export function createListingsMapView({
@@ -85,6 +90,10 @@ export function createListingsMapView({
     };
 
     let activeStyleMode = "map";
+    let mapLoaded = false;
+    let hasAppliedInitialViewport = false;
+    let markers = Array.isArray(initialMarkers) ? initialMarkers : [];
+    let activeListingId = selectedListingId ? String(selectedListingId) : "";
 
     const map = new maplibregl.Map({
         container: canvas,
@@ -92,71 +101,107 @@ export function createListingsMapView({
         center: [defaultLng, defaultLat],
         zoom: 12,
     });
-    const markerEntries = new Map();
-    let hasAppliedInitialViewport = false;
-    let mapLoaded = false;
-    let markers = Array.isArray(initialMarkers) ? initialMarkers : [];
-    let activeListingId = selectedListingId ? String(selectedListingId) : "";
 
-    const applySelection = () => {
-        markerEntries.forEach((entry, listingId) => {
-            setMarkerSelectedState(entry.element, listingId === activeListingId);
-        });
-    };
+    const sourceData = () => markerFeatureCollection(markers, activeListingId);
 
-    const createMarkerEntry = (markerData) => {
-        const listingId = String(markerData.id);
-        const element = buildMarkerElement(markerData);
-        element.addEventListener("click", (event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            activeListingId = listingId;
-            applySelection();
-            onMarkerSelect?.(markerData.id);
-        });
-
-        const marker = new maplibregl.Marker({
-            anchor: "center",
-            element,
-        })
-            .setLngLat([markerData.lng, markerData.lat])
-            .addTo(map);
-
-        markerEntries.set(listingId, { element, marker });
-    };
-
-    const syncMarkerEntries = () => {
-        if (!mapLoaded) {
-            return;
+    const ensureLayers = () => {
+        if (!map.getSource(MARKER_SOURCE_ID)) {
+            map.addSource(MARKER_SOURCE_ID, {
+                type: "geojson",
+                data: sourceData(),
+                cluster: true,
+                clusterMaxZoom: 14,
+                clusterRadius: 48,
+            });
         }
 
-        const nextMarkerIds = new Set();
+        if (!map.getLayer(CLUSTER_LAYER_ID)) {
+            map.addLayer({
+                id: CLUSTER_LAYER_ID,
+                type: "circle",
+                source: MARKER_SOURCE_ID,
+                filter: ["has", "point_count"],
+                paint: {
+                    "circle-color": "#1761c2",
+                    "circle-radius": [
+                        "step",
+                        ["get", "point_count"],
+                        18,
+                        10,
+                        22,
+                        25,
+                        26,
+                    ],
+                    "circle-opacity": 0.92,
+                },
+            });
+        }
 
-        markers.forEach((markerData) => {
-            const listingId = String(markerData.id);
-            nextMarkerIds.add(listingId);
+        if (!map.getLayer(CLUSTER_COUNT_LAYER_ID)) {
+            map.addLayer({
+                id: CLUSTER_COUNT_LAYER_ID,
+                type: "symbol",
+                source: MARKER_SOURCE_ID,
+                filter: ["has", "point_count"],
+                layout: {
+                    "text-field": ["get", "point_count_abbreviated"],
+                    "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+                    "text-size": 12,
+                },
+                paint: {
+                    "text-color": "#ffffff",
+                },
+            });
+        }
 
-            const existingEntry = markerEntries.get(listingId);
-            if (!existingEntry) {
-                createMarkerEntry(markerData);
-                return;
-            }
+        if (!map.getLayer(POINT_LAYER_ID)) {
+            map.addLayer({
+                id: POINT_LAYER_ID,
+                type: "circle",
+                source: MARKER_SOURCE_ID,
+                filter: ["!", ["has", "point_count"]],
+                paint: {
+                    "circle-color": [
+                        "case",
+                        ["get", "selected"],
+                        "#1761c2",
+                        "#ffffff",
+                    ],
+                    "circle-radius": 20,
+                    "circle-stroke-width": 2,
+                    "circle-stroke-color": "#d9392e",
+                },
+            });
+        }
 
-            existingEntry.marker.setLngLat([markerData.lng, markerData.lat]);
-            existingEntry.element.innerHTML = `<span class="listing-map-marker-label">${escapeHtml(markerData.price)}</span>`;
-            existingEntry.element.setAttribute("aria-label", `${markerData.title} ${markerData.price}`);
-        });
+        if (!map.getLayer(LABEL_LAYER_ID)) {
+            map.addLayer({
+                id: LABEL_LAYER_ID,
+                type: "symbol",
+                source: MARKER_SOURCE_ID,
+                filter: ["!", ["has", "point_count"]],
+                layout: {
+                    "text-field": ["get", "price"],
+                    "text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
+                    "text-size": 11,
+                },
+                paint: {
+                    "text-color": [
+                        "case",
+                        ["get", "selected"],
+                        "#ffffff",
+                        "#19212b",
+                    ],
+                },
+            });
+        }
+    };
 
-        markerEntries.forEach((entry, listingId) => {
-            if (nextMarkerIds.has(listingId)) {
-                return;
-            }
-            entry.marker.remove();
-            markerEntries.delete(listingId);
-        });
-
-        applySelection();
-        applyViewportToMarkers();
+    const updateSource = () => {
+        const source = map.getSource(MARKER_SOURCE_ID);
+        if (source) {
+            source.setData(sourceData());
+        }
     };
 
     const applyViewportToMarkers = () => {
@@ -165,7 +210,6 @@ export function createListingsMapView({
         }
 
         hasAppliedInitialViewport = true;
-
         if (markers.length === 1) {
             map.setCenter([markers[0].lng, markers[0].lat]);
             map.setZoom(13);
@@ -173,18 +217,67 @@ export function createListingsMapView({
         }
 
         const bounds = new maplibregl.LngLatBounds();
-        markers.forEach((marker) => {
-            bounds.extend([marker.lng, marker.lat]);
-        });
+        markers.forEach((marker) => bounds.extend([marker.lng, marker.lat]));
         map.fitBounds(bounds, { padding: 56, maxZoom: 14 });
     };
 
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    const bindEvents = () => {
+        map.on("click", CLUSTER_LAYER_ID, (event) => {
+            const clusterFeature = event.features?.[0];
+            if (!clusterFeature) {
+                return;
+            }
+
+            const clusterId = clusterFeature.properties?.cluster_id;
+            map.getSource(MARKER_SOURCE_ID)?.getClusterExpansionZoom(clusterId, (error, zoom) => {
+                if (error) {
+                    return;
+                }
+                map.easeTo({
+                    center: clusterFeature.geometry.coordinates,
+                    zoom,
+                });
+            });
+        });
+
+        map.on("click", POINT_LAYER_ID, (event) => {
+            const feature = event.features?.[0];
+            const listingId = feature?.properties?.id;
+            if (!listingId) {
+                return;
+            }
+
+            activeListingId = String(listingId);
+            updateSource();
+            onMarkerSelect?.(listingId);
+        });
+
+        map.on("mouseenter", CLUSTER_LAYER_ID, () => {
+            map.getCanvas().style.cursor = "pointer";
+        });
+        map.on("mouseleave", CLUSTER_LAYER_ID, () => {
+            map.getCanvas().style.cursor = "";
+        });
+        map.on("mouseenter", POINT_LAYER_ID, () => {
+            map.getCanvas().style.cursor = "pointer";
+        });
+        map.on("mouseleave", POINT_LAYER_ID, () => {
+            map.getCanvas().style.cursor = "";
+        });
+    };
+
     const handleMapStyleReady = () => {
         mapLoaded = true;
-        syncMarkerEntries();
+        ensureLayers();
+        updateSource();
+        applyViewportToMarkers();
     };
-    map.on("load", handleMapStyleReady);
+
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    map.on("load", () => {
+        handleMapStyleReady();
+        bindEvents();
+    });
     map.on("style.load", handleMapStyleReady);
     map.on("moveend", () => {
         onViewportChange?.();
@@ -209,7 +302,8 @@ export function createListingsMapView({
         },
         renderMarkers(nextMarkers) {
             markers = Array.isArray(nextMarkers) ? nextMarkers : [];
-            syncMarkerEntries();
+            updateSource();
+            applyViewportToMarkers();
         },
         setStyleMode(mode) {
             const nextMode = mode === "satellite" && resolvedSatelliteStyleUrl ? "satellite" : "map";
@@ -223,7 +317,7 @@ export function createListingsMapView({
         },
         setSelectedListing(listingId) {
             activeListingId = listingId ? String(listingId) : "";
-            applySelection();
+            updateSource();
         },
     };
 }

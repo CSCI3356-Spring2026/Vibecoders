@@ -176,9 +176,9 @@ def serialize_conversation_for_user(conversation, user):
     }
 
 
-def serialize_message(message):
+def serialize_message(message, *, client_message_id=None):
     sender = message.sender
-    return {
+    payload = {
         "id": message.id,
         "conversation_id": message.conversation_id,
         "sender_id": sender.id,
@@ -187,15 +187,21 @@ def serialize_message(message):
         "body": message.body,
         "created_at": message.created_at.isoformat(),
     }
+    if client_message_id:
+        payload["client_message_id"] = client_message_id
+    return payload
 
 
-def publish_conversation_message(message, *, summary_deltas=None):
+def publish_conversation_message(message, *, summary_deltas=None, sender_client_message_id=""):
     conversation = message.conversation
     recipients = (conversation.owner, conversation.participant)
-    serialized_message = serialize_message(message)
     summary_deltas = summary_deltas or {}
     for recipient in recipients:
         summary = summary_deltas.get(recipient.id, _summary_delta())
+        serialized_message = serialize_message(
+            message,
+            client_message_id=sender_client_message_id if recipient.id == message.sender_id else "",
+        )
         _publish_to_user_group(
             recipient.id,
             {
@@ -266,7 +272,7 @@ def _message_summary_deltas(
     }
 
 
-def _send_listing_message_locked(conversation, sender, body, *, conversation_created=False):
+def _send_listing_message_locked(conversation, sender, body, *, conversation_created=False, client_message_id=""):
     owner_had_unread = conversation.owner_has_unread_messages
     participant_had_unread = conversation.participant_has_unread_messages
     owner_was_deleted = conversation.owner_deleted_at is not None
@@ -285,12 +291,13 @@ def _send_listing_message_locked(conversation, sender, body, *, conversation_cre
         lambda: publish_conversation_message(
             message,
             summary_deltas=summary_deltas,
+            sender_client_message_id=client_message_id,
         )
     )
     return message
 
 
-def send_conversation_message(conversation, sender, body, *, conversation_created=False):
+def send_conversation_message(conversation, sender, body, *, conversation_created=False, client_message_id=""):
     with transaction.atomic():
         locked_conversation = ListingConversation.objects.with_related().select_for_update().get(pk=conversation.pk)
         _validate_conversation_send_access(locked_conversation, sender)
@@ -299,6 +306,7 @@ def send_conversation_message(conversation, sender, body, *, conversation_create
             sender,
             body,
             conversation_created=conversation_created,
+            client_message_id=client_message_id,
         )
     return message
 

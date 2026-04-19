@@ -71,6 +71,7 @@ DEVELOPMENT_SECRET_KEY = "padly-local-dev-secret-key-2026-04-01-keep-out-of-prod
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env_bool("DJANGO_DEBUG", any(command in sys.argv for command in LOCAL_DEBUG_COMMANDS))
+DJANGO_ADMIN_ENABLED = env_bool("DJANGO_ADMIN_ENABLED", DEBUG)
 
 configured_secret_key = os.getenv("DJANGO_SECRET_KEY", "").strip()
 if configured_secret_key:
@@ -106,6 +107,7 @@ INSTALLED_APPS = [
     "core",
     "communications",
     "listings",
+    "roommates",
     "users",
     "django.contrib.sites",  # Required by allauth
     # Allauth
@@ -247,6 +249,10 @@ LISTING_GEOAPIFY_AUTOCOMPLETE_URL = os.getenv(
 LISTING_GEOAPIFY_AUTOCOMPLETE_URL = (
     LISTING_GEOAPIFY_AUTOCOMPLETE_URL or "https://api.geoapify.com/v1/geocode/autocomplete"
 )
+LISTING_GEOAPIFY_ROUTING_URL = os.getenv("LISTING_GEOAPIFY_ROUTING_URL", "https://api.geoapify.com/v1/routing").strip()
+LISTING_GEOAPIFY_ROUTING_URL = LISTING_GEOAPIFY_ROUTING_URL or "https://api.geoapify.com/v1/routing"
+LISTING_GEOAPIFY_ROUTING_TIMEOUT_SECONDS = max(1, env_int("LISTING_GEOAPIFY_ROUTING_TIMEOUT_SECONDS", 6))
+LISTING_COMMUTE_CACHE_TTL_SECONDS = max(60, env_int("LISTING_COMMUTE_CACHE_TTL_SECONDS", 900))
 LISTING_GEOAPIFY_MAP_STYLE_URL = os.getenv("LISTING_GEOAPIFY_MAP_STYLE_URL", "").strip()
 if not LISTING_GEOAPIFY_MAP_STYLE_URL and LISTING_GEOAPIFY_API_KEY:
     LISTING_GEOAPIFY_MAP_STYLE_URL = (
@@ -284,10 +290,10 @@ STUDENT_EMAIL_DOMAINS = env_list("STUDENT_EMAIL_DOMAINS", "bc.edu")
 # These settings are required by allauth and are used to configure the authentication process
 SITE_ID = 1
 
-AUTHENTICATION_BACKENDS = [
-    "django.contrib.auth.backends.ModelBackend",  # Django admin and permissions
-    "allauth.account.auth_backends.AuthenticationBackend",  # Allauth
-]
+AUTHENTICATION_BACKENDS = []
+if DJANGO_ADMIN_ENABLED:
+    AUTHENTICATION_BACKENDS.append("django.contrib.auth.backends.ModelBackend")
+AUTHENTICATION_BACKENDS.append("allauth.account.auth_backends.AuthenticationBackend")
 
 # Allauth config — regular signup/login disabled; Google OAuth only
 SOCIALACCOUNT_ONLY = True

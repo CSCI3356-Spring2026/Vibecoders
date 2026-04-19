@@ -1,6 +1,11 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Documents | {{ site_product_name }}{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/files.css' %}">
+{% endblock %}
 
 {% block content %}
 <section class="app-page">

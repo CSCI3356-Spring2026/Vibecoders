@@ -57,14 +57,15 @@
                     <a class="rmhub-tab {% if tab == 'people' %}rmhub-tab-active{% endif %}"
                        href="?tab=people">People</a>
                     {% if can_manage_roommate_post %}
-                        <a class="rmhub-tab {% if tab == 'mypost' %}rmhub-tab-active{% endif %}"
-                           href="?tab=mypost">Your Post</a>
+                        <a class="rmhub-tab {% if tab == 'groups' %}rmhub-tab-active{% endif %}"
+                           href="?tab=groups">Groups</a>
                     {% endif %}
                 </div>
 
-                {% if tab != "mypost" %}
+                {% if tab != "groups" %}
                     <form class="rmhub-search-form" method="get" id="rmhub-search-form">
                         <input type="hidden" name="tab" value="{{ tab }}">
+                        {% if tab == "people" and people_saved_only %}<input type="hidden" name="saved" value="1">{% endif %}
                         <input
                             class="form-control rmhub-search-input"
                             type="search"
@@ -86,7 +87,7 @@
                         >Filters</button>
                         {% if can_manage_roommate_post %}
                             {% if has_any_roommate_post %}
-                                <a class="btn btn-brand btn-sm" href="?tab=mypost">Edit Post</a>
+                                <a class="btn btn-brand btn-sm" href="?tab=groups">Manage Group</a>
                             {% else %}
                                 <button class="btn btn-brand btn-sm" type="button" onclick="document.getElementById('rmhub-create-dialog').showModal()">+ Create Post</button>
                             {% endif %}
@@ -106,10 +107,11 @@
             </div>
 
             {# ── Filter drawer (Posts + People tabs only) ── #}
-            {% if tab != "mypost" %}
+            {% if tab != "groups" %}
             <div class="rmhub-filter-panel" id="rmhub-filter-panel" hidden>
                 <form class="rmhub-filter-form" method="get">
                     <input type="hidden" name="tab" value="{{ tab }}">
+                    {% if tab == "people" and people_saved_only %}<input type="hidden" name="saved" value="1">{% endif %}
                     <div class="rmhub-filter-grid">
 
                         {% if tab == "posts" %}
@@ -209,12 +211,15 @@
                                     {# Always-visible summary row #}
                                     <div class="group-post-head">
                                         <div class="identity-row group-post-identity">
-                                            {% include "includes/user_avatar.html" with user_obj=post.author avatar_class="user-avatar user-avatar-md" %}
+                                            {% include "includes/user_avatar.html" with user_obj=post.lead_user avatar_class="user-avatar user-avatar-md" %}
                                             <div class="identity-copy">
                                                 <h3 class="group-post-title">{{ post.title }}</h3>
                                                 <p class="group-post-overline">
-                                                    {{ post.author.display_name }}{% if post.ui_author_major %} · {{ post.ui_author_major }}{% endif %}
+                                                    {{ post.ui_owner_label }}{% if post.ui_author_major %} · {{ post.ui_author_major }}{% endif %}
                                                 </p>
+                                                {% if post.ui_owner_meta and post.group_id %}
+                                                    <p class="group-post-overline">{{ post.ui_owner_meta }}</p>
+                                                {% endif %}
                                             </div>
                                         </div>
                                         <span class="app-meta-chip {% if post.ui_score_variant == 'primary' %}app-meta-chip-primary{% elif post.ui_score_variant == 'secondary' %}app-meta-chip-secondary{% else %}app-meta-chip-neutral{% endif %}">
@@ -269,8 +274,17 @@
                                                 {% for h in post.ui_highlights %}<span>{{ h }}</span>{% endfor %}
                                             </div>
                                         {% endif %}
+                                        {% if post.ui_member_names %}
+                                            <p class="group-post-body">
+                                                {% for member_name in post.ui_member_names %}
+                                                    {{ member_name }}{% if not forloop.last %}, {% endif %}
+                                                {% endfor %}
+                                            </p>
+                                        {% endif %}
                                         <div class="group-post-actions">
-                                            <a class="btn btn-outline-secondary btn-sm" href="{{ post.ui_profile_url }}">View profile</a>
+                                            <a class="btn btn-outline-secondary btn-sm" href="{{ post.ui_profile_url }}">
+                                                {% if post.group_id %}View lead{% else %}View profile{% endif %}
+                                            </a>
                                             {% if post.ui_can_message %}
                                                 <a class="btn btn-brand btn-sm" href="{{ post.ui_message_url }}">{{ post.ui_message_label }}</a>
                                             {% endif %}
@@ -297,7 +311,7 @@
                                         <div class="identity-row group-post-identity">
                                             {% include "includes/user_avatar.html" with user_obj=result.user avatar_class="user-avatar user-avatar-lg" %}
                                             <div class="identity-copy">
-                                                <a class="group-post-title" href="{% url 'users:public_profile' result.user.id %}">
+                                                <a class="group-post-title" href="{% url 'roommates:public_profile' result.user.id %}">
                                                     {{ result.user.display_name }}
                                                 </a>
                                                 {% if result.profile.major %}
@@ -319,8 +333,8 @@
                                     {% endif %}
 
                                     <div class="group-post-actions">
-                                        <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:public_profile' result.user.id %}">View profile</a>
-                                        <form method="post" action="{% url 'users:toggle_favorite_roommate' result.user.id %}" style="margin:0">
+                                        <a class="btn btn-outline-secondary btn-sm" href="{% url 'roommates:public_profile' result.user.id %}">View profile</a>
+                                        <form method="post" action="{% url 'roommates:toggle_favorite_roommate' result.user.id %}" style="margin:0">
                                             {% csrf_token %}
                                             <input type="hidden" name="next" value="{{ request.get_full_path }}">
                                             <button class="btn btn-outline-secondary btn-sm" type="submit">
@@ -345,7 +359,7 @@
                                             {% elif result.invite_status == "pending_approval" %}
                                                 <span class="app-meta-chip app-meta-chip-neutral">Awaiting group approval</span>
                                             {% else %}
-                                                <form method="post" action="{% url 'users:send_group_invite' result.user.id %}?next={{ request.path }}%3Ftab%3Dpeople" style="margin:0">
+                                                <form method="post" action="{% url 'roommates:send_group_invite' result.user.id %}?next={{ request.path }}%3Ftab%3Dpeople" style="margin:0">
                                                     {% csrf_token %}
                                                     <button class="btn btn-outline-secondary btn-sm" type="submit">+ Invite to group</button>
                                                 </form>
@@ -385,8 +399,8 @@
                         </div>
                     {% endif %}
 
-                {# ──────── Your Post tab ──────── #}
-                {% elif tab == "mypost" %}
+                {# ──────── Groups tab ──────── #}
+                {% elif tab == "groups" %}
                     {% if can_manage_roommate_post %}
                         {% if request.user.can_use_roommate_matching %}
 
@@ -459,7 +473,7 @@
                                                             onclick="this.closest('dialog').close()" aria-label="Close">✕</button>
                                                     </div>
                                                     <form class="group-board-post-form" method="post"
-                                                        action="{% url 'listings:edit_roommate_post' post.pk %}">
+                                                        action="{% url 'roommates:edit_roommate_post' post.pk %}">
                                                         {% csrf_token %}
                                                         {% if edit_error_pk == post.pk and edit_form.errors %}
                                                             <div class="app-form-error-summary" role="alert">
@@ -502,7 +516,7 @@
 
                                             {# Hidden delete form #}
                                             <form id="rmhub-delete-form-{{ post.pk }}" method="post"
-                                                action="{% url 'listings:delete_roommate_post' post.pk %}" hidden>
+                                                action="{% url 'roommates:delete_roommate_post' post.pk %}" hidden>
                                                 {% csrf_token %}
                                             </form>
                                         </article>
@@ -536,14 +550,14 @@
                                             <div class="rmhub-member-row">
                                                 {% include "includes/user_avatar.html" with user_obj=membership.user avatar_class="user-avatar user-avatar-sm" %}
                                                 <span class="rmhub-member-row-name">
-                                                    <a href="{% url 'users:public_profile' membership.user.id %}" style="color:inherit;text-decoration:none">{{ membership.user.display_name }}</a>
+                                                    <a href="{% url 'roommates:public_profile' membership.user.id %}" style="color:inherit;text-decoration:none">{{ membership.user.display_name }}</a>
                                                 </span>
                                                 {% if membership.user.id == display_group.lead_id %}
                                                     <span class="rmhub-member-row-role">Lead</span>
                                                 {% else %}
                                                     <span class="rmhub-member-row-role">Member</span>
                                                     {% if is_group_lead %}
-                                                        <form method="post" action="{% url 'listings:remove_group_member' membership.pk %}" style="margin:0">
+                                                        <form method="post" action="{% url 'roommates:remove_group_member' membership.pk %}" style="margin:0">
                                                             {% csrf_token %}
                                                             <button
                                                                 class="btn btn-outline-danger btn-sm"
@@ -590,7 +604,7 @@
             <button class="rmhub-dialog-close" type="button"
                 onclick="this.closest('dialog').close()" aria-label="Close">✕</button>
         </div>
-        <form class="group-board-post-form" method="post" action="{% url 'listings:save_roommate_post' %}">
+        <form class="group-board-post-form" method="post" action="{% url 'roommates:save_roommate_post' %}">
             {% csrf_token %}
             {% if show_create_modal and roommate_post_create_form.errors %}
                 <div class="app-form-error-summary" role="alert">

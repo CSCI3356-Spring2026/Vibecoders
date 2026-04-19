@@ -4,14 +4,15 @@
 {% block body_class %}{% if listing_maps_enabled %}listing-browser-body{% endif %}{% endblock %}
 
 {% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/listings.css' %}">
     {% if listing_maps_enabled %}
-        <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.css">
+        <link rel="stylesheet" href="{% static 'vendor/maplibre/maplibre-gl.css' %}">
     {% endif %}
 {% endblock %}
 
 {% block extra_js %}
     {% if listing_maps_enabled %}
-        <script src="https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.js"></script>
+        <script src="{% static 'vendor/maplibre/maplibre-gl.js' %}"></script>
         {{ listing_initial_payload|json_script:"listing-page-initial-payload" }}
         {{ listing_page_initial_state|json_script:"listing-page-initial-state" }}
         <script type="module" src="{% static 'js/listings-map.js' %}"></script>
@@ -30,6 +31,7 @@
             class="listing-browser-page"
             data-listings-page
             data-listings-search-url="{{ listing_search_url }}"
+            data-listings-results-url="{{ listing_results_url }}"
             data-listings-map-style-url="{{ listing_map_style_url }}"
             data-listings-map-default-style-url="{{ listing_map_style_url }}"
             data-listings-map-satellite-style-url="{{ listing_map_satellite_style_url }}"
@@ -272,12 +274,6 @@
 
                     <div class="listing-browser-main">
                         <aside class="listing-results-pane" data-listings-results data-listings-results-pane>
-                            <div class="listing-results-pane-head">
-                                <p class="listing-results-summary" data-listings-results-summary>
-                                    {{ listings_total }} result{{ listings_total|pluralize }}.
-                                </p>
-                            </div>
-
                             {% if has_listing_only_access %}
                                 <div class="alert alert-warning listing-results-alert" role="alert">
                                     This account can manage its own listings only.
@@ -294,28 +290,7 @@
 
                             <div class="alert alert-danger listing-live-error" role="alert" hidden data-listings-live-error></div>
 
-                            <div class="listing-results-scroll">
-                                <div
-                                    class="listing-results-grid"
-                                    data-listings-results-list
-                                    data-favorite-csrf-token="{{ csrf_token }}"
-                                    data-favorite-next-url="{{ request.get_full_path }}"
-                                    {% if not listings %}hidden{% endif %}
-                                >
-                                    {% for listing in listings %}
-                                        {% include "listings/includes/listing_result_card.html" with listing=listing %}
-                                    {% endfor %}
-                                </div>
-
-                                <div class="app-empty listing-results-empty" data-listings-empty-state{% if listings %} hidden{% endif %}>
-                                    <h3 class="app-empty-title">No listings match this view.</h3>
-                                    <p class="app-empty-copy">Change filters or move the map.</p>
-                                </div>
-
-                                <div data-listings-pagination>
-                                    {% include "includes/pagination.html" with page_obj=listings pagination_query=pagination_query %}
-                                </div>
-                            </div>
+                            {% include "listings/includes/results_fragment.html" with results_path=listing_results_url %}
                         </aside>
 
                         <section class="listing-map-pane" data-listings-map-pane data-listings-map-shell>

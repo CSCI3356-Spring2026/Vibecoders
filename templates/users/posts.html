@@ -74,6 +74,9 @@
                                                 {% if listing.is_verified %}
                                                     • Verified
                                                 {% endif %}
+                                                {% if listing.is_archived %}
+                                                    • Archived
+                                                {% endif %}
                                                 {% if listing.review_count %}
                                                     • {{ listing.average_rating|floatformat:1 }} ★ from {{ listing.review_count }} review{{ listing.review_count|pluralize }}
                                                 {% endif %}
@@ -86,9 +89,11 @@
 
                                     <div class="workspace-item-actions">
                                         <a class="btn btn-outline-secondary btn-sm" href="{% url 'listings:detail' listing.pk %}">View</a>
-                                        <a class="btn btn-outline-secondary btn-sm" href="{% url 'listings:edit_listing' listing.pk %}">Edit</a>
-                                        {% url 'listings:delete_listing' listing.pk as delete_listing_url %}
-                                        {% include "includes/inline_confirm.html" with trigger_label="Delete" prompt_text="Delete this listing?" action_url=delete_listing_url confirm_label="Confirm delete" %}
+                                        {% if not listing.is_archived %}
+                                            <a class="btn btn-outline-secondary btn-sm" href="{% url 'listings:edit_listing' listing.pk %}">Edit</a>
+                                            {% url 'listings:archive_listing' listing.pk as archive_listing_url %}
+                                            {% include "includes/inline_confirm.html" with trigger_label="Archive" prompt_text="Archive this listing?" action_url=archive_listing_url confirm_label="Confirm archive" %}
+                                        {% endif %}
                                     </div>
                                 </div>
                             </div>

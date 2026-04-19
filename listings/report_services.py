@@ -1,5 +1,6 @@
 from django.db import transaction
 
+from .lifecycle import archive_listing
 from .models import ListingReport, ListingReportUpdate
 
 
@@ -23,15 +24,11 @@ def update_listing_report(report, *, status, reviewer, resolution_notes=""):
             ]
         )
         if status == ListingReport.STATUS_RESOLVED:
-            report.listing.close_from_report(reviewer=reviewer, notes=note)
-            report.listing.save(
-                update_fields=[
-                    "approval_status",
-                    "reviewed_by",
-                    "reviewed_at",
-                    "approved_at",
-                    "approval_notes",
-                ]
+            archive_listing(
+                report.listing,
+                actor=reviewer,
+                reason=report.listing.ARCHIVE_REASON_REPORT,
+                notes=note,
             )
 
         action = report.activity_action_for_status(status)

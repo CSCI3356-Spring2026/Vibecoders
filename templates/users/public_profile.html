@@ -23,7 +23,7 @@
                             <a class="btn btn-brand" href="{% url 'users:profile_setup' %}">Edit Profile</a>
                         {% else %}
                             {% if request.user.is_student %}
-                                <form method="post" action="{% url 'users:toggle_favorite_roommate' target.id %}">
+                                <form method="post" action="{% url 'roommates:toggle_favorite_roommate' target.id %}">
                                     {% csrf_token %}
                                     <input type="hidden" name="next" value="{{ request.get_full_path }}">
                                     <button class="btn btn-outline-secondary" type="submit">
@@ -42,7 +42,7 @@
                                 {% elif invite_status %}
                                     <span class="btn btn-outline-secondary">Invite pending</span>
                                 {% else %}
-                                    <form method="post" action="{% url 'users:send_group_invite' target.id %}">
+                                    <form method="post" action="{% url 'roommates:send_group_invite' target.id %}">
                                         {% csrf_token %}
                                         <input type="hidden" name="next" value="{{ request.get_full_path }}">
                                         <button class="btn btn-outline-secondary" type="submit">Invite to group</button>
@@ -50,7 +50,7 @@
                                 {% endif %}
                             {% endif %}
                         {% endif %}
-                        <a class="btn btn-outline-secondary" href="{% url 'listings:group_match' %}">Find Groups</a>
+                        <a class="btn btn-outline-secondary" href="{% url 'roommates:hub' %}">Back to Roommates</a>
                     </div>
                 </div>
             </div>
@@ -185,8 +185,8 @@
             </div>
 
             <div class="mb-3">
-                <a href="{% url 'listings:group_match' %}" class="btn btn-outline-secondary btn-sm">
-                    Back to find groups
+                <a href="{% url 'roommates:hub' %}" class="btn btn-outline-secondary btn-sm">
+                    Back to Roommates
                 </a>
             </div>
         </div>

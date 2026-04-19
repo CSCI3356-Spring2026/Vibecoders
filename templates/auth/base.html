@@ -1,6 +1,11 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block body_class %}auth-page-body{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/auth.css' %}">
+{% endblock %}
 
 {% block site_header %}{% endblock %}
 

@@ -433,9 +433,9 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, '"total": 1')
         self.assertContains(response, f'"id": {listing.id}')
         self.assertContains(response, '"markers"')
-        self.assertContains(response, '"cards"')
         self.assertContains(response, 'id="listing-page-initial-state"')
         self.assertContains(response, '"selected_listing_id": ""')
+        self.assertContains(response, f'data-listings-results-url="{reverse("listings:results")}"')
 
     def test_listing_page_exposes_search_endpoints_and_initial_state_to_js_controller(self):
         self.create_listing(title="Mapped listing", latitude=42.3355, longitude=-71.1685)
@@ -470,83 +470,62 @@ class ListingPageTests(ListingTestCase):
         self.assertContains(response, 'data-style-mode="map"')
         self.assertContains(response, 'data-style-mode="satellite"')
 
-    def test_map_marker_buttons_do_not_override_maplibre_positioning_transform(self):
+    def test_map_view_uses_clustered_geojson_layers_for_listing_markers(self):
         module_url = (Path(__file__).resolve().parents[2] / "static/js/listings-map-view.js").as_uri()
         script = f"""
 import assert from "node:assert/strict";
 import {{ createListingsMapView }} from {module_url!r};
 
-class HTMLElement {{
-    constructor() {{
-        this.dataset = {{}};
-        this.style = {{}};
-        this.attributes = {{}};
-        this.listeners = {{}};
-        this.hidden = false;
-        this.textContent = "";
-        this.innerHTML = "";
-        this.children = [];
-        this.className = "";
-        this.classList = {{
-            add: (...tokens) => tokens.forEach((token) => this._toggleClass(token, true)),
-            remove: (...tokens) => tokens.forEach((token) => this._toggleClass(token, false)),
-            toggle: (token, force) => {{
-                const shouldAdd = force ?? !this.className.split(/\\s+/).includes(token);
-                this._toggleClass(token, shouldAdd);
-            }},
-        }};
+class MockSource {{
+    constructor(config) {{
+        this.config = config;
+        this.data = config.data;
+        this.setDataCalls = [];
     }}
 
-    _toggleClass(token, force) {{
-        const next = new Set(this.className.split(/\\s+/).filter(Boolean));
-        if (force) {{
-            next.add(token);
-        }} else {{
-            next.delete(token);
-        }}
-        this.className = Array.from(next).join(" ");
+    setData(data) {{
+        this.data = data;
+        this.setDataCalls.push(data);
     }}
 
-    setAttribute(name, value) {{
-        this.attributes[name] = value;
-    }}
-
-    addEventListener(type, handler) {{
-        this.listeners[type] = handler;
-    }}
-
-    append(child) {{
-        this.children.push(child);
-    }}
-
-    querySelector() {{
-        return null;
+    getClusterExpansionZoom(clusterId, callback) {{
+        callback(null, 15);
     }}
 }}
 
-class HTMLButtonElement extends HTMLElement {{}}
-
-globalThis.HTMLElement = HTMLElement;
-globalThis.document = {{
-    createElement(tag) {{
-        if (tag === "button") {{
-            return new HTMLButtonElement();
-        }}
-        return new HTMLElement();
-    }},
-}};
-
-const capturedElements = [];
 class MockMap {{
     constructor() {{
         this.handlers = {{}};
+        this.sources = {{}};
+        this.layers = {{}};
+        this.canvas = {{ style: {{}} }};
         globalThis.__map = this;
     }}
 
     addControl() {{}}
 
-    on(name, handler) {{
-        this.handlers[name] = handler;
+    on(name, layerOrHandler, maybeHandler) {{
+        if (typeof layerOrHandler === "string") {{
+            this.handlers[`${{name}}:${{layerOrHandler}}`] = maybeHandler;
+            return;
+        }}
+        this.handlers[name] = layerOrHandler;
+    }}
+
+    addSource(id, config) {{
+        this.sources[id] = new MockSource(config);
+    }}
+
+    getSource(id) {{
+        return this.sources[id] ?? null;
+    }}
+
+    addLayer(layer) {{
+        this.layers[layer.id] = layer;
+    }}
+
+    getLayer(id) {{
+        return this.layers[id] ?? null;
     }}
 
     getBounds() {{
@@ -558,6 +537,10 @@ class MockMap {{
         }};
     }}
 
+    getCanvas() {{
+        return this.canvas;
+    }}
+
     setCenter() {{}}
     setZoom() {{}}
     fitBounds() {{}}
@@ -566,37 +549,33 @@ class MockMap {{
         this.styleCalls = this.styleCalls || [];
         this.styleCalls.push(style);
     }}
-}}
 
-class MockMarker {{
-    constructor({{ element }}) {{
-        this.element = element;
-        capturedElements.push(element);
+    easeTo(config) {{
+        this.easeToCall = config;
     }}
-
-    setLngLat() {{
-        return this;
-    }}
-
-    addTo() {{
-        return this;
-    }}
-
-    remove() {{}}
 }}
 
 globalThis.maplibregl = {{
     Map: MockMap,
-    Marker: MockMarker,
     NavigationControl: class {{}},
     LngLatBounds: class {{
-        extend() {{}}
+        constructor() {{
+            this.points = [];
+        }}
+
+        extend(point) {{
+            this.points.push(point);
+        }}
     }},
 }};
 
-const canvas = new HTMLElement();
-const root = new HTMLElement();
-root.querySelector = (selector) => (selector === "[data-listings-map-canvas]" ? canvas : null);
+const canvas = {{}};
+const root = {{
+    dataset: {{}},
+    querySelector(selector) {{
+        return selector === "[data-listings-map-canvas]" ? canvas : null;
+    }},
+}};
 
 const view = createListingsMapView({{
     root,
@@ -608,13 +587,17 @@ const view = createListingsMapView({{
 }});
 
 globalThis.__map.handlers.load();
+const source = globalThis.__map.getSource("listings-markers");
+assert.equal(source.config.cluster, true);
+assert.equal(Boolean(globalThis.__map.getLayer("listings-clusters")), true);
+assert.equal(Boolean(globalThis.__map.getLayer("listings-cluster-count")), true);
+assert.equal(Boolean(globalThis.__map.getLayer("listings-points")), true);
+assert.equal(Boolean(globalThis.__map.getLayer("listings-point-labels")), true);
 view.setSelectedListing(1);
 view.setStyleMode("satellite");
 globalThis.__map.handlers["style.load"]();
 
-assert.equal(capturedElements.length, 1);
-assert.equal(capturedElements[0].className.includes("listing-map-marker"), true);
-assert.equal(capturedElements[0].style.transform ?? "", "");
+assert.equal(source.setDataCalls[source.setDataCalls.length - 1].features[0].properties.selected, true);
 assert.equal(typeof globalThis.__map.styleCalls[0], "object");
 assert.equal(globalThis.__map.styleCalls[0].sources.satellite.type, "raster");
 assert.equal(globalThis.__map.styleCalls[0].layers[0].id, "satellite");
@@ -637,8 +620,8 @@ assert.equal(view.getStyleMode(), "satellite");
         response = self.client.get(reverse("listings:listing_list"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "maplibre-gl@5.18.0/dist/maplibre-gl.css")
-        self.assertContains(response, "maplibre-gl@5.18.0/dist/maplibre-gl.js")
+        self.assertContains(response, "vendor/maplibre/maplibre-gl.css")
+        self.assertContains(response, "vendor/maplibre/maplibre-gl.js")
         self.assertContains(response, "js/listings-map.js")
         self.assertNotContains(response, "listing-map-popup-link")
         self.assertNotContains(response, "Open listing")
@@ -753,8 +736,8 @@ assert.equal(view.getStyleMode(), "satellite");
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["total"], 1)
-        self.assertEqual([item["id"] for item in payload["cards"]], [inside.id])
         self.assertEqual([item["id"] for item in payload["markers"]], [inside.id])
+        self.assertFalse(payload["truncated"])
 
     def test_live_search_returns_no_results_without_complete_valid_bounds(self):
         inside = self.create_listing(title="Inside bounds", latitude=42.3355, longitude=-71.1685)
@@ -776,7 +759,7 @@ assert.equal(view.getStyleMode(), "satellite");
         for response in invalid_responses:
             with self.subTest(query=response.wsgi_request.GET.urlencode()):
                 self.assertEqual(response.status_code, 200)
-                self.assertEqual(response.json(), {"total": 0, "markers": [], "cards": []})
+                self.assertEqual(response.json(), {"total": 0, "truncated": False, "markers": []})
 
         self.assertTrue(inside.has_map_coordinates)
 
@@ -856,8 +839,8 @@ assert.equal(view.getStyleMode(), "satellite");
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["total"], 1)
-        self.assertEqual([item["id"] for item in payload["cards"]], [matching.id])
         self.assertEqual([item["id"] for item in payload["markers"]], [matching.id])
+        self.assertFalse(payload["truncated"])
 
     def test_live_search_respects_current_user_access_rules(self):
         realtor = get_user_model().objects.create_user(
@@ -907,8 +890,8 @@ assert.equal(view.getStyleMode(), "satellite");
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["total"], 1)
-        self.assertEqual([item["id"] for item in payload["cards"]], [own_listing.id])
         self.assertEqual([item["id"] for item in payload["markers"]], [own_listing.id])
+        self.assertFalse(payload["truncated"])
 
     def test_live_search_hides_inactive_owner_listings(self):
         self.create_listing(
@@ -952,10 +935,11 @@ assert.equal(view.getStyleMode(), "satellite");
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["total"], 1)
-        self.assertEqual([item["title"] for item in payload["cards"]], ["Visible listing"])
+        self.assertEqual([item["title"] for item in payload["markers"]], ["Visible listing"])
+        self.assertFalse(payload["truncated"])
 
     @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
-    def test_live_search_returns_expected_marker_and_card_payloads(self):
+    def test_live_search_returns_expected_marker_payload_and_results_partial(self):
         self.user.first_name = "Casey"
         self.user.last_name = "Owner"
         self.user.profile_image_url = "https://example.com/owner-avatar.jpg"
@@ -1002,23 +986,87 @@ assert.equal(view.getStyleMode(), "satellite");
                 }
             ],
         )
-        self.assertEqual(len(payload["cards"]), 1)
-        card = payload["cards"][0]
-        self.assertEqual(card["id"], listing.id)
-        self.assertEqual(card["url"], reverse("listings:detail", args=[listing.pk]))
-        self.assertEqual(card["title"], "Beacon apartment")
-        self.assertEqual(card["address"], "1731 Beacon St")
-        self.assertEqual(card["price"], "$1800/mo")
-        self.assertEqual(card["status"], {"value": "AVAILABLE", "label": "Available", "state": "available"})
-        self.assertEqual(card["lease_type"], "Full Lease")
-        self.assertEqual(card["property_type"], "House")
-        self.assertEqual(card["rooms"], 3)
-        self.assertEqual(card["bathrooms"], "1.5")
-        self.assertEqual(card["sq_ft"], 980)
-        self.assertEqual(card["description"], "Sunny apartment with updated kitchen and a short walk to campus.")
-        self.assertEqual(card["owner_name"], "Casey Owner")
-        self.assertEqual(card["owner_avatar_url"], "https://example.com/owner-avatar.jpg")
-        self.assertEqual(card["image_url"], listing.primary_image.versioned_url)
+        self.assertFalse(payload["truncated"])
+
+        results_response = self.client.get(reverse("listings:results"))
+
+        self.assertEqual(results_response.status_code, 200)
+        self.assertContains(results_response, "Beacon apartment")
+        self.assertContains(results_response, "1731 Beacon St")
+        self.assertContains(results_response, "$1800/mo")
+        self.assertContains(results_response, "Full Lease")
+        self.assertContains(results_response, "House")
+        self.assertContains(results_response, "3 bd")
+        self.assertContains(results_response, "1.5 ba")
+        self.assertContains(results_response, "980 sqft")
+        self.assertContains(results_response, "Casey Owner")
+        self.assertContains(results_response, "https://example.com/owner-avatar.jpg")
+        self.assertContains(results_response, listing.primary_image.versioned_url)
+
+    def test_listing_results_partial_paginates_without_viewport_bounds(self):
+        for index in range(13):
+            self.create_listing(
+                title=f"Paged listing {index}",
+                address=f"{140 + index} Commonwealth Ave",
+                latitude=42.3355 + (index * 0.0001),
+                longitude=-71.1685 + (index * 0.0001),
+            )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:results"), {"page": "2"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["listings"].number, 2)
+        self.assertEqual(response.context["listings"].paginator.count, 13)
+        self.assertEqual(len(response.context["listings"].object_list), 1)
+        self.assertContains(response, "Page 2 of 2")
+        self.assertContains(response, "Paged listing")
+
+    @patch("listings.commute.requests.get")
+    def test_listing_commute_endpoint_returns_route_payload(self, requests_get):
+        listing = self.create_listing(latitude=42.3477, longitude=-71.1538, distance_to_campus=None)
+        self.client.force_login(self.user)
+        cache.clear()
+
+        requests_get.return_value.raise_for_status.return_value = None
+        requests_get.return_value.json.return_value = {
+            "features": [
+                {
+                    "geometry": {
+                        "type": "LineString",
+                        "coordinates": [[-71.1538, 42.3477], [-71.171, 42.335]],
+                    },
+                    "properties": {
+                        "time": 600,
+                        "distance": 1609,
+                    },
+                }
+            ]
+        }
+
+        response = self.client.get(reverse("listings:commute", args=[listing.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["default_mode"], "walking")
+        self.assertEqual(payload["routes"]["walking"]["display"], "10 min")
+        self.assertEqual(payload["routes"]["walking"]["geometry"]["type"], "LineString")
+        self.assertEqual(requests_get.call_count, 3)
+
+    @patch("listings.commute.requests.get")
+    def test_listing_commute_endpoint_returns_explicit_unavailable_state_when_provider_fails(self, requests_get):
+        listing = self.create_listing(latitude=42.3477, longitude=-71.1538, distance_to_campus=None)
+        self.client.force_login(self.user)
+        cache.clear()
+        requests_get.side_effect = requests.RequestException("routing unavailable")
+
+        response = self.client.get(reverse("listings:commute", args=[listing.pk]))
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.json(),
+            {"available": False, "message": "Commute details are unavailable right now."},
+        )
 
     def test_live_search_does_not_add_per_listing_image_queries_for_imageless_results(self):
         for index in range(3):
@@ -1044,8 +1092,7 @@ assert.equal(view.getStyleMode(), "satellite");
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["total"], 3)
         listing_image_queries = [query for query in captured_queries if '"listings_listingimage"' in query["sql"]]
-        self.assertEqual(len(listing_image_queries), 1)
-        self.assertIn(" IN (", listing_image_queries[0]["sql"])
+        self.assertEqual(len(listing_image_queries), 0)
 
     def test_listing_list_shows_owner_avatar(self):
         self.user.profile_image_url = "https://example.com/owner-avatar.jpg"
@@ -1674,8 +1721,8 @@ assert.equal(picker.isSelectionComplete(), true);
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["total"], 1)
-        self.assertEqual([item["id"] for item in payload["cards"]], [approved_listing.id])
         self.assertEqual([item["id"] for item in payload["markers"]], [approved_listing.id])
+        self.assertFalse(payload["truncated"])
 
     def test_admin_can_still_open_pending_listing_detail_for_review(self):
         admin = get_user_model().objects.create_user(
@@ -2064,11 +2111,12 @@ assert.equal(picker.isSelectionComplete(), true);
         self.assertContains(response, "data-listing-commute")
         self.assertContains(response, "data-commute-map")
         self.assertContains(response, "data-commute-map-note")
-        self.assertContains(response, 'id="listing-commute-payload"')
-        self.assertContains(response, "https://unpkg.com/maplibre-gl@5.18.0/dist/maplibre-gl.js")
+        self.assertContains(response, 'id="listing-commute-config"')
+        self.assertContains(response, "vendor/maplibre/maplibre-gl.js")
         self.assertTrue(response.context["commute_map_enabled"])
         self.assertEqual(
-            response.context["commute_payload"]["map"]["routing_url"], "https://api.geoapify.com/v1/routing"
+            response.context["commute_config"]["endpoint_url"],
+            reverse("listings:commute", args=[listing.pk]),
         )
 
     def test_listing_detail_renders_gallery_hooks_when_multiple_images_exist(self):
@@ -2148,17 +2196,22 @@ assert.equal(picker.isSelectionComplete(), true);
         self.assertFalse(listing.images.filter(pk=image_one.pk).exists())
         self.assertTrue(listing.images.filter(pk=image_two.pk).exists())
 
-    def test_listing_owner_can_delete_listing(self):
+    def test_listing_owner_can_archive_listing(self):
         listing = self.create_listing()
         self.client.force_login(self.user)
 
-        response = self.client.post(reverse("listings:delete_listing", args=[listing.pk]))
+        response = self.client.post(reverse("listings:archive_listing", args=[listing.pk]))
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], reverse("users:posts"))
-        self.assertFalse(self.user.listings.filter(pk=listing.pk).exists())
+        listing.refresh_from_db()
+        self.assertTrue(self.user.listings.filter(pk=listing.pk).exists())
+        self.assertTrue(listing.is_archived)
+        self.assertTrue(listing.is_hidden)
+        self.assertEqual(listing.archive_reason, Listing.ARCHIVE_REASON_OWNER)
+        self.assertEqual(listing.archived_by, self.user)
 
-    def test_delete_listing_cleans_up_image_files(self):
+    def test_archiving_listing_preserves_image_files(self):
         listing = self.create_listing()
         self.client.force_login(self.user)
 
@@ -2173,10 +2226,50 @@ assert.equal(picker.isSelectionComplete(), true);
                 self.assertTrue(listing_image.image.storage.exists(stored_name))
 
                 with self.captureOnCommitCallbacks(execute=True):
-                    response = self.client.post(reverse("listings:delete_listing", args=[listing.pk]))
+                    response = self.client.post(reverse("listings:archive_listing", args=[listing.pk]))
 
                 self.assertEqual(response.status_code, 302)
-                self.assertFalse(listing_image.image.storage.exists(stored_name))
+                listing.refresh_from_db()
+                self.assertTrue(listing.is_archived)
+                self.assertTrue(listing_image.image.storage.exists(stored_name))
+
+    def test_archived_listing_detail_is_visible_only_to_owner_admin_and_existing_participants(self):
+        listing = self.create_listing()
+        participant = get_user_model().objects.create_user(
+            username="archived-participant",
+            email="archived-participant@bc.edu",
+            password="testpass123",
+        )
+        outsider = get_user_model().objects.create_user(
+            username="archived-outsider",
+            email="archived-outsider@bc.edu",
+            password="testpass123",
+        )
+        admin = get_user_model().objects.create_user(
+            username="archived-admin",
+            email="archived-admin@bc.edu",
+            password="testpass123",
+            role=Role.ADMIN,
+        )
+        conversation = ListingConversation.objects.create(
+            listing=listing,
+            owner=self.user,
+            participant=participant,
+        )
+        conversation.add_message(sender=participant, body="Interested.")
+        listing.archive(by_user=self.user, reason=Listing.ARCHIVE_REASON_OWNER)
+        listing.save()
+
+        for viewer, expected_status in (
+            (self.user, 200),
+            (participant, 200),
+            (admin, 200),
+            (outsider, 404),
+        ):
+            with self.subTest(viewer=viewer.username):
+                self.client.force_login(viewer)
+                response = self.client.get(reverse("listings:detail", args=[listing.pk]))
+                self.assertEqual(response.status_code, expected_status)
 
     def test_realtor_listing_list_shows_only_owned_listings(self):
         realtor = get_user_model().objects.create_user(username="agent", email="agent@gmail.com", password="test")
@@ -2401,11 +2494,11 @@ assert.equal(picker.isSelectionComplete(), true);
         self.assertEqual(response.status_code, 405)
         self.assertFalse(ListingConversation.objects.exists())
 
-    def test_delete_listing_endpoint_requires_post(self):
+    def test_archive_listing_endpoint_requires_post(self):
         listing = self.create_listing()
         self.client.force_login(self.user)
 
-        response = self.client.get(reverse("listings:delete_listing", args=[listing.pk]))
+        response = self.client.get(reverse("listings:archive_listing", args=[listing.pk]))
 
         self.assertEqual(response.status_code, 405)
         self.assertTrue(self.user.listings.filter(pk=listing.pk).exists())
@@ -2534,7 +2627,8 @@ class GroupMatchPageTests(ListingTestCase):
 
         response = self.client.get(reverse("listings:group_match"))
 
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], f"{reverse('roommates:hub')}?tab=posts")
 
     def test_group_match_requires_student_access(self):
         admin = get_user_model().objects.create_user(username="admin-user", email="admin@bc.edu", password="test")
@@ -2544,7 +2638,8 @@ class GroupMatchPageTests(ListingTestCase):
 
         response = self.client.get(reverse("listings:group_match"))
 
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], f"{reverse('roommates:hub')}?tab=posts")
 
     def test_group_match_page_shows_active_roommate_posts_with_score_and_message_entry(self):
         self.complete_roommate_profile(self.user)
@@ -2562,13 +2657,13 @@ class GroupMatchPageTests(ListingTestCase):
         self.create_roommate_post(author=roommate, title="Two students looking for one more in Brighton")
         self.client.force_login(self.user)
 
-        response = self.client.get(reverse("listings:group_match"))
+        response = self.client.get(reverse("roommates:hub"), {"tab": "posts"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Active posts")
+        self.assertContains(response, "Find your next roommate.")
         self.assertContains(response, roommate.display_name)
         self.assertContains(response, "100% match")
-        self.assertContains(response, reverse("users:public_profile", args=[roommate.pk]))
+        self.assertContains(response, reverse("roommates:public_profile", args=[roommate.pk]))
         self.assertContains(response, "Message lead")
 
     def test_group_match_page_shows_group_owned_post_details(self):
@@ -2591,7 +2686,7 @@ class GroupMatchPageTests(ListingTestCase):
         self.create_group_roommate_post(group=group, title="Cleveland Circle group needs one more roommate")
         self.client.force_login(self.user)
 
-        response = self.client.get(reverse("listings:group_match"))
+        response = self.client.get(reverse("roommates:hub"), {"tab": "posts"})
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Cleveland Circle Crew")
@@ -2599,7 +2694,7 @@ class GroupMatchPageTests(ListingTestCase):
         self.assertContains(response, "Taylor")
         self.assertContains(response, "View lead")
 
-    def test_group_match_page_shows_listing_matches_for_selected_post(self):
+    def test_roommates_posts_tab_ignores_legacy_selected_group_query(self):
         self.complete_roommate_profile(self.user)
         self.client.force_login(self.user)
         author = get_user_model().objects.create_user(
@@ -2614,15 +2709,12 @@ class GroupMatchPageTests(ListingTestCase):
             open_spots=1,
             move_in_date=date.today() + timedelta(days=45),
         )
-        matching_listing = self.create_listing(title="Matching listing", rooms=3)
-        self.create_listing(title="Too small listing", rooms=1)
 
-        response = self.client.get(reverse("listings:group_match"), {"group": post.id})
+        response = self.client.get(reverse("roommates:hub"), {"tab": "posts", "group": post.id})
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Listing matches")
-        self.assertContains(response, matching_listing.title)
-        self.assertNotContains(response, "Too small listing")
+        self.assertContains(response, post.title)
+        self.assertNotContains(response, "Listing matches")
 
     def test_group_match_page_stays_under_broad_query_budget(self):
         self.complete_roommate_profile(self.user)
@@ -2650,7 +2742,7 @@ class GroupMatchPageTests(ListingTestCase):
             )
 
         with CaptureQueriesContext(connection) as captured_queries:
-            response = self.client.get(reverse("listings:group_match"))
+            response = self.client.get(reverse("roommates:hub"), {"tab": "posts"})
 
         self.assertEqual(response.status_code, 200)
         self.assertLessEqual(len(captured_queries), 22)
@@ -2692,8 +2784,9 @@ class GroupMatchPageTests(ListingTestCase):
         )
 
         response = self.client.get(
-            reverse("listings:group_match"),
+            reverse("roommates:hub"),
             {
+                "tab": "posts",
                 "q": "Newton",
                 "housing_status": RoommatePost.HOUSING_HAVE_HOME,
                 "max_budget": 1800,
@@ -2734,8 +2827,8 @@ class GroupMatchPageTests(ListingTestCase):
         )
 
         response = self.client.get(
-            reverse("listings:group_match"),
-            {"housing_status": RoommatePost.HOUSING_NEED_HOME},
+            reverse("roommates:hub"),
+            {"tab": "posts", "housing_status": RoommatePost.HOUSING_NEED_HOME},
         )
 
         self.assertEqual(response.status_code, 200)
@@ -2769,7 +2862,7 @@ class GroupMatchPageTests(ListingTestCase):
         )
 
         response = self.client.get(
-            reverse("listings:roommates_hub"),
+            reverse("roommates:hub"),
             {"tab": "posts", "housing_status": RoommatePost.HOUSING_HAVE_HOME},
         )
 
@@ -2797,7 +2890,7 @@ class GroupMatchPageTests(ListingTestCase):
             )
 
         with CaptureQueriesContext(connection) as captured_queries:
-            response = self.client.get(reverse("listings:roommates_hub"), {"tab": "posts"})
+            response = self.client.get(reverse("roommates:hub"), {"tab": "posts"})
 
         self.assertEqual(response.status_code, 200)
         self.assertLessEqual(len(captured_queries), 18)
@@ -2813,12 +2906,16 @@ class GroupMatchPageTests(ListingTestCase):
         self.complete_roommate_profile(candidate)
         self.client.force_login(self.user)
 
-        initial_response = self.client.get(reverse("listings:roommates_hub"), {"tab": "people", "q": "Casey"})
+        initial_response = self.client.get(reverse("roommates:hub"), {"tab": "people", "q": "Casey"})
         FavoriteRoommate.objects.create(user=self.user, favorite_user=candidate)
-        saved_response = self.client.get(reverse("listings:roommates_hub"), {"tab": "people", "q": "Casey"})
+        saved_response = self.client.get(reverse("roommates:hub"), {"tab": "people", "q": "Casey"})
 
         self.assertEqual(initial_response.status_code, 200)
-        self.assertContains(initial_response, f'action="/users/favorite/{candidate.id}/"', html=False)
+        self.assertContains(
+            initial_response,
+            f'action="{reverse("roommates:toggle_favorite_roommate", args=[candidate.id])}"',
+            html=False,
+        )
         self.assertFalse(initial_response.context["people_results"].object_list[0]["is_favorited"])
         self.assertEqual(saved_response.status_code, 200)
         self.assertTrue(saved_response.context["people_results"].object_list[0]["is_favorited"])
@@ -2836,7 +2933,7 @@ class GroupMatchPageTests(ListingTestCase):
 
         self.client.force_login(self.user)
 
-        response = self.client.get(reverse("listings:roommates_hub"), {"tab": "people", "page": "2"})
+        response = self.client.get(reverse("roommates:hub"), {"tab": "people", "page": "2"})
 
         self.assertEqual(response.status_code, 200)
         people_page = response.context["people_results"]
@@ -2849,7 +2946,7 @@ class GroupMatchPageTests(ListingTestCase):
         self.client.force_login(self.user)
 
         response = self.client.post(
-            reverse("listings:save_roommate_post"),
+            reverse("roommates:save_roommate_post"),
             {
                 "title": "Three students looking for one more roommate",
                 "housing_status": RoommatePost.HOUSING_NEED_HOME,
@@ -2863,7 +2960,7 @@ class GroupMatchPageTests(ListingTestCase):
             },
         )
 
-        self.assertRedirects(response, reverse("listings:roommates_hub") + "?tab=mypost")
+        self.assertRedirects(response, reverse("roommates:hub") + "?tab=groups")
         roommate_post = RoommatePost.objects.get(author=self.user)
         self.assertEqual(roommate_post.current_group_size, 3)
         self.assertTrue(roommate_post.is_active)
@@ -2879,18 +2976,17 @@ class GroupMatchPageTests(ListingTestCase):
         self.client.force_login(self.user)
 
         group_response = self.client.post(
-            reverse("listings:save_roommate_group"),
+            reverse("roommates:save_roommate_group"),
             {
                 "name": "South Street Search",
-                "member_emails": group_member.email,
                 "description": "Two students trying to lock in a quiet fall apartment.",
             },
         )
 
-        self.assertRedirects(group_response, reverse("listings:roommates_hub") + "?tab=mypost")
+        self.assertRedirects(group_response, reverse("roommates:hub") + "?tab=groups")
 
         post_response = self.client.post(
-            reverse("listings:save_group_roommate_post"),
+            reverse("roommates:save_group_roommate_post"),
             {
                 "title": "South Street group looking for one more roommate",
                 "housing_status": RoommatePost.HOUSING_NEED_HOME,
@@ -2904,7 +3000,7 @@ class GroupMatchPageTests(ListingTestCase):
             },
         )
 
-        self.assertRedirects(post_response, reverse("listings:roommates_hub") + "?tab=mypost")
+        self.assertRedirects(post_response, reverse("roommates:hub") + "?tab=groups")
         group_post = RoommatePost.objects.get(group__lead=self.user)
         self.assertEqual(group_post.current_group_size, 1)  # members now join via invite flow, not member_emails
         self.assertTrue(group_post.is_active)
@@ -2914,7 +3010,7 @@ class GroupMatchPageTests(ListingTestCase):
         self.client.force_login(self.user)
 
         response = self.client.post(
-            reverse("listings:save_roommate_post"),
+            reverse("roommates:save_roommate_post"),
             {
                 "title": "Looking for a group to join",
                 "housing_status": RoommatePost.HOUSING_NEED_HOME,
@@ -2927,7 +3023,7 @@ class GroupMatchPageTests(ListingTestCase):
             },
         )
 
-        self.assertRedirects(response, reverse("listings:roommates_hub") + "?tab=mypost")
+        self.assertRedirects(response, reverse("roommates:hub") + "?tab=groups")
         roommate_post = RoommatePost.objects.get(author=self.user)
         self.assertIsNone(roommate_post.open_spots)
 
@@ -2936,7 +3032,7 @@ class GroupMatchPageTests(ListingTestCase):
         self.client.force_login(self.user)
 
         response = self.client.post(
-            reverse("listings:save_roommate_post"),
+            reverse("roommates:save_roommate_post"),
             {
                 "title": "We already have a place",
                 "housing_status": RoommatePost.HOUSING_HAVE_HOME,
@@ -2957,7 +3053,7 @@ class GroupMatchPageTests(ListingTestCase):
         self.client.force_login(self.user)
 
         response = self.client.post(
-            reverse("listings:save_roommate_post"),
+            reverse("roommates:save_roommate_post"),
             {
                 "title": "Two students looking for one more roommate",
                 "housing_status": RoommatePost.HOUSING_NEED_HOME,
@@ -2973,14 +3069,14 @@ class GroupMatchPageTests(ListingTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(RoommatePost.objects.count(), 0)
-        self.assertContains(response, "Complete your roommate profile before posting for roommates.")
+        self.assertContains(response, "Complete your roommate profile before posting.")
 
     def test_roommate_post_publish_rejects_past_move_in_date(self):
         self.complete_roommate_profile(self.user)
         self.client.force_login(self.user)
 
         response = self.client.post(
-            reverse("listings:save_roommate_post"),
+            reverse("roommates:save_roommate_post"),
             {
                 "title": "Two students looking for one more roommate",
                 "housing_status": RoommatePost.HOUSING_NEED_HOME,

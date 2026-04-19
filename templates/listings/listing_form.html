@@ -3,6 +3,7 @@
 
 {% block title %}{% if is_edit %}Edit Listing{% else %}Create Listing{% endif %} | {{ site_product_name }}{% endblock %}
 {% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/listings.css' %}">
     <link rel="stylesheet" href="{% static 'css/listing-form.css' %}">
 {% endblock %}
 {% block extra_js %}

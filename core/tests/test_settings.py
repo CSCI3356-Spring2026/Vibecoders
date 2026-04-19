@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -29,15 +30,58 @@ class TestSettingsTests(SimpleTestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Install dj-database-url to use DATABASE_URL.", result.stderr)
 
-    def test_ci_workflow_keeps_existing_quality_gates_and_deploy_check(self):
+    def test_settings_disable_raw_admin_backend_when_admin_is_disabled(self):
+        result = self._run_python_subprocess(
+            "import json; import vibecoders.settings as settings; print(json.dumps(settings.AUTHENTICATION_BACKENDS))",
+            extra_env={"DJANGO_ADMIN_ENABLED": "false"},
+        )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        backends = json.loads(result.stdout)
+        self.assertNotIn("django.contrib.auth.backends.ModelBackend", backends)
+        self.assertIn("allauth.account.auth_backends.AuthenticationBackend", backends)
+
+    def test_root_urls_mount_admin_only_when_enabled(self):
+        urlpatterns_command = "".join(
+            [
+                "import json; import django; django.setup(); ",
+                "import vibecoders.urls as urls; ",
+                "print(json.dumps([",
+                "getattr(pattern.pattern, '_route', str(pattern.pattern)) ",
+                "for pattern in urls.urlpatterns",
+                "]))",
+            ]
+        )
+        disabled_result = self._run_python_subprocess(
+            urlpatterns_command,
+            extra_env={"DJANGO_ADMIN_ENABLED": "false"},
+        )
+        enabled_result = self._run_python_subprocess(
+            urlpatterns_command,
+            extra_env={"DJANGO_ADMIN_ENABLED": "true"},
+        )
+
+        self.assertEqual(disabled_result.returncode, 0, msg=disabled_result.stderr)
+        self.assertEqual(enabled_result.returncode, 0, msg=enabled_result.stderr)
+        self.assertNotIn("admin/", json.loads(disabled_result.stdout))
+        self.assertIn("admin/", json.loads(enabled_result.stdout))
+
+    def test_ci_workflow_keeps_quality_gates_lockfile_check_and_e2e_job(self):
         repo_root = Path(__file__).resolve().parents[2]
         workflow = (repo_root / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 
+        self.assertIn("name: Unit and Checks", workflow)
+        self.assertIn("name: Browser E2E", workflow)
+        self.assertIn("needs: unit", workflow)
+        self.assertIn("- run: pip install -r requirements.txt", workflow)
+        self.assertIn("- run: pip-compile --quiet --dry-run --strip-extras requirements.in", workflow)
         self.assertIn("- run: ruff check .", workflow)
         self.assertIn("- run: ruff format --check .", workflow)
         self.assertIn("- run: python manage.py check", workflow)
         self.assertIn("- run: python manage.py makemigrations --check --dry-run", workflow)
         self.assertIn("- run: python manage.py test", workflow)
+        self.assertIn("- run: python -m playwright install --with-deps chromium", workflow)
+        self.assertIn("- run: python manage.py test e2e_tests", workflow)
         self.assertIn("python manage.py check --deploy", workflow)
         self.assertIn('DJANGO_DEBUG: "false"', workflow)
         self.assertIn("DJANGO_SECRET_KEY:", workflow)
@@ -81,3 +125,21 @@ class TestSettingsTests(SimpleTestCase):
                 env=env,
                 text=True,
             )
+
+    def _run_python_subprocess(self, command, *, extra_env=None):
+        repo_root = Path(__file__).resolve().parents[2]
+        env = os.environ.copy()
+        env["DJANGO_DEBUG"] = "true"
+        env["DJANGO_SETTINGS_MODULE"] = "vibecoders.settings"
+        env["PYTHONPATH"] = str(repo_root)
+        for key, value in (extra_env or {}).items():
+            env[key] = value
+
+        return subprocess.run(
+            [sys.executable, "-c", command],
+            capture_output=True,
+            check=False,
+            cwd=repo_root,
+            env=env,
+            text=True,
+        )

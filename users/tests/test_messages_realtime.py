@@ -162,6 +162,40 @@ class MessagesRealtimeTests(TransactionTestCase):
 
         async_to_sync(scenario)()
 
+    def test_sender_only_receives_client_message_id_echo(self):
+        async def scenario():
+            owner_socket = WebsocketCommunicator(MessagesConsumer.as_asgi(), "/ws/messages/")
+            owner_socket.scope["user"] = self.owner
+            participant_socket = WebsocketCommunicator(MessagesConsumer.as_asgi(), "/ws/messages/")
+            participant_socket.scope["user"] = self.participant
+
+            owner_connected, _ = await owner_socket.connect()
+            participant_connected, _ = await participant_socket.connect()
+            self.assertTrue(owner_connected)
+            self.assertTrue(participant_connected)
+
+            await participant_socket.send_json_to(
+                {
+                    "action": "send_message",
+                    "conversation_id": self.conversation.id,
+                    "body": "Ack this message.",
+                    "client_message_id": "client-msg-123",
+                }
+            )
+
+            owner_payload = await owner_socket.receive_json_from()
+            participant_payload = await participant_socket.receive_json_from()
+
+            self.assertEqual(owner_payload["type"], "message.created")
+            self.assertEqual(participant_payload["type"], "message.created")
+            self.assertNotIn("client_message_id", owner_payload["message"])
+            self.assertEqual(participant_payload["message"]["client_message_id"], "client-msg-123")
+
+            await owner_socket.disconnect()
+            await participant_socket.disconnect()
+
+        async_to_sync(scenario)()
+
     def test_direct_conversation_realtime_payload_uses_direct_context(self):
         self.complete_roommate_profile(self.owner)
         self.create_roommate_post(self.participant)

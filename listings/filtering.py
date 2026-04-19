@@ -90,7 +90,7 @@ def parse_integer_filter(raw_value, *, minimum=None):
     return parsed, value
 
 
-def apply_listing_filters(queryset, params, *, viewport_required=False):
+def apply_listing_filters(queryset, params, *, viewport_required=False, include_viewport=True):
     query = params.get("q", "").strip()
     if query:
         queryset = queryset.filter(
@@ -157,16 +157,17 @@ def apply_listing_filters(queryset, params, *, viewport_required=False):
     if saved_enabled:
         queryset = queryset.filter(is_favorited=True)
 
-    bounds = parse_viewport_bounds(params)
-    if viewport_required and bounds is None:
-        queryset = queryset.none()
-    elif bounds is not None:
-        queryset = queryset.filter(
-            longitude__gte=bounds["west"],
-            longitude__lte=bounds["east"],
-            latitude__gte=bounds["south"],
-            latitude__lte=bounds["north"],
-        )
+    bounds = parse_viewport_bounds(params) if include_viewport else None
+    if include_viewport:
+        if viewport_required and bounds is None:
+            queryset = queryset.none()
+        elif bounds is not None:
+            queryset = queryset.filter(
+                longitude__gte=bounds["west"],
+                longitude__lte=bounds["east"],
+                latitude__gte=bounds["south"],
+                latitude__lte=bounds["north"],
+            )
 
     return queryset, {
         "q": query,

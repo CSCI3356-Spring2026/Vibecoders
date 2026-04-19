@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 from allauth.socialaccount.providers.google import views as google_views
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import get_user_model, logout
+from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db.models import Count, Q
@@ -16,40 +16,26 @@ from django.utils.http import content_disposition_header
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_GET, require_POST
 
-from communications.forms import ConversationMessageForm
 from communications.selectors import (
     accessible_conversations_for_user,
     conversation_summary_for_user,
-    direct_conversation_between_users,
 )
 from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
-from listings.selectors import active_roommate_post_for_user, with_feedback_summary
+from listings.selectors import with_feedback_summary
+from roommates import views as roommate_views
 
 from .admin_state import may_delete
-from .compatibility import (
-    compatibility_highlights,
-    compute_compatibility,
-    compute_group_compatibility,
-    group_compatibility_highlights,
-)
 from .forms import AdminProfileForm, AvatarUploadForm, GoogleLoginAcceptanceForm, StudentProfileForm, UserFileUploadForm
-from .group_services import create_group_invite, respond_to_group_invite, respond_to_invite_approval
 from .legal import (
     is_legal_review_required,
     set_pending_legal_acceptance,
 )
-from .models import AdminProfile, Role, RoommateGroupInvite, StudentProfile, UserFile
+from .models import AdminProfile, Role, StudentProfile, UserFile
 from .profile_integrity import mark_profile_completed_now, profile_satisfies_completion_requirements
 from .selectors import (
     accessible_user_files_queryset,
-    active_roommate_group_for_user,
-    discover_roommate_people,
     favorited_people_queryset,
-    pending_group_invite_approvals_for_user,
-    pending_group_invites_for_user,
-    roommate_group_memberships,
-    roommate_group_profiles_for_user,
 )
 from .session_security import has_recent_auth
 
@@ -415,18 +401,7 @@ def files(request):
 @login_required
 @require_GET
 def favorite_people(request):
-    if not request.user.is_student:
-        raise Http404
-
-    favorites = favorited_people_queryset(request.user)
-    favorites_page = get_page(favorites, request.GET.get("page"), FAVORITE_PEOPLE_PER_PAGE)
-    context = {
-        **_workspace_summary(request.user),
-        "favorites": favorites_page,
-        "favorites_total": favorites_page.paginator.count,
-        "pagination_query": preserved_query_suffix(request.GET, "page"),
-    }
-    return render(request, "users/favorite_people.html", context)
+    return redirect(f"{reverse('roommates:hub')}?tab=people&saved=1")
 
 
 @login_required
@@ -502,241 +477,48 @@ def upload_avatar(request):
 @login_required
 @require_GET
 def browse_roommates(request):
-    if not request.user.is_student:
-        raise Http404
-    query = request.GET.get("q", "").strip()
-    gender_filter = request.GET.get("gender", "").strip()
-    smoke_filter = request.GET.get("smoke", "").strip()
-    pets_filter = request.GET.get("pets", "").strip()
-    min_score_raw = request.GET.get("min_score", "").strip()
-    min_score = int(min_score_raw) if min_score_raw.isdigit() else None
-
-    discovery = discover_roommate_people(
-        request.user,
-        query=query,
-        gender_filter=gender_filter,
-        smoke_filter=smoke_filter,
-        pets_filter=pets_filter,
-        min_score=min_score,
-        page=request.GET.get("page"),
-        per_page=ROOMMATE_RESULTS_PER_PAGE,
-    )
-    return render(
-        request,
-        "users/browse_roommates.html",
-        {
-            "results": discovery["results_page"],
-            "results_total": discovery["results_total"],
-            "pagination_query": preserved_query_suffix(request.GET, "page"),
-            "query": query,
-            "gender_filter": gender_filter,
-            "smoke_filter": smoke_filter,
-            "pets_filter": pets_filter,
-            "min_score": min_score_raw,
-            "filters_active": discovery["filters_active"],
-            "has_my_profile": discovery["has_my_profile"],
-            "can_message": discovery["can_message"],
-            "active_group": discovery["active_group"],
-            "group_memberships": discovery["group_memberships"],
-            "pending_group_approvals": pending_group_invite_approvals_for_user(request.user),
-            "pending_group_invites": pending_group_invites_for_user(request.user),
-        },
-    )
+    query = request.GET.copy()
+    query["tab"] = "people"
+    return redirect(f"{reverse('roommates:hub')}?{query.urlencode()}")
 
 
 @login_required
 @require_GET
 def public_profile(request, user_id):
-    if not request.user.is_student:
-        raise Http404
-    User = get_user_model()
-    target = get_object_or_404(User, id=user_id, role=Role.STUDENT, is_active=True, profile_completed_at__isnull=False)
-    their_profile = getattr(target, "student_profile", None)
-    if their_profile is None:
-        raise Http404
-    is_self_profile = request.user.id == target.id
-    my_profile = getattr(request.user, "student_profile", None)
-    if is_self_profile:
-        score = None
-        highlights = []
-        group_profiles = []
-    else:
-        group_profiles = roommate_group_profiles_for_user(request.user)
-        if group_profiles:
-            score = compute_group_compatibility(group_profiles, their_profile) if their_profile else None
-            highlights = group_compatibility_highlights(group_profiles, their_profile)
-        else:
-            score = compute_compatibility(my_profile, their_profile) if my_profile else None
-            highlights = compatibility_highlights(my_profile, their_profile)
-    existing_direct_conversation = None
-    direct_message_form = None
-    if not is_self_profile and request.user.can_use_roommate_matching:
-        existing_direct_conversation = direct_conversation_between_users(request.user, target)
-    has_active_roommate_post = active_roommate_post_for_user(target) is not None
-    can_message_user = not is_self_profile and request.user.can_use_roommate_matching and has_active_roommate_post
-    if can_message_user:
-        direct_message_form = ConversationMessageForm(
-            placeholder="Introduce yourself and compare housing plans.",
-        )
-    lifestyle_match_classes = _lifestyle_match_classes(my_profile, their_profile, enabled=not is_self_profile)
-    active_group = active_roommate_group_for_user(request.user)
-    group_member_ids = set()
-    if active_group:
-        group_member_ids = {membership.user_id for membership in roommate_group_memberships(active_group)}
-    group_member_count = len(group_member_ids) if group_member_ids else (1 if my_profile else 0)
-    group_member_count = len(group_member_ids) if group_member_ids else (1 if my_profile else 0)
-    invite_status = (
-        RoommateGroupInvite.objects.filter(
-            inviter=request.user,
-            invitee=target,
-            status__in=[
-                RoommateGroupInvite.STATUS_PENDING_APPROVAL,
-                RoommateGroupInvite.STATUS_PENDING_INVITEE,
-            ],
-        )
-        .values_list("status", flat=True)
-        .first()
-    )
-    is_favorited = False
-    if not is_self_profile and request.user.is_student:
-        is_favorited = favorited_people_queryset(request.user).filter(favorite_user=target).exists()
-    return render(
-        request,
-        "users/public_profile.html",
-        {
-            "target": target,
-            "their_profile": their_profile,
-            "score": score,
-            "compatibility_highlights": highlights,
-            "show_compatibility": not is_self_profile,
-            "lifestyle_match_classes": lifestyle_match_classes,
-            "can_message_user": can_message_user,
-            "has_active_roommate_post": has_active_roommate_post,
-            "existing_direct_conversation": existing_direct_conversation,
-            "direct_message_form": direct_message_form,
-            "active_group": active_group,
-            "invite_status": invite_status,
-            "is_favorited": is_favorited,
-            "is_in_group": target.id in group_member_ids,
-            "group_member_count": group_member_count,
-        },
-    )
+    return roommate_views.public_profile(request, user_id)
 
 
 @login_required
 @require_POST
 def send_group_invite(request, user_id):
-    if not request.user.is_student:
-        raise Http404
-    User = get_user_model()
-    invitee = get_object_or_404(
-        User,
-        id=user_id,
-        role=Role.STUDENT,
-        is_active=True,
-        profile_completed_at__isnull=False,
-    )
-    next_url = safe_next_url(request, request.POST.get("next"), reverse("users:browse_roommates"))
-    try:
-        invite = create_group_invite(request.user, invitee)
-    except ValidationError as exc:
-        if hasattr(exc, "message_dict"):
-            message = next(iter(exc.message_dict.values()))[0]
-        else:
-            message = exc.messages[0]
-        messages.error(request, message)
-    else:
-        if invite.status == RoommateGroupInvite.STATUS_PENDING_APPROVAL:
-            messages.success(request, "Invite proposed. Waiting on your group to approve.")
-        else:
-            messages.success(request, "Group invite sent.")
-    return redirect(next_url)
+    return roommate_views.send_group_invite(request, user_id)
 
 
 @login_required
 @require_POST
 def toggle_favorite_roommate(request, user_id):
-    if not request.user.is_student:
-        raise Http404
-    User = get_user_model()
-    favorite_user = get_object_or_404(
-        User,
-        id=user_id,
-        role=Role.STUDENT,
-        is_active=True,
-        profile_completed_at__isnull=False,
-    )
-    next_url = safe_next_url(request, request.POST.get("next"), reverse("listings:roommates_hub") + "?tab=people")
-
-    if favorite_user.id == request.user.id:
-        messages.error(request, "You cannot save your own profile.")
-        return redirect(next_url)
-
-    favorite = favorited_people_queryset(request.user).filter(favorite_user=favorite_user).first()
-    if favorite is None:
-        request.user.favorite_roommates.create(favorite_user=favorite_user)
-        messages.success(request, f"Saved {favorite_user.display_name} to your favorites.")
-    else:
-        favorite.delete()
-        messages.success(request, f"Removed {favorite_user.display_name} from your favorites.")
-    return redirect(next_url)
+    return roommate_views.toggle_favorite_roommate(request, user_id)
 
 
 @login_required
 @require_POST
 def approve_group_invite(request, invite_id):
-    invite = get_object_or_404(RoommateGroupInvite, pk=invite_id)
-    next_url = safe_next_url(request, request.POST.get("next"), reverse("users:browse_roommates"))
-    try:
-        respond_to_invite_approval(invite, request.user, approve=True)
-    except ValidationError as exc:
-        message = exc.messages[0]
-        messages.error(request, message)
-    else:
-        messages.success(request, "Invite approved.")
-    return redirect(next_url)
+    return roommate_views.approve_group_invite(request, invite_id)
 
 
 @login_required
 @require_POST
 def reject_group_invite(request, invite_id):
-    invite = get_object_or_404(RoommateGroupInvite, pk=invite_id)
-    next_url = safe_next_url(request, request.POST.get("next"), reverse("users:browse_roommates"))
-    try:
-        respond_to_invite_approval(invite, request.user, approve=False)
-    except ValidationError as exc:
-        message = exc.messages[0]
-        messages.error(request, message)
-    else:
-        messages.success(request, "Invite declined.")
-    return redirect(next_url)
+    return roommate_views.reject_group_invite(request, invite_id)
 
 
 @login_required
 @require_POST
 def accept_group_invite(request, invite_id):
-    invite = get_object_or_404(RoommateGroupInvite, pk=invite_id)
-    next_url = safe_next_url(request, request.POST.get("next"), reverse("communications:messages"))
-    try:
-        respond_to_group_invite(invite, request.user, accept=True)
-    except ValidationError as exc:
-        message = exc.messages[0]
-        messages.error(request, message)
-    else:
-        messages.success(request, "You joined the group.")
-    return redirect(next_url)
+    return roommate_views.accept_group_invite(request, invite_id)
 
 
 @login_required
 @require_POST
 def decline_group_invite(request, invite_id):
-    invite = get_object_or_404(RoommateGroupInvite, pk=invite_id)
-    next_url = safe_next_url(request, request.POST.get("next"), reverse("communications:messages"))
-    try:
-        respond_to_group_invite(invite, request.user, accept=False)
-    except ValidationError as exc:
-        message = exc.messages[0]
-        messages.error(request, message)
-    else:
-        messages.success(request, "You declined the invite.")
-    return redirect(next_url)
+    return roommate_views.decline_group_invite(request, invite_id)
