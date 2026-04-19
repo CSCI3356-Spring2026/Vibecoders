@@ -247,7 +247,7 @@ class TestSettingsTests(SimpleTestCase):
         env["PYTHONPATH"] = str(repo_root)
         for key, value in (extra_env or {}).items():
             if value is None:
-                env[key] = ""
+                env.pop(key, None)
             else:
                 env[key] = value
 
