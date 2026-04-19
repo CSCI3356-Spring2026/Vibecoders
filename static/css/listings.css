@@ -1089,9 +1089,9 @@
 }
 
 .listing-favorite-form:not(.listing-favorite-form-detail) .listing-favorite-button {
-    width: 2.05rem;
-    min-width: 2.05rem;
-    min-height: 2.05rem;
+    width: 2.15rem;
+    min-width: 2.15rem;
+    min-height: 2.15rem;
     padding: 0;
     border-radius: 999px;
     border-color: rgba(var(--gray-900-rgb), 0.08);
@@ -1107,24 +1107,23 @@
 }
 
 .listing-favorite-button-icon {
-    position: relative;
-    width: 0.78rem;
-    height: 1rem;
+    display: block;
+    width: 0.88rem;
+    height: 1.05rem;
     flex-shrink: 0;
 }
 
-.listing-favorite-button-icon::before {
-    content: "";
-    position: absolute;
-    inset: 0.02rem 0.02rem 0.06rem;
-    border: 1.5px solid currentColor;
-    border-radius: 0.12rem 0.12rem 0 0;
-    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 81%, 0 100%);
-    background: transparent;
+.listing-favorite-button-icon path {
+    fill: transparent;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
 }
 
-.listing-favorite-button.is-favorited .listing-favorite-button-icon::before {
-    background: currentColor;
+.listing-favorite-button.is-favorited .listing-favorite-button-icon path {
+    fill: currentColor;
 }
 
 .listing-favorite-form:not(.listing-favorite-form-detail) .listing-favorite-button-label {

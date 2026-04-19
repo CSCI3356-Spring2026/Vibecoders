@@ -67,7 +67,14 @@
                                         aria-pressed="{% if is_favorited %}true{% else %}false{% endif %}"
                                         aria-label="{% if is_favorited %}Remove saved listing{% else %}Save listing{% endif %}"
                                     >
-                                        <span class="listing-favorite-button-icon" aria-hidden="true"></span>
+                                        <svg
+                                            class="listing-favorite-button-icon"
+                                            aria-hidden="true"
+                                            viewBox="0 0 16 20"
+                                            fill="none"
+                                        >
+                                            <path d="M4 2.75A1.25 1.25 0 0 1 5.25 1.5h5.5A1.25 1.25 0 0 1 12 2.75V15.5l-4-2.6-4 2.6V2.75Z"></path>
+                                        </svg>
                                         <span class="listing-favorite-button-label">{% if is_favorited %}Saved{% else %}Save{% endif %}</span>
                                     </button>
                                 </form>
@@ -158,7 +165,7 @@
                     </div>
                     {% if commute_distance_miles %}
                         <div class="listing-detail-fact-pill">
-                            <strong>{{ commute_distance_miles }}</strong>
+                            <strong>{{ commute_distance_miles|floatformat:1 }}</strong>
                             <span>mi to campus</span>
                         </div>
                     {% endif %}
@@ -281,7 +288,7 @@
                             {% if commute_distance_miles %}
                                 <div class="listing-detail-data-row">
                                     <span>Distance to campus</span>
-                                    <strong>{{ commute_distance_miles }} mi</strong>
+                                    <strong>{{ commute_distance_miles|floatformat:1 }} mi</strong>
                                 </div>
                             {% endif %}
                         </div>

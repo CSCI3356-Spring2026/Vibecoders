@@ -2214,11 +2214,13 @@ assert.equal(picker.isSelectionComplete(), true);
         self.client.force_login(self.user)
 
         response = self.client.get(reverse("listings:detail", args=[listing.pk]))
+        rounded_distance = f"{float(response.context['commute_distance_miles']):.1f}"
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Commute to Boston College")
         self.assertContains(response, "Distance to campus")
-        self.assertContains(response, f"{response.context['commute_distance_miles']} mi")
+        self.assertContains(response, f"{rounded_distance} mi")
+        self.assertNotContains(response, f"{response.context['commute_distance_miles']} mi")
         self.assertContains(response, "js/listing-commute.js")
 
     def test_listing_detail_renders_route_map_hooks_for_mapped_listing(self):

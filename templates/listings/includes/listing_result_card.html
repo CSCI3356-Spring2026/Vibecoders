@@ -67,7 +67,14 @@
                 aria-pressed="{% if listing.is_favorited %}true{% else %}false{% endif %}"
                 aria-label="{% if listing.is_favorited %}Remove saved listing{% else %}Save listing{% endif %}"
             >
-                <span class="listing-favorite-button-icon" aria-hidden="true"></span>
+                <svg
+                    class="listing-favorite-button-icon"
+                    aria-hidden="true"
+                    viewBox="0 0 16 20"
+                    fill="none"
+                >
+                    <path d="M4 2.75A1.25 1.25 0 0 1 5.25 1.5h5.5A1.25 1.25 0 0 1 12 2.75V15.5l-4-2.6-4 2.6V2.75Z"></path>
+                </svg>
                 <span class="listing-favorite-button-label">{% if listing.is_favorited %}Saved{% else %}Save{% endif %}</span>
             </button>
         </form>
