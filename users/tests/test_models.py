@@ -186,6 +186,14 @@ class CustomUserModelTests(TestCase):
         self.assertTrue(StudentProfile.objects.filter(user=student).exists())
         self.assertTrue(AdminProfile.objects.filter(user=admin).exists())
 
+    def test_new_student_profile_allows_blank_frequency_fields(self):
+        user = User.objects.create_user(username="blank-profile", email="blank-profile@bc.edu", password="test")
+
+        profile = user.student_profile
+
+        self.assertIsNone(profile.drink)
+        self.assertIsNone(profile.party)
+
     def test_realtor_role_transition_moves_to_admin_profile(self):
         user = User.objects.create_user(username="stu", email="stu@bc.edu", password="test")
 
@@ -333,3 +341,10 @@ class HistoricalMigrationTests(SimpleTestCase):
         self.assertIn(("studentprofile", "party"), state_altered_fields)
         self.assertNotIn(("studentprofile", "drink"), top_level_altered_fields)
         self.assertNotIn(("studentprofile", "party"), top_level_altered_fields)
+
+    def test_follow_up_migration_repairs_not_null_frequency_columns(self):
+        migration_module = import_module("users.migrations.0021_studentprofile_frequency_fields_nullable")
+        operations = migration_module.Migration.operations
+
+        self.assertEqual(len(operations), 1)
+        self.assertIsInstance(operations[0], migrations.RunPython)
