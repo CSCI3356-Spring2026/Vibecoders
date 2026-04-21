@@ -26,13 +26,16 @@ from core.utils import get_page, preserved_query_suffix, safe_next_url
 from listings.selectors import with_feedback_summary
 from roommates import views as roommate_views
 
+from .account_lifecycle import anonymize_and_deactivate_user
 from .admin_state import may_delete
+from .audit import record_audit_event
 from .forms import AdminProfileForm, AvatarUploadForm, GoogleLoginAcceptanceForm, StudentProfileForm, UserFileUploadForm
 from .legal import (
     is_legal_review_required,
     set_pending_legal_acceptance,
 )
 from .models import AdminProfile, CustomUser, Role, StudentProfile, UserFile
+from .permissions import can_access_private_user_file
 from .profile_integrity import mark_profile_completed_now, profile_satisfies_completion_requirements
 from .selectors import (
     accessible_user_files_queryset,
@@ -165,7 +168,10 @@ def _lifestyle_match_classes(my_profile, their_profile, *, enabled):
 
 
 def _accessible_user_file_or_404(user, file_id):
-    return get_object_or_404(accessible_user_files_queryset(user), id=file_id)
+    user_file = get_object_or_404(UserFile.objects.select_related("owner"), id=file_id)
+    if not can_access_private_user_file(user, user_file):
+        raise Http404("File not found.")
+    return user_file
 
 
 def _open_user_file_or_404(user_file):
@@ -294,15 +300,15 @@ def profile_setup(request):
         profile_title = "Student profile"
         profile_subtitle = "These details power roommate matching and your public profile."
         is_student_profile = True
-    elif user.role in {Role.ADMIN, Role.REALTOR}:
+    elif user.role in {Role.ADMIN, Role.MODERATOR, Role.SUPPORT, Role.REALTOR}:
         profile, _ = AdminProfile.objects.get_or_create(user=user)
         form_class = AdminProfileForm
-        role_label = "Admin" if user.role == Role.ADMIN else "Realtor"
-        profile_title = "Admin profile" if user.role == Role.ADMIN else "Listing profile"
+        role_label = user.display_role
+        profile_title = "Listing profile" if user.role == Role.REALTOR else "Staff profile"
         profile_subtitle = "Keep the public details for this account clean and current."
         is_student_profile = False
     else:
-        messages.info(request, "Profile details are only available for student or admin accounts.")
+        messages.info(request, "Profile details are only available for active Padly roles.")
         return redirect("users:dashboard")
 
     if request.method == "POST":
@@ -417,6 +423,12 @@ def favorite_people(request):
 @xframe_options_sameorigin
 def file_preview(request, file_id):
     user_file = _accessible_user_file_or_404(request.user, file_id)
+    record_audit_event(
+        action="user_file.previewed",
+        actor=request.user,
+        target=user_file,
+        metadata={"owner_id": user_file.owner_id, "staff_access": request.user.id != user_file.owner_id},
+    )
     file_handle = _open_user_file_or_404(user_file)
     content_type = _preview_content_type_or_404(user_file)
     filename = Path(user_file.file.name).name
@@ -429,6 +441,12 @@ def file_preview(request, file_id):
 @require_GET
 def file_download(request, file_id):
     user_file = _accessible_user_file_or_404(request.user, file_id)
+    record_audit_event(
+        action="user_file.downloaded",
+        actor=request.user,
+        target=user_file,
+        metadata={"owner_id": user_file.owner_id, "staff_access": request.user.id != user_file.owner_id},
+    )
     file_handle = _open_user_file_or_404(user_file)
     filename = Path(user_file.file.name).name
     response = FileResponse(
@@ -456,11 +474,11 @@ def delete_account(request):
         return redirect("users:dashboard")
     user = request.user
     if not may_delete(user):
-        messages.error(request, "You cannot delete the last active admin account.")
+        messages.error(request, "You cannot delete the last active platform admin account.")
         return redirect("users:dashboard")
+    anonymize_and_deactivate_user(user, actor=user, reason="Self-service account deletion")
     logout(request)
-    user.delete()
-    messages.success(request, "Account deleted.")
+    messages.success(request, "Account closed.")
     return redirect("core:landing")
 
 

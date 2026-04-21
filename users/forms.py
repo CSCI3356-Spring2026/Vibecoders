@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import AdminProfile, StudentProfile, UserFile
+from .models import AdminProfile, Role, StudentProfile, UserFile
 from .validators import validate_avatar_upload
 
 
@@ -62,10 +62,28 @@ class UserFileUploadForm(forms.ModelForm):
         model = UserFile
         fields = ["title", "file"]
         widgets = {
-            "file": forms.ClearableFileInput(
-                attrs={"class": "form-control", "accept": ".pdf,.txt,.doc,.docx,.jpg,.jpeg,.png,.webp"}
-            ),
+            "file": forms.ClearableFileInput(attrs={"class": "form-control", "accept": ".pdf,.jpg,.jpeg,.png,.webp"}),
         }
+
+
+class AdminUserRoleForm(forms.Form):
+    role = forms.ChoiceField(
+        choices=Role.choices,
+        widget=forms.Select(attrs={"class": "form-select form-select-sm"}),
+    )
+
+
+class SupportInvestigationForm(forms.Form):
+    reason = forms.CharField(
+        max_length=500,
+        widget=forms.Textarea(
+            attrs={
+                "class": "form-control",
+                "rows": 3,
+                "placeholder": "Why does this account need sensitive review access?",
+            }
+        ),
+    )
 
 
 class AvatarUploadForm(forms.Form):

@@ -67,6 +67,7 @@ Validation is split between model and file-validator layers:
 
 - max bytes via `USER_FILE_MAX_BYTES`
 - allowed file types and MIME/content inspection via `users.validators.validate_user_upload`
+  - PDFs plus JPG/PNG/WebP only
 - per-user total capacity via `USER_FILE_TOTAL_LIMIT`
 - per-user upload burst limit via `USER_FILE_UPLOAD_RATE_LIMIT`
 
@@ -93,7 +94,8 @@ Only images and PDFs are previewable inline.
 | --- | --- | --- | --- |
 | Anonymous user | Can see public listing photos in marketplace/detail pages | Can load avatars already attached to a user profile | No access |
 | Owner | Can manage their own listing photos and private files | Can replace their own uploaded avatar | Full access to own files |
-| Admin | Can review listing photos in admin surfaces | Can inspect user avatars through normal product/admin surfaces | Can access user files through authenticated admin-enabled selectors/views |
+| Moderator | Can review listing photos in staff moderation surfaces | Can inspect user avatars through normal product/staff surfaces | No access by default |
+| Support / Platform Admin | Can review listing photos in staff surfaces | Can inspect user avatars through normal product/staff surfaces | Access only through authenticated views with an active support investigation and audit logging |
 
 ## Operational Caveats
 
@@ -108,4 +110,4 @@ Only images and PDFs are previewable inline.
 - Never expose raw template links to private `UserFile` paths.
 - Never add a blanket `/media/` route for private uploads.
 - Keep preview restrictions limited to images and PDFs.
-- Keep file-access checks behind authenticated, owner- or admin-authorized views.
+- Keep file-access checks behind authenticated, owner-authorized, or investigation-authorized views.

@@ -8,10 +8,10 @@ Padly is a student housing and subletting marketplace built by Vibecoders for th
 - Login-gated marketplace flows for creating, managing, browsing, and messaging about listings
 - Anonymous visitors only see public listing teasers on the landing page
 - Roommate discovery with post-based group search, compatibility profiles, and direct student-to-student chat
-- Role model for `Student`, `Realtor`, and `Admin` users
+- Role model for `Student`, `Realtor`, `Moderator`, `Support`, and `Platform Admin` users
 - Real-time conversations between listing owners and interested renters
-- Admin tooling for listing approval, report moderation, and operations
-- Private user-file handling through authenticated views
+- Staff tooling for listing approval, report moderation, support investigations, and operations
+- Private user-file handling through authenticated views with audit logging
 - Embedded legal-review flow for versioned Terms and Privacy acceptance
 
 ## Architecture
@@ -118,6 +118,9 @@ Common environment variables:
 - `DJANGO_DEBUG`: enables local debug mode
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`: required for Google sign-in
 - `STUDENT_EMAIL_DOMAINS`: comma-separated student domains, defaults to `bc.edu`
+- `PRIVILEGED_ACTION_RECENT_AUTH_SECONDS`: recent-auth window for staff changes
+- `SUPPORT_INVESTIGATION_DURATION_HOURS`: default length of sensitive support access
+- `DJANGO_DEFAULT_FILE_STORAGE_BACKEND`: optional object/private storage backend override
 - `SITE_PRODUCT_NAME` / `SITE_COMPANY_NAME`: branding
 - `LEGAL_DOCUMENT_VERSION`: forces re-acceptance when legal text changes
 - `LISTING_MAPS_ENABLED`: enables the map-first listings UI; if enabled without a working map style URL, the page falls back to the conventional list view with an unavailable notice

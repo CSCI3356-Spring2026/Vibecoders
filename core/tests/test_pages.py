@@ -31,6 +31,18 @@ class CorePageTests(TestCase):
         self.assertEqual(response.json(), {"status": "ok"})
         self.assertEqual(response["Cache-Control"], "no-store")
 
+    def test_readyz_returns_dependency_statuses(self):
+        response = self.client.get(reverse("core:readyz"))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["status"], "ok")
+        self.assertEqual(
+            set(payload["checks"]),
+            {"database", "cache", "channel_layer", "storage", "migrations"},
+        )
+        self.assertEqual(response["Cache-Control"], "no-store")
+
     def test_landing_page_exposes_listing_search(self):
         response = self.client.get(reverse("core:landing"))
 

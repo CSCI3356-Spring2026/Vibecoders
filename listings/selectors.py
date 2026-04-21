@@ -1,13 +1,13 @@
 from django.db.models import Avg, BooleanField, Case, Count, Exists, IntegerField, OuterRef, Prefetch, Q, Value, When
 
+from roommates.models import RoommateGroup, RoommatePost
+
 from .models import (
     Listing,
     ListingFavorite,
     ListingReport,
     ListingReportUpdate,
     ListingReview,
-    RoommateGroup,
-    RoommatePost,
 )
 
 ACTIVE_REPORT_STATUSES = [ListingReport.STATUS_OPEN, ListingReport.STATUS_IN_REVIEW]
@@ -96,7 +96,7 @@ def accessible_listing_detail_queryset(user):
     base_queryset = with_feedback_summary(Listing.objects.with_related())
     if not getattr(user, "is_authenticated", False):
         return base_queryset.public()
-    if user.is_bc_admin:
+    if user.can_access_staff_console:
         return base_queryset
     archived_conversation_exists = _archived_listing_conversation_exists(user)
     if user.can_browse_marketplace:

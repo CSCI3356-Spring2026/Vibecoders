@@ -6,8 +6,10 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
+from django.db.models import Q
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
+from django.utils import timezone
 
 from roommates import models as roommate_models
 
@@ -34,7 +36,65 @@ def _document_library_limit_message(limit):
 class Role(models.TextChoices):
     STUDENT = "student", "Student"
     REALTOR = "realtor", "Realtor"
-    ADMIN = "admin", "Admin"
+    MODERATOR = "moderator", "Moderator"
+    SUPPORT = "support", "Support"
+    ADMIN = "platform_admin", "Platform Admin"
+
+
+STAFF_ROLE_VALUES = {
+    Role.MODERATOR,
+    Role.SUPPORT,
+    Role.ADMIN,
+}
+ADMIN_PROFILE_COPY_FIELDS = ("preferred_name", "age", "gender", "gender_other", "bio")
+
+
+def _choice_values(choices):
+    return tuple(value for value, _label in choices)
+
+
+def _optional_choice_constraint(field_name, choices):
+    return Q(**{f"{field_name}__in": _choice_values(choices)}) | Q(**{f"{field_name}": ""})
+
+
+def _optional_positive_choice_constraint(field_name, choices):
+    return Q(**{f"{field_name}__in": _choice_values(choices)}) | Q(**{f"{field_name}__isnull": True})
+
+
+STUDENT_PROFILE_GENDER_CHOICES = [
+    ("male", "Male"),
+    ("female", "Female"),
+    ("other", "Other"),
+    ("prefer_not", "Prefer not to say"),
+]
+STUDENT_PROFILE_MESSY_LEVEL_CHOICES = [
+    (1, "Extremely messy"),
+    (2, "Messy"),
+    (3, "Neutral"),
+    (4, "Clean"),
+    (5, "Extremely clean"),
+]
+STUDENT_PROFILE_GUEST_LEVEL_CHOICES = [
+    (1, "Never"),
+    (2, "Rarely"),
+    (3, "Sometimes"),
+    (4, "Often"),
+    (5, "Everyday"),
+]
+STUDENT_PROFILE_NOISE_LEVEL_CHOICES = [
+    (1, "Silent"),
+    (2, "Quiet"),
+    (3, "Neutral"),
+    (4, "Loud"),
+    (5, "Very loud"),
+]
+STUDENT_PROFILE_FREQUENCY_CHOICES = [
+    (1, "Never"),
+    (2, "Rarely"),
+    (3, "Sometimes"),
+    (4, "Often"),
+    (5, "Daily"),
+]
 
 
 class CustomUser(AbstractUser):
@@ -45,13 +105,23 @@ class CustomUser(AbstractUser):
     profile_image_url = models.URLField(blank=True, max_length=500)
     uploaded_avatar = models.ImageField(upload_to="avatars/", blank=True)
     role = models.CharField(
-        max_length=12,
+        max_length=20,
         choices=Role.choices,
         default=Role.STUDENT,
         db_index=True,
         help_text="Access level for the housing platform.",
     )
     profile_completed_at = models.DateTimeField(null=True, blank=True)
+    deactivated_at = models.DateTimeField(null=True, blank=True)
+    deactivated_by = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="deactivated_users",
+    )
+    deactivation_reason = models.CharField(max_length=255, blank=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
     terms_accepted_at = models.DateTimeField(null=True, blank=True)
     privacy_accepted_at = models.DateTimeField(null=True, blank=True)
     legal_policy_version = models.CharField(max_length=32, blank=True)
@@ -72,6 +142,17 @@ class CustomUser(AbstractUser):
     def student_email_domains(cls):
         configured_domains = getattr(settings, "STUDENT_EMAIL_DOMAINS", ["bc.edu"])
         return {domain.lower() for domain in configured_domains}
+
+    @classmethod
+    def normalize_role_value(cls, role):
+        role_value = getattr(role, "value", role) or ""
+        if role_value == "admin":
+            return Role.ADMIN
+        return role_value
+
+    @classmethod
+    def is_staff_role_value(cls, role):
+        return cls.normalize_role_value(role) in STAFF_ROLE_VALUES
 
     @classmethod
     def default_role_for_email(cls, email):
@@ -144,8 +225,7 @@ class CustomUser(AbstractUser):
 
     @property
     def is_bc_admin(self):
-        """Return True if the user has the Admin role."""
-        return self.role == Role.ADMIN
+        return self.is_platform_admin
 
     @property
     def is_student(self):
@@ -156,28 +236,95 @@ class CustomUser(AbstractUser):
         return self.role == Role.REALTOR
 
     @property
+    def is_moderator(self):
+        return self.role == Role.MODERATOR
+
+    @property
+    def is_support(self):
+        return self.role == Role.SUPPORT
+
+    @property
+    def is_platform_admin(self):
+        return self.role == Role.ADMIN
+
+    @property
+    def is_staff_role(self):
+        from .permissions import is_staff_role
+
+        return is_staff_role(self)
+
+    @property
     def can_access_admin_panel(self):
-        return self.is_bc_admin
+        return self.can_access_staff_console
+
+    @property
+    def can_access_staff_console(self):
+        from .permissions import can_access_staff_console
+
+        return can_access_staff_console(self)
+
+    @property
+    def can_manage_listing_moderation(self):
+        from .permissions import can_manage_listing_moderation
+
+        return can_manage_listing_moderation(self)
+
+    @property
+    def can_manage_reports(self):
+        from .permissions import can_manage_reports
+
+        return can_manage_reports(self)
+
+    @property
+    def can_manage_user_status(self):
+        from .permissions import can_manage_user_status
+
+        return can_manage_user_status(self)
+
+    @property
+    def can_manage_user_roles(self):
+        from .permissions import can_manage_user_roles
+
+        return can_manage_user_roles(self)
+
+    @property
+    def can_open_support_investigations(self):
+        from .permissions import can_open_support_investigations
+
+        return can_open_support_investigations(self)
+
+    @property
+    def can_view_sensitive_user_data(self):
+        from .permissions import can_view_sensitive_user_data
+
+        return can_view_sensitive_user_data(self)
 
     @property
     def can_browse_marketplace(self):
-        return self.is_student or self.is_bc_admin
+        from .permissions import can_browse_marketplace
+
+        return can_browse_marketplace(self)
 
     @property
     def can_start_listing_conversations(self):
-        return self.is_student or self.is_bc_admin
+        from .permissions import can_start_listing_conversations
+
+        return can_start_listing_conversations(self)
 
     @property
     def can_use_roommate_matching(self):
-        return self.is_student and self.profile_completed_at is not None
+        from .permissions import can_use_roommate_matching
+
+        return can_use_roommate_matching(self)
 
     @property
     def has_listing_only_access(self):
-        return self.is_realtor
+        from .permissions import has_listing_only_access
+
+        return has_listing_only_access(self)
 
     @property
     def display_role(self):
-        """Human-readable role label for templates (e.g. 'Student', 'Admin')."""
         return self.get_role_display()
 
     @property
@@ -194,11 +341,20 @@ class CustomUser(AbstractUser):
         return source[:1].upper()
 
     def apply_email_role_policy(self):
-        if self.role != Role.ADMIN:
+        if not self.is_staff_role_value(self.role):
             self.role = self.default_role_for_email(self.email)
 
     def set_admin_access(self, enabled):
         self.role = Role.ADMIN if enabled else self.default_role_for_email(self.email)
+
+    def restore_default_access_role(self):
+        self.role = self.default_role_for_email(self.email)
+
+    def set_staff_role(self, role):
+        normalized_role = self.normalize_role_value(role)
+        if normalized_role not in STAFF_ROLE_VALUES:
+            raise ValueError("Staff role required.")
+        self.role = normalized_role
 
     def save(self, *args, **kwargs):
         update_fields = kwargs.get("update_fields")
@@ -206,11 +362,12 @@ class CustomUser(AbstractUser):
             update_fields = set(update_fields)
 
         original_email = self.email
-        original_role = self.role
+        original_role = self.normalize_role_value(self.role)
         normalized_email = self.normalize_email_address(self.email)
         if not normalized_email:
             raise ValueError("Users must have an email address.")
         self.email = normalized_email
+        self.role = self.normalize_role_value(self.role)
         self.apply_email_role_policy()
         if update_fields is not None:
             if self.email != original_email:
@@ -225,40 +382,11 @@ class CustomUser(AbstractUser):
 
 
 class StudentProfile(models.Model):
-    GENDER_CHOICES = [
-        ("male", "Male"),
-        ("female", "Female"),
-        ("other", "Other"),
-        ("prefer_not", "Prefer not to say"),
-    ]
-    MESSY_LEVEL_CHOICES = [
-        (1, "Extremely messy"),
-        (2, "Messy"),
-        (3, "Neutral"),
-        (4, "Clean"),
-        (5, "Extremely clean"),
-    ]
-    GUEST_LEVEL_CHOICES = [
-        (1, "Never"),
-        (2, "Rarely"),
-        (3, "Sometimes"),
-        (4, "Often"),
-        (5, "Everyday"),
-    ]
-    NOISE_LEVEL_CHOICES = [
-        (1, "Silent"),
-        (2, "Quiet"),
-        (3, "Neutral"),
-        (4, "Loud"),
-        (5, "Very loud"),
-    ]
-    FREQUENCY_CHOICES = [
-        (1, "Never"),
-        (2, "Rarely"),
-        (3, "Sometimes"),
-        (4, "Often"),
-        (5, "Daily"),
-    ]
+    GENDER_CHOICES = STUDENT_PROFILE_GENDER_CHOICES
+    MESSY_LEVEL_CHOICES = STUDENT_PROFILE_MESSY_LEVEL_CHOICES
+    GUEST_LEVEL_CHOICES = STUDENT_PROFILE_GUEST_LEVEL_CHOICES
+    NOISE_LEVEL_CHOICES = STUDENT_PROFILE_NOISE_LEVEL_CHOICES
+    FREQUENCY_CHOICES = STUDENT_PROFILE_FREQUENCY_CHOICES
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="student_profile")
     preferred_name = models.CharField(max_length=120, blank=True)
@@ -276,12 +404,59 @@ class StudentProfile(models.Model):
     party = models.PositiveSmallIntegerField(null=True, blank=True, choices=FREQUENCY_CHOICES)
     pets = models.BooleanField(default=False)
 
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(age__isnull=True) | (Q(age__gte=16) & Q(age__lte=99)),
+                name="student_profile_age_valid",
+            ),
+            models.CheckConstraint(
+                condition=_optional_choice_constraint("gender", STUDENT_PROFILE_GENDER_CHOICES),
+                name="student_profile_gender_valid",
+            ),
+            models.CheckConstraint(
+                condition=_optional_positive_choice_constraint("messy_level", STUDENT_PROFILE_MESSY_LEVEL_CHOICES),
+                name="student_profile_messy_level_valid",
+            ),
+            models.CheckConstraint(
+                condition=_optional_positive_choice_constraint("guest_level", STUDENT_PROFILE_GUEST_LEVEL_CHOICES),
+                name="student_profile_guest_level_valid",
+            ),
+            models.CheckConstraint(
+                condition=Q(bedtime__isnull=True) | (Q(bedtime__gte=0) & Q(bedtime__lte=23)),
+                name="student_profile_bedtime_valid",
+            ),
+            models.CheckConstraint(
+                condition=_optional_positive_choice_constraint("noise_level", STUDENT_PROFILE_NOISE_LEVEL_CHOICES),
+                name="student_profile_noise_level_valid",
+            ),
+            models.CheckConstraint(
+                condition=_optional_positive_choice_constraint("drink", STUDENT_PROFILE_FREQUENCY_CHOICES),
+                name="student_profile_drink_valid",
+            ),
+            models.CheckConstraint(
+                condition=_optional_positive_choice_constraint("party", STUDENT_PROFILE_FREQUENCY_CHOICES),
+                name="student_profile_party_valid",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.gender == "other" and not self.gender_other:
+            raise ValidationError({"gender_other": "Please share your gender or choose another option."})
+        if self.gender != "other":
+            self.gender_other = ""
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"StudentProfile({self.user.username})"
 
 
 class AdminProfile(models.Model):
-    GENDER_CHOICES = StudentProfile.GENDER_CHOICES
+    GENDER_CHOICES = STUDENT_PROFILE_GENDER_CHOICES
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="admin_profile")
     preferred_name = models.CharField(max_length=120, blank=True)
@@ -290,6 +465,29 @@ class AdminProfile(models.Model):
     gender_other = models.CharField(max_length=120, blank=True)
     bio = models.CharField(max_length=300, blank=True)
 
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(age__isnull=True) | (Q(age__gte=16) & Q(age__lte=99)),
+                name="admin_profile_age_valid",
+            ),
+            models.CheckConstraint(
+                condition=_optional_choice_constraint("gender", STUDENT_PROFILE_GENDER_CHOICES),
+                name="admin_profile_gender_valid",
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.gender == "other" and not self.gender_other:
+            raise ValidationError({"gender_other": "Please share your gender or choose another option."})
+        if self.gender != "other":
+            self.gender_other = ""
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"AdminProfile({self.user.username})"
 
@@ -297,6 +495,97 @@ class AdminProfile(models.Model):
 FavoriteRoommate = roommate_models.FavoriteRoommate
 RoommateGroupInvite = roommate_models.RoommateGroupInvite
 RoommateGroupInviteApproval = roommate_models.RoommateGroupInviteApproval
+
+
+class SupportInvestigationQuerySet(models.QuerySet):
+    def active(self):
+        return self.filter(closed_at__isnull=True, expires_at__gt=timezone.now())
+
+
+class SupportInvestigation(models.Model):
+    subject = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="support_investigations",
+    )
+    opened_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="opened_support_investigations",
+    )
+    reason = models.CharField(max_length=500)
+    expires_at = models.DateTimeField()
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="closed_support_investigations",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    objects = SupportInvestigationQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["subject", "expires_at"], name="support_inv_subject_idx"),
+            models.Index(fields=["opened_by", "expires_at"], name="support_inv_opened_idx"),
+        ]
+
+    @property
+    def is_active(self):
+        return self.closed_at is None and self.expires_at > timezone.now()
+
+    def clean(self):
+        super().clean()
+        if self.subject_id and self.opened_by_id and self.subject_id == self.opened_by_id:
+            raise ValidationError({"subject": "Support investigations cannot target the acting staff account."})
+        if self.opened_by_id and self.opened_by.role not in {Role.SUPPORT, Role.ADMIN}:
+            raise ValidationError({"opened_by": "Only support or platform admins can open investigations."})
+        if self.closed_at is None and self.expires_at and self.expires_at <= timezone.now():
+            raise ValidationError({"expires_at": "Investigation access must expire in the future."})
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def close(self, *, actor):
+        timestamp = timezone.now()
+        self.closed_at = timestamp
+        self.closed_by = actor
+        self.save(update_fields=["closed_at", "closed_by"])
+        return timestamp
+
+    def __str__(self):
+        return f"Investigation for {self.subject_id} by {self.opened_by_id}"
+
+
+class AuditEvent(models.Model):
+    action = models.CharField(max_length=64, db_index=True)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="audit_events",
+    )
+    target_type = models.CharField(max_length=64, blank=True)
+    target_id = models.CharField(max_length=64, blank=True)
+    target_repr = models.CharField(max_length=255, blank=True)
+    reason = models.CharField(max_length=500, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["target_type", "target_id"], name="audit_event_target_idx"),
+            models.Index(fields=["created_at"], name="audit_event_created_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.action} ({self.created_at:%Y-%m-%d %H:%M:%S})"
 
 
 class UserFile(models.Model):

@@ -19,6 +19,16 @@ urlpatterns = [
     path("admin-reports/<int:report_id>/status/", admin_views.admin_update_report, name="admin_update_report"),
     path("admin-users/", admin_views.admin_users, name="admin_users"),
     path("admin-users/<int:user_id>/", admin_views.admin_user_detail, name="admin_user_detail"),
+    path(
+        "admin-users/<int:user_id>/investigation/",
+        admin_views.admin_open_investigation,
+        name="admin_open_investigation",
+    ),
+    path(
+        "admin-investigations/<int:investigation_id>/close/",
+        admin_views.admin_close_investigation,
+        name="admin_close_investigation",
+    ),
     path("admin-users/<int:user_id>/role/", admin_views.admin_set_role, name="admin_set_role"),
     path("admin-users/<int:user_id>/active/", admin_views.admin_toggle_active, name="admin_toggle_active"),
     path("posts/", views.posts, name="posts"),

@@ -2902,7 +2902,7 @@ assert.equal(mapNote.textContent, "");
         self.assertContains(response, "This listing is no longer accepting new messages.")
         self.assertFalse(ListingConversation.objects.exists())
 
-    def test_admin_can_start_listing_conversation_for_public_listing(self):
+    def test_platform_admin_cannot_start_listing_conversation_for_public_listing(self):
         admin = get_user_model().objects.create_user(
             username="admin",
             email="admin@bc.edu",
@@ -2917,13 +2917,11 @@ assert.equal(mapNote.textContent, "");
             {"body": "I need to follow up on this listing."},
         )
 
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(ListingConversation.objects.count(), 1)
-        conversation = ListingConversation.objects.get()
-        self.assertEqual(conversation.participant, admin)
-        self.assertEqual(conversation.listing, listing)
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.content.decode(), "Verified student access is required to message about listings.")
+        self.assertEqual(ListingConversation.objects.count(), 0)
 
-    def test_admin_non_public_listing_post_redirects_with_error_instead_of_404(self):
+    def test_platform_admin_non_public_listing_post_is_forbidden(self):
         admin = get_user_model().objects.create_user(
             username="admin",
             email="admin@bc.edu",
@@ -2936,12 +2934,10 @@ assert.equal(mapNote.textContent, "");
         response = self.client.post(
             reverse("listings:message_listing", args=[listing.pk]),
             {"body": "Still available?"},
-            follow=True,
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "This listing is no longer accepting new messages.")
-        self.assertContains(response, "New conversations are closed.")
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.content.decode(), "Verified student access is required to message about listings.")
         self.assertFalse(ListingConversation.objects.exists())
 
     def test_listing_owner_sees_conversations_on_detail_page(self):

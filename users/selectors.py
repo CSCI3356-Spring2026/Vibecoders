@@ -1,14 +1,16 @@
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.db.models import Case, Count, IntegerField, Q, Value, When
 from django.utils import timezone
 
 from communications.models import ListingConversation, ListingMessage
 from communications.selectors import direct_conversations_by_counterparty
 from core.utils import get_page
-from listings.models import Listing, ListingReport, RoommateGroupMembership
+from listings.models import Listing, ListingReport
 from listings.selectors import listing_reports_queryset_for_admin, with_feedback_summary
+from roommates.models import FavoriteRoommate, RoommateGroupInvite, RoommateGroupInviteApproval, RoommateGroupMembership
 
 from .compatibility import (
     compatibility_highlights,
@@ -16,13 +18,7 @@ from .compatibility import (
     compute_group_compatibility,
     group_compatibility_highlights,
 )
-from .models import (
-    FavoriteRoommate,
-    Role,
-    RoommateGroupInvite,
-    RoommateGroupInviteApproval,
-    UserFile,
-)
+from .models import Role, UserFile
 
 ROOMMATE_DISCOVERY_CANDIDATE_LIMIT = 300
 
@@ -174,7 +170,9 @@ def admin_dashboard_metrics():
     user_metrics = user_model.objects.aggregate(
         student_users=Count("id", filter=Q(role=Role.STUDENT)),
         realtor_users=Count("id", filter=Q(role=Role.REALTOR)),
-        admin_users_total=Count("id", filter=Q(role=Role.ADMIN)),
+        moderator_users=Count("id", filter=Q(role=Role.MODERATOR)),
+        support_users=Count("id", filter=Q(role=Role.SUPPORT)),
+        platform_admin_users=Count("id", filter=Q(role=Role.ADMIN)),
     )
     report_metrics = ListingReport.objects.aggregate(
         open_reports=Count("id", filter=Q(status=ListingReport.STATUS_OPEN)),
@@ -188,6 +186,12 @@ def admin_dashboard_metrics():
 
 
 def admin_dashboard_snapshot(*, query="", selected_status="", selected_review_status=""):
+    snapshot_minute = timezone.localtime().strftime("%Y%m%d%H%M")
+    cache_key = f"admin-dashboard:{query}:{selected_status}:{selected_review_status}:{snapshot_minute}"
+    cached_snapshot = cache.get(cache_key)
+    if cached_snapshot is not None:
+        return cached_snapshot
+
     user_model = get_user_model()
     now = timezone.now()
     today = timezone.localdate()
@@ -268,12 +272,13 @@ def admin_dashboard_snapshot(*, query="", selected_status="", selected_review_st
             "recent_messages": list(recent_messages_qs[:6]),
         }
     )
+    cache.set(cache_key, metrics, timeout=60)
     return metrics
 
 
 def accessible_user_files_queryset(user):
-    if user.is_bc_admin:
-        return UserFile.objects.select_related("owner")
+    if not getattr(user, "is_authenticated", False):
+        return UserFile.objects.none()
     return UserFile.objects.filter(owner=user).select_related("owner")
 
 

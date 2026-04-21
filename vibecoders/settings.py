@@ -22,6 +22,11 @@ try:
 except ImportError:  # pragma: no cover - exercised via subprocess tests.
     dj_database_url = None
 
+try:  # pragma: no cover - optional production dependency.
+    import sentry_sdk
+except ImportError:  # pragma: no cover - exercised when the SDK is not installed.
+    sentry_sdk = None
+
 RUNNING_TESTS = "test" in sys.argv
 if os.getenv("DJANGO_DISABLE_DOTENV", "").strip().lower() not in {"1", "true", "yes", "on"} and not RUNNING_TESTS:
     load_dotenv()
@@ -135,6 +140,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "core.logging.RequestIDMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "allauth.account.middleware.AccountMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -248,9 +254,13 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = Path(os.getenv("DJANGO_STATIC_ROOT", str(BASE_DIR / "staticfiles"))).resolve()
 MEDIA_URL = "/media/"
 MEDIA_ROOT = Path(os.getenv("DJANGO_MEDIA_ROOT", str(BASE_DIR / "media"))).resolve()
+DEFAULT_FILE_STORAGE_BACKEND = (
+    os.getenv("DJANGO_DEFAULT_FILE_STORAGE_BACKEND", "django.core.files.storage.FileSystemStorage").strip()
+    or "django.core.files.storage.FileSystemStorage"
+)
 STORAGES = {
     "default": {
-        "BACKEND": "django.core.files.storage.FileSystemStorage",
+        "BACKEND": DEFAULT_FILE_STORAGE_BACKEND,
     },
     "staticfiles": {
         "BACKEND": (
@@ -290,6 +300,7 @@ if not LISTING_GEOAPIFY_MAP_STYLE_URL and LISTING_GEOAPIFY_API_KEY:
 LISTING_MAP_SATELLITE_STYLE_URL = os.getenv("LISTING_MAP_SATELLITE_STYLE_URL", "").strip() or "builtin://satellite"
 LISTING_ADDRESS_AUTOCOMPLETE_RATE_LIMIT = env_int("LISTING_ADDRESS_AUTOCOMPLETE_RATE_LIMIT", 30)
 LISTING_ADDRESS_AUTOCOMPLETE_RATE_WINDOW_SECONDS = env_int("LISTING_ADDRESS_AUTOCOMPLETE_RATE_WINDOW_SECONDS", 60)
+LISTING_ADDRESS_AUTOCOMPLETE_CACHE_SECONDS = max(0, env_int("LISTING_ADDRESS_AUTOCOMPLETE_CACHE_SECONDS", 300))
 LISTING_REPORT_RATE_LIMIT = env_int("LISTING_REPORT_RATE_LIMIT", 10)
 LISTING_REPORT_RATE_WINDOW_SECONDS = env_int("LISTING_REPORT_RATE_WINDOW_SECONDS", 3600)
 USER_FILE_MAX_BYTES = env_int("USER_FILE_MAX_BYTES", 10 * 1024 * 1024)
@@ -301,8 +312,12 @@ MESSAGE_SEND_RATE_WINDOW_SECONDS = env_int("MESSAGE_SEND_RATE_WINDOW_SECONDS", 6
 GLOBAL_UNREAD_COUNT_CACHE_SECONDS = max(0, env_int("GLOBAL_UNREAD_COUNT_CACHE_SECONDS", 30))
 LOGIN_INIT_RATE_LIMIT = env_int("LOGIN_INIT_RATE_LIMIT", 10)
 LOGIN_INIT_RATE_WINDOW_SECONDS = env_int("LOGIN_INIT_RATE_WINDOW_SECONDS", 300)
-ACCOUNT_DELETION_RECENT_AUTH_SECONDS = env_int("ACCOUNT_DELETION_RECENT_AUTH_SECONDS", 1800)
+ACCOUNT_DELETION_RECENT_AUTH_SECONDS = env_int("ACCOUNT_DELETION_RECENT_AUTH_SECONDS", 900)
+PRIVILEGED_ACTION_RECENT_AUTH_SECONDS = env_int("PRIVILEGED_ACTION_RECENT_AUTH_SECONDS", 600)
+SUPPORT_INVESTIGATION_DURATION_HOURS = max(1, env_int("SUPPORT_INVESTIGATION_DURATION_HOURS", 24))
 DJANGO_LOG_LEVEL = os.getenv("DJANGO_LOG_LEVEL", "INFO").strip().upper() or "INFO"
+DJANGO_LOG_FORMAT = os.getenv("DJANGO_LOG_FORMAT", "json" if not DEBUG else "text").strip().lower() or "text"
+SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()
 
 
 # Default primary key field type
@@ -393,15 +408,24 @@ else:
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "filters": {
+        "request_id": {
+            "()": "core.logging.RequestIDFilter",
+        }
+    },
     "formatters": {
         "standard": {
-            "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
-        }
+            "format": "%(asctime)s %(levelname)s %(name)s %(request_id)s %(message)s",
+        },
+        "json": {
+            "()": "core.logging.JSONFormatter",
+        },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "standard",
+            "filters": ["request_id"],
+            "formatter": "json" if DJANGO_LOG_FORMAT == "json" else "standard",
         }
     },
     "root": {
@@ -409,3 +433,10 @@ LOGGING = {
         "level": DJANGO_LOG_LEVEL,
     },
 }
+
+if SENTRY_DSN and sentry_sdk is not None:  # pragma: no cover - optional integration.
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment="development" if DEBUG else "production",
+        traces_sample_rate=0.0,
+    )

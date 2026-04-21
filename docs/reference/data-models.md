@@ -6,10 +6,12 @@ This reference summarizes the main persisted models and the rules that matter mo
 
 | Model | Purpose | Key relations | Important rules |
 | --- | --- | --- | --- |
-| `CustomUser` | primary account model | one-to-one profiles, related listings, files, messages | email unique and normalized; role constrained to `student`, `realtor`, `admin`; non-admin role follows email policy |
+| `CustomUser` | primary account model | one-to-one profiles, related listings, files, messages | email unique and normalized; role constrained to `student`, `realtor`, `moderator`, `support`, `platform_admin`; non-staff role follows email policy; deactivation and deletion lifecycle fields tracked |
 | `StudentProfile` | student roommate/profile questionnaire | one-to-one to `CustomUser` | completion-oriented fields for roommate posts, compatibility, and profile setup; preserved across admin promotion for later reuse |
-| `AdminProfile` | admin/realtor profile record | one-to-one to `CustomUser` | lighter profile schema than student profile; required for admin and realtor completion state |
-| `UserFile` | private document library file | belongs to `CustomUser` | per-user capacity enforced; validators inspect file contents; storage delete happens after commit |
+| `AdminProfile` | staff/realtor profile record | one-to-one to `CustomUser` | lighter profile schema than student profile; required for staff and realtor completion state |
+| `SupportInvestigation` | time-boxed sensitive-access grant | belongs to subject and opening staff user | required before support/platform-admin staff can inspect private files or message previews |
+| `AuditEvent` | append-only audit trail record | optional actor plus generic target reference | captures role changes, deactivations, sensitive data access, moderation actions, and account closure events |
+| `UserFile` | private document library file | belongs to `CustomUser` | per-user capacity enforced; validators inspect file contents; limited to PDFs and images; storage delete happens after commit |
 
 ## Listings App
 

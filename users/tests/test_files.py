@@ -1,5 +1,6 @@
 import io
 import tempfile
+from datetime import timedelta
 from urllib.parse import urlsplit
 
 from django.core.cache import cache
@@ -7,10 +8,11 @@ from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.http import content_disposition_header
 from PIL import Image
 
-from ..models import UserFile
+from ..models import AuditEvent, Role, SupportInvestigation, UserFile
 from .helpers import User
 
 
@@ -22,6 +24,9 @@ class UserFilesViewTests(TestCase):
         buffer = io.BytesIO()
         Image.new("RGB", (4, 4), color="white").save(buffer, format="PNG")
         return SimpleUploadedFile(name, buffer.getvalue(), content_type="image/png")
+
+    def make_pdf_upload(self, name="lease.pdf"):
+        return SimpleUploadedFile(name, b"%PDF-1.4 test", content_type="application/pdf")
 
     def test_login_required(self):
         response = self.client.get(reverse("users:files"))
@@ -44,7 +49,7 @@ class UserFilesViewTests(TestCase):
 
     def test_upload_creates_file(self):
         self.client.force_login(self.user)
-        upload = SimpleUploadedFile("sample.txt", b"hello", content_type="text/plain")
+        upload = self.make_pdf_upload("sample.pdf")
 
         with tempfile.TemporaryDirectory() as temp_dir:
             with override_settings(MEDIA_ROOT=temp_dir):
@@ -59,7 +64,7 @@ class UserFilesViewTests(TestCase):
 
     def test_upload_without_title_defaults_to_filename(self):
         self.client.force_login(self.user)
-        upload = SimpleUploadedFile("lease-agreement.txt", b"hello", content_type="text/plain")
+        upload = self.make_pdf_upload("lease-agreement.pdf")
 
         with tempfile.TemporaryDirectory() as temp_dir:
             with override_settings(MEDIA_ROOT=temp_dir):
@@ -70,11 +75,11 @@ class UserFilesViewTests(TestCase):
                 )
 
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(UserFile.objects.filter(owner=self.user, title="lease-agreement.txt").exists())
+        self.assertTrue(UserFile.objects.filter(owner=self.user, title="lease-agreement.pdf").exists())
 
     def test_upload_rejects_title_over_max_length(self):
         self.client.force_login(self.user)
-        upload = SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain")
+        upload = self.make_pdf_upload("lease.pdf")
 
         with tempfile.TemporaryDirectory() as temp_dir:
             with override_settings(MEDIA_ROOT=temp_dir):
@@ -94,7 +99,7 @@ class UserFilesViewTests(TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             with override_settings(MEDIA_ROOT=temp_dir):
                 for index in range(13):
-                    upload = SimpleUploadedFile(f"doc-{index}.txt", b"hello", content_type="text/plain")
+                    upload = self.make_pdf_upload(f"doc-{index}.pdf")
                     self.client.post(reverse("users:files"), {"title": f"Doc {index}", "file": upload})
 
                 first_page = self.client.get(reverse("users:files"))
@@ -114,7 +119,7 @@ class UserFilesViewTests(TestCase):
                 user_file = UserFile.objects.create(
                     owner=self.user,
                     title="lease & forms",
-                    file=SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain"),
+                    file=self.make_pdf_upload("lease.pdf"),
                 )
 
                 response = self.client.get(reverse("users:files"), {"q": "lease & forms"})
@@ -134,7 +139,7 @@ class UserFilesViewTests(TestCase):
                 user_file = UserFile.objects.create(
                     owner=self.user,
                     title="Lease",
-                    file=SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain"),
+                    file=self.make_pdf_upload("lease.pdf"),
                 )
 
                 response = self.client.post(
@@ -153,7 +158,7 @@ class UserFilesViewTests(TestCase):
                 user_file = UserFile.objects.create(
                     owner=self.user,
                     title="Lease",
-                    file=SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain"),
+                    file=self.make_pdf_upload("lease.pdf"),
                 )
 
                 response = self.client.post(
@@ -173,7 +178,7 @@ class UserFilesViewTests(TestCase):
                 user_file = UserFile.objects.create(
                     owner=self.user,
                     title="Lease",
-                    file=SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain"),
+                    file=self.make_pdf_upload("lease.pdf"),
                 )
                 stored_name = user_file.file.name
                 self.assertTrue(user_file.file.storage.exists(stored_name))
@@ -181,8 +186,8 @@ class UserFilesViewTests(TestCase):
                 with self.captureOnCommitCallbacks(execute=True):
                     response = self.client.post(reverse("users:file_delete", args=[user_file.id]))
 
-                self.assertEqual(response.status_code, 302)
-                self.assertFalse(user_file.file.storage.exists(stored_name))
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(user_file.file.storage.exists(stored_name))
 
     def test_upload_rejects_unsupported_file_type(self):
         self.client.force_login(self.user)
@@ -193,7 +198,7 @@ class UserFilesViewTests(TestCase):
                 response = self.client.post(reverse("users:files"), {"title": "Bad", "file": upload}, follow=True)
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Upload a PDF, image, text file, DOC, or DOCX file.")
+        self.assertContains(response, "Upload a PDF, JPG, PNG, or WebP file.")
         self.assertFalse(UserFile.objects.filter(owner=self.user, title="Bad").exists())
 
     def test_upload_rejects_invalid_pdf_content(self):
@@ -231,14 +236,14 @@ class UserFilesViewTests(TestCase):
                 UserFile.objects.create(
                     owner=self.user,
                     title="Lease",
-                    file=SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain"),
+                    file=self.make_pdf_upload("lease.pdf"),
                 )
 
                 with self.assertRaises(ValidationError) as exc:
                     UserFile.objects.create(
                         owner=self.user,
                         title="Second lease",
-                        file=SimpleUploadedFile("lease-2.txt", b"hello", content_type="text/plain"),
+                        file=self.make_pdf_upload("lease-2.pdf"),
                     )
 
         self.assertIn("You can store up to 1 file in your document library.", exc.exception.message_dict["file"][0])
@@ -246,14 +251,14 @@ class UserFilesViewTests(TestCase):
     @override_settings(USER_FILE_TOTAL_LIMIT=1)
     def test_upload_rejects_when_document_library_limit_is_reached(self):
         self.client.force_login(self.user)
-        upload = SimpleUploadedFile("lease-2.txt", b"hello", content_type="text/plain")
+        upload = self.make_pdf_upload("lease-2.pdf")
 
         with tempfile.TemporaryDirectory() as temp_dir:
             with override_settings(MEDIA_ROOT=temp_dir):
                 UserFile.objects.create(
                     owner=self.user,
                     title="Lease",
-                    file=SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain"),
+                    file=self.make_pdf_upload("lease.pdf"),
                 )
 
                 response = self.client.post(
@@ -275,14 +280,14 @@ class UserFilesViewTests(TestCase):
             with override_settings(MEDIA_ROOT=temp_dir):
                 first_response = self.client.post(
                     reverse("users:files"),
-                    {"title": "Lease", "file": SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain")},
+                    {"title": "Lease", "file": self.make_pdf_upload("lease.pdf")},
                     follow=True,
                 )
                 second_response = self.client.post(
                     reverse("users:files"),
                     {
                         "title": "Second lease",
-                        "file": SimpleUploadedFile("lease-2.txt", b"hello", content_type="text/plain"),
+                        "file": self.make_pdf_upload("lease-2.pdf"),
                     },
                     follow=True,
                 )
@@ -313,6 +318,14 @@ class UserFilesViewTests(TestCase):
         self.assertEqual(response["Referrer-Policy"], "no-referrer")
         self.assertEqual(response["X-Robots-Tag"], "noindex, nofollow")
         self.assertEqual(response["Content-Disposition"], content_disposition_header(False, "lease.pdf"))
+        self.assertTrue(
+            AuditEvent.objects.filter(
+                action="user_file.previewed",
+                actor=self.user,
+                target_type="users.userfile",
+                target_id=str(user_file.id),
+            ).exists()
+        )
 
     def test_other_user_cannot_preview_private_file(self):
         other_user = User.objects.create_user(username="other", email="other@bc.edu", password="test")
@@ -338,40 +351,75 @@ class UserFilesViewTests(TestCase):
                 user_file = UserFile.objects.create(
                     owner=self.user,
                     title="Lease",
-                    file=SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain"),
+                    file=self.make_pdf_upload("lease.pdf"),
                 )
 
                 response = self.client.get(user_file.file.url)
 
         self.assertEqual(response.status_code, 404)
 
-    def test_preview_rejects_non_previewable_file_types(self):
-        self.client.force_login(self.user)
+    def test_model_rejects_non_previewable_unsupported_file_types(self):
+        with self.assertRaises(ValidationError) as exc:
+            UserFile.objects.create(
+                owner=self.user,
+                title="Notes",
+                file=SimpleUploadedFile("notes.txt", b"hello", content_type="text/plain"),
+            )
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with override_settings(MEDIA_ROOT=temp_dir):
-                user_file = UserFile.objects.create(
-                    owner=self.user,
-                    title="Notes",
-                    file=SimpleUploadedFile("notes.txt", b"hello", content_type="text/plain"),
-                )
+        self.assertIn("Upload a PDF, JPG, PNG, or WebP file.", exc.exception.message_dict["file"][0])
 
-                response = self.client.get(reverse("users:file_preview", args=[user_file.id]))
-
-        self.assertEqual(response.status_code, 404)
-
-    def test_admin_can_download_user_file(self):
-        admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
+    def test_staff_without_investigation_cannot_download_user_file(self):
+        support = User.objects.create_user(
+            username="support",
+            email="support@bc.edu",
+            password="test",
+            role=Role.SUPPORT,
+        )
 
         with tempfile.TemporaryDirectory() as temp_dir:
             with override_settings(MEDIA_ROOT=temp_dir):
                 user_file = UserFile.objects.create(
                     owner=self.user,
                     title="Lease",
-                    file=SimpleUploadedFile("lease.txt", b"hello", content_type="text/plain"),
+                    file=self.make_pdf_upload("lease.pdf"),
                 )
 
-                self.client.force_login(admin)
+                self.client.force_login(support)
+                response = self.client.get(reverse("users:file_download", args=[user_file.id]))
+
+        self.assertEqual(response.status_code, 404)
+        self.assertFalse(
+            AuditEvent.objects.filter(
+                action="user_file.downloaded",
+                actor=support,
+                target_type="users.userfile",
+                target_id=str(user_file.id),
+            ).exists()
+        )
+
+    def test_support_investigation_allows_file_download_and_audits_access(self):
+        support = User.objects.create_user(
+            username="support",
+            email="support-2@bc.edu",
+            password="test",
+            role=Role.SUPPORT,
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                user_file = UserFile.objects.create(
+                    owner=self.user,
+                    title="Lease",
+                    file=self.make_pdf_upload("lease.pdf"),
+                )
+                SupportInvestigation.objects.create(
+                    subject=self.user,
+                    opened_by=support,
+                    reason="Reviewing a student support request.",
+                    expires_at=timezone.now() + timedelta(hours=2),
+                )
+
+                self.client.force_login(support)
                 response = self.client.get(reverse("users:file_download", args=[user_file.id]))
 
         self.assertEqual(response.status_code, 200)
@@ -380,4 +428,12 @@ class UserFilesViewTests(TestCase):
         self.assertEqual(response["Cross-Origin-Resource-Policy"], "same-origin")
         self.assertEqual(response["Referrer-Policy"], "no-referrer")
         self.assertEqual(response["X-Robots-Tag"], "noindex, nofollow")
-        self.assertEqual(response["Content-Disposition"], content_disposition_header(True, "lease.txt"))
+        self.assertEqual(response["Content-Disposition"], content_disposition_header(True, "lease.pdf"))
+        self.assertTrue(
+            AuditEvent.objects.filter(
+                action="user_file.downloaded",
+                actor=support,
+                target_type="users.userfile",
+                target_id=str(user_file.id),
+            ).exists()
+        )
