@@ -28,6 +28,7 @@ Padly also exposes these narrow media routes in every environment:
 | --- | --- | --- | --- |
 | `/` | `core.views.landing` | optional | landing page |
 | `/healthz/` | `core.views.healthz` | optional | lightweight Render health check endpoint |
+| `/readyz/` | `core.views.readyz` | optional | readiness check for DB, cache, channels, storage, and migrations |
 | `/welcome/` | `core.views.welcome` | required | post-login redirect target |
 | `/terms/` | `core.views.terms_of_service` | optional | Terms of Service |
 | `/privacy/` | `core.views.privacy_policy` | optional | Privacy Policy |
@@ -47,23 +48,25 @@ Padly also exposes these narrow media routes in every environment:
 | `/users/files/<file_id>/preview/` | `users.views.file_preview` | required | authenticated inline preview |
 | `/users/files/<file_id>/download/` | `users.views.file_download` | required | authenticated download |
 | `/users/files/<file_id>/delete/` | `users.views.delete_file` | required + POST | delete own file |
-| `/users/account/delete/` | `users.views.delete_account` | required + POST | delete account after recent auth |
+| `/users/account/delete/` | `users.views.delete_account` | required + POST | anonymize and deactivate account after recent auth |
 
-## Admin Workspace Routes
+## Staff Workspace Routes
 
 | Route | View | Auth | Purpose |
 | --- | --- | --- | --- |
-| `/users/admin-dashboard/` | `users.admin_views.admin_dashboard` | admin | moderation overview |
-| `/users/admin-listings/` | `users.admin_views.admin_listings` | admin | listing review queue |
-| `/users/admin-listings/<listing_id>/` | `users.admin_views.admin_listing_detail` | admin | listing moderation detail |
-| `/users/admin-listings/<listing_id>/review/` | `users.admin_views.admin_review_listing` | admin + POST | approve or reject listing |
-| `/users/admin-listings/<listing_id>/delete/` | `users.admin_views.admin_delete_listing` | admin + POST | delete listing |
-| `/users/admin-reports/` | `users.admin_views.admin_reports` | admin | listing reports queue |
-| `/users/admin-reports/<report_id>/status/` | `users.admin_views.admin_update_report` | admin + POST | update report status and append moderation history |
-| `/users/admin-users/` | `users.admin_views.admin_users` | admin | user administration |
-| `/users/admin-users/<user_id>/` | `users.admin_views.admin_user_detail` | admin | user detail |
-| `/users/admin-users/<user_id>/role/` | `users.admin_views.admin_set_role` | admin + POST | grant or restore admin role |
-| `/users/admin-users/<user_id>/active/` | `users.admin_views.admin_toggle_active` | admin + POST | toggle active status |
+| `/users/admin-dashboard/` | `users.admin_views.admin_dashboard` | any staff role | operations overview |
+| `/users/admin-listings/` | `users.admin_views.admin_listings` | moderator or platform admin | listing review queue |
+| `/users/admin-listings/<listing_id>/` | `users.admin_views.admin_listing_detail` | moderator or platform admin | listing moderation detail |
+| `/users/admin-listings/<listing_id>/review/` | `users.admin_views.admin_review_listing` | moderator or platform admin + POST | approve or reject listing |
+| `/users/admin-listings/<listing_id>/delete/` | `users.admin_views.admin_delete_listing` | moderator or platform admin + POST | archive listing |
+| `/users/admin-reports/` | `users.admin_views.admin_reports` | moderator or platform admin | listing reports queue |
+| `/users/admin-reports/<report_id>/status/` | `users.admin_views.admin_update_report` | moderator or platform admin + POST | update report status and append moderation history |
+| `/users/admin-users/` | `users.admin_views.admin_users` | any staff role | user administration overview |
+| `/users/admin-users/<user_id>/` | `users.admin_views.admin_user_detail` | any staff role | user detail with sensitive data gated behind investigations |
+| `/users/admin-users/<user_id>/investigation/` | `users.admin_views.admin_open_investigation` | support or platform admin + POST | open time-boxed sensitive access with a required reason |
+| `/users/admin-investigations/<investigation_id>/close/` | `users.admin_views.admin_close_investigation` | support or platform admin + POST | close sensitive access |
+| `/users/admin-users/<user_id>/role/` | `users.admin_views.admin_set_role` | platform admin + POST | assign or restore role |
+| `/users/admin-users/<user_id>/active/` | `users.admin_views.admin_toggle_active` | platform admin + POST | toggle active status |
 
 ## Listing Routes
 
@@ -78,7 +81,7 @@ Padly also exposes these narrow media routes in every environment:
 | `/listings/<pk>/` | `listings.views.listing_detail` | required | listing detail |
 | `/listings/<pk>/review/` | `listings.views.submit_listing_review` | eligible student + POST | submit or update review |
 | `/listings/<pk>/report/` | `listings.views.report_listing` | eligible student + POST | submit report |
-| `/listings/<pk>/message/` | `listings.views.message_listing` | eligible user + POST | start conversation |
+| `/listings/<pk>/message/` | `listings.views.message_listing` | eligible student + POST | start conversation |
 | `/listings/<pk>/favorite/` | `listings.views.toggle_favorite` | eligible user + POST | save or unsave listing |
 | `/listings/create/` | `listings.views.create_listing` | required | create listing |
 | `/listings/edit/<pk>/` | `listings.views.edit_listing` | owner | edit listing |

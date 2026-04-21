@@ -47,6 +47,81 @@
 
                     <div class="listing-panel admin-table">
                         <div class="admin-table-head">
+                            <h2 class="app-section-heading">Account Status</h2>
+                        </div>
+                        <div class="admin-priority-list">
+                            <div class="admin-priority-item">
+                                <div>
+                                    <div class="admin-priority-title">Status</div>
+                                    <div class="admin-list-meta">{% if managed_user.last_login %}Last login {{ managed_user.last_login|date:"M d, Y" }}{% else %}Never signed in{% endif %}</div>
+                                </div>
+                                <strong class="admin-priority-count">{% if managed_user.is_active %}Active{% else %}Inactive{% endif %}</strong>
+                            </div>
+                            {% if managed_user.deactivated_at %}
+                                <div class="admin-priority-item">
+                                    <div>
+                                        <div class="admin-priority-title">Deactivated</div>
+                                        <div class="admin-list-meta">{{ managed_user.deactivated_at|date:"M d, Y" }}</div>
+                                    </div>
+                                    <strong class="admin-priority-count">{{ managed_user.deactivation_reason|default:"No reason" }}</strong>
+                                </div>
+                            {% endif %}
+                            {% if managed_user.deleted_at %}
+                                <div class="admin-priority-item">
+                                    <div>
+                                        <div class="admin-priority-title">Closed Account</div>
+                                        <div class="admin-list-meta">{{ managed_user.deleted_at|date:"M d, Y" }}</div>
+                                    </div>
+                                    <strong class="admin-priority-count">Anonymized</strong>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if can_open_investigation %}
+                        <div class="listing-panel admin-table">
+                            <div class="admin-table-head">
+                                <h2 class="app-section-heading">Sensitive Access</h2>
+                                {% if active_investigation %}
+                                    <span class="admin-status-pill is-approved">Access active until {{ active_investigation.expires_at|date:"M d, Y H:i" }}</span>
+                                {% else %}
+                                    <span class="admin-status-pill is-muted">Access locked</span>
+                                {% endif %}
+                            </div>
+                            {% if active_investigation %}
+                                <p class="app-panel-copy">Current reason: {{ active_investigation.reason }}</p>
+                                <form method="post" action="{% url 'users:admin_close_investigation' active_investigation.id %}">
+                                    {% csrf_token %}
+                                    <button class="btn btn-outline-secondary" type="submit">Close sensitive access</button>
+                                </form>
+                            {% else %}
+                                <form method="post" action="{% url 'users:admin_open_investigation' managed_user.id %}">
+                                    {% csrf_token %}
+                                    {{ investigation_form.reason }}
+                                    {% if investigation_form.reason.errors %}
+                                        <div class="form-error">{{ investigation_form.reason.errors.0 }}</div>
+                                    {% endif %}
+                                    <button class="btn btn-brand mt-3" type="submit">Open sensitive access</button>
+                                </form>
+                            {% endif %}
+                            {% if subject_active_investigations %}
+                                <div class="admin-feed-list mt-3">
+                                    {% for investigation in subject_active_investigations %}
+                                        <div class="admin-feed-item">
+                                            <div class="admin-feed-copy">
+                                                <div class="admin-feed-title">{{ investigation.opened_by.display_name }}</div>
+                                                <div class="admin-feed-meta">{{ investigation.reason }}</div>
+                                            </div>
+                                            <span class="admin-feed-status admin-feed-status-user">{{ investigation.expires_at|date:"M d, H:i" }}</span>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+
+                    <div class="listing-panel admin-table">
+                        <div class="admin-table-head">
                             <h2 class="app-section-heading">Recent Listings</h2>
                             <span class="admin-table-count">{{ managed_listings_count }} listings</span>
                         </div>
@@ -73,78 +148,66 @@
 
                     <div class="listing-panel admin-table">
                         <div class="admin-table-head">
-                            <h2 class="app-section-heading">Recent Files</h2>
-                            <span class="admin-table-count">{{ managed_files_count }} files</span>
+                            <h2 class="app-section-heading">Sensitive Activity</h2>
+                            {% if show_sensitive_activity %}
+                                <span class="admin-status-pill is-approved">Unlocked for review</span>
+                            {% else %}
+                                <span class="admin-status-pill is-muted">Hidden until sensitive access is opened</span>
+                            {% endif %}
                         </div>
 
-                        {% if managed_files %}
-                            <div class="admin-list-grid">
-                                {% for file in managed_files %}
-                                    <a class="admin-list-item" href="{% url 'users:file_download' file.id %}">
-                                        <div>
-                                            <div class="admin-list-title">{{ file.display_title }}</div>
-                                            <div class="admin-list-meta">Uploaded {{ file.uploaded_at|date:"M d, Y" }}</div>
+                        {% if show_sensitive_activity %}
+                            {% if managed_files %}
+                                <div class="admin-list-grid mb-4">
+                                    {% for file in managed_files %}
+                                        <a class="admin-list-item" href="{% url 'users:file_download' file.id %}">
+                                            <div>
+                                                <div class="admin-list-title">{{ file.display_title }}</div>
+                                                <div class="admin-list-meta">Uploaded {{ file.uploaded_at|date:"M d, Y" }}</div>
+                                            </div>
+                                            <span class="admin-status-pill is-muted">File</span>
+                                        </a>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                            {% if managed_conversations %}
+                                <div class="admin-list-grid mb-4">
+                                    {% for conversation in managed_conversations %}
+                                        <div class="admin-list-item">
+                                            <div>
+                                                <div class="admin-list-title">{{ conversation.listing.title|default:"Direct conversation" }}</div>
+                                                <div class="admin-list-meta">{{ conversation.owner.email }} → {{ conversation.participant.email }} • {{ conversation.last_message_at|date:"M d, Y" }}</div>
+                                                <div class="admin-list-meta">{{ conversation.last_message_preview|default:"No messages yet." }}</div>
+                                            </div>
+                                            <span class="admin-status-pill is-muted">Conversation</span>
                                         </div>
-                                        <span class="admin-status-pill is-muted">File</span>
-                                    </a>
-                                {% endfor %}
-                            </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                            {% if managed_messages %}
+                                <div class="admin-list-grid">
+                                    {% for message in managed_messages %}
+                                        <div class="admin-list-item">
+                                            <div>
+                                                <div class="admin-list-title">{{ message.conversation.listing.title|default:"Direct conversation" }}</div>
+                                                <div class="admin-list-meta">{{ message.sender.email }} • {{ message.created_at|date:"M d, Y" }}</div>
+                                                <div class="admin-list-meta">{{ message.body|truncatewords:20 }}</div>
+                                            </div>
+                                            <span class="admin-status-pill is-muted">Message</span>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+
+                            {% if not managed_files and not managed_conversations and not managed_messages %}
+                                <p class="app-panel-copy mb-0">No sensitive activity is available for this account.</p>
+                            {% endif %}
                         {% else %}
-                            <p class="app-panel-copy mb-0">No files.</p>
+                            <p class="app-panel-copy mb-0">Open a support investigation with a reason before viewing files or message content.</p>
                         {% endif %}
                     </div>
-
-                    <div class="listing-panel admin-table">
-                        <div class="admin-table-head">
-                            <h2 class="app-section-heading">Recent Conversations</h2>
-                            <span class="admin-table-count">{{ managed_conversations_count }} conversations</span>
-                        </div>
-
-                        {% if managed_conversations %}
-                            <div class="admin-list-grid">
-                                {% for conversation in managed_conversations %}
-                                    <div class="admin-list-item">
-                                        <div>
-                                            <div class="admin-list-title">{{ conversation.listing.title }}</div>
-                                            <div class="admin-list-meta">{{ conversation.owner.email }} → {{ conversation.participant.email }} • {{ conversation.last_message_at|date:"M d, Y" }}</div>
-                                            <div class="admin-list-meta">{{ conversation.last_message_preview|default:"No messages yet." }}</div>
-                                        </div>
-                                        <span class="admin-status-pill is-muted">Conversation</span>
-                                    </div>
-                                {% endfor %}
-                            </div>
-                        {% else %}
-                            <p class="app-panel-copy mb-0">No conversations.</p>
-                        {% endif %}
-                    </div>
-
-                    <div class="listing-panel admin-table">
-                        <div class="admin-table-head">
-                            <h2 class="app-section-heading">Recent Messages</h2>
-                            <span class="admin-table-count">{{ managed_messages_count }} messages</span>
-                        </div>
-
-                        {% if managed_messages %}
-                            <div class="admin-list-grid">
-                                {% for message in managed_messages %}
-                                    <div class="admin-list-item">
-                                        <div>
-                                            <div class="admin-list-title">{{ message.conversation.listing.title }}</div>
-                                            <div class="admin-list-meta">{{ message.sender.email }} • {{ message.created_at|date:"M d, Y" }}</div>
-                                            <div class="admin-list-meta">{{ message.body|truncatewords:20 }}</div>
-                                        </div>
-                                        <span class="admin-status-pill is-muted">Message</span>
-                                    </div>
-                                {% endfor %}
-                            </div>
-                        {% else %}
-                            <p class="app-panel-copy mb-0">No messages.</p>
-                        {% endif %}
-                    </div>
-
-                    {% if managed_listings_count > activity_preview_limit or managed_files_count > activity_preview_limit or managed_conversations_count > activity_preview_limit or managed_messages_count > activity_preview_limit %}
-                        <p class="app-panel-copy mb-0">Showing the most recent {{ activity_preview_limit }} records per section.</p>
-                    {% endif %}
                 </div>
             </div>
         </div>

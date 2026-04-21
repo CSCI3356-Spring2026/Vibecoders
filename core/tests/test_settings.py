@@ -148,7 +148,7 @@ class TestSettingsTests(SimpleTestCase):
         self.assertTrue(start_script_path.exists())
         self.assertTrue(os.access(start_script_path, os.X_OK))
         start_script = start_script_path.read_text(encoding="utf-8")
-        self.assertIn("python manage.py migrate --noinput", start_script)
+        self.assertNotIn("python manage.py migrate --noinput", start_script)
         self.assertIn('exec daphne -b 0.0.0.0 -p "${PORT:?PORT is required}" vibecoders.asgi:application', start_script)
 
         self.assertTrue(render_yaml_path.exists())

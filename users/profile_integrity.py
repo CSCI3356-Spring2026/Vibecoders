@@ -1,9 +1,7 @@
 from django.utils import timezone
 
 from .forms import AdminProfileForm, StudentProfileForm
-from .models import AdminProfile, Role, StudentProfile
-
-ADMIN_PROFILE_COPY_FIELDS = ("preferred_name", "age", "gender", "gender_other", "bio")
+from .models import ADMIN_PROFILE_COPY_FIELDS, STAFF_ROLE_VALUES, AdminProfile, Role, StudentProfile
 
 
 def _completion_value_present(value):
@@ -13,7 +11,7 @@ def _completion_value_present(value):
 def completion_fields_for_role(role):
     if role == Role.STUDENT:
         return StudentProfileForm.completion_fields
-    if role in {Role.ADMIN, Role.REALTOR}:
+    if role in STAFF_ROLE_VALUES | {Role.REALTOR}:
         return AdminProfileForm.completion_fields
     return ()
 
@@ -35,7 +33,7 @@ def _admin_profile_for_user(user):
 def current_completion_profile(user):
     if user.role == Role.STUDENT:
         return _student_profile_for_user(user)
-    if user.role in {Role.ADMIN, Role.REALTOR}:
+    if user.role in STAFF_ROLE_VALUES | {Role.REALTOR}:
         return _admin_profile_for_user(user)
     return None
 
@@ -76,7 +74,7 @@ def sync_profiles_for_role(user):
     if user.role == Role.STUDENT:
         _, student_created = StudentProfile.objects.get_or_create(user=user)
         AdminProfile.objects.filter(user=user).delete()
-    elif user.role == Role.ADMIN:
+    elif user.role in STAFF_ROLE_VALUES:
         admin_profile, admin_created = AdminProfile.objects.get_or_create(user=user)
         if admin_created:
             _seed_admin_profile_from_student_profile(admin_profile, student_profile)

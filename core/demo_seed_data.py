@@ -1137,8 +1137,8 @@ DEMO_USER_FILES = [
     {
         "owner": "claire_brennan",
         "title": "Summer sublet checklist",
-        "filename": "summer-sublet-checklist.txt",
-        "content_type": "text/plain",
+        "filename": "summer-sublet-checklist.pdf",
+        "content_type": "application/pdf",
         "body": (
             "Keys to hand off\\nParking spot instructions\\nUtility transfer dates\\n"
             "Walkthrough photos before move-out\\n"
@@ -1147,15 +1147,15 @@ DEMO_USER_FILES = [
     {
         "owner": "claire_brennan",
         "title": "Roommate budget worksheet",
-        "filename": "roommate-budget.txt",
-        "content_type": "text/plain",
+        "filename": "roommate-budget.pdf",
+        "content_type": "application/pdf",
         "body": "Target rent: 1450\\nUtilities buffer: 100\\nParking: 75\\nEmergency moving costs: 300\\n",
     },
     {
         "owner": "riley_chen",
         "title": "Questions for apartment tours",
-        "filename": "tour-questions.txt",
-        "content_type": "text/plain",
+        "filename": "tour-questions.pdf",
+        "content_type": "application/pdf",
         "body": (
             "Ask about heat source\\nCheck outlet placement for desk\\n"
             "Ask who handles snow removal\\nConfirm guest policy\\n"

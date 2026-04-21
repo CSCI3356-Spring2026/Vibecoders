@@ -1,6 +1,6 @@
 <a class="{{ link_class|default:'nav-button' }}" href="{% url 'core:landing' %}">Home</a>
 {% if request.user.is_authenticated %}
-    {% if request.user.can_browse_marketplace or request.user.is_bc_admin %}
+    {% if request.user.can_browse_marketplace %}
         <a class="{{ link_class|default:'nav-button' }}" href="{% url 'listings:listing_list' %}">Listings</a>
     {% elif request.user.has_listing_only_access %}
         <a class="{{ link_class|default:'nav-button' }}" href="{% url 'users:posts' %}">My Listings</a>

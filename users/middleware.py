@@ -107,7 +107,7 @@ class ProfileCompletionMiddleware:
         if not getattr(settings, "PROFILE_COMPLETION_REQUIRED", True):
             return None
 
-        if user.role not in {"student", "admin", "realtor"}:
+        if user.role not in {"student", "realtor", "moderator", "support", "platform_admin"}:
             return None
 
         if getattr(user, "profile_completed_at", None):

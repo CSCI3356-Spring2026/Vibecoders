@@ -13,9 +13,9 @@
         <div class="app-shell">
             <div class="admin-header listing-panel">
                 <div>
-                    <p class="app-kicker">Admin Dashboard</p>
+                    <p class="app-kicker">Staff Workspace</p>
                     <h1 class="app-title">Users</h1>
-                    <p class="app-subtitle">Accounts and access.</p>
+                    <p class="app-subtitle">Accounts, access, and support review.</p>
                 </div>
                 <div class="admin-header-meta">
                     <a class="btn btn-outline-secondary" href="{% url 'users:admin_dashboard' %}">Back to dashboard</a>
@@ -80,7 +80,7 @@
                                                     </div>
                                                 </td>
                                                 <td>
-                                                    <span class="admin-status-pill {% if user.role == 'admin' %}is-approved{% elif user.role == 'student' %}is-pending{% else %}is-muted{% endif %}">
+                                                    <span class="admin-status-pill {% if user.role == 'platform_admin' %}is-approved{% elif user.role == 'student' %}is-pending{% else %}is-muted{% endif %}">
                                                         {{ user.display_role }}
                                                     </span>
                                                 </td>
@@ -97,19 +97,25 @@
                                                 <td>
                                                     <div class="admin-user-actions">
                                                         <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:admin_user_detail' user.id %}">View</a>
-                                                        <form method="post" action="{% url 'users:admin_set_role' user.id %}">
-                                                            {% csrf_token %}
-                                                            <input type="hidden" name="action" value="{% if user.role == 'admin' %}restore_default{% else %}grant_admin{% endif %}">
-                                                            <button class="btn btn-outline-secondary btn-sm" type="submit">
-                                                                {% if user.role == 'admin' %}Restore Default Access{% else %}Make Admin{% endif %}
-                                                            </button>
-                                                        </form>
-                                                        <form method="post" action="{% url 'users:admin_toggle_active' user.id %}">
-                                                            {% csrf_token %}
-                                                            <button class="btn btn-outline-secondary btn-sm" type="submit">
-                                                                {% if user.is_active %}Deactivate{% else %}Activate{% endif %}
-                                                            </button>
-                                                        </form>
+                                                        {% if request.user.can_manage_user_roles %}
+                                                            <form method="post" action="{% url 'users:admin_set_role' user.id %}">
+                                                                {% csrf_token %}
+                                                                <select class="form-select form-select-sm" name="role" aria-label="Role">
+                                                                    {% for value, label in role_options %}
+                                                                        <option value="{{ value }}" {% if user.role == value %}selected{% endif %}>{{ label }}</option>
+                                                                    {% endfor %}
+                                                                </select>
+                                                                <button class="btn btn-outline-secondary btn-sm" type="submit">Update role</button>
+                                                            </form>
+                                                        {% endif %}
+                                                        {% if request.user.can_manage_user_status %}
+                                                            <form method="post" action="{% url 'users:admin_toggle_active' user.id %}">
+                                                                {% csrf_token %}
+                                                                <button class="btn btn-outline-secondary btn-sm" type="submit">
+                                                                    {% if user.is_active %}Deactivate{% else %}Activate{% endif %}
+                                                                </button>
+                                                            </form>
+                                                        {% endif %}
                                                     </div>
                                                 </td>
                                             </tr>

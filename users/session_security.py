@@ -24,10 +24,19 @@ def get_recent_auth_at(request):
     return authenticated_at
 
 
-def has_recent_auth(request):
+def has_recent_auth(request, *, max_age_seconds=None):
     authenticated_at = get_recent_auth_at(request)
     if authenticated_at is None:
         return False
 
-    max_age = timedelta(seconds=getattr(settings, "ACCOUNT_DELETION_RECENT_AUTH_SECONDS", 1800))
+    if max_age_seconds is None:
+        max_age_seconds = getattr(settings, "ACCOUNT_DELETION_RECENT_AUTH_SECONDS", 900)
+    max_age = timedelta(seconds=max_age_seconds)
     return timezone.now() - authenticated_at <= max_age
+
+
+def has_recent_privileged_auth(request):
+    return has_recent_auth(
+        request,
+        max_age_seconds=getattr(settings, "PRIVILEGED_ACTION_RECENT_AUTH_SECONDS", 600),
+    )

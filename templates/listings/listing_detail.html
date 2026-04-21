@@ -42,7 +42,7 @@
                         <div class="listing-detail-gallery-badges">
                             {% if listing.is_verified %}
                                 <span class="listing-card-verified">Verified</span>
-                            {% elif request.user.id == listing.owner_id or request.user.is_bc_admin %}
+                            {% elif request.user.id == listing.owner_id or request.user.can_access_staff_console %}
                                 <span class="listing-card-status {% if listing.approval_status == 'pending' %}is-pending{% elif listing.approval_status == 'approved' %}is-available{% else %}is-taken{% endif %}">
                                     {{ listing.get_approval_status_display }}
                                 </span>
@@ -193,7 +193,7 @@
             </div>
         </section>
 
-        {% if request.user.id == listing.owner_id or request.user.is_bc_admin %}
+        {% if request.user.id == listing.owner_id or request.user.can_access_staff_console %}
             <section class="listing-detail-review-banner">
                 <div class="listing-detail-review-banner-copy">
                     <strong>

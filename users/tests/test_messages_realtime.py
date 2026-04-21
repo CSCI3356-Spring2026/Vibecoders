@@ -54,7 +54,7 @@ class MessagesRealtimeTests(TransactionTestCase):
         profile = user.student_profile
         profile.preferred_name = user.first_name or user.username
         profile.age = 21
-        profile.gender = "woman"
+        profile.gender = "female"
         profile.major = "Computer Science"
         profile.bio = "Quiet BC student looking for a good fit."
         profile.messy_level = 3

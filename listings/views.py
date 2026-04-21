@@ -1,11 +1,13 @@
 import logging
 import re
+from hashlib import md5
 from urllib.parse import urlencode
 
 import requests
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.http import Http404, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -19,6 +21,7 @@ from communications.services import (
     consume_message_send_rate_limit,
     start_listing_conversation,
 )
+from core.campus import PRIMARY_CAMPUS_LATITUDE, PRIMARY_CAMPUS_LONGITUDE
 from core.media import normalize_public_media_subpath, public_file_response
 from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
@@ -43,7 +46,6 @@ from .forms import (
     RoommatePostFilterForm,
     RoommatePostForm,
 )
-from .geocoding import BOSTON_COLLEGE_LATITUDE, BOSTON_COLLEGE_LONGITUDE
 from .lifecycle import archive_listing as archive_listing_record
 from .models import (
     Listing,
@@ -191,6 +193,12 @@ def _autocomplete_rate_limit_response():
     return JsonResponse({"results": [], "error": ADDRESS_AUTOCOMPLETE_RATE_LIMIT_ERROR}, status=429)
 
 
+def _address_autocomplete_cache_key(query):
+    normalized = query.strip().lower()
+    query_hash = md5(normalized.encode("utf-8"), usedforsecurity=False).hexdigest()
+    return f"listing-address-autocomplete:{query_hash}"
+
+
 @require_GET
 def public_listing_photo(request, path):
     image_name = f"listing_photos/{normalize_public_media_subpath(path)}"
@@ -244,6 +252,13 @@ def address_suggestions(request):
     if not config["enabled"]:
         return _autocomplete_error_response()
 
+    cache_timeout = getattr(settings, "LISTING_ADDRESS_AUTOCOMPLETE_CACHE_SECONDS", 300)
+    cache_key = _address_autocomplete_cache_key(query)
+    if cache_timeout > 0:
+        cached_results = cache.get(cache_key)
+        if cached_results is not None:
+            return _autocomplete_results_response(cached_results)
+
     try:
         response = requests.get(
             config["url"],
@@ -252,14 +267,14 @@ def address_suggestions(request):
                 "limit": ADDRESS_AUTOCOMPLETE_MAX_RESULTS,
                 "apiKey": config["api_key"],
                 "filter": "countrycode:us",
-                "bias": f"proximity:{BOSTON_COLLEGE_LONGITUDE},{BOSTON_COLLEGE_LATITUDE}",
+                "bias": f"proximity:{PRIMARY_CAMPUS_LONGITUDE},{PRIMARY_CAMPUS_LATITUDE}",
             },
-            timeout=settings.LISTING_GEOCODER_TIMEOUT_SECONDS,
+            timeout=max(1, min(settings.LISTING_GEOCODER_TIMEOUT_SECONDS, 3)),
         )
         response.raise_for_status()
         suggestions = normalize_geoapify_suggestions(response.json())
     except (requests.RequestException, TypeError, ValueError) as exc:
-        logger.warning("Address autocomplete lookup failed (%s).", type(exc).__name__)
+        logger.warning("listing.address_autocomplete.failed error=%s", type(exc).__name__)
         return _autocomplete_error_response()
 
     results = []
@@ -271,6 +286,9 @@ def address_suggestions(request):
                 "token": sign_address_selection(suggestion),
             }
         )
+
+    if cache_timeout > 0:
+        cache.set(cache_key, results, timeout=cache_timeout)
 
     return _autocomplete_results_response(results)
 
@@ -317,8 +335,8 @@ def listing_list(request):
         context["listing_map_style_url"] = listing_map_style_url
         context["listing_map_satellite_style_url"] = listing_map_satellite_style_url if satellite_map_enabled else ""
         context["listing_map_satellite_enabled"] = satellite_map_enabled
-        context["listing_map_default_lat"] = BOSTON_COLLEGE_LATITUDE
-        context["listing_map_default_lng"] = BOSTON_COLLEGE_LONGITUDE
+        context["listing_map_default_lat"] = PRIMARY_CAMPUS_LATITUDE
+        context["listing_map_default_lng"] = PRIMARY_CAMPUS_LONGITUDE
     return render(request, "listings/listing_list.html", context)
 
 
@@ -420,7 +438,7 @@ def _first_form_error(form, fallback):
 
 
 def _message_listing_error_redirect(user, listing):
-    if user.is_bc_admin or listing.owner_id == user.id or listing.is_publicly_active:
+    if user.can_access_staff_console or listing.owner_id == user.id or listing.is_publicly_active:
         return redirect("listings:detail", pk=listing.pk)
     return redirect("listings:listing_list")
 
@@ -845,7 +863,7 @@ def listing_commute(request, pk):
     try:
         payload = commute_payload_for_listing(listing)
     except (requests.RequestException, ValueError, TypeError) as exc:
-        logger.warning("Commute lookup failed for listing %s (%s).", listing.pk, type(exc).__name__)
+        logger.warning("listing.commute.failed listing_id=%s error=%s", listing.pk, type(exc).__name__)
         return JsonResponse({"available": False, "message": "Commute details are unavailable right now."}, status=503)
 
     if payload is None:

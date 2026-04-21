@@ -2,6 +2,7 @@ from importlib import import_module
 
 from allauth.socialaccount.models import SocialAccount
 from django.contrib.auth.signals import user_logged_in
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, migrations
 from django.test import SimpleTestCase, TestCase
 from django.test.client import RequestFactory
@@ -88,7 +89,7 @@ class CustomUserModelTests(TestCase):
     def test_display_role_admin(self):
         user = User.objects.create_user(username="adm", email="adm@bc.edu", password="test", role=Role.ADMIN)
 
-        self.assertEqual(user.display_role, "Admin")
+        self.assertEqual(user.display_role, "Platform Admin")
 
     def test_realtor_cannot_start_listing_conversations(self):
         user = User.objects.create_user(username="agent", email="agent@gmail.com", password="test")
@@ -101,6 +102,45 @@ class CustomUserModelTests(TestCase):
 
         self.assertTrue(user.can_browse_marketplace)
         self.assertTrue(user.can_start_listing_conversations)
+
+    def test_moderator_permissions_are_scoped_to_moderation_work(self):
+        user = User.objects.create_user(username="mod", email="mod@bc.edu", password="test", role=Role.MODERATOR)
+
+        self.assertTrue(user.can_access_staff_console)
+        self.assertTrue(user.can_manage_listing_moderation)
+        self.assertTrue(user.can_manage_reports)
+        self.assertTrue(user.can_browse_marketplace)
+        self.assertFalse(user.can_manage_user_roles)
+        self.assertFalse(user.can_manage_user_status)
+        self.assertFalse(user.can_open_support_investigations)
+        self.assertFalse(user.can_view_sensitive_user_data)
+        self.assertFalse(user.can_start_listing_conversations)
+
+    def test_support_permissions_are_scoped_to_sensitive_review_work(self):
+        user = User.objects.create_user(username="support", email="support@bc.edu", password="test", role=Role.SUPPORT)
+
+        self.assertTrue(user.can_access_staff_console)
+        self.assertTrue(user.can_open_support_investigations)
+        self.assertTrue(user.can_view_sensitive_user_data)
+        self.assertTrue(user.can_browse_marketplace)
+        self.assertFalse(user.can_manage_listing_moderation)
+        self.assertFalse(user.can_manage_reports)
+        self.assertFalse(user.can_manage_user_roles)
+        self.assertFalse(user.can_manage_user_status)
+        self.assertFalse(user.can_start_listing_conversations)
+
+    def test_platform_admin_permissions_include_full_staff_access(self):
+        user = User.objects.create_user(username="admin-2", email="admin-2@bc.edu", password="test", role=Role.ADMIN)
+
+        self.assertTrue(user.can_access_staff_console)
+        self.assertTrue(user.can_manage_listing_moderation)
+        self.assertTrue(user.can_manage_reports)
+        self.assertTrue(user.can_manage_user_roles)
+        self.assertTrue(user.can_manage_user_status)
+        self.assertTrue(user.can_open_support_investigations)
+        self.assertTrue(user.can_view_sensitive_user_data)
+        self.assertTrue(user.can_browse_marketplace)
+        self.assertFalse(user.can_start_listing_conversations)
 
     def test_set_admin_access_false_restores_email_based_role(self):
         user = User.objects.create_user(username="agent", email="agent@gmail.com", password="test", role=Role.ADMIN)
@@ -318,6 +358,31 @@ class CustomUserModelTests(TestCase):
         user.refresh_from_db()
 
         self.assertEqual(user.profile_image_url, "https://example.com/google-avatar.jpg")
+
+    def test_student_profile_rejects_invalid_gender_choice(self):
+        user = User.objects.create_user(username="invalid-student", email="invalid-student@bc.edu", password="test")
+        profile = user.student_profile
+        profile.gender = "woman"
+
+        with self.assertRaises(ValidationError) as exc:
+            profile.save()
+
+        self.assertIn("Value 'woman' is not a valid choice.", exc.exception.message_dict["gender"][0])
+
+    def test_admin_profile_rejects_invalid_gender_choice(self):
+        user = User.objects.create_user(
+            username="invalid-admin",
+            email="invalid-admin@bc.edu",
+            password="test",
+            role=Role.ADMIN,
+        )
+        profile = user.admin_profile
+        profile.gender = "woman"
+
+        with self.assertRaises(ValidationError) as exc:
+            profile.save()
+
+        self.assertIn("Value 'woman' is not a valid choice.", exc.exception.message_dict["gender"][0])
 
 
 class HistoricalMigrationTests(SimpleTestCase):

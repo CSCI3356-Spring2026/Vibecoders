@@ -75,8 +75,8 @@
                                     {% if request.user.is_student and request.user.profile_completed_at %}
                                         <li><a class="dropdown-item" href="{% url 'roommates:public_profile' request.user.id %}">My Profile</a></li>
                                     {% endif %}
-                                    {% if request.user.is_bc_admin %}
-                                        <li><a class="dropdown-item" href="{% url 'users:admin_dashboard' %}">Admin Dashboard</a></li>
+                                    {% if request.user.can_access_staff_console %}
+                                        <li><a class="dropdown-item" href="{% url 'users:admin_dashboard' %}">Staff Workspace</a></li>
                                     {% endif %}
                                     <li><hr class="dropdown-divider"></li>
                                     <li>
@@ -138,8 +138,8 @@
                                 {% if request.user.is_student and request.user.profile_completed_at %}
                                     <a class="nav-drawer-secondary" href="{% url 'roommates:public_profile' request.user.id %}">My Profile</a>
                                 {% endif %}
-                                {% if request.user.is_bc_admin %}
-                                    <a class="nav-drawer-secondary" href="{% url 'users:admin_dashboard' %}">Admin Dashboard</a>
+                                {% if request.user.can_access_staff_console %}
+                                    <a class="nav-drawer-secondary" href="{% url 'users:admin_dashboard' %}">Staff Workspace</a>
                                 {% endif %}
                                 <form method="post" action="{% url 'account_logout' %}">
                                     {% csrf_token %}

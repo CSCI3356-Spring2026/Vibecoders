@@ -13,7 +13,7 @@ from django.utils import timezone
 from communications.models import ListingConversation
 from communications.selectors import accessible_conversations_for_user
 from listings.models import Listing, ListingReport, ListingReview, RoommatePost
-from users.models import FavoriteRoommate
+from users.models import AuditEvent, FavoriteRoommate, Role, SupportInvestigation
 
 from ..admin_state import may_deactivate, may_lose_admin_access
 from ..session_security import RECENT_AUTH_SESSION_KEY
@@ -23,6 +23,11 @@ from .helpers import User
 class UserPageTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="eagle", email="eagle@bc.edu", password="test")
+
+    def _mark_recent_auth(self):
+        session = self.client.session
+        session[RECENT_AUTH_SESSION_KEY] = timezone.now().isoformat()
+        session.save()
 
     def _complete_roommate_profile(self, user, *, first_name=None):
         if first_name is not None:
@@ -1259,7 +1264,7 @@ assert.equal(root.classList.contains("is-open"), false);
         response = self.client.get("/")
 
         self.assertContains(response, "/users/admin-dashboard/")
-        self.assertContains(response, "Admin Dashboard")
+        self.assertContains(response, "Staff Workspace")
 
     def test_admin_dashboard_surfaces_operational_sections_and_recent_activity(self):
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
@@ -1358,6 +1363,7 @@ assert.equal(root.classList.contains("is-open"), false);
             end_date="2027-05-31",
         )
         self.client.force_login(admin)
+        self._mark_recent_auth()
 
         response = self.client.post(
             reverse("users:admin_review_listing", args=[listing.id]),
@@ -1371,6 +1377,14 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertEqual(listing.approval_status, Listing.APPROVAL_APPROVED)
         self.assertEqual(listing.reviewed_by, admin)
         self.assertEqual(listing.approval_notes, "Address and photos look consistent.")
+        self.assertTrue(
+            AuditEvent.objects.filter(
+                action="listing.reviewed",
+                actor=admin,
+                target_type="listings.listing",
+                target_id=str(listing.id),
+            ).exists()
+        )
 
     def test_admin_reject_requires_review_notes(self):
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
@@ -1384,6 +1398,7 @@ assert.equal(root.classList.contains("is-open"), false);
             end_date="2027-05-31",
         )
         self.client.force_login(admin)
+        self._mark_recent_auth()
 
         response = self.client.post(
             reverse("users:admin_review_listing", args=[listing.id]),
@@ -1416,6 +1431,7 @@ assert.equal(root.classList.contains("is-open"), false);
             details="Duplicate inventory.",
         )
         self.client.force_login(admin)
+        self._mark_recent_auth()
 
         page_response = self.client.get(reverse("users:admin_reports"))
         update_response = self.client.post(
@@ -1442,6 +1458,14 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertEqual(listing.archive_reason, Listing.ARCHIVE_REASON_REPORT)
         queue_response = self.client.get(reverse("users:admin_reports"))
         self.assertNotContains(queue_response, "Reported listing")
+        self.assertTrue(
+            AuditEvent.objects.filter(
+                action="listing_report.updated",
+                actor=admin,
+                target_type="listings.listingreport",
+                target_id=str(report.id),
+            ).exists()
+        )
 
     def test_admin_reports_page_dismisses_report_without_closing_listing(self):
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
@@ -1463,6 +1487,7 @@ assert.equal(root.classList.contains("is-open"), false);
             details="Looks like a duplicate.",
         )
         self.client.force_login(admin)
+        self._mark_recent_auth()
 
         response = self.client.post(
             reverse("users:admin_update_report", args=[report.id]),
@@ -1503,6 +1528,7 @@ assert.equal(root.classList.contains("is-open"), false);
         reporter.set_admin_access(True)
         reporter.save(update_fields=["role"])
         self.client.force_login(admin)
+        self._mark_recent_auth()
 
         response = self.client.post(
             reverse("users:admin_update_report", args=[report.id]),
@@ -1539,6 +1565,7 @@ assert.equal(root.classList.contains("is-open"), false);
             details="Duplicate inventory.",
         )
         self.client.force_login(admin)
+        self._mark_recent_auth()
 
         response = self.client.post(
             reverse("users:admin_update_report", args=[report.id]),
@@ -1627,16 +1654,27 @@ assert.equal(root.classList.contains("is-open"), false);
 
     def test_user_can_delete_their_account(self):
         self.client.force_login(self.user)
-        session = self.client.session
-        session[RECENT_AUTH_SESSION_KEY] = timezone.now().isoformat()
-        session.save()
+        self._mark_recent_auth()
 
         response = self.client.post(reverse("users:delete_account"), follow=False)
 
+        self.user.refresh_from_db()
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], reverse("core:landing"))
-        self.assertFalse(User.objects.filter(pk=self.user.pk).exists())
+        self.assertFalse(self.user.is_active)
+        self.assertEqual(self.user.username, f"deleted-user-{self.user.pk}")
+        self.assertEqual(self.user.email, f"deleted-user-{self.user.pk}@deleted.padly.invalid")
+        self.assertIsNotNone(self.user.deactivated_at)
+        self.assertIsNotNone(self.user.deleted_at)
         self.assertNotIn("_auth_user_id", self.client.session)
+        self.assertTrue(
+            AuditEvent.objects.filter(
+                action="user.anonymized",
+                actor=self.user,
+                target_type="users.customuser",
+                target_id=str(self.user.id),
+            ).exists()
+        )
 
     def test_delete_account_requires_recent_auth(self):
         self.client.force_login(self.user)
@@ -1650,14 +1688,12 @@ assert.equal(root.classList.contains("is-open"), false);
     def test_last_active_admin_cannot_delete_account(self):
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
         self.client.force_login(admin)
-        session = self.client.session
-        session[RECENT_AUTH_SESSION_KEY] = timezone.now().isoformat()
-        session.save()
+        self._mark_recent_auth()
 
         response = self.client.post(reverse("users:delete_account"), follow=True)
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "You cannot delete the last active admin account.")
+        self.assertContains(response, "You cannot delete the last active platform admin account.")
         self.assertTrue(User.objects.filter(pk=admin.pk).exists())
 
     def test_last_active_admin_cannot_lose_admin_access(self):
@@ -1684,17 +1720,26 @@ assert.equal(root.classList.contains("is-open"), false);
             role="admin",
         )
         self.client.force_login(acting_admin)
+        self._mark_recent_auth()
 
         response = self.client.post(
             reverse("users:admin_set_role", args=[target.id]),
-            {"action": "restore_default"},
+            {"role": Role.STUDENT},
             follow=False,
         )
 
         target.refresh_from_db()
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], reverse("users:admin_users"))
-        self.assertEqual(target.role, "student")
+        self.assertEqual(target.role, Role.STUDENT)
+        self.assertTrue(
+            AuditEvent.objects.filter(
+                action="user.role_changed",
+                actor=acting_admin,
+                target_type="users.customuser",
+                target_id=str(target.id),
+            ).exists()
+        )
 
     def test_last_active_admin_cannot_be_deactivated(self):
         target = User.objects.create_user(
@@ -1720,6 +1765,7 @@ assert.equal(root.classList.contains("is-open"), false);
             role="admin",
         )
         self.client.force_login(acting_admin)
+        self._mark_recent_auth()
 
         response = self.client.post(
             reverse("users:admin_toggle_active", args=[target.id]),
@@ -1730,21 +1776,32 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], reverse("users:admin_users"))
         self.assertFalse(target.is_active)
+        self.assertIsNotNone(target.deactivated_at)
+        self.assertTrue(
+            AuditEvent.objects.filter(
+                action="user.deactivated",
+                actor=acting_admin,
+                target_type="users.customuser",
+                target_id=str(target.id),
+            ).exists()
+        )
 
     def test_admin_cannot_change_own_role(self):
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
         self.client.force_login(admin)
+        self._mark_recent_auth()
 
-        response = self.client.post(reverse("users:admin_set_role", args=[admin.id]), {"action": "restore_default"})
+        response = self.client.post(reverse("users:admin_set_role", args=[admin.id]), {"role": Role.STUDENT})
 
         admin.refresh_from_db()
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.content.decode(), "You cannot change your own role.")
-        self.assertEqual(admin.role, "admin")
+        self.assertEqual(admin.role, Role.ADMIN)
 
     def test_admin_cannot_deactivate_own_account(self):
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
         self.client.force_login(admin)
+        self._mark_recent_auth()
 
         response = self.client.post(reverse("users:admin_toggle_active", args=[admin.id]))
 
@@ -1780,6 +1837,7 @@ assert.equal(root.classList.contains("is-open"), false);
             approval_status="approved",
         )
         self.client.force_login(admin)
+        self._mark_recent_auth()
 
         response = self.client.post(
             reverse("users:admin_delete_listing", args=[listing.id]),
@@ -1792,6 +1850,67 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertTrue(owner.listings.filter(pk=listing.pk).exists())
         self.assertTrue(listing.is_archived)
         self.assertEqual(listing.archive_reason, Listing.ARCHIVE_REASON_ADMIN)
+
+    def test_support_user_detail_hides_sensitive_activity_without_investigation(self):
+        support = User.objects.create_user(
+            username="support",
+            email="support@bc.edu",
+            password="test",
+            role=Role.SUPPORT,
+        )
+        owner = User.objects.create_user(username="owner-sensitive", email="owner-sensitive@bc.edu", password="test")
+        owner.listings.create(
+            title="Owner listing",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status="approved",
+        )
+        self.client.force_login(support)
+
+        response = self.client.get(reverse("users:admin_user_detail", args=[owner.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Hidden until sensitive access is opened")
+        self.assertContains(
+            response,
+            "Open a support investigation with a reason before viewing files or message content.",
+        )
+
+    def test_support_can_open_investigation_and_unlock_sensitive_activity(self):
+        support = User.objects.create_user(
+            username="support-open",
+            email="support-open@bc.edu",
+            password="test",
+            role=Role.SUPPORT,
+        )
+        owner = User.objects.create_user(username="owner-audit", email="owner-audit@bc.edu", password="test")
+        self.client.force_login(support)
+        self._mark_recent_auth()
+
+        open_response = self.client.post(
+            reverse("users:admin_open_investigation", args=[owner.id]),
+            {"reason": "Reviewing a support escalation."},
+            follow=False,
+        )
+
+        SupportInvestigation.objects.get(subject=owner, opened_by=support, closed_at__isnull=True)
+        detail_response = self.client.get(reverse("users:admin_user_detail", args=[owner.id]))
+
+        self.assertEqual(open_response.status_code, 302)
+        self.assertEqual(open_response["Location"], reverse("users:admin_user_detail", args=[owner.id]))
+        self.assertContains(detail_response, "Unlocked for review")
+        self.assertContains(detail_response, "Reviewing a support escalation.")
+        self.assertTrue(
+            AuditEvent.objects.filter(
+                action="support_investigation.opened",
+                actor=support,
+                target_type="users.customuser",
+                target_id=str(owner.id),
+            ).exists()
+        )
 
     def test_logout_page_uses_custom_ui(self):
         self.client.force_login(self.user)

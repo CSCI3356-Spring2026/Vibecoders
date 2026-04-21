@@ -5,7 +5,10 @@ import requests
 from django.conf import settings
 from django.core.cache import cache
 
-from .geocoding import BOSTON_COLLEGE_LATITUDE, BOSTON_COLLEGE_LONGITUDE
+from core.campus import PRIMARY_CAMPUS_LATITUDE, PRIMARY_CAMPUS_LONGITUDE, PRIMARY_CAMPUS_NAME
+
+BOSTON_COLLEGE_LATITUDE = PRIMARY_CAMPUS_LATITUDE
+BOSTON_COLLEGE_LONGITUDE = PRIMARY_CAMPUS_LONGITUDE
 
 COMMUTE_MODE_WALKING = "walking"
 COMMUTE_MODE_TRANSIT = "transit"
@@ -170,7 +173,7 @@ def commute_payload_for_listing(listing):
 
     return {
         "available": True,
-        "destination_label": "Boston College",
+        "destination_label": PRIMARY_CAMPUS_NAME,
         "distance_miles": f"{normalized_distance}",
         "default_mode": COMMUTE_DEFAULT_MODE,
         "modes": [

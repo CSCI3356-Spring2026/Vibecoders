@@ -369,6 +369,7 @@ class DemoSeedRunner:
     def _create_users(self):
         self._log("Creating demo users")
         for spec in DEMO_USERS:
+            expected_role = Role(self.user_model.normalize_role_value(spec["role"]))
             user = self.user_model(
                 username=spec["username"],
                 email=spec["email"],
@@ -378,16 +379,17 @@ class DemoSeedRunner:
                 is_staff=spec.get("is_staff", False),
                 is_superuser=spec.get("is_superuser", False),
             )
-            if spec["role"] == Role.ADMIN:
-                user.set_admin_access(True)
+            if expected_role in {Role.ADMIN, Role.MODERATOR, Role.SUPPORT}:
+                user.set_staff_role(expected_role)
             user.save()
 
-            if spec["role"] != user.role:
+            if expected_role != user.role:
                 raise DemoSeedError(
-                    f"Demo user {spec['username']} resolved to role {user.role} instead of the expected {spec['role']}."
+                    "Demo user "
+                    f"{spec['username']} resolved to role {user.role} instead of the expected {expected_role}."
                 )
 
-            if spec["role"] == Role.ADMIN and spec.get("is_staff"):
+            if expected_role == Role.ADMIN and spec.get("is_staff"):
                 user.set_password(DEMO_PASSWORD)
             else:
                 user.set_unusable_password()
@@ -418,7 +420,8 @@ class DemoSeedRunner:
 
     def _apply_profile_data(self, user, spec):
         profile_data = spec.get("profile")
-        if spec["role"] == Role.STUDENT:
+        expected_role = Role(self.user_model.normalize_role_value(spec["role"]))
+        if expected_role == Role.STUDENT:
             if profile_data:
                 profile = user.student_profile
                 for field_name, value in profile_data.items():
@@ -426,7 +429,7 @@ class DemoSeedRunner:
                 profile.save()
                 if profile_satisfies_completion_requirements(user):
                     mark_profile_completed_now(user)
-        elif spec["role"] in {Role.ADMIN, Role.REALTOR} and profile_data:
+        elif expected_role in {Role.ADMIN, Role.MODERATOR, Role.SUPPORT, Role.REALTOR} and profile_data:
             profile = user.admin_profile
             for field_name, value in profile_data.items():
                 setattr(profile, field_name, value)
