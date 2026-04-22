@@ -363,7 +363,9 @@ SOCIALACCOUNT_PROVIDERS = {
     "google": {
         "SCOPE": ["profile", "email"],
         "EMAIL_AUTHENTICATION": True,
-        "AUTH_PARAMS": {"access_type": "online"},
+        # Always reopen the Google account chooser so failed attempts do not trap
+        # the browser on the last-selected account.
+        "AUTH_PARAMS": {"access_type": "online", "prompt": "select_account"},
         "APP": {
             "client_id": os.environ.get("GOOGLE_CLIENT_ID", ""),
             "secret": os.environ.get("GOOGLE_CLIENT_SECRET", ""),

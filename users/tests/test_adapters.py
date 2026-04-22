@@ -40,6 +40,9 @@ class AuthSettingsTests(TestCase):
         self.assertTrue(settings.SOCIALACCOUNT_PROVIDERS["google"]["EMAIL_AUTHENTICATION"])
         self.assertEqual(settings.LOGIN_URL, "/accounts/login/")
 
+    def test_google_auth_prompts_for_account_selection(self):
+        self.assertEqual(settings.SOCIALACCOUNT_PROVIDERS["google"]["AUTH_PARAMS"]["prompt"], "select_account")
+
     def test_debug_settings_use_a_stable_secret_key_when_env_is_missing(self):
         env = os.environ.copy()
         env.update(
