@@ -11,10 +11,17 @@ const AUTH_REQUIRED_STATUS = "Sign in again to verify addresses.";
 const SELECTION_REQUIRED_MESSAGE = "Select a verified address suggestion.";
 const MIN_QUERY_LENGTH = 3;
 const LOOKUP_DEBOUNCE_MS = 250;
+const TOKEN_RESTORE_MAX_AGE_MS = 4 * 60 * 1000;
 
 const NOOP_ADDRESS_PICKER = {
     isSelectionComplete() {
         return true;
+    },
+    restoreSelection() {
+        return {
+            restoredToken: false,
+            requiresReselection: false,
+        };
     },
 };
 
@@ -62,6 +69,7 @@ export function createAddressPicker(form) {
 
     return {
         isSelectionComplete,
+        restoreSelection,
     };
 
     function isSelectionComplete() {
@@ -217,6 +225,55 @@ export function createAddressPicker(form) {
         addressInput.reportValidity();
         addressInput.focus();
         setStatus(message);
+    }
+
+    function restoreSelection({ addressValue = "", tokenValue = "", savedAt = 0 } = {}) {
+        const normalizedAddress = String(addressValue || "").trim();
+        const tokenIsFresh = Boolean(tokenValue) && Number.isFinite(savedAt) && Date.now() - savedAt <= TOKEN_RESTORE_MAX_AGE_MS;
+
+        addressInput.value = normalizedAddress;
+        tokenInput.value = tokenIsFresh ? String(tokenValue || "").trim() : "";
+        selectedLabel = tokenInput.value ? normalizedAddress : "";
+        addressInput.setCustomValidity("");
+        resetSuggestionsState();
+
+        if (!normalizedAddress) {
+            setStatus(enabled ? DEFAULT_STATUS : BLOCKED_STATUS);
+            return {
+                restoredToken: false,
+                requiresReselection: false,
+            };
+        }
+
+        if (!enabled || !suggestionsUrl) {
+            setStatus(BLOCKED_STATUS);
+            return {
+                restoredToken: false,
+                requiresReselection: false,
+            };
+        }
+
+        if (isSavedSelectionActive(normalizedAddress)) {
+            setStatus(SAVED_STATUS);
+            return {
+                restoredToken: false,
+                requiresReselection: false,
+            };
+        }
+
+        if (tokenInput.value) {
+            setStatus(VERIFIED_STATUS);
+            return {
+                restoredToken: true,
+                requiresReselection: false,
+            };
+        }
+
+        setStatus(normalizedAddress.length < MIN_QUERY_LENGTH ? DEFAULT_STATUS : CHOOSE_STATUS);
+        return {
+            restoredToken: false,
+            requiresReselection: true,
+        };
     }
 
     function clearSuggestions() {
