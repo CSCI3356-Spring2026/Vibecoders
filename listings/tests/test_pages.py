@@ -1714,7 +1714,6 @@ assert.equal(picker.isSelectionComplete(), true);
         module_url = (Path(__file__).resolve().parents[2] / "static/js/listing-form.js").as_uri()
         script = f"""
 import assert from "node:assert/strict";
-import {{ createListingWizard }} from {module_url!r};
 
 class ClassList {{
     constructor() {{
@@ -1872,6 +1871,8 @@ globalThis.window = {{
     }},
     addEventListener() {{}},
 }};
+
+const {{ createListingWizard }} = await import({module_url!r});
 
 const titleInput = new HTMLInputElement("title", "");
 const progressCopy = new HTMLElement();
