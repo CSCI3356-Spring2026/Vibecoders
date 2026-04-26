@@ -178,6 +178,9 @@
                             {% include "listings/includes/form_field.html" with field=form.security_deposit %}
                             {% include "listings/includes/form_field.html" with field=form.application_fee %}
                         </div>
+                        <div class="listing-wizard-grid listing-wizard-grid-3">
+                            {% include "listings/includes/form_field.html" with field=form.broker_fee %}
+                        </div>
                     </section>
 
                     <section class="listing-panel listing-wizard-panel" data-step-panel="2" data-step-title="Home details" data-step-subtitle="Type, beds, baths." data-step-complete-fields="property_type,rooms,bathrooms">
@@ -214,6 +217,18 @@
                                     <span class="listing-wizard-choice-title">Furnished</span>
                                 </span>
                             </label>
+                            <label class="listing-wizard-choice" for="{{ form.no_stairs.id_for_label }}">
+                                {{ form.no_stairs }}
+                                <span class="listing-wizard-choice-copy">
+                                    <span class="listing-wizard-choice-title">No stairs</span>
+                                </span>
+                            </label>
+                            <label class="listing-wizard-choice" for="{{ form.landlord_approval_required.id_for_label }}">
+                                {{ form.landlord_approval_required }}
+                                <span class="listing-wizard-choice-copy">
+                                    <span class="listing-wizard-choice-title">Landlord approval required</span>
+                                </span>
+                            </label>
                         </div>
                     </section>
 
@@ -245,6 +260,10 @@
                         </div>
                         <div class="listing-wizard-grid listing-wizard-grid-1">
                             {% include "listings/includes/form_field.html" with field=form.amenities %}
+                        </div>
+                        <div class="listing-wizard-grid listing-wizard-grid-2">
+                            {% include "listings/includes/form_field.html" with field=form.documentation_type %}
+                            {% include "listings/includes/form_field.html" with field=form.original_lease_holder %}
                         </div>
                     </section>
 

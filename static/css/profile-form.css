@@ -77,19 +77,31 @@
     border-radius: var(--radius-md);
     background: rgba(var(--white-rgb), 0.92);
     cursor: pointer;
-    transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+    transition:
+        border-color 140ms ease,
+        background-color 140ms ease,
+        box-shadow 140ms ease,
+        transform 140ms ease;
 }
 
 .profile-scale-option:hover {
-    border-color: rgba(var(--primary-rgb), 0.2);
+    border-color: rgba(var(--primary-rgb), 0.24);
     background: rgba(var(--white-rgb), 0.98);
 }
 
-.profile-scale-option:has(input:checked),
-.profile-scale-option.is-selected {
-    border-color: rgba(var(--primary-rgb), 0.28);
-    background: rgba(var(--primary-rgb), 0.06);
-    box-shadow: 0 0 0 1px rgba(var(--primary-rgb), 0.08);
+.profile-scale-option:active {
+    transform: translateY(1px);
+}
+
+.profile-scale-option:has(input:focus-visible) {
+    border-color: rgba(var(--secondary-rgb), 0.48);
+    box-shadow: 0 0 0 3px var(--focus-ring-color);
+}
+
+.profile-scale-option:has(input:checked) {
+    border-color: rgba(var(--primary-rgb), 0.54);
+    background: linear-gradient(180deg, rgba(var(--primary-rgb), 0.1), rgba(var(--white-rgb), 0.96));
+    box-shadow: 0 0 0 1px rgba(var(--primary-rgb), 0.12), var(--shadow-sm);
 }
 
 .profile-scale-option input {
@@ -100,11 +112,22 @@
 }
 
 .profile-scale-option-index {
+    width: 1.65rem;
+    height: 1.65rem;
+    display: inline-grid;
+    place-items: center;
+    border-radius: 999px;
     color: var(--primary-600);
+    background: rgba(var(--primary-rgb), 0.08);
     font-size: 0.78rem;
     font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+    line-height: 1;
+    transition: background-color 140ms ease, color 140ms ease;
+}
+
+.profile-scale-option:has(input:checked) .profile-scale-option-index {
+    color: var(--white);
+    background: var(--primary-600);
 }
 
 .profile-scale-option-label {
@@ -130,19 +153,31 @@
     border-radius: var(--radius-md);
     background: rgba(var(--white-rgb), 0.92);
     cursor: pointer;
-    transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+    transition:
+        border-color 140ms ease,
+        background-color 140ms ease,
+        box-shadow 140ms ease,
+        transform 140ms ease;
 }
 
 .profile-toggle-card:hover {
-    border-color: rgba(var(--primary-rgb), 0.2);
+    border-color: rgba(var(--primary-rgb), 0.24);
     background: rgba(var(--white-rgb), 0.98);
 }
 
-.profile-toggle-card:has(input:checked),
-.profile-toggle-card.is-selected {
-    border-color: rgba(var(--primary-rgb), 0.28);
-    background: rgba(var(--primary-rgb), 0.06);
-    box-shadow: 0 0 0 1px rgba(var(--primary-rgb), 0.08);
+.profile-toggle-card:active {
+    transform: translateY(1px);
+}
+
+.profile-toggle-card:has(input:focus-visible) {
+    border-color: rgba(var(--secondary-rgb), 0.48);
+    box-shadow: 0 0 0 3px var(--focus-ring-color);
+}
+
+.profile-toggle-card:has(input:checked) {
+    border-color: rgba(var(--primary-rgb), 0.54);
+    background: linear-gradient(180deg, rgba(var(--primary-rgb), 0.09), rgba(var(--white-rgb), 0.96));
+    box-shadow: 0 0 0 1px rgba(var(--primary-rgb), 0.12), var(--shadow-sm);
 }
 
 .profile-toggle-input {
@@ -150,6 +185,7 @@
     height: 1.05rem;
     margin-top: 0.1rem;
     flex-shrink: 0;
+    accent-color: var(--primary-600);
 }
 
 .profile-toggle-copy {
