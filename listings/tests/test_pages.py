@@ -1,8 +1,10 @@
 import io
+import shutil
 import subprocess
 import tempfile
 from datetime import date, timedelta
 from pathlib import Path
+from unittest import skipUnless
 from unittest.mock import patch
 from urllib.parse import urlsplit
 
@@ -1543,6 +1545,19 @@ assert.equal(view.getStyleMode(), "satellite");
         self.assertContains(response, "data-step-next")
         self.assertContains(response, "Publishing flow")
 
+    def test_create_listing_renders_local_draft_recovery_contract(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:create_listing"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-draft-storage-key="/listings/create/"')
+        self.assertContains(response, 'data-form-has-errors="false"')
+        self.assertContains(response, "data-listing-draft-card")
+        self.assertContains(response, "data-listing-draft-message")
+        self.assertContains(response, "data-listing-draft-clear")
+        self.assertContains(response, "Photo uploads are not stored locally.")
+
     def test_create_listing_renders_verified_address_picker_contract(self):
         self.client.force_login(self.user)
 
@@ -1683,6 +1698,256 @@ assert.equal(picker.isSelectionComplete(), false);
 addressInput.value = label;
 addressInput.dispatch("input");
 assert.equal(picker.isSelectionComplete(), true);
+"""
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            cwd=Path(__file__).resolve().parents[2],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr or result.stdout)
+
+    @skipUnless(shutil.which("node"), "Node.js is required for the listing wizard module test.")
+    def test_listing_wizard_restores_saved_draft_from_local_storage(self):
+        module_url = (Path(__file__).resolve().parents[2] / "static/js/listing-form.js").as_uri()
+        script = f"""
+import assert from "node:assert/strict";
+import {{ createListingWizard }} from {module_url!r};
+
+class ClassList {{
+    constructor() {{
+        this.values = new Set();
+    }}
+
+    add(...tokens) {{
+        tokens.forEach((token) => this.values.add(token));
+    }}
+
+    toggle(token, force) {{
+        if (force === undefined) {{
+            if (this.values.has(token)) {{
+                this.values.delete(token);
+                return false;
+            }}
+            this.values.add(token);
+            return true;
+        }}
+
+        if (force) {{
+            this.values.add(token);
+            return true;
+        }}
+
+        this.values.delete(token);
+        return false;
+    }}
+
+    contains(token) {{
+        return this.values.has(token);
+    }}
+}}
+
+class HTMLElement {{
+    constructor() {{
+        this.dataset = {{}};
+        this.listeners = {{}};
+        this.hidden = false;
+        this.textContent = "";
+        this.innerHTML = "";
+        this.style = {{}};
+        this.attributes = {{}};
+        this.classList = new ClassList();
+        this.disabled = false;
+    }}
+
+    addEventListener(type, handler) {{
+        this.listeners[type] = handler;
+    }}
+
+    setAttribute(name, value) {{
+        this.attributes[name] = value;
+    }}
+
+    querySelector() {{
+        return null;
+    }}
+
+    querySelectorAll() {{
+        return [];
+    }}
+
+    focus() {{}}
+
+    reportValidity() {{
+        return true;
+    }}
+
+    setCustomValidity(message) {{
+        this.validationMessage = message;
+    }}
+}}
+
+class HTMLInputElement extends HTMLElement {{
+    constructor(name = "", value = "", type = "text") {{
+        super();
+        this.name = name;
+        this.value = value;
+        this.type = type;
+        this.checked = false;
+        this.files = [];
+    }}
+}}
+
+class HTMLSelectElement extends HTMLElement {{
+    constructor(name = "") {{
+        super();
+        this.name = name;
+        this.multiple = false;
+        this.options = [];
+    }}
+
+    get selectedOptions() {{
+        return this.options.filter((option) => option.selected);
+    }}
+}}
+
+class HTMLFormElement extends HTMLElement {{
+    constructor() {{
+        super();
+        this.elements = [];
+        this.selectorMap = new Map();
+        this.selectorListMap = new Map();
+        this.dataset = {{
+            draftStorageKey: "/listings/create/",
+            formHasErrors: "false",
+        }};
+    }}
+
+    querySelector(selector) {{
+        return this.selectorMap.get(selector) ?? null;
+    }}
+
+    querySelectorAll(selector) {{
+        return this.selectorListMap.get(selector) ?? [];
+    }}
+}}
+
+globalThis.HTMLElement = HTMLElement;
+globalThis.HTMLInputElement = HTMLInputElement;
+globalThis.HTMLSelectElement = HTMLSelectElement;
+globalThis.HTMLFormElement = HTMLFormElement;
+globalThis.document = {{
+    querySelector() {{
+        return null;
+    }},
+}};
+
+const storageData = new Map();
+const localStorage = {{
+    getItem(key) {{
+        return storageData.has(key) ? storageData.get(key) : null;
+    }},
+    setItem(key, value) {{
+        storageData.set(key, String(value));
+    }},
+    removeItem(key) {{
+        storageData.delete(key);
+    }},
+}};
+
+globalThis.navigator = {{ onLine: true }};
+globalThis.window = {{
+    localStorage,
+    location: {{ pathname: "/listings/create/" }},
+    clearTimeout() {{}},
+    setTimeout(handler) {{
+        handler();
+        return 1;
+    }},
+    addEventListener() {{}},
+}};
+
+const titleInput = new HTMLInputElement("title", "");
+const progressCopy = new HTMLElement();
+const progressBar = new HTMLElement();
+const footerTitle = new HTMLElement();
+const footerSubtitle = new HTMLElement();
+const previousButton = new HTMLElement();
+const nextButton = new HTMLElement();
+const submitButton = new HTMLElement();
+const draftCard = new HTMLElement();
+draftCard.hidden = true;
+const draftMessage = new HTMLElement();
+const draftDetail = new HTMLElement();
+const clearDraftButton = new HTMLElement();
+
+function makePanel(index, requiredFields) {{
+    const panel = new HTMLElement();
+    panel.dataset = {{
+        stepPanel: String(index),
+        stepTitle: `Step ${{index + 1}}`,
+        stepSubtitle: `Panel ${{index + 1}}`,
+        stepCompleteFields: requiredFields,
+    }};
+    return panel;
+}}
+
+function makeNavButton() {{
+    const button = new HTMLElement();
+    const stateNode = new HTMLElement();
+    button.querySelector = (selector) => (selector === "[data-step-state]" ? stateNode : null);
+    return button;
+}}
+
+const panels = [makePanel(0, "title"), makePanel(1, "")];
+const navButtons = [makeNavButton(), makeNavButton()];
+const form = new HTMLFormElement();
+form.elements = [titleInput];
+form.selectorListMap.set("[data-step-panel]", panels);
+form.selectorListMap.set('input[name="remove_images"]', []);
+form.selectorMap.set("[data-wizard-progress-copy]", progressCopy);
+form.selectorMap.set("[data-wizard-progress-bar]", progressBar);
+form.selectorMap.set("[data-wizard-footer-title]", footerTitle);
+form.selectorMap.set("[data-wizard-footer-subtitle]", footerSubtitle);
+form.selectorMap.set("[data-step-prev]", previousButton);
+form.selectorMap.set("[data-step-next]", nextButton);
+form.selectorMap.set("[data-step-submit]", submitButton);
+form.selectorMap.set('[data-step-nav="0"]', navButtons[0]);
+form.selectorMap.set('[data-step-nav="1"]', navButtons[1]);
+form.selectorMap.set("[data-listing-draft-card]", draftCard);
+form.selectorMap.set("[data-listing-draft-message]", draftMessage);
+form.selectorMap.set("[data-listing-draft-detail]", draftDetail);
+form.selectorMap.set("[data-listing-draft-clear]", clearDraftButton);
+
+localStorage.setItem(
+    "listing-wizard-draft:/listings/create/",
+    JSON.stringify({{
+        version: 1,
+        savedAt: Date.now(),
+        stepIndex: 1,
+        fields: {{
+            title: "Recovered title",
+        }},
+    }})
+);
+
+createListingWizard(form);
+
+assert.equal(titleInput.value, "Recovered title");
+assert.equal(progressCopy.textContent, "Step 2 of 2");
+assert.equal(draftCard.hidden, false);
+assert.match(draftMessage.textContent, /Recovered your saved listing draft/);
+assert.match(draftDetail.textContent, /Last saved/);
+assert.equal(clearDraftButton.hidden, false);
+
+titleInput.value = "Updated title";
+form.listeners.input({{ target: titleInput }});
+
+const savedDraft = JSON.parse(localStorage.getItem("listing-wizard-draft:/listings/create/"));
+assert.equal(savedDraft.fields.title, "Updated title");
+assert.equal(savedDraft.stepIndex, 1);
 """
         result = subprocess.run(
             ["node", "--input-type=module", "-e", script],

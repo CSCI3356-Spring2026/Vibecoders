@@ -1,12 +1,18 @@
 import { createAddressPicker } from "./listings-address-picker.js";
 
-const root = document.querySelector("[data-listing-form-wizard]");
+const STORAGE_PREFIX = "listing-wizard-draft:";
+const STORAGE_VERSION = 1;
+const DRAFT_MAX_AGE_MS = 72 * 60 * 60 * 1000;
+const SAVE_DEBOUNCE_MS = 300;
+const AUTOSAVE_EXCLUDED_FIELDS = new Set(["csrfmiddlewaretoken", "images"]);
+
+const root = globalThis.document?.querySelector?.("[data-listing-form-wizard]");
 
 if (root instanceof HTMLFormElement) {
     createListingWizard(root);
 }
 
-function createListingWizard(form) {
+export function createListingWizard(form) {
     const addressPicker = createAddressPicker(form);
 
     const panels = Array.from(form.querySelectorAll("[data-step-panel]"))
@@ -60,6 +66,16 @@ function createListingWizard(form) {
     let currentStepIndex = resolveInitialStepIndex();
     form.classList.add("is-enhanced");
 
+    const draftController = createDraftController();
+    const restoredStepIndex = draftController.restore();
+    if (Number.isInteger(restoredStepIndex)) {
+        currentStepIndex = restoredStepIndex;
+    }
+
+    if (!isStepUnlocked(currentStepIndex)) {
+        currentStepIndex = getLastUnlockedStepIndex();
+    }
+
     panels.forEach((step) => {
         if (!step.navButton) {
             return;
@@ -71,6 +87,7 @@ function createListingWizard(form) {
             }
             currentStepIndex = step.index;
             render();
+            draftController.scheduleSave();
         });
     });
 
@@ -84,6 +101,7 @@ function createListingWizard(form) {
         }
         currentStepIndex -= 1;
         render();
+        draftController.scheduleSave();
     });
 
     nextButton?.addEventListener("click", () => {
@@ -95,6 +113,7 @@ function createListingWizard(form) {
         if (currentStepIndex < panels.length - 1) {
             currentStepIndex += 1;
             render();
+            draftController.scheduleSave();
         }
     });
 
@@ -113,6 +132,7 @@ function createListingWizard(form) {
         }
 
         render();
+        draftController.scheduleSave();
     }
 
     function handleSubmit(event) {
@@ -415,10 +435,7 @@ function createListingWizard(form) {
         setNodeText(reviewNodes.address, address);
         setNodeText(reviewNodes.rent, price === null ? "--" : formatMoney(price));
         setNodeText(reviewNodes.monthly, monthlyTotal === null ? "--" : formatMoney(monthlyTotal));
-        setNodeText(
-            reviewNodes.layout,
-            `${rooms} bd • ${bathrooms} ba${squareFeet ? ` • ${squareFeet} sqft` : ""}`
-        );
+        setNodeText(reviewNodes.layout, `${rooms} bd - ${bathrooms} ba${squareFeet ? ` - ${squareFeet} sqft` : ""}`);
         setNodeText(reviewNodes.dates, `${startDate} to ${endDate}`);
         setNodeText(reviewNodes.photos, `${photoCount} ${photoCount === 1 ? "photo" : "photos"}`);
         setNodeText(reviewNodes.status, isHidden ? "Hidden draft" : statusLabel);
@@ -429,5 +446,308 @@ function createListingWizard(form) {
         if (node) {
             node.textContent = value;
         }
+    }
+
+    function createDraftController() {
+        const card = form.querySelector("[data-listing-draft-card]");
+        const messageNode = form.querySelector("[data-listing-draft-message]");
+        const detailNode = form.querySelector("[data-listing-draft-detail]");
+        const clearButton = form.querySelector("[data-listing-draft-clear]");
+        const storage = getLocalStorage();
+        const storageKeySuffix = form.dataset.draftStorageKey || window.location.pathname;
+        const storageKey = `${STORAGE_PREFIX}${storageKeySuffix}`;
+        const formHasErrors = form.dataset.formHasErrors === "true";
+        const timestampFormatter = new Intl.DateTimeFormat(undefined, {
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+        });
+        let hasSavedDraft = false;
+        let lastSavedAt = 0;
+        let restoredFromDraft = false;
+        let addressRequiresReselection = false;
+        let saveTimeoutId = 0;
+
+        clearButton?.addEventListener("click", () => {
+            if (!storage) {
+                return;
+            }
+
+            storage.removeItem(storageKey);
+            hasSavedDraft = false;
+            restoredFromDraft = false;
+            addressRequiresReselection = false;
+            lastSavedAt = 0;
+            renderDraftStatus();
+        });
+
+        window.addEventListener?.("online", renderDraftStatus);
+        window.addEventListener?.("offline", renderDraftStatus);
+        window.addEventListener?.("pagehide", () => {
+            saveDraft();
+        });
+
+        return {
+            restore,
+            scheduleSave,
+        };
+
+        function restore() {
+            if (!storage) {
+                renderDraftStatus();
+                return null;
+            }
+
+            const draft = readDraft();
+            if (!draft) {
+                renderDraftStatus();
+                return null;
+            }
+
+            hasSavedDraft = true;
+            lastSavedAt = draft.savedAt;
+
+            if (formHasErrors) {
+                renderDraftStatus();
+                return null;
+            }
+
+            const restoreResult = applyDraft(draft);
+            restoredFromDraft = true;
+            addressRequiresReselection = restoreResult.addressRequiresReselection;
+            renderDraftStatus();
+
+            if (!Number.isInteger(draft.stepIndex)) {
+                return null;
+            }
+
+            return Math.max(0, Math.min(draft.stepIndex, panels.length - 1));
+        }
+
+        function scheduleSave() {
+            if (!storage) {
+                return;
+            }
+
+            window.clearTimeout(saveTimeoutId);
+            saveTimeoutId = window.setTimeout(() => {
+                saveDraft();
+            }, SAVE_DEBOUNCE_MS);
+        }
+
+        function saveDraft() {
+            if (!storage) {
+                return;
+            }
+
+            const draft = {
+                version: STORAGE_VERSION,
+                savedAt: Date.now(),
+                stepIndex: currentStepIndex,
+                fields: collectDraftFields(),
+            };
+
+            try {
+                storage.setItem(storageKey, JSON.stringify(draft));
+                hasSavedDraft = true;
+                lastSavedAt = draft.savedAt;
+                restoredFromDraft = false;
+                addressRequiresReselection = false;
+                renderDraftStatus();
+            } catch {
+                // Ignore storage write failures so the form remains usable.
+            }
+        }
+
+        function readDraft() {
+            try {
+                const rawDraft = storage.getItem(storageKey);
+                if (!rawDraft) {
+                    return null;
+                }
+
+                const parsedDraft = JSON.parse(rawDraft);
+                if (
+                    parsedDraft?.version !== STORAGE_VERSION ||
+                    !parsedDraft.fields ||
+                    !Number.isFinite(parsedDraft.savedAt)
+                ) {
+                    storage.removeItem(storageKey);
+                    return null;
+                }
+
+                if (Date.now() - parsedDraft.savedAt > DRAFT_MAX_AGE_MS) {
+                    storage.removeItem(storageKey);
+                    return null;
+                }
+
+                return parsedDraft;
+            } catch {
+                return null;
+            }
+        }
+
+        function applyDraft(draft) {
+            const fields = draft.fields || {};
+            const addressRestore = addressPicker.restoreSelection({
+                addressValue: fields.address,
+                tokenValue: fields.verified_address_token,
+                savedAt: draft.savedAt,
+            });
+
+            Object.entries(fields).forEach(([fieldName, value]) => {
+                if (fieldName === "address" || fieldName === "verified_address_token") {
+                    return;
+                }
+                applyFieldValue(fieldName, value);
+            });
+
+            return {
+                addressRequiresReselection: addressRestore.requiresReselection,
+            };
+        }
+
+        function collectDraftFields() {
+            const fieldNames = Array.from(form.elements).reduce((names, element) => {
+                if (!isRestorableField(element)) {
+                    return names;
+                }
+                names.add(element.name);
+                return names;
+            }, new Set());
+
+            const payload = {};
+            fieldNames.forEach((fieldName) => {
+                const value = serializeFieldValue(fieldName);
+                if (value !== undefined) {
+                    payload[fieldName] = value;
+                }
+            });
+            return payload;
+        }
+
+        function serializeFieldValue(fieldName) {
+            const fields = getFields(fieldName);
+            if (!fields.length) {
+                return undefined;
+            }
+
+            const firstField = fields[0];
+            if (firstField instanceof HTMLInputElement && firstField.type === "checkbox") {
+                if (fields.length === 1) {
+                    return firstField.checked;
+                }
+                return fields.filter((field) => field.checked).map((field) => field.value);
+            }
+
+            if (firstField instanceof HTMLInputElement && firstField.type === "radio") {
+                return fields.find((field) => field.checked)?.value || "";
+            }
+
+            if (firstField instanceof HTMLSelectElement && firstField.multiple) {
+                return Array.from(firstField.selectedOptions).map((option) => option.value);
+            }
+
+            return firstField.value;
+        }
+
+        function applyFieldValue(fieldName, value) {
+            const fields = getFields(fieldName);
+            if (!fields.length) {
+                return;
+            }
+
+            const firstField = fields[0];
+            if (firstField instanceof HTMLInputElement && firstField.type === "checkbox") {
+                if (fields.length === 1) {
+                    firstField.checked = Boolean(value);
+                    return;
+                }
+
+                const selectedValues = new Set(Array.isArray(value) ? value.map(String) : []);
+                fields.forEach((field) => {
+                    field.checked = selectedValues.has(String(field.value));
+                });
+                return;
+            }
+
+            if (firstField instanceof HTMLInputElement && firstField.type === "radio") {
+                fields.forEach((field) => {
+                    field.checked = String(value || "") === String(field.value);
+                });
+                return;
+            }
+
+            if (firstField instanceof HTMLSelectElement && firstField.multiple) {
+                const selectedValues = new Set(Array.isArray(value) ? value.map(String) : []);
+                Array.from(firstField.options).forEach((option) => {
+                    option.selected = selectedValues.has(String(option.value));
+                });
+                return;
+            }
+
+            firstField.value = value == null ? "" : String(value);
+        }
+
+        function renderDraftStatus() {
+            if (!(card instanceof HTMLElement)) {
+                return;
+            }
+
+            if (!hasSavedDraft && navigator.onLine !== false) {
+                card.hidden = true;
+                return;
+            }
+
+            card.hidden = false;
+
+            if (navigator.onLine === false) {
+                setNodeText(messageNode, "You're offline. Keep working and we'll keep this listing draft on this device.");
+            } else if (restoredFromDraft) {
+                setNodeText(messageNode, "Recovered your saved listing draft from this browser.");
+            } else if (hasSavedDraft) {
+                setNodeText(messageNode, "Listing draft saved on this device.");
+            } else {
+                setNodeText(messageNode, "Offline changes will be kept on this device.");
+            }
+
+            const detailParts = [];
+            if (lastSavedAt) {
+                detailParts.push(`Last saved ${timestampFormatter.format(new Date(lastSavedAt))}`);
+            }
+            if (addressRequiresReselection) {
+                detailParts.push("Re-select the verified address before submitting.");
+            }
+
+            setNodeText(detailNode, detailParts.join(" | "));
+            if (clearButton) {
+                clearButton.hidden = !hasSavedDraft;
+            }
+        }
+
+        function isRestorableField(element) {
+            if (!(element instanceof HTMLElement) || typeof element.name !== "string" || !element.name) {
+                return false;
+            }
+
+            if (AUTOSAVE_EXCLUDED_FIELDS.has(element.name)) {
+                return false;
+            }
+
+            return !(element instanceof HTMLInputElement && element.type === "file");
+        }
+    }
+}
+
+function getLocalStorage() {
+    try {
+        const storage = window.localStorage;
+        const probeKey = "__listing_wizard_probe__";
+        storage.setItem(probeKey, probeKey);
+        storage.removeItem(probeKey);
+        return storage;
+    } catch {
+        return null;
     }
 }

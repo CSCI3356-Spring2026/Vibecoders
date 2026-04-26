@@ -13,7 +13,12 @@
 {% block content %}
 <section class="app-page listing-wizard-page">
     <div class="container">
-        <form method="post" enctype="multipart/form-data" class="listing-wizard" data-listing-form-wizard>
+        <form method="post"
+              enctype="multipart/form-data"
+              class="listing-wizard"
+              data-listing-form-wizard
+              data-draft-storage-key="{{ request.path }}"
+              data-form-has-errors="{{ form.errors|yesno:'true,false' }}">
             {% csrf_token %}
             {{ form.verified_address_token }}
 
@@ -32,6 +37,18 @@
                     </div>
                     <a class="btn btn-outline-secondary" href="{% url back_url_name %}">Back to {{ back_label }}</a>
                 </div>
+            </div>
+
+            <div class="listing-panel listing-wizard-draft-card" data-listing-draft-card hidden>
+                <div class="listing-wizard-draft-head">
+                    <div>
+                        <p class="listing-wizard-draft-kicker">Draft recovery</p>
+                        <p class="listing-wizard-draft-message" data-listing-draft-message aria-live="polite"></p>
+                    </div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-listing-draft-clear hidden>Discard saved draft</button>
+                </div>
+                <p class="listing-wizard-draft-detail" data-listing-draft-detail></p>
+                <p class="listing-wizard-draft-note">Photo uploads are not stored locally. Re-select them before submitting if the page reloads or you go offline.</p>
             </div>
 
             {% if form.errors %}
