@@ -147,7 +147,7 @@
                         <div class="profile-toggle-grid">
                             {% if form.smoke %}
                                 <div class="profile-form-field-block">
-                                    <label class="profile-toggle-card{% if form.smoke.value %} is-selected{% endif %}" for="{{ form.smoke.id_for_label }}">
+                                    <label class="profile-toggle-card" for="{{ form.smoke.id_for_label }}">
                                         {{ form.smoke }}
                                         <span class="profile-toggle-copy">
                                             <span class="profile-toggle-title">{{ form.smoke.label }}</span>
@@ -161,7 +161,7 @@
                             {% endif %}
                             {% if form.pets %}
                                 <div class="profile-form-field-block">
-                                    <label class="profile-toggle-card{% if form.pets.value %} is-selected{% endif %}" for="{{ form.pets.id_for_label }}">
+                                    <label class="profile-toggle-card" for="{{ form.pets.id_for_label }}">
                                         {{ form.pets }}
                                         <span class="profile-toggle-copy">
                                             <span class="profile-toggle-title">{{ form.pets.label }}</span>

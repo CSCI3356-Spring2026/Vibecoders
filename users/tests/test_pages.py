@@ -143,6 +143,26 @@ class UserPageTests(TestCase):
         self.assertContains(response, 'type="radio"')
         self.assertNotContains(response, 'type="range"')
 
+    def test_profile_setup_choice_cards_do_not_render_stale_selected_classes(self):
+        self.client.force_login(self.user)
+        profile = self.user.student_profile
+        profile.messy_level = 4
+        profile.guest_level = 3
+        profile.bedtime = 23
+        profile.noise_level = 2
+        profile.smoke = True
+        profile.drink = 2
+        profile.party = 4
+        profile.pets = True
+        profile.save()
+
+        response = self.client.get(reverse("users:profile_setup"))
+
+        self.assertContains(response, "profile-scale-option")
+        self.assertContains(response, "profile-toggle-card")
+        self.assertNotContains(response, 'class="profile-scale-option is-selected"')
+        self.assertNotContains(response, 'class="profile-toggle-card is-selected"')
+
     @override_settings(PROFILE_COMPLETION_REQUIRED=True)
     def test_realtor_profile_setup_completion_does_not_require_age_or_gender(self):
         realtor = User.objects.create_user(username="agent", email="agent@gmail.com", password="test")
