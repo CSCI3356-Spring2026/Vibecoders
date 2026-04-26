@@ -91,6 +91,14 @@ LISTING_REPORT_UPDATE_ACTION_CHOICES = [
     (LISTING_REPORT_UPDATE_ACTION_LISTING_CLOSED, "Listing removed from marketplace"),
     (LISTING_REPORT_UPDATE_ACTION_REOPENED, "Reopened"),
 ]
+LISTING_DOCUMENTATION_TYPE_CHOICES = [
+    ("lease", "Standard Lease"),
+    ("sublease", "Sublease Agreement"),
+    ("license", "License Agreement"),
+    ("other", "Other"),
+]
+LISTING_DOCUMENTATION_TYPE_VALUES = tuple(value for value, _ in LISTING_DOCUMENTATION_TYPE_CHOICES)
+
 ROOMMATE_POST_HOUSING_HAVE_HOME = "have_home"
 ROOMMATE_POST_HOUSING_NEED_HOME = "need_home"
 ROOMMATE_POST_HOUSING_CHOICES = [
@@ -179,6 +187,7 @@ class Listing(models.Model):
     PROPERTY_TYPES = LISTING_PROPERTY_TYPES
     APPROVAL_CHOICES = LISTING_APPROVAL_CHOICES
     ARCHIVE_REASON_CHOICES = LISTING_ARCHIVE_REASON_CHOICES
+    DOCUMENTATION_TYPE_CHOICES = LISTING_DOCUMENTATION_TYPE_CHOICES
 
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="listings")
     title = models.CharField(max_length=200)
@@ -209,6 +218,12 @@ class Listing(models.Model):
     parking_fee = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     security_deposit = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
     application_fee = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+
+    broker_fee = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    landlord_approval_required = models.BooleanField(default=False)
+    original_lease_holder = models.CharField(max_length=200, blank=True)
+    documentation_type = models.CharField(max_length=20, choices=LISTING_DOCUMENTATION_TYPE_CHOICES, blank=True)
+    no_stairs = models.BooleanField(default=False)
 
     utilities_included = models.TextField(blank=True, help_text="List included utilities (e.g. WiFi, Water)")
     pet_policy = models.TextField(blank=True)
@@ -286,6 +301,14 @@ class Listing(models.Model):
             models.CheckConstraint(
                 condition=Q(distance_to_campus__isnull=True) | Q(distance_to_campus__gte=0),
                 name="listing_distance_to_campus_gte_zero",
+            ),
+            models.CheckConstraint(
+                condition=Q(broker_fee__isnull=True) | Q(broker_fee__gte=0),
+                name="listing_broker_fee_gte_zero",
+            ),
+            models.CheckConstraint(
+                condition=Q(documentation_type="") | Q(documentation_type__in=LISTING_DOCUMENTATION_TYPE_VALUES),
+                name="listing_documentation_type_valid",
             ),
             models.CheckConstraint(
                 condition=Q(lease_type__in=LISTING_LEASE_TYPE_VALUES),

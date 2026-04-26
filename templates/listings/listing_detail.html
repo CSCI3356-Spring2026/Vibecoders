@@ -285,6 +285,18 @@
                                 <span>Lease type</span>
                                 <strong>{{ listing.get_lease_type_display }}</strong>
                             </div>
+                            {% if listing.original_lease_holder %}
+                                <div class="listing-detail-data-row">
+                                    <span>Original lease holder</span>
+                                    <strong>{{ listing.original_lease_holder }}</strong>
+                                </div>
+                            {% endif %}
+                            {% if listing.documentation_type %}
+                                <div class="listing-detail-data-row">
+                                    <span>Documentation type</span>
+                                    <strong>{{ listing.get_documentation_type_display }}</strong>
+                                </div>
+                            {% endif %}
                             {% if commute_distance_miles %}
                                 <div class="listing-detail-data-row">
                                     <span>Distance to campus</span>
@@ -379,6 +391,12 @@
                                     <strong>${{ listing.application_fee|floatformat:0 }}</strong>
                                 </div>
                             {% endif %}
+                            {% if listing.broker_fee %}
+                                <div class="listing-detail-data-row">
+                                    <span>Broker fee</span>
+                                    <strong>${{ listing.broker_fee|floatformat:0 }}</strong>
+                                </div>
+                            {% endif %}
                             {% if listing.utilities_estimate or listing.parking_fee %}
                                 <div class="listing-detail-data-row is-emphasis">
                                     <span>Estimated monthly total</span>
@@ -426,6 +444,16 @@
                             {% else %}
                                 <p class="listing-detail-panel-copy">No amenities listed.</p>
                             {% endif %}
+                        </div>
+                        <div class="listing-detail-amenities-column">
+                            <h3 class="listing-detail-subheading">Accessibility &amp; lease terms</h3>
+                            <div class="listing-detail-pill-list">
+                                {% if listing.no_stairs %}<span class="listing-detail-pill">No stairs / step-free</span>{% endif %}
+                                {% if listing.landlord_approval_required %}<span class="listing-detail-pill">Landlord approval required</span>{% endif %}
+                                {% if not listing.no_stairs and not listing.landlord_approval_required %}
+                                    <p class="listing-detail-panel-copy">None specified.</p>
+                                {% endif %}
+                            </div>
                         </div>
                         <div class="listing-detail-amenities-column">
                             <h3 class="listing-detail-subheading">Security features</h3>
