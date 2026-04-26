@@ -1857,7 +1857,11 @@ const localStorage = {{
     }},
 }};
 
-globalThis.navigator = {{ onLine: true }};
+Object.defineProperty(globalThis, "navigator", {{
+    configurable: true,
+    writable: true,
+    value: {{ onLine: true }},
+}});
 globalThis.window = {{
     localStorage,
     location: {{ pathname: "/listings/create/" }},
