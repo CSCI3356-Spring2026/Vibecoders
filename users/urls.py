@@ -9,6 +9,7 @@ urlpatterns = [
     path("profile/", views.profile, name="profile"),
     path("profile/setup/", views.profile_setup, name="profile_setup"),
     path("dashboard/", views.dashboard, name="dashboard"),
+    path("dashboard/warning/acknowledge/", views.acknowledge_warning, name="acknowledge_warning"),
     path("admin-dashboard/", admin_views.admin_dashboard, name="admin_dashboard"),
     path("admin-listings/", admin_views.admin_listings, name="admin_listings"),
     path("admin-listings/<int:listing_id>/", admin_views.admin_listing_detail, name="admin_listing_detail"),
@@ -17,6 +18,12 @@ urlpatterns = [
     path("admin-listings/<int:listing_id>/delete/", admin_views.admin_delete_listing, name="admin_delete_listing"),
     path("admin-reports/", admin_views.admin_reports, name="admin_reports"),
     path("admin-reports/<int:report_id>/status/", admin_views.admin_update_report, name="admin_update_report"),
+    path("admin-user-reports/", admin_views.admin_user_reports, name="admin_user_reports"),
+    path(
+        "admin-user-reports/<int:report_id>/status/",
+        admin_views.admin_update_user_report,
+        name="admin_update_user_report",
+    ),
     path("admin-users/", admin_views.admin_users, name="admin_users"),
     path("admin-users/<int:user_id>/", admin_views.admin_user_detail, name="admin_user_detail"),
     path(
@@ -47,4 +54,5 @@ urlpatterns = [
     path("group-invite/<int:invite_id>/accept/", views.accept_group_invite, name="accept_group_invite"),
     path("group-invite/<int:invite_id>/decline/", views.decline_group_invite, name="decline_group_invite"),
     path("profile/<int:user_id>/", views.public_profile, name="public_profile"),
+    path("profile/<int:user_id>/report/", views.report_user, name="report_user"),
 ]

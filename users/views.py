@@ -5,11 +5,11 @@ from urllib.parse import urlencode
 from allauth.socialaccount.providers.google import views as google_views
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import logout
+from django.contrib.auth import get_user_model, logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.db.models import Count, Q
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.http import content_disposition_header
@@ -26,15 +26,22 @@ from core.utils import get_page, preserved_query_suffix, safe_next_url
 from listings.selectors import with_feedback_summary
 from roommates import views as roommate_views
 
-from .account_lifecycle import anonymize_and_deactivate_user
+from .account_lifecycle import acknowledge_user_warning, anonymize_and_deactivate_user
 from .admin_state import may_delete
 from .audit import record_audit_event
-from .forms import AdminProfileForm, AvatarUploadForm, GoogleLoginAcceptanceForm, StudentProfileForm, UserFileUploadForm
+from .forms import (
+    AdminProfileForm,
+    AvatarUploadForm,
+    GoogleLoginAcceptanceForm,
+    StudentProfileForm,
+    UserFileUploadForm,
+    UserReportForm,
+)
 from .legal import (
     is_legal_review_required,
     set_pending_legal_acceptance,
 )
-from .models import AdminProfile, CustomUser, Role, StudentProfile, UserFile
+from .models import AdminProfile, CustomUser, Role, StudentProfile, UserFile, UserReport
 from .permissions import can_access_private_user_file
 from .profile_integrity import mark_profile_completed_now, profile_satisfies_completion_requirements
 from .selectors import (
@@ -49,6 +56,7 @@ FAVORITE_PEOPLE_PER_PAGE = 12
 ROOMMATE_RESULTS_PER_PAGE = 12
 LOGIN_RATE_LIMIT_ERROR = "Too many sign-in attempts. Wait a few minutes and try again."
 FILE_UPLOAD_RATE_LIMIT_ERROR = "Too many file uploads in a short time. Wait a few minutes and try again."
+USER_REPORT_RATE_LIMIT_ERROR = "Too many user reports were sent in a short time. Wait a bit and try again."
 LIFESTYLE_MATCH_STRONG = "lifestyle-match-strong"
 LIFESTYLE_MATCH_GOOD = "lifestyle-match-good"
 LIFESTYLE_MATCH_MID = "lifestyle-match-mid"
@@ -75,6 +83,34 @@ def _consume_user_file_upload_rate_limit(user):
         identifier=str(user_id),
         limit=getattr(settings, "USER_FILE_UPLOAD_RATE_LIMIT", 25),
         window_seconds=getattr(settings, "USER_FILE_UPLOAD_RATE_WINDOW_SECONDS", 300),
+    )
+
+
+def _consume_user_report_rate_limit(user):
+    user_id = getattr(user, "id", None)
+    if not user_id:
+        return False
+
+    return consume_rate_limit(
+        scope="user-report",
+        identifier=str(user_id),
+        limit=getattr(settings, "USER_REPORT_RATE_LIMIT", 10),
+        window_seconds=getattr(settings, "USER_REPORT_RATE_WINDOW_SECONDS", 3600),
+    )
+
+
+def _report_user_redirect(user_id):
+    return redirect(f"{reverse('users:public_profile', args=[user_id])}#profile-safety")
+
+
+def _can_report_user(user, target_user):
+    return (
+        getattr(user, "is_authenticated", False)
+        and getattr(user, "is_student", False)
+        and getattr(target_user, "is_student", False)
+        and getattr(target_user, "is_active", False)
+        and getattr(target_user, "profile_completed_at", None) is not None
+        and getattr(user, "id", None) != getattr(target_user, "id", None)
     )
 
 
@@ -276,6 +312,8 @@ def _dashboard_context(user):
     recent_favorite_people = list(favorited_people_queryset(user)[:5]) if getattr(user, "is_student", False) else []
     return {
         **_workspace_summary(user),
+        "active_warning_message": user.active_warning_message if user.has_active_warning else "",
+        "active_warning_issued_at": user.active_warning_issued_at if user.has_active_warning else None,
         "recent_listings": user.listings.with_related()[:3],
         "recent_files": user.files.all()[:5],
         "recent_conversations": recent_conversations,
@@ -286,6 +324,15 @@ def _dashboard_context(user):
 @login_required
 def dashboard(request):
     return render(request, "users/dashboard.html", _dashboard_context(request.user))
+
+
+@login_required
+@require_POST
+def acknowledge_warning(request):
+    if request.user.has_active_warning:
+        acknowledge_user_warning(request.user)
+        messages.success(request, "Warning acknowledged.")
+    return redirect("users:dashboard")
 
 
 @login_required
@@ -512,6 +559,51 @@ def browse_roommates(request):
 @require_GET
 def public_profile(request, user_id):
     return roommate_views.public_profile(request, user_id)
+
+
+@login_required
+@require_POST
+def report_user(request, user_id):
+    user_model = get_user_model()
+    target = get_object_or_404(
+        user_model,
+        id=user_id,
+        role=Role.STUDENT,
+        is_active=True,
+        profile_completed_at__isnull=False,
+        roommate_access_restricted_at__isnull=True,
+    )
+    if not _can_report_user(request.user, target):
+        return HttpResponseForbidden("Only student users can report other student roommate profiles.")
+    if not _consume_user_report_rate_limit(request.user):
+        messages.error(request, USER_REPORT_RATE_LIMIT_ERROR)
+        return _report_user_redirect(target.id)
+
+    existing_report = UserReport.objects.filter(
+        reported_user=target,
+        reporter=request.user,
+        status__in=[UserReport.STATUS_OPEN, UserReport.STATUS_IN_REVIEW],
+    ).first()
+    if existing_report is not None:
+        messages.info(request, "You already have an active report for this user.")
+        return _report_user_redirect(target.id)
+
+    form = UserReportForm(request.POST)
+    if form.is_valid():
+        report = form.save(commit=False)
+        report.reported_user = target
+        report.reporter = request.user
+        report.save()
+        messages.success(request, "The user has been reported for admin review.")
+    else:
+        messages.error(
+            request,
+            next(
+                (errors[0] for errors in form.errors.values() if errors),
+                "Add enough detail for the admin team to review this report.",
+            ),
+        )
+    return _report_user_redirect(target.id)
 
 
 @login_required

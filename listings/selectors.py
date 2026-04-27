@@ -146,6 +146,8 @@ def roommate_group_post_for_user(user):
 def active_roommate_post_for_user(user):
     if not getattr(user, "is_authenticated", False):
         return None
+    if getattr(user, "roommate_access_restricted_at", None) is not None:
+        return None
     return RoommatePost.objects.active().filter(Q(author=user) | Q(group__lead=user)).first()
 
 
@@ -175,7 +177,10 @@ def filtered_roommate_posts_queryset(
     open_spots_min=None,
     people_in_group=None,
 ):
-    queryset = RoommatePost.objects.active()
+    queryset = RoommatePost.objects.active().filter(
+        author__roommate_access_restricted_at__isnull=True,
+        group__lead__roommate_access_restricted_at__isnull=True,
+    )
     if getattr(user, "is_authenticated", False):
         queryset = queryset.exclude(Q(author=user) | Q(group__lead=user))
 

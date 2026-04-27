@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Reports & Issues | {{ site_product_name }}{% endblock %}
+{% block title %}User Reports | {{ site_product_name }}{% endblock %}
 
 {% block extra_css %}
     <link rel="stylesheet" href="{% static 'css/admin.css' %}">
@@ -14,17 +14,17 @@
             <div class="admin-header listing-panel">
                 <div>
                     <p class="app-kicker">Staff Workspace</p>
-                    <h1 class="app-title">Reports &amp; Issues</h1>
-                    <p class="app-subtitle">Listing reports and resolutions.</p>
+                    <h1 class="app-title">User Reports</h1>
+                    <p class="app-subtitle">Reported roommate profiles and moderation decisions.</p>
                 </div>
                 <div class="admin-header-meta">
-                    <a class="btn btn-outline-secondary" href="{% url 'users:admin_user_reports' %}">User reports</a>
+                    <a class="btn btn-outline-secondary" href="{% url 'users:admin_reports' %}">Listing reports</a>
                     <a class="btn btn-outline-secondary" href="{% url 'users:admin_dashboard' %}">Back to dashboard</a>
                 </div>
             </div>
 
             <div class="app-layout">
-                {% include "includes/admin_sidebar.html" with active_section="reports" %}
+                {% include "includes/admin_sidebar.html" with active_section="user_reports" %}
 
                 <div class="app-main">
                     <div class="admin-stat-grid admin-stat-grid-compact">
@@ -41,8 +41,8 @@
                             <span class="admin-stat-value">{{ closed_reports }}</span>
                         </div>
                         <div class="admin-stat-card admin-stat-card-warm">
-                            <span class="admin-stat-label">Listings Affected</span>
-                            <span class="admin-stat-value">{{ affected_listings }}</span>
+                            <span class="admin-stat-label">Users Affected</span>
+                            <span class="admin-stat-value">{{ affected_users }}</span>
                         </div>
                     </div>
 
@@ -69,7 +69,7 @@
 
                     <div class="listing-panel admin-table">
                         <div class="admin-table-head">
-                            <h2 class="app-section-heading">Listing reports</h2>
+                            <h2 class="app-section-heading">User reports</h2>
                             <span class="admin-table-count">{{ reports_total }} results</span>
                         </div>
 
@@ -87,8 +87,8 @@
                                                 </div>
                                                 <div class="admin-list-meta">{{ report.created_at|date:"M d, Y · P" }}</div>
                                             </div>
-                                            <div class="admin-list-title">{{ report.listing.title }}</div>
-                                            <div class="admin-list-meta">{{ report.listing.address }}</div>
+                                            <div class="admin-list-title">{{ report.reported_user.display_name }}</div>
+                                            <div class="admin-list-meta">{{ report.reported_user.email }}</div>
                                             <div class="admin-report-metadata">
                                                 <div>
                                                     <span>Reported by</span>
@@ -96,9 +96,9 @@
                                                     <small>{{ report.reporter.email }}</small>
                                                 </div>
                                                 <div>
-                                                    <span>Listing owner</span>
-                                                    <strong>{{ report.listing.owner.display_name }}</strong>
-                                                    <small>{{ report.listing.owner.email }}</small>
+                                                    <span>Reported user</span>
+                                                    <strong>{{ report.reported_user.display_name }}</strong>
+                                                    <small>{{ report.reported_user.email }}</small>
                                                 </div>
                                                 <div>
                                                     <span>Last reviewed</span>
@@ -127,19 +127,21 @@
                                                             {% endif %}
                                                         </div>
                                                     {% endfor %}
-                                                    {% if report.ui_has_more_updates %}
-                                                        <div class="admin-list-meta">Open the listing to review the full report timeline.</div>
-                                                    {% endif %}
                                                 </div>
                                             {% endif %}
                                         </div>
-                                        <form method="post" action="{% url 'users:admin_update_report' report.id %}" class="admin-report-form">
+                                        <form method="post" action="{% url 'users:admin_update_user_report' report.id %}" class="admin-report-form">
                                             {% csrf_token %}
                                             <input type="hidden" name="next" value="{{ report.ui_next }}">
                                             <label class="form-label fw-semibold" for="{{ report.ui_form.status.id_for_label }}">{{ report.ui_form.status.label }}</label>
                                             {{ report.ui_form.status }}
-                                            <div class="admin-form-hint"><code>Resolved</code> removes the listing from the marketplace. <code>Dismissed</code> closes the report only.</div>
                                             {% for error in report.ui_form.status.errors %}
+                                                <div class="app-field-error">{{ error }}</div>
+                                            {% endfor %}
+                                            <label class="form-label fw-semibold" for="{{ report.ui_form.enforcement_action.id_for_label }}">{{ report.ui_form.enforcement_action.label }}</label>
+                                            {{ report.ui_form.enforcement_action }}
+                                            <div class="admin-form-hint"><code>Warn</code> records a staff warning. <code>Restrict roommate access</code> hides the profile from roommate features. <code>Deactivate</code> disables the account.</div>
+                                            {% for error in report.ui_form.enforcement_action.errors %}
                                                 <div class="app-field-error">{{ error }}</div>
                                             {% endfor %}
                                             <label class="form-label fw-semibold" for="{{ report.ui_form.resolution_notes.id_for_label }}">{{ report.ui_form.resolution_notes.label }}</label>
@@ -149,7 +151,7 @@
                                             {% endfor %}
                                             <div class="admin-user-actions">
                                                 <button class="btn btn-brand btn-sm" type="submit">Save decision</button>
-                                                <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:admin_listing_detail' report.listing.id %}">Open listing</a>
+                                                <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:admin_user_detail' report.reported_user.id %}">Open user</a>
                                             </div>
                                         </form>
                                     </div>
@@ -157,7 +159,7 @@
                             </div>
                             {% include "includes/pagination.html" with page_obj=reports pagination_query=pagination_query %}
                         {% else %}
-                            <p class="app-panel-copy mb-0">No reports match the current filters.</p>
+                            <p class="app-panel-copy mb-0">No user reports match the current filters.</p>
                         {% endif %}
                     </div>
                 </div>

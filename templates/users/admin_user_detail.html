@@ -66,6 +66,15 @@
                                     <strong class="admin-priority-count">{{ managed_user.deactivation_reason|default:"No reason" }}</strong>
                                 </div>
                             {% endif %}
+                            {% if managed_user.roommate_access_restricted_at %}
+                                <div class="admin-priority-item">
+                                    <div>
+                                        <div class="admin-priority-title">Roommate Access Restricted</div>
+                                        <div class="admin-list-meta">{{ managed_user.roommate_access_restricted_at|date:"M d, Y" }}</div>
+                                    </div>
+                                    <strong class="admin-priority-count">{{ managed_user.roommate_access_restriction_reason|default:"No reason" }}</strong>
+                                </div>
+                            {% endif %}
                             {% if managed_user.deleted_at %}
                                 <div class="admin-priority-item">
                                     <div>

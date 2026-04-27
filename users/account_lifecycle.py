@@ -56,6 +56,90 @@ def reactivate_user(user, *, actor=None, reason=""):
     )
 
 
+def restrict_roommate_access(user, *, actor=None, reason=""):
+    user = _resolve_user_instance(user)
+    actor = _resolve_user_instance(actor)
+    timestamp = timezone.now()
+    user.roommate_access_restricted_at = timestamp
+    user.roommate_access_restricted_by = actor
+    user.roommate_access_restriction_reason = reason
+    user.save(
+        update_fields=[
+            "roommate_access_restricted_at",
+            "roommate_access_restricted_by",
+            "roommate_access_restriction_reason",
+        ]
+    )
+    record_audit_event(
+        action="user.roommate_access_restricted",
+        actor=actor,
+        target=user,
+        reason=reason,
+    )
+    return timestamp
+
+
+def restore_roommate_access(user, *, actor=None, reason=""):
+    user = _resolve_user_instance(user)
+    actor = _resolve_user_instance(actor)
+    user.roommate_access_restricted_at = None
+    user.roommate_access_restricted_by = None
+    user.roommate_access_restriction_reason = ""
+    user.save(
+        update_fields=[
+            "roommate_access_restricted_at",
+            "roommate_access_restricted_by",
+            "roommate_access_restriction_reason",
+        ]
+    )
+    record_audit_event(
+        action="user.roommate_access_restored",
+        actor=actor,
+        target=user,
+        reason=reason,
+    )
+
+
+def issue_user_warning(user, *, actor=None, message=""):
+    user = _resolve_user_instance(user)
+    actor = _resolve_user_instance(actor)
+    timestamp = timezone.now()
+    warning_message = (message or "").strip()
+    user.active_warning_message = warning_message
+    user.active_warning_issued_at = timestamp
+    user.active_warning_issued_by = actor
+    user.active_warning_acknowledged_at = None
+    user.save(
+        update_fields=[
+            "active_warning_message",
+            "active_warning_issued_at",
+            "active_warning_issued_by",
+            "active_warning_acknowledged_at",
+        ]
+    )
+    record_audit_event(
+        action="user.warned",
+        actor=actor,
+        target=user,
+        reason=warning_message,
+    )
+    return timestamp
+
+
+def acknowledge_user_warning(user):
+    user = _resolve_user_instance(user)
+    timestamp = timezone.now()
+    user.active_warning_acknowledged_at = timestamp
+    user.save(update_fields=["active_warning_acknowledged_at"])
+    record_audit_event(
+        action="user.warning_acknowledged",
+        actor=user,
+        target=user,
+        reason=user.active_warning_message,
+    )
+    return timestamp
+
+
 def anonymize_and_deactivate_user(user, *, actor=None, reason="Account deletion request"):
     user = _resolve_user_instance(user)
     actor = _resolve_user_instance(actor)

@@ -9,7 +9,7 @@ from django.test.client import RequestFactory
 from django.utils import timezone
 
 from ..legal import LEGAL_ACCEPTANCE_SESSION_KEY, set_pending_legal_acceptance
-from ..models import AdminProfile, Role, StudentProfile
+from ..models import AdminProfile, Role, StudentProfile, UserReport
 from ..session_security import RECENT_AUTH_SESSION_KEY, get_recent_auth_at
 from .helpers import User, add_middleware
 
@@ -102,6 +102,27 @@ class CustomUserModelTests(TestCase):
 
         self.assertTrue(user.can_browse_marketplace)
         self.assertTrue(user.can_start_listing_conversations)
+
+    def test_roommate_access_restriction_disables_roommate_matching(self):
+        user = User.objects.create_user(username="restricted", email="restricted@bc.edu", password="test")
+        user.profile_completed_at = timezone.now()
+        user.roommate_access_restricted_at = timezone.now()
+        user.save(update_fields=["profile_completed_at", "roommate_access_restricted_at"])
+
+        self.assertFalse(user.can_use_roommate_matching)
+
+    def test_active_warning_property_requires_unacknowledged_warning(self):
+        user = User.objects.create_user(username="warned", email="warned@bc.edu", password="test")
+        user.active_warning_message = "Warning"
+        user.active_warning_issued_at = timezone.now()
+        user.save(update_fields=["active_warning_message", "active_warning_issued_at"])
+
+        self.assertTrue(user.has_active_warning)
+
+        user.active_warning_acknowledged_at = timezone.now()
+        user.save(update_fields=["active_warning_acknowledged_at"])
+
+        self.assertFalse(user.has_active_warning)
 
     def test_moderator_permissions_are_scoped_to_moderation_work(self):
         user = User.objects.create_user(username="mod", email="mod@bc.edu", password="test", role=Role.MODERATOR)
@@ -218,6 +239,54 @@ class CustomUserModelTests(TestCase):
 
         with self.assertRaises(IntegrityError):
             User.objects.filter(pk=user.pk).update(role="broken")
+
+    def test_student_can_create_user_report_for_other_student(self):
+        reporter = User.objects.create_user(username="reporter", email="reporter@bc.edu", password="test")
+        reported_user = User.objects.create_user(username="target", email="target@bc.edu", password="test")
+        reporter.profile_completed_at = timezone.now()
+        reported_user.profile_completed_at = timezone.now()
+        reporter.save(update_fields=["profile_completed_at"])
+        reported_user.save(update_fields=["profile_completed_at"])
+
+        report = UserReport.objects.create(
+            reported_user=reported_user,
+            reporter=reporter,
+            reason=UserReport.REASON_SAFETY,
+            details="Shared threatening messages.",
+        )
+
+        self.assertEqual(report.status, UserReport.STATUS_OPEN)
+
+    def test_user_report_rejects_self_reporting(self):
+        reporter = User.objects.create_user(username="self-report", email="self-report@bc.edu", password="test")
+        reporter.profile_completed_at = timezone.now()
+        reporter.save(update_fields=["profile_completed_at"])
+
+        report = UserReport(
+            reported_user=reporter,
+            reporter=reporter,
+            reason=UserReport.REASON_OTHER,
+            details="test",
+        )
+
+        with self.assertRaises(ValidationError):
+            report.full_clean()
+
+    def test_user_report_rejects_non_student_reporters(self):
+        reporter = User.objects.create_user(username="agent", email="agent@gmail.com", password="test")
+        reported_user = User.objects.create_user(username="target-two", email="target-two@bc.edu", password="test")
+        reported_user.profile_completed_at = timezone.now()
+        reported_user.save(update_fields=["profile_completed_at"])
+
+        report = UserReport(
+            reported_user=reported_user,
+            reporter=reporter,
+            reason=UserReport.REASON_SCAM,
+            details="Suspicious profile.",
+        )
+
+        with self.assertRaises(ValidationError):
+            report.full_clean()
 
     def test_student_and_admin_profiles_are_created_for_matching_roles(self):
         student = User.objects.create_user(username="stu", email="stu@bc.edu", password="test")
