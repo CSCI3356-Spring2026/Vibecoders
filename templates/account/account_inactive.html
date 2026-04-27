@@ -1,0 +1,19 @@
+{% extends "auth/base.html" %}
+
+{% block title %}Account Inactive | {{ site_product_name }}{% endblock %}
+
+{% block auth_panel %}
+    <div class="auth-minimal">
+        <div class="auth-minimal-head">
+            <p class="auth-eyebrow">Account access</p>
+            <h1 class="auth-title">Account inactive</h1>
+            <p class="auth-copy">This account is inactive. Sign in with an active account to continue.</p>
+        </div>
+        <div class="auth-actions">
+            <a class="auth-google-btn" href="{% url 'users:login' %}">
+                <span class="auth-google-mark">{% include "auth/google_mark.html" %}</span>
+                <span>Return to sign in</span>
+            </a>
+        </div>
+    </div>
+{% endblock %}

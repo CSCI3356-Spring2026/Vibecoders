@@ -8,15 +8,15 @@
 {% endblock %}
 
 {% block content %}
-<section class="app-page">
+<section class="app-page files-page">
     <div class="container">
         <div class="app-shell">
-            <div class="listing-panel app-header">
+            <div class="app-header app-header-shell files-header">
                 <div class="app-header-main">
                     <div>
-                        <p class="listing-hero-eyebrow mb-2">Documents</p>
-                        <h1 class="listing-hero-title app-title">Documents</h1>
-                        <p class="listing-hero-subtitle app-subtitle">Private account files.</p>
+                        <p class="app-kicker">Documents</p>
+                        <h1 class="app-title">Documents</h1>
+                        <p class="app-subtitle">Private account files.</p>
                     </div>
                     {% if selected_file %}
                         <div class="app-actions">
@@ -36,7 +36,7 @@
                 <div class="listing-panel">
                     <div class="app-panel-head">
                         <div>
-                            <h2 class="app-section-heading mb-0">Library</h2>
+                            <h2 class="app-section-heading files-panel-heading">Library</h2>
                             <p class="app-panel-copy">Upload and manage files.</p>
                         </div>
                     </div>
@@ -46,18 +46,18 @@
                             {% csrf_token %}
                             {{ form.non_field_errors }}
                             <div>
-                                <label class="form-label fw-semibold" for="id_title">Title</label>
+                                <label class="form-label files-form-label" for="id_title">Title</label>
                                 <div class="app-field-note">Optional. Defaults to filename.</div>
                                 {{ form.title }}
                                 {{ form.title.errors }}
                             </div>
                             <div>
-                                <label class="form-label fw-semibold" for="id_file">File</label>
+                                <label class="form-label files-form-label" for="id_file">File</label>
                                 <div class="app-field-note">PDF, JPG, PNG, or WebP files up to 10 MB.</div>
                                 {{ form.file }}
                                 {{ form.file.errors }}
                             </div>
-                            <button class="btn btn-brand w-100" type="submit">Upload</button>
+                            <button class="btn btn-brand files-upload-button" type="submit">Upload</button>
                         </form>
 
                         <form method="get" class="files-search" role="search">
@@ -104,7 +104,7 @@
                 <div class="listing-panel">
                     <div class="app-panel-head">
                         <div>
-                            <h2 class="app-section-heading mb-0">Preview</h2>
+                            <h2 class="app-section-heading files-panel-heading">Preview</h2>
                             <p class="app-panel-copy">Selected file</p>
                         </div>
                     </div>

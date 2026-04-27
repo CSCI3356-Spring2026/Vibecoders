@@ -1,3 +1,7 @@
+.profile-setup-page .container {
+    width: min(calc(100% - var(--site-frame-gutter)), 1120px);
+}
+
 .profile-setup-shell {
     gap: 1rem;
 }
@@ -8,8 +12,42 @@
 
 .profile-form-shell {
     display: grid;
-    gap: 1.4rem;
-    padding: 1.35rem;
+    gap: 1.15rem;
+    padding: 1.2rem;
+}
+
+.profile-photo-panel {
+    display: grid;
+    gap: 1rem;
+    padding: 1.15rem;
+}
+
+.profile-avatar-row {
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.profile-avatar-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    min-width: min(18rem, 100%);
+}
+
+.profile-avatar-upload {
+    width: fit-content;
+    margin: 0;
+    cursor: pointer;
+}
+
+.profile-avatar-note {
+    margin: 0;
+    font-size: 0.78rem;
+}
+
+.profile-avatar-file-input {
+    display: none;
 }
 
 .profile-form-section {
@@ -63,7 +101,7 @@
 
 .profile-scale-grid {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(8.25rem, 1fr));
     gap: 0.6rem;
 }
 
@@ -71,7 +109,7 @@
     position: relative;
     display: grid;
     gap: 0.32rem;
-    min-height: 6rem;
+    min-height: 5.35rem;
     padding: 0.85rem 0.8rem;
     border: 1px solid rgba(var(--gray-300-rgb), 0.72);
     border-radius: var(--radius-md);
@@ -140,6 +178,7 @@
 .profile-toggle-grid {
     display: grid;
     gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
 }
 
 .profile-toggle-card {
@@ -212,6 +251,7 @@
 
 .profile-form-actions {
     margin-top: 0.2rem;
+    justify-content: flex-end;
 }
 
 .profile-other-field.is-hidden {
@@ -221,6 +261,16 @@
 @media (max-width: 767px) {
     .profile-form-shell {
         padding: 1rem;
+    }
+
+    .profile-photo-panel {
+        padding: 1rem;
+    }
+
+    .profile-avatar-form,
+    .profile-avatar-upload,
+    .profile-form-actions .btn {
+        width: 100%;
     }
 
     .profile-form-grid-two,
