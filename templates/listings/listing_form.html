@@ -13,7 +13,12 @@
 {% block content %}
 <section class="app-page listing-wizard-page">
     <div class="container">
-        <form method="post" enctype="multipart/form-data" class="listing-wizard" data-listing-form-wizard>
+        <form method="post"
+              enctype="multipart/form-data"
+              class="listing-wizard"
+              data-listing-form-wizard
+              data-draft-storage-key="{{ request.path }}"
+              data-form-has-errors="{{ form.errors|yesno:'true,false' }}">
             {% csrf_token %}
             {{ form.verified_address_token }}
 
@@ -32,6 +37,18 @@
                     </div>
                     <a class="btn btn-outline-secondary" href="{% url back_url_name %}">Back to {{ back_label }}</a>
                 </div>
+            </div>
+
+            <div class="listing-panel listing-wizard-draft-card" data-listing-draft-card hidden>
+                <div class="listing-wizard-draft-head">
+                    <div>
+                        <p class="listing-wizard-draft-kicker">Draft recovery</p>
+                        <p class="listing-wizard-draft-message" data-listing-draft-message aria-live="polite"></p>
+                    </div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-listing-draft-clear hidden>Discard saved draft</button>
+                </div>
+                <p class="listing-wizard-draft-detail" data-listing-draft-detail></p>
+                <p class="listing-wizard-draft-note">Photo uploads are not stored locally. Re-select them before submitting if the page reloads or you go offline.</p>
             </div>
 
             {% if form.errors %}
@@ -161,6 +178,9 @@
                             {% include "listings/includes/form_field.html" with field=form.security_deposit %}
                             {% include "listings/includes/form_field.html" with field=form.application_fee %}
                         </div>
+                        <div class="listing-wizard-grid listing-wizard-grid-3">
+                            {% include "listings/includes/form_field.html" with field=form.broker_fee %}
+                        </div>
                     </section>
 
                     <section class="listing-panel listing-wizard-panel" data-step-panel="2" data-step-title="Home details" data-step-subtitle="Type, beds, baths." data-step-complete-fields="property_type,rooms,bathrooms">
@@ -197,6 +217,18 @@
                                     <span class="listing-wizard-choice-title">Furnished</span>
                                 </span>
                             </label>
+                            <label class="listing-wizard-choice" for="{{ form.no_stairs.id_for_label }}">
+                                {{ form.no_stairs }}
+                                <span class="listing-wizard-choice-copy">
+                                    <span class="listing-wizard-choice-title">No stairs</span>
+                                </span>
+                            </label>
+                            <label class="listing-wizard-choice" for="{{ form.landlord_approval_required.id_for_label }}">
+                                {{ form.landlord_approval_required }}
+                                <span class="listing-wizard-choice-copy">
+                                    <span class="listing-wizard-choice-title">Landlord approval required</span>
+                                </span>
+                            </label>
                         </div>
                     </section>
 
@@ -228,6 +260,10 @@
                         </div>
                         <div class="listing-wizard-grid listing-wizard-grid-1">
                             {% include "listings/includes/form_field.html" with field=form.amenities %}
+                        </div>
+                        <div class="listing-wizard-grid listing-wizard-grid-2">
+                            {% include "listings/includes/form_field.html" with field=form.documentation_type %}
+                            {% include "listings/includes/form_field.html" with field=form.original_lease_holder %}
                         </div>
                     </section>
 

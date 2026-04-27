@@ -146,6 +146,36 @@
                 </main>
 
                 <aside class="profile-public-side">
+                    {% if request.user.id != target.id %}
+                        <section class="profile-public-panel" id="profile-safety">
+                            <div class="profile-public-panel-head">
+                                <div>
+                                    <p class="profile-public-panel-kicker">Safety</p>
+                                    <h2 class="app-section-heading">Report this user</h2>
+                                </div>
+                            </div>
+
+                            {% if active_user_report %}
+                                <p class="profile-public-empty-copy">You already have an active report open for this user.</p>
+                            {% elif user_report_form %}
+                                <form method="post" action="{% url 'users:report_user' target.id %}">
+                                    {% csrf_token %}
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold" for="{{ user_report_form.reason.id_for_label }}">{{ user_report_form.reason.label }}</label>
+                                        {{ user_report_form.reason }}
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label fw-semibold" for="{{ user_report_form.details.id_for_label }}">{{ user_report_form.details.label }}</label>
+                                        {{ user_report_form.details }}
+                                    </div>
+                                    <div class="app-actions">
+                                        <button class="btn btn-outline-secondary" type="submit">Submit report</button>
+                                    </div>
+                                </form>
+                            {% endif %}
+                        </section>
+                    {% endif %}
+
                     <section class="profile-public-panel">
                         <div class="profile-public-panel-head">
                             <div>

@@ -34,7 +34,7 @@
                         <a class="admin-command-link" href="{% url 'users:admin_reports' %}">
                             <span class="admin-command-link-label">Incident Desk</span>
                             <strong class="admin-command-link-value">{{ active_incidents }}</strong>
-                            <span class="admin-command-link-meta">Open and in-review reports</span>
+                            <span class="admin-command-link-meta">Listing and user reports needing review</span>
                         </a>
                         <a class="admin-command-link" href="{% url 'users:admin_users' %}">
                             <span class="admin-command-link-label">User Desk</span>
@@ -194,17 +194,31 @@
                                     </a>
                                     <a class="admin-priority-item" href="{% url 'users:admin_reports' %}?status=open">
                                         <div>
-                                            <div class="admin-priority-title">Open reports</div>
-                                            <div class="admin-list-meta">New incidents not yet triaged</div>
+                                            <div class="admin-priority-title">Open listing reports</div>
+                                            <div class="admin-list-meta">New listing incidents not yet triaged</div>
                                         </div>
                                         <strong class="admin-priority-count">{{ open_reports }}</strong>
                                     </a>
                                     <a class="admin-priority-item" href="{% url 'users:admin_reports' %}?status=in_review">
                                         <div>
-                                            <div class="admin-priority-title">Reports in review</div>
-                                            <div class="admin-list-meta">Cases currently being worked</div>
+                                            <div class="admin-priority-title">Listing reports in review</div>
+                                            <div class="admin-list-meta">Listing cases currently being worked</div>
                                         </div>
                                         <strong class="admin-priority-count">{{ reports_in_review }}</strong>
+                                    </a>
+                                    <a class="admin-priority-item" href="{% url 'users:admin_user_reports' %}?status=open">
+                                        <div>
+                                            <div class="admin-priority-title">Open user reports</div>
+                                            <div class="admin-list-meta">Reported accounts awaiting triage</div>
+                                        </div>
+                                        <strong class="admin-priority-count">{{ open_user_reports }}</strong>
+                                    </a>
+                                    <a class="admin-priority-item" href="{% url 'users:admin_user_reports' %}?status=in_review">
+                                        <div>
+                                            <div class="admin-priority-title">User reports in review</div>
+                                            <div class="admin-list-meta">Account incidents currently being worked</div>
+                                        </div>
+                                        <strong class="admin-priority-count">{{ user_reports_in_review }}</strong>
                                     </a>
                                     <a class="admin-priority-item" href="{% url 'users:admin_users' %}?active=inactive">
                                         <div>
@@ -238,6 +252,31 @@
                                     </div>
                                 {% else %}
                                     <p class="app-panel-copy mb-0">No open incidents right now.</p>
+                                {% endif %}
+                            </section>
+
+                            <section class="listing-panel admin-feed-panel">
+                                <div class="admin-table-head">
+                                    <div>
+                                        <p class="admin-panel-kicker">Accounts</p>
+                                        <h2 class="app-section-heading">Recent user reports</h2>
+                                    </div>
+                                    <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:admin_user_reports' %}">Open desk</a>
+                                </div>
+                                {% if recent_user_reports %}
+                                    <div class="admin-feed-list">
+                                        {% for report in recent_user_reports %}
+                                            <a class="admin-feed-item" href="{% url 'users:admin_user_detail' report.reported_user.id %}">
+                                                <div class="admin-feed-copy">
+                                                    <div class="admin-feed-title">{{ report.reported_user.display_name }}</div>
+                                                    <div class="admin-feed-meta">{{ report.get_reason_display }} · {{ report.reporter.display_name }}</div>
+                                                </div>
+                                                <span class="admin-feed-status admin-feed-status-{{ report.status }}">{{ report.get_status_display }}</span>
+                                            </a>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <p class="app-panel-copy mb-0">No open user incidents right now.</p>
                                 {% endif %}
                             </section>
 

@@ -460,3 +460,19 @@
     font-size: 0.9rem;
     font-weight: 600;
 }
+
+.account-dashboard-warning {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    border-color: rgba(var(--accent-rgb), 0.45);
+    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.12), rgba(var(--white-rgb), 0.9));
+}
+
+.account-dashboard-warning-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}

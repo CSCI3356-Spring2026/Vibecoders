@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import AdminProfile, Role, StudentProfile, UserFile
+from .models import AdminProfile, Role, StudentProfile, UserFile, UserReport
 from .validators import validate_avatar_upload
 
 
@@ -84,6 +84,98 @@ class SupportInvestigationForm(forms.Form):
             }
         ),
     )
+
+
+class UserReportForm(forms.ModelForm):
+    class Meta:
+        model = UserReport
+        fields = ["reason", "details"]
+        widgets = {
+            "reason": forms.Select(attrs={"class": "form-select"}),
+            "details": forms.Textarea(
+                attrs={
+                    "rows": 4,
+                    "class": "form-control",
+                    "placeholder": "Tell the admin team what happened with this user.",
+                }
+            ),
+        }
+        labels = {
+            "reason": "Reason",
+            "details": "Details",
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        details = (cleaned_data.get("details") or "").strip()
+        reason = cleaned_data.get("reason")
+        if reason == UserReport.REASON_OTHER and not details:
+            self.add_error("details", "Add context so the admin team can review this report.")
+        if len(details) > 2000:
+            self.add_error("details", "Keep report details to 2,000 characters or fewer.")
+        cleaned_data["details"] = details
+        return cleaned_data
+
+
+class AdminUserReportResolutionForm(forms.Form):
+    ENFORCEMENT_NONE = "none"
+    ENFORCEMENT_WARN = "warn"
+    ENFORCEMENT_RESTRICT_ROOMMATE = "restrict_roommate"
+    ENFORCEMENT_DEACTIVATE = "deactivate"
+    ENFORCEMENT_CHOICES = [
+        (ENFORCEMENT_NONE, "No enforcement action"),
+        (ENFORCEMENT_WARN, "Warn user"),
+        (ENFORCEMENT_RESTRICT_ROOMMATE, "Restrict roommate access"),
+        (ENFORCEMENT_DEACTIVATE, "Deactivate account"),
+    ]
+
+    status = forms.ChoiceField(
+        choices=UserReport.STATUS_CHOICES,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    enforcement_action = forms.ChoiceField(
+        choices=ENFORCEMENT_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    resolution_notes = forms.CharField(
+        required=False,
+        label="Moderator notes",
+        widget=forms.Textarea(
+            attrs={
+                "rows": 4,
+                "class": "form-control",
+                "placeholder": "Document what was reviewed and how the report was handled.",
+            }
+        ),
+    )
+
+    def __init__(self, *args, instance=None, **kwargs):
+        self.instance = instance
+        super().__init__(*args, **kwargs)
+        if instance is not None and not self.is_bound:
+            self.initial.setdefault("status", instance.status)
+            self.initial.setdefault("enforcement_action", self.ENFORCEMENT_NONE)
+            self.initial.setdefault("resolution_notes", instance.resolution_notes)
+
+    def clean_resolution_notes(self):
+        notes = (self.cleaned_data.get("resolution_notes") or "").strip()
+        if len(notes) > 2000:
+            raise forms.ValidationError("Keep moderator notes to 2,000 characters or fewer.")
+        return notes
+
+    def clean(self):
+        cleaned_data = super().clean()
+        status = cleaned_data.get("status")
+        enforcement_action = cleaned_data.get("enforcement_action") or self.ENFORCEMENT_NONE
+        resolution_notes = cleaned_data.get("resolution_notes") or ""
+        if (
+            enforcement_action != self.ENFORCEMENT_NONE
+            or status in {UserReport.STATUS_RESOLVED, UserReport.STATUS_DISMISSED}
+        ) and not resolution_notes.strip():
+            self.add_error("resolution_notes", "Add moderator notes when applying enforcement or closing a report.")
+        cleaned_data["enforcement_action"] = enforcement_action
+        return cleaned_data
 
 
 class AvatarUploadForm(forms.Form):

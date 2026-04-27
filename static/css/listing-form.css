@@ -88,6 +88,49 @@
     align-items: start;
 }
 
+.listing-wizard-draft-card {
+    display: grid;
+    gap: 0.65rem;
+    padding: 1rem 1.2rem;
+    border-color: rgba(var(--secondary-rgb), 0.16);
+    background: rgba(var(--secondary-rgb), 0.05);
+}
+
+.listing-wizard-draft-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.listing-wizard-draft-kicker {
+    margin: 0 0 0.25rem;
+    color: var(--secondary-600);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.listing-wizard-draft-message,
+.listing-wizard-draft-detail,
+.listing-wizard-draft-note {
+    margin: 0;
+}
+
+.listing-wizard-draft-message {
+    color: var(--text-strong);
+    font-size: 0.92rem;
+    font-weight: 600;
+}
+
+.listing-wizard-draft-detail,
+.listing-wizard-draft-note {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
 .listing-wizard-rail {
     position: sticky;
     top: 6rem;
@@ -595,6 +638,11 @@
     .listing-wizard-grid-3,
     .listing-wizard-grid-4 {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .listing-wizard-draft-head {
+        flex-direction: column;
+        align-items: stretch;
     }
 }
 

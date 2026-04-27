@@ -303,6 +303,8 @@ LISTING_ADDRESS_AUTOCOMPLETE_RATE_WINDOW_SECONDS = env_int("LISTING_ADDRESS_AUTO
 LISTING_ADDRESS_AUTOCOMPLETE_CACHE_SECONDS = max(0, env_int("LISTING_ADDRESS_AUTOCOMPLETE_CACHE_SECONDS", 300))
 LISTING_REPORT_RATE_LIMIT = env_int("LISTING_REPORT_RATE_LIMIT", 10)
 LISTING_REPORT_RATE_WINDOW_SECONDS = env_int("LISTING_REPORT_RATE_WINDOW_SECONDS", 3600)
+USER_REPORT_RATE_LIMIT = env_int("USER_REPORT_RATE_LIMIT", 10)
+USER_REPORT_RATE_WINDOW_SECONDS = env_int("USER_REPORT_RATE_WINDOW_SECONDS", 3600)
 USER_FILE_MAX_BYTES = env_int("USER_FILE_MAX_BYTES", 10 * 1024 * 1024)
 USER_FILE_TOTAL_LIMIT = env_int("USER_FILE_TOTAL_LIMIT", 25)
 USER_FILE_UPLOAD_RATE_LIMIT = env_int("USER_FILE_UPLOAD_RATE_LIMIT", 25)
@@ -363,7 +365,9 @@ SOCIALACCOUNT_PROVIDERS = {
     "google": {
         "SCOPE": ["profile", "email"],
         "EMAIL_AUTHENTICATION": True,
-        "AUTH_PARAMS": {"access_type": "online"},
+        # Always reopen the Google account chooser so failed attempts do not trap
+        # the browser on the last-selected account.
+        "AUTH_PARAMS": {"access_type": "online", "prompt": "select_account"},
         "APP": {
             "client_id": os.environ.get("GOOGLE_CLIENT_ID", ""),
             "secret": os.environ.get("GOOGLE_CLIENT_SECRET", ""),

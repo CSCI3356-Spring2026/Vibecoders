@@ -43,6 +43,7 @@ Padly also exposes these narrow media routes in every environment:
 | `/users/dashboard/` | `users.views.dashboard` | required | account workspace |
 | `/users/browse/` | `users.views.browse_roommates` | student users | legacy redirect into `/listings/group-match/` |
 | `/users/profile/<user_id>/` | `users.views.public_profile` | student users | public roommate profile |
+| `/users/profile/<user_id>/report/` | `users.views.report_user` | student users + POST | submit a report about a roommate profile |
 | `/users/posts/` | `users.views.posts` | required | current user's listings |
 | `/users/files/` | `users.views.files` | required | private document library |
 | `/users/files/<file_id>/preview/` | `users.views.file_preview` | required | authenticated inline preview |
@@ -61,6 +62,8 @@ Padly also exposes these narrow media routes in every environment:
 | `/users/admin-listings/<listing_id>/delete/` | `users.admin_views.admin_delete_listing` | moderator or platform admin + POST | archive listing |
 | `/users/admin-reports/` | `users.admin_views.admin_reports` | moderator or platform admin | listing reports queue |
 | `/users/admin-reports/<report_id>/status/` | `users.admin_views.admin_update_report` | moderator or platform admin + POST | update report status and append moderation history |
+| `/users/admin-user-reports/` | `users.admin_views.admin_user_reports` | moderator or platform admin | user reports queue |
+| `/users/admin-user-reports/<report_id>/status/` | `users.admin_views.admin_update_user_report` | moderator or platform admin + POST | update user report status and append moderation history |
 | `/users/admin-users/` | `users.admin_views.admin_users` | any staff role | user administration overview |
 | `/users/admin-users/<user_id>/` | `users.admin_views.admin_user_detail` | any staff role | user detail with sensitive data gated behind investigations |
 | `/users/admin-users/<user_id>/investigation/` | `users.admin_views.admin_open_investigation` | support or platform admin + POST | open time-boxed sensitive access with a required reason |

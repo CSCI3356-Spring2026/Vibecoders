@@ -37,6 +37,7 @@ class ListingForm(forms.ModelForm):
         "security_deposit",
         "application_fee",
         "distance_to_campus",
+        "broker_fee",
     )
 
     common_utilities = forms.MultipleChoiceField(
@@ -86,6 +87,11 @@ class ListingForm(forms.ModelForm):
             "has_yard",
             "has_parking",
             "is_furnished",
+            "broker_fee",
+            "landlord_approval_required",
+            "original_lease_holder",
+            "documentation_type",
+            "no_stairs",
         ]
         widgets = {
             "title": forms.TextInput(attrs={"placeholder": "2-bed near Lower Campus"}),
@@ -128,6 +134,11 @@ class ListingForm(forms.ModelForm):
             "has_parking": forms.CheckboxInput(),
             "is_furnished": forms.CheckboxInput(),
             "is_hidden": forms.CheckboxInput(),
+            "broker_fee": forms.NumberInput(attrs={"step": "0.01", "min": "0", "placeholder": "0"}),
+            "original_lease_holder": forms.TextInput(attrs={"placeholder": "Name of original tenant"}),
+            "documentation_type": forms.Select(),
+            "landlord_approval_required": forms.CheckboxInput(),
+            "no_stairs": forms.CheckboxInput(),
         }
         labels = {
             "property_type": "Home type",
@@ -146,6 +157,11 @@ class ListingForm(forms.ModelForm):
             "security_features": "Security features",
             "rooms": "Bedrooms",
             "bathrooms": "Bathrooms",
+            "broker_fee": "Broker fee",
+            "landlord_approval_required": "Landlord approval required",
+            "original_lease_holder": "Original lease holder",
+            "documentation_type": "Documentation type",
+            "no_stairs": "No stairs / step-free access",
         }
         help_texts = {}
 

@@ -51,7 +51,12 @@ def can_start_listing_conversations(user):
 
 
 def can_use_roommate_matching(user):
-    return _is_authenticated_active(user) and user.role == Role.STUDENT and user.profile_completed_at is not None
+    return (
+        _is_authenticated_active(user)
+        and user.role == Role.STUDENT
+        and user.profile_completed_at is not None
+        and getattr(user, "roommate_access_restricted_at", None) is None
+    )
 
 
 def has_listing_only_access(user):

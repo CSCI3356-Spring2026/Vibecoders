@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
-from django.db.models import Case, Count, IntegerField, Q, Value, When
+from django.db.models import Case, Count, IntegerField, Prefetch, Q, Value, When
 from django.utils import timezone
 
 from communications.models import ListingConversation, ListingMessage
@@ -18,7 +18,7 @@ from .compatibility import (
     compute_group_compatibility,
     group_compatibility_highlights,
 )
-from .models import Role, UserFile
+from .models import Role, UserFile, UserReport, UserReportUpdate
 
 ROOMMATE_DISCOVERY_CANDIDATE_LIMIT = 300
 
@@ -50,7 +50,12 @@ def roommate_candidate_results(
     group_profiles = roommate_group_profiles_for_user(user)
 
     students_qs = (
-        User.objects.filter(role=Role.STUDENT, is_active=True, profile_completed_at__isnull=False)
+        User.objects.filter(
+            role=Role.STUDENT,
+            is_active=True,
+            profile_completed_at__isnull=False,
+            roommate_access_restricted_at__isnull=True,
+        )
         .exclude(id=user.id)
         .select_related("student_profile")
         .order_by("first_name", "last_name", "id")
@@ -139,6 +144,57 @@ def admin_reports_queryset(query="", selected_status="", selected_reason="", *, 
     return queryset.order_by("status_priority", "-created_at")
 
 
+def user_reports_queryset_for_admin():
+    status_priority = Case(
+        When(status=UserReport.STATUS_OPEN, then=Value(0)),
+        When(status=UserReport.STATUS_IN_REVIEW, then=Value(1)),
+        When(status=UserReport.STATUS_RESOLVED, then=Value(2)),
+        default=Value(3),
+        output_field=IntegerField(),
+    )
+    return (
+        UserReport.objects.select_related(
+            "reported_user",
+            "reporter",
+            "reviewed_by",
+        )
+        .prefetch_related(
+            "reported_user__socialaccount_set",
+            "reporter__socialaccount_set",
+            "reviewed_by__socialaccount_set",
+            Prefetch(
+                "updates",
+                queryset=UserReportUpdate.objects.select_related("actor").order_by("-created_at", "-id"),
+            ),
+        )
+        .annotate(status_priority=status_priority)
+    )
+
+
+def admin_user_reports_queryset(query="", selected_status="", selected_reason="", *, include_closed=False):
+    status_values = {status for status, _ in UserReport.STATUS_CHOICES}
+    reason_values = {reason for reason, _ in UserReport.REASON_CHOICES}
+    queryset = user_reports_queryset_for_admin()
+
+    if query:
+        queryset = queryset.filter(
+            Q(reported_user__email__icontains=query)
+            | Q(reported_user__username__icontains=query)
+            | Q(reporter__email__icontains=query)
+            | Q(reporter__username__icontains=query)
+            | Q(details__icontains=query)
+            | Q(resolution_notes__icontains=query)
+        )
+    if selected_status in status_values:
+        queryset = queryset.filter(status=selected_status)
+    elif not include_closed:
+        queryset = queryset.filter(status__in=[UserReport.STATUS_OPEN, UserReport.STATUS_IN_REVIEW])
+    if selected_reason in reason_values:
+        queryset = queryset.filter(reason=selected_reason)
+
+    return queryset.order_by("status_priority", "-created_at")
+
+
 def admin_users_queryset(query="", selected_role="", selected_active=""):
     role_values = {role.value for role in Role}
     user_model = get_user_model()
@@ -178,10 +234,15 @@ def admin_dashboard_metrics():
         open_reports=Count("id", filter=Q(status=ListingReport.STATUS_OPEN)),
         reports_in_review=Count("id", filter=Q(status=ListingReport.STATUS_IN_REVIEW)),
     )
+    user_report_metrics = UserReport.objects.aggregate(
+        open_user_reports=Count("id", filter=Q(status=UserReport.STATUS_OPEN)),
+        user_reports_in_review=Count("id", filter=Q(status=UserReport.STATUS_IN_REVIEW)),
+    )
     return {
         **listing_metrics,
         **user_metrics,
         **report_metrics,
+        **user_report_metrics,
     }
 
 
@@ -202,6 +263,7 @@ def admin_dashboard_snapshot(*, query="", selected_status="", selected_review_st
         selected_review_status=selected_review_status,
     )
     reports_qs = admin_reports_queryset()
+    user_reports_qs = admin_user_reports_queryset()
     recent_users_qs = user_model.objects.order_by("-date_joined", "-id")
     recent_messages_qs = ListingMessage.objects.select_related(
         "sender",
@@ -242,10 +304,18 @@ def admin_dashboard_snapshot(*, query="", selected_status="", selected_review_st
             reports_last_7_days=Count("id", filter=Q(created_at__gte=weekly_cutoff)),
         )
     )
+    metrics.update(
+        UserReport.objects.aggregate(
+            resolved_user_reports=Count("id", filter=Q(status=UserReport.STATUS_RESOLVED)),
+            user_reports_last_7_days=Count("id", filter=Q(created_at__gte=weekly_cutoff)),
+        )
+    )
 
     total_conversations = ListingConversation.objects.count()
     total_messages = ListingMessage.objects.count()
-    active_incidents = metrics["open_reports"] + metrics["reports_in_review"]
+    active_listing_incidents = metrics["open_reports"] + metrics["reports_in_review"]
+    active_user_incidents = metrics["open_user_reports"] + metrics["user_reports_in_review"]
+    active_incidents = active_listing_incidents + active_user_incidents
 
     metrics.update(
         {
@@ -265,9 +335,12 @@ def admin_dashboard_snapshot(*, query="", selected_status="", selected_review_st
             "active_user_rate": _percentage(metrics["active_users"], metrics["total_users"]),
             "messages_per_conversation": round(total_messages / total_conversations, 1) if total_conversations else 0,
             "active_incidents": active_incidents,
+            "active_listing_incidents": active_listing_incidents,
+            "active_user_incidents": active_user_incidents,
             "priority_listings": list(listings_qs[:8]),
             "review_queue": list(admin_listings_queryset(selected_review_status=Listing.APPROVAL_PENDING)[:5]),
             "recent_reports": list(reports_qs[:5]),
+            "recent_user_reports": list(user_reports_qs[:5]),
             "recent_users": list(recent_users_qs[:5]),
             "recent_messages": list(recent_messages_qs[:6]),
         }
@@ -290,7 +363,12 @@ def compatible_students_for_user(user, limit=30):
     """
     user_model = get_user_model()
     candidates = (
-        user_model.objects.filter(role=Role.STUDENT, is_active=True, profile_completed_at__isnull=False)
+        user_model.objects.filter(
+            role=Role.STUDENT,
+            is_active=True,
+            profile_completed_at__isnull=False,
+            roommate_access_restricted_at__isnull=True,
+        )
         .exclude(pk=user.pk)
         .select_related("student_profile")
     )

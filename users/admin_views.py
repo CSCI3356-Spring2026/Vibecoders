@@ -24,8 +24,8 @@ from listings.selectors import listing_reports_queryset_for_admin, listing_revie
 from .account_lifecycle import deactivate_user, reactivate_user
 from .admin_state import may_deactivate, may_lose_admin_access
 from .audit import record_audit_event
-from .forms import AdminUserRoleForm, SupportInvestigationForm
-from .models import Role, SupportInvestigation
+from .forms import AdminUserReportResolutionForm, AdminUserRoleForm, SupportInvestigationForm
+from .models import Role, SupportInvestigation, UserReport
 from .permissions import (
     active_investigation_for_viewer,
     moderation_required_view,
@@ -34,7 +34,14 @@ from .permissions import (
     staff_required_view,
     support_required_view,
 )
-from .selectors import admin_dashboard_snapshot, admin_listings_queryset, admin_reports_queryset, admin_users_queryset
+from .report_services import update_user_report
+from .selectors import (
+    admin_dashboard_snapshot,
+    admin_listings_queryset,
+    admin_reports_queryset,
+    admin_user_reports_queryset,
+    admin_users_queryset,
+)
 from .session_security import has_recent_privileged_auth
 
 ADMIN_LISTINGS_PER_PAGE = 20
@@ -67,6 +74,21 @@ def _admin_report_timeline(report, *, limit=None):
     return updates
 
 
+def _admin_user_report_form(report, *, data=None):
+    return AdminUserReportResolutionForm(
+        data=data,
+        instance=report,
+        prefix=f"user-report-{report.id}",
+    )
+
+
+def _admin_user_report_timeline(report, *, limit=None):
+    updates = list(report.updates.all())
+    if limit is not None:
+        updates = updates[:limit]
+    return updates
+
+
 def _admin_report_metrics(queryset):
     return queryset.aggregate(
         open_reports=Count("id", filter=Q(status=ListingReport.STATUS_OPEN)),
@@ -76,6 +98,18 @@ def _admin_report_metrics(queryset):
             filter=Q(status__in=[ListingReport.STATUS_RESOLVED, ListingReport.STATUS_DISMISSED]),
         ),
         affected_listings=Count("listing_id", distinct=True),
+    )
+
+
+def _admin_user_report_metrics(queryset):
+    return queryset.aggregate(
+        open_reports=Count("id", filter=Q(status=UserReport.STATUS_OPEN)),
+        in_review_reports=Count("id", filter=Q(status=UserReport.STATUS_IN_REVIEW)),
+        closed_reports=Count(
+            "id",
+            filter=Q(status__in=[UserReport.STATUS_RESOLVED, UserReport.STATUS_DISMISSED]),
+        ),
+        affected_users=Count("reported_user_id", distinct=True),
     )
 
 
@@ -142,6 +176,76 @@ def _admin_reports_context(
         "reason_options": ListingReport.REASON_CHOICES,
         **report_metrics,
     }
+
+
+def _admin_user_reports_context(
+    *,
+    request=None,
+    page=None,
+    query="",
+    selected_status="",
+    selected_reason="",
+    report_forms=None,
+    next_url=None,
+):
+    reports_qs = admin_user_reports_queryset(
+        query=query,
+        selected_status=selected_status,
+        selected_reason=selected_reason,
+    )
+    report_metrics = _admin_user_report_metrics(
+        admin_user_reports_queryset(
+            query=query,
+            selected_status=selected_status,
+            selected_reason=selected_reason,
+            include_closed=True,
+        )
+    )
+    page_number = page
+    if page_number is None and request is not None:
+        page_number = request.GET.get("page")
+    reports_page = get_page(reports_qs, page_number, ADMIN_REPORTS_PER_PAGE)
+    form_map = report_forms or {}
+    report_next_url = next_url or (
+        request.get_full_path() if request is not None else reverse("users:admin_user_reports")
+    )
+    for report in reports_page.object_list:
+        report.ui_form = form_map.get(report.id) or _admin_user_report_form(report)
+        report.ui_next = report_next_url
+        report.ui_updates = _admin_user_report_timeline(report, limit=3)
+        report.ui_update_count = len(report.updates.all())
+        report.ui_has_more_updates = report.ui_update_count > len(report.ui_updates)
+
+    return {
+        "reports": reports_page,
+        "reports_total": reports_page.paginator.count,
+        "pagination_query": preserved_query_suffix(request.GET, "page") if request is not None else "",
+        "query": query,
+        "selected_status": selected_status,
+        "selected_reason": selected_reason,
+        "status_options": UserReport.STATUS_CHOICES,
+        "reason_options": UserReport.REASON_CHOICES,
+        **report_metrics,
+    }
+
+
+def _render_invalid_user_report_update(request, report, form, *, message):
+    messages.error(request, message)
+    next_url = safe_next_url(
+        request,
+        request.POST.get("next"),
+        reverse("users:admin_user_reports"),
+    )
+    filter_state = _admin_report_filter_state(next_url=next_url)
+    context = _admin_user_reports_context(
+        page=filter_state["page"],
+        query=filter_state["query"],
+        selected_status=filter_state["selected_status"],
+        selected_reason=filter_state["selected_reason"],
+        report_forms={report.id: form},
+        next_url=next_url,
+    )
+    return render(request, "users/admin_user_reports.html", context)
 
 
 def _render_invalid_report_update(request, report, form, *, message):
@@ -411,6 +515,18 @@ def admin_reports(request):
 
 
 @reports_required_view
+def admin_user_reports(request):
+    filter_state = _admin_report_filter_state(request=request)
+    context = _admin_user_reports_context(
+        request=request,
+        query=filter_state["query"],
+        selected_status=filter_state["selected_status"],
+        selected_reason=filter_state["selected_reason"],
+    )
+    return render(request, "users/admin_user_reports.html", context)
+
+
+@reports_required_view
 @require_POST
 def admin_update_report(request, report_id):
     recent_auth_redirect = _require_recent_staff_auth(request, redirect_to=reverse("users:admin_reports"))
@@ -475,6 +591,75 @@ def admin_update_report(request, report_id):
         request,
         request.POST.get("next"),
         reverse("users:admin_reports"),
+    )
+    return redirect(redirect_to)
+
+
+@reports_required_view
+@require_POST
+def admin_update_user_report(request, report_id):
+    recent_auth_redirect = _require_recent_staff_auth(request, redirect_to=reverse("users:admin_user_reports"))
+    if recent_auth_redirect is not None:
+        return recent_auth_redirect
+
+    report = get_object_or_404(UserReport.objects.select_related("reported_user"), id=report_id)
+    form = _admin_user_report_form(report, data=request.POST)
+    if not form.is_valid():
+        return _render_invalid_user_report_update(
+            request,
+            report,
+            form,
+            message="Add moderator notes before applying enforcement or closing a user report.",
+        )
+
+    try:
+        update_user_report(
+            report,
+            status=form.cleaned_data["status"],
+            reviewer=request.user,
+            resolution_notes=form.cleaned_data["resolution_notes"],
+            enforcement_action=form.cleaned_data["enforcement_action"],
+        )
+    except ValidationError as exc:
+        if hasattr(exc, "message_dict"):
+            for field_name, errors in exc.message_dict.items():
+                target_field = field_name if field_name in form.fields else "resolution_notes"
+                for error in errors:
+                    form.add_error(target_field, error)
+        else:
+            for error in exc.messages:
+                form.add_error("resolution_notes", error)
+        return _render_invalid_user_report_update(
+            request,
+            report,
+            form,
+            message="Add moderator notes before applying enforcement or closing a user report.",
+        )
+
+    logger.info(
+        "user.report.updated report_id=%s reported_user_id=%s actor_id=%s status=%s",
+        report.id,
+        report.reported_user_id,
+        request.user.id,
+        report.status,
+    )
+    record_audit_event(
+        action="user_report.updated",
+        actor=request.user,
+        target=report,
+        reason=form.cleaned_data["resolution_notes"],
+        metadata={
+            "status": report.status,
+            "reported_user_id": report.reported_user_id,
+            "reporter_id": report.reporter_id,
+            "enforcement_action": form.cleaned_data["enforcement_action"],
+        },
+    )
+    messages.success(request, "User report updated.")
+    redirect_to = safe_next_url(
+        request,
+        request.POST.get("next"),
+        reverse("users:admin_user_reports"),
     )
     return redirect(redirect_to)
 
