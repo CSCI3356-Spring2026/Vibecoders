@@ -131,6 +131,7 @@ Common environment variables:
 - `LISTING_GEOCODING_ENABLED`: legacy geocoding helper toggle; verified address selection is now the create/edit source of truth
 - `LISTING_GEOCODER_URL` / `LISTING_GEOCODER_USER_AGENT` / `LISTING_GEOCODER_TIMEOUT_SECONDS`: legacy geocoder controls
 - `LISTING_REPORT_RATE_LIMIT` / `LISTING_REPORT_RATE_WINDOW_SECONDS`: listing-report submission burst control
+- `USER_REPORT_RATE_LIMIT` / `USER_REPORT_RATE_WINDOW_SECONDS`: user-report submission burst control
 
 Listings authoring now fails closed when Geoapify autocomplete is not configured. Users must choose a verified suggestion on create, and freeform addresses are not accepted as a fallback.
 

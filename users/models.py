@@ -47,6 +47,50 @@ STAFF_ROLE_VALUES = {
     Role.ADMIN,
 }
 ADMIN_PROFILE_COPY_FIELDS = ("preferred_name", "age", "gender", "gender_other", "bio")
+USER_REPORT_STATUS_OPEN = "open"
+USER_REPORT_STATUS_IN_REVIEW = "in_review"
+USER_REPORT_STATUS_RESOLVED = "resolved"
+USER_REPORT_STATUS_DISMISSED = "dismissed"
+USER_REPORT_STATUS_CHOICES = [
+    (USER_REPORT_STATUS_OPEN, "Open"),
+    (USER_REPORT_STATUS_IN_REVIEW, "In review"),
+    (USER_REPORT_STATUS_RESOLVED, "Resolved"),
+    (USER_REPORT_STATUS_DISMISSED, "Dismissed"),
+]
+USER_REPORT_REASON_SAFETY = "safety"
+USER_REPORT_REASON_HARASSMENT = "harassment"
+USER_REPORT_REASON_SPAM = "spam"
+USER_REPORT_REASON_IMPERSONATION = "impersonation"
+USER_REPORT_REASON_SCAM = "scam"
+USER_REPORT_REASON_OTHER = "other"
+USER_REPORT_REASON_CHOICES = [
+    (USER_REPORT_REASON_SAFETY, "Safety concern"),
+    (USER_REPORT_REASON_HARASSMENT, "Harassment or abusive behavior"),
+    (USER_REPORT_REASON_SPAM, "Spam"),
+    (USER_REPORT_REASON_IMPERSONATION, "Impersonation"),
+    (USER_REPORT_REASON_SCAM, "Scam or suspicious behavior"),
+    (USER_REPORT_REASON_OTHER, "Other"),
+]
+USER_REPORT_STATUS_VALUES = tuple(value for value, _ in USER_REPORT_STATUS_CHOICES)
+USER_REPORT_REASON_VALUES = tuple(value for value, _ in USER_REPORT_REASON_CHOICES)
+USER_REPORT_UPDATE_ACTION_NOTE = "note"
+USER_REPORT_UPDATE_ACTION_IN_REVIEW = "in_review"
+USER_REPORT_UPDATE_ACTION_DISMISSED = "dismissed"
+USER_REPORT_UPDATE_ACTION_RESOLVED = "resolved"
+USER_REPORT_UPDATE_ACTION_REOPENED = "reopened"
+USER_REPORT_UPDATE_ACTION_WARNED = "warned"
+USER_REPORT_UPDATE_ACTION_ROOMMATE_RESTRICTED = "roommate_restricted"
+USER_REPORT_UPDATE_ACTION_USER_DEACTIVATED = "user_deactivated"
+USER_REPORT_UPDATE_ACTION_CHOICES = [
+    (USER_REPORT_UPDATE_ACTION_NOTE, "Comment added"),
+    (USER_REPORT_UPDATE_ACTION_IN_REVIEW, "Moved to in review"),
+    (USER_REPORT_UPDATE_ACTION_DISMISSED, "Dismissed"),
+    (USER_REPORT_UPDATE_ACTION_RESOLVED, "Resolved"),
+    (USER_REPORT_UPDATE_ACTION_REOPENED, "Reopened"),
+    (USER_REPORT_UPDATE_ACTION_WARNED, "User warned"),
+    (USER_REPORT_UPDATE_ACTION_ROOMMATE_RESTRICTED, "Roommate access restricted"),
+    (USER_REPORT_UPDATE_ACTION_USER_DEACTIVATED, "Account deactivated"),
+]
 
 
 def _choice_values(choices):
@@ -59,6 +103,16 @@ def _optional_choice_constraint(field_name, choices):
 
 def _optional_positive_choice_constraint(field_name, choices):
     return Q(**{f"{field_name}__in": _choice_values(choices)}) | Q(**{f"{field_name}__isnull": True})
+
+
+def _submission_context_changed(instance, *, identity_fields):
+    if instance._state.adding or not instance.pk:
+        return True
+
+    original_values = type(instance).objects.filter(pk=instance.pk).values(*identity_fields).first()
+    if original_values is None:
+        return True
+    return any(original_values[field_name] != getattr(instance, field_name) for field_name in identity_fields)
 
 
 STUDENT_PROFILE_GENDER_CHOICES = [
@@ -112,6 +166,25 @@ class CustomUser(AbstractUser):
         help_text="Access level for the housing platform.",
     )
     profile_completed_at = models.DateTimeField(null=True, blank=True)
+    active_warning_message = models.CharField(max_length=500, blank=True)
+    active_warning_issued_at = models.DateTimeField(null=True, blank=True)
+    active_warning_issued_by = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="warnings_issued",
+    )
+    active_warning_acknowledged_at = models.DateTimeField(null=True, blank=True)
+    roommate_access_restricted_at = models.DateTimeField(null=True, blank=True)
+    roommate_access_restricted_by = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="roommate_access_restrictions_applied",
+    )
+    roommate_access_restriction_reason = models.CharField(max_length=500, blank=True)
     deactivated_at = models.DateTimeField(null=True, blank=True)
     deactivated_by = models.ForeignKey(
         "self",
@@ -318,6 +391,18 @@ class CustomUser(AbstractUser):
         return can_use_roommate_matching(self)
 
     @property
+    def has_roommate_access_restriction(self):
+        return self.roommate_access_restricted_at is not None
+
+    @property
+    def has_active_warning(self):
+        return bool(
+            self.active_warning_message
+            and self.active_warning_issued_at
+            and self.active_warning_acknowledged_at is None
+        )
+
+    @property
     def has_listing_only_access(self):
         from .permissions import has_listing_only_access
 
@@ -495,6 +580,169 @@ class AdminProfile(models.Model):
 FavoriteRoommate = roommate_models.FavoriteRoommate
 RoommateGroupInvite = roommate_models.RoommateGroupInvite
 RoommateGroupInviteApproval = roommate_models.RoommateGroupInviteApproval
+
+
+class UserReport(models.Model):
+    STATUS_OPEN = USER_REPORT_STATUS_OPEN
+    STATUS_IN_REVIEW = USER_REPORT_STATUS_IN_REVIEW
+    STATUS_RESOLVED = USER_REPORT_STATUS_RESOLVED
+    STATUS_DISMISSED = USER_REPORT_STATUS_DISMISSED
+    REASON_SAFETY = USER_REPORT_REASON_SAFETY
+    REASON_HARASSMENT = USER_REPORT_REASON_HARASSMENT
+    REASON_SPAM = USER_REPORT_REASON_SPAM
+    REASON_IMPERSONATION = USER_REPORT_REASON_IMPERSONATION
+    REASON_SCAM = USER_REPORT_REASON_SCAM
+    REASON_OTHER = USER_REPORT_REASON_OTHER
+
+    STATUS_CHOICES = USER_REPORT_STATUS_CHOICES
+    REASON_CHOICES = USER_REPORT_REASON_CHOICES
+
+    reported_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="reports_received",
+    )
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="user_reports",
+    )
+    reason = models.CharField(max_length=24, choices=REASON_CHOICES)
+    details = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_OPEN)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="user_reports_reviewed",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    resolution_notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(reason__in=USER_REPORT_REASON_VALUES),
+                name="user_report_reason_valid",
+            ),
+            models.CheckConstraint(
+                condition=Q(status__in=USER_REPORT_STATUS_VALUES),
+                name="user_report_status_valid",
+            ),
+            models.UniqueConstraint(
+                fields=["reported_user", "reporter"],
+                condition=Q(status__in=[USER_REPORT_STATUS_OPEN, USER_REPORT_STATUS_IN_REVIEW]),
+                name="user_report_active_unique",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["status", "created_at"], name="user_report_status_idx"),
+            models.Index(fields=["reported_user", "status"], name="user_report_target_idx"),
+            models.Index(fields=["reporter", "created_at"], name="user_report_reporter_idx"),
+        ]
+
+    @property
+    def is_closed(self):
+        return self.status in {self.STATUS_RESOLVED, self.STATUS_DISMISSED}
+
+    def clean(self):
+        super().clean()
+        if _submission_context_changed(self, identity_fields=("reported_user_id", "reporter_id")):
+            user_model = get_user_model()
+            reporter_is_student = user_model._default_manager.filter(pk=self.reporter_id, role=Role.STUDENT).exists()
+            if self.reporter_id and not reporter_is_student:
+                raise ValidationError({"details": "Only student accounts can report users."})
+            if self.reported_user_id and self.reported_user_id == self.reporter_id:
+                raise ValidationError({"details": "You cannot report your own account."})
+            reported_user_is_student = user_model._default_manager.filter(
+                pk=self.reported_user_id,
+                role=Role.STUDENT,
+                is_active=True,
+                profile_completed_at__isnull=False,
+            ).exists()
+            if self.reported_user_id and not reported_user_is_student:
+                raise ValidationError({"details": "Only active student roommate profiles can be reported."})
+        if self.status in {self.STATUS_RESOLVED, self.STATUS_DISMISSED} and not (self.resolution_notes or "").strip():
+            raise ValidationError({"resolution_notes": "Add resolution notes before closing a report."})
+
+    def mark_status(self, *, status, reviewer, resolution_notes=""):
+        self.status = status
+        cleaned_notes = resolution_notes.strip()
+        if status in {self.STATUS_RESOLVED, self.STATUS_DISMISSED} and not cleaned_notes:
+            raise ValidationError({"resolution_notes": "Add resolution notes before closing a report."})
+        if status == self.STATUS_OPEN:
+            self.reviewed_by = None
+            self.reviewed_at = None
+            self.resolution_notes = ""
+            return
+        self.reviewed_by = reviewer
+        self.reviewed_at = timezone.now()
+        self.resolution_notes = cleaned_notes
+
+    def activity_action_for_status(self, status):
+        if status == self.STATUS_OPEN:
+            return USER_REPORT_UPDATE_ACTION_REOPENED
+        if status == self.STATUS_IN_REVIEW:
+            return USER_REPORT_UPDATE_ACTION_IN_REVIEW
+        if status == self.STATUS_DISMISSED:
+            return USER_REPORT_UPDATE_ACTION_DISMISSED
+        if status == self.STATUS_RESOLVED:
+            return USER_REPORT_UPDATE_ACTION_RESOLVED
+        return USER_REPORT_UPDATE_ACTION_NOTE
+
+    def add_update(self, *, actor, note="", action=""):
+        return UserReportUpdate.objects.create(
+            report=self,
+            actor=actor,
+            action=action or self.activity_action_for_status(self.status),
+            note=(note or "").strip(),
+        )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"User report {self.id} for user {self.reported_user_id}"
+
+
+class UserReportUpdate(models.Model):
+    ACTION_NOTE = USER_REPORT_UPDATE_ACTION_NOTE
+    ACTION_IN_REVIEW = USER_REPORT_UPDATE_ACTION_IN_REVIEW
+    ACTION_DISMISSED = USER_REPORT_UPDATE_ACTION_DISMISSED
+    ACTION_RESOLVED = USER_REPORT_UPDATE_ACTION_RESOLVED
+    ACTION_REOPENED = USER_REPORT_UPDATE_ACTION_REOPENED
+    ACTION_WARNED = USER_REPORT_UPDATE_ACTION_WARNED
+    ACTION_ROOMMATE_RESTRICTED = USER_REPORT_UPDATE_ACTION_ROOMMATE_RESTRICTED
+    ACTION_USER_DEACTIVATED = USER_REPORT_UPDATE_ACTION_USER_DEACTIVATED
+
+    ACTION_CHOICES = USER_REPORT_UPDATE_ACTION_CHOICES
+
+    report = models.ForeignKey(UserReport, on_delete=models.CASCADE, related_name="updates")
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="user_report_updates",
+    )
+    action = models.CharField(max_length=24, choices=ACTION_CHOICES)
+    note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["report", "created_at"], name="user_rep_upd_report_idx"),
+            models.Index(fields=["actor", "created_at"], name="user_rep_upd_actor_idx"),
+        ]
+
+    def __str__(self):
+        return f"Update for user report {self.report_id}: {self.get_action_display()}"
 
 
 class SupportInvestigationQuerySet(models.QuerySet):

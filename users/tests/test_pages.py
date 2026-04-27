@@ -13,7 +13,7 @@ from django.utils import timezone
 from communications.models import ListingConversation
 from communications.selectors import accessible_conversations_for_user
 from listings.models import Listing, ListingReport, ListingReview, RoommatePost
-from users.models import AuditEvent, FavoriteRoommate, Role, SupportInvestigation
+from users.models import AuditEvent, FavoriteRoommate, Role, SupportInvestigation, UserReport
 
 from ..admin_state import may_deactivate, may_lose_admin_access
 from ..session_security import RECENT_AUTH_SESSION_KEY
@@ -664,6 +664,105 @@ class UserPageTests(TestCase):
         self.assertEqual(saved_response.status_code, 200)
         self.assertTrue(saved_response.context["is_favorited"])
 
+    def test_public_profile_shows_user_report_form(self):
+        target = User.objects.create_user(username="report-target", email="report-target@bc.edu", password="test")
+        self._complete_roommate_profile(self.user, first_name="Viewer")
+        self._complete_roommate_profile(target, first_name="Riley")
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("users:public_profile", args=[target.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Report this user")
+        self.assertContains(response, reverse("users:report_user", args=[target.id]))
+
+    def test_student_can_report_user_from_public_profile(self):
+        target = User.objects.create_user(username="report-target-2", email="report-target-2@bc.edu", password="test")
+        self._complete_roommate_profile(self.user, first_name="Viewer")
+        self._complete_roommate_profile(target, first_name="Riley")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("users:report_user", args=[target.id]),
+            {
+                "reason": UserReport.REASON_HARASSMENT,
+                "details": "Sent abusive messages after a housing intro.",
+            },
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            UserReport.objects.filter(
+                reported_user=target,
+                reporter=self.user,
+                reason=UserReport.REASON_HARASSMENT,
+            ).exists()
+        )
+
+    def test_user_report_blocks_duplicate_active_report(self):
+        target = User.objects.create_user(username="report-target-3", email="report-target-3@bc.edu", password="test")
+        self._complete_roommate_profile(self.user, first_name="Viewer")
+        self._complete_roommate_profile(target, first_name="Riley")
+        UserReport.objects.create(
+            reported_user=target,
+            reporter=self.user,
+            reason=UserReport.REASON_SAFETY,
+            details="Initial report.",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("users:report_user", args=[target.id]),
+            {
+                "reason": UserReport.REASON_OTHER,
+                "details": "Second report.",
+            },
+            follow=True,
+        )
+
+        self.assertEqual(UserReport.objects.filter(reported_user=target, reporter=self.user).count(), 1)
+        self.assertContains(response, "You already have an active report for this user.")
+
+    @override_settings(USER_REPORT_RATE_LIMIT=1, USER_REPORT_RATE_WINDOW_SECONDS=3600)
+    def test_user_report_rate_limit_is_enforced(self):
+        first_target = User.objects.create_user(username="rate-one", email="rate-one@bc.edu", password="test")
+        second_target = User.objects.create_user(username="rate-two", email="rate-two@bc.edu", password="test")
+        self._complete_roommate_profile(self.user, first_name="Viewer")
+        self._complete_roommate_profile(first_target, first_name="Riley")
+        self._complete_roommate_profile(second_target, first_name="Jordan")
+        self.client.force_login(self.user)
+
+        first_response = self.client.post(
+            reverse("users:report_user", args=[first_target.id]),
+            {"reason": UserReport.REASON_SPAM, "details": "Spam account."},
+            follow=False,
+        )
+        second_response = self.client.post(
+            reverse("users:report_user", args=[second_target.id]),
+            {"reason": UserReport.REASON_SPAM, "details": "Another spam account."},
+            follow=True,
+        )
+
+        self.assertEqual(first_response.status_code, 302)
+        self.assertContains(
+            second_response,
+            "Too many user reports were sent in a short time. Wait a bit and try again.",
+        )
+        self.assertFalse(UserReport.objects.filter(reported_user=second_target, reporter=self.user).exists())
+
+    def test_user_cannot_report_self(self):
+        self._complete_roommate_profile(self.user, first_name="Viewer")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("users:report_user", args=[self.user.id]),
+            {"reason": UserReport.REASON_OTHER, "details": "test"},
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 403)
+
     def test_direct_message_post_requires_completed_roommate_profile(self):
         target = User.objects.create_user(username="match", email="match@bc.edu", password="test", first_name="Riley")
         target.profile_completed_at = timezone.now()
@@ -741,6 +840,32 @@ class UserPageTests(TestCase):
 
         self.assertNotContains(response, 'name="role"')
         self.assertNotContains(response, "<select")
+
+    def test_dashboard_shows_active_warning_banner(self):
+        self.user.active_warning_message = "This is a formal warning about platform conduct."
+        self.user.active_warning_issued_at = timezone.now()
+        self.user.save(update_fields=["active_warning_message", "active_warning_issued_at"])
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("users:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Staff warning issued")
+        self.assertContains(response, self.user.active_warning_message)
+        self.assertContains(response, reverse("users:acknowledge_warning"))
+
+    def test_user_can_acknowledge_warning(self):
+        self.user.active_warning_message = "Acknowledge this warning."
+        self.user.active_warning_issued_at = timezone.now()
+        self.user.save(update_fields=["active_warning_message", "active_warning_issued_at"])
+        self.client.force_login(self.user)
+
+        response = self.client.post(reverse("users:acknowledge_warning"), follow=False)
+
+        self.user.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("users:dashboard"))
+        self.assertIsNotNone(self.user.active_warning_acknowledged_at)
 
     def test_inline_confirm_positions_delete_panel_above_clipping_contexts(self):
         module_url = (Path(__file__).resolve().parents[2] / "static/js/inline-confirm.js").as_uri()
@@ -1290,6 +1415,11 @@ assert.equal(root.classList.contains("is-open"), false);
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
         owner = User.objects.create_user(username="owner", email="owner@bc.edu", password="test")
         reporter = User.objects.create_user(username="reporter", email="reporter@bc.edu", password="test")
+        reported_user = User.objects.create_user(username="target", email="target@bc.edu", password="test")
+        reporter.profile_completed_at = timezone.now()
+        reported_user.profile_completed_at = timezone.now()
+        reporter.save(update_fields=["profile_completed_at"])
+        reported_user.save(update_fields=["profile_completed_at"])
         listing = owner.listings.create(
             title="Queue listing",
             address="140 Commonwealth Ave",
@@ -1305,6 +1435,12 @@ assert.equal(root.classList.contains("is-open"), false);
             reason=ListingReport.REASON_SPAM,
             details="Suspicious duplicate.",
         )
+        UserReport.objects.create(
+            reported_user=reported_user,
+            reporter=reporter,
+            reason=UserReport.REASON_HARASSMENT,
+            details="Abusive messages.",
+        )
         self.client.force_login(admin)
 
         response = self.client.get(reverse("users:admin_dashboard"))
@@ -1313,11 +1449,13 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertContains(response, "Operations console")
         self.assertContains(response, "Priority queues")
         self.assertContains(response, "Recent reports")
+        self.assertContains(response, "Recent user reports")
         self.assertContains(response, "Newest accounts")
         self.assertContains(response, "Recent traffic")
         self.assertContains(response, "Queue listing")
         self.assertContains(response, "owner@bc.edu")
         self.assertContains(response, "reporter@bc.edu")
+        self.assertContains(response, "target@bc.edu")
 
     def test_admin_listings_page_is_paginated(self):
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
@@ -1671,6 +1809,246 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertContains(response, "Moderation history")
         self.assertContains(response, "Escalated to campus safety.")
         self.assertContains(response, "Waiting on follow-up from the lister.")
+
+    def test_admin_user_reports_page_can_update_report_status(self):
+        admin = User.objects.create_user(
+            username="admin-user-reports",
+            email="admin-user-reports@bc.edu",
+            password="test",
+            role="admin",
+        )
+        reporter = User.objects.create_user(username="reporter-user", email="reporter-user@bc.edu", password="test")
+        reported_user = User.objects.create_user(
+            username="reported-user",
+            email="reported-user@bc.edu",
+            password="test",
+        )
+        reporter.profile_completed_at = timezone.now()
+        reported_user.profile_completed_at = timezone.now()
+        reporter.save(update_fields=["profile_completed_at"])
+        reported_user.save(update_fields=["profile_completed_at"])
+        report = UserReport.objects.create(
+            reported_user=reported_user,
+            reporter=reporter,
+            reason=UserReport.REASON_SAFETY,
+            details="Threatening behavior.",
+        )
+        self.client.force_login(admin)
+        self._mark_recent_auth()
+
+        page_response = self.client.get(reverse("users:admin_user_reports"))
+        update_response = self.client.post(
+            reverse("users:admin_update_user_report", args=[report.id]),
+            {
+                f"user-report-{report.id}-status": UserReport.STATUS_IN_REVIEW,
+                f"user-report-{report.id}-resolution_notes": "Escalated for moderator follow-up.",
+                "next": reverse("users:admin_user_reports"),
+            },
+            follow=False,
+        )
+
+        report.refresh_from_db()
+        self.assertEqual(page_response.status_code, 200)
+        self.assertContains(page_response, reported_user.email)
+        self.assertEqual(update_response.status_code, 302)
+        self.assertEqual(update_response["Location"], reverse("users:admin_user_reports"))
+        self.assertEqual(report.status, UserReport.STATUS_IN_REVIEW)
+        self.assertEqual(report.reviewed_by, admin)
+        self.assertTrue(
+            AuditEvent.objects.filter(
+                action="user_report.updated",
+                actor=admin,
+                target_type="users.userreport",
+                target_id=str(report.id),
+            ).exists()
+        )
+
+    def test_admin_user_reports_page_requires_resolution_notes_to_close_report(self):
+        admin = User.objects.create_user(
+            username="admin-user-report-close",
+            email="admin-user-report-close@bc.edu",
+            password="test",
+            role="admin",
+        )
+        reporter = User.objects.create_user(
+            username="user-reporter-two",
+            email="user-reporter-two@bc.edu",
+            password="test",
+        )
+        reported_user = User.objects.create_user(
+            username="reported-user-two",
+            email="reported-user-two@bc.edu",
+            password="test",
+        )
+        reporter.profile_completed_at = timezone.now()
+        reported_user.profile_completed_at = timezone.now()
+        reporter.save(update_fields=["profile_completed_at"])
+        reported_user.save(update_fields=["profile_completed_at"])
+        report = UserReport.objects.create(
+            reported_user=reported_user,
+            reporter=reporter,
+            reason=UserReport.REASON_HARASSMENT,
+            details="Repeated harassment.",
+        )
+        self.client.force_login(admin)
+        self._mark_recent_auth()
+
+        response = self.client.post(
+            reverse("users:admin_update_user_report", args=[report.id]),
+            {
+                f"user-report-{report.id}-status": UserReport.STATUS_RESOLVED,
+                f"user-report-{report.id}-resolution_notes": "",
+                "next": reverse("users:admin_user_reports"),
+            },
+            follow=True,
+        )
+
+        report.refresh_from_db()
+        self.assertContains(response, "Add moderator notes before applying enforcement or closing a user report.")
+        self.assertEqual(report.status, UserReport.STATUS_OPEN)
+
+    def test_admin_user_reports_page_can_restrict_roommate_access(self):
+        admin = User.objects.create_user(
+            username="admin-user-restrict",
+            email="admin-user-restrict@bc.edu",
+            password="test",
+            role="admin",
+        )
+        reporter = User.objects.create_user(
+            username="user-reporter-three",
+            email="user-reporter-three@bc.edu",
+            password="test",
+        )
+        reported_user = User.objects.create_user(
+            username="reported-user-three",
+            email="reported-user-three@bc.edu",
+            password="test",
+        )
+        self._complete_roommate_profile(reporter, first_name="Reporter")
+        self._complete_roommate_profile(reported_user, first_name="Restricted")
+        report = UserReport.objects.create(
+            reported_user=reported_user,
+            reporter=reporter,
+            reason=UserReport.REASON_HARASSMENT,
+            details="Repeated harassment.",
+        )
+        self.client.force_login(admin)
+        self._mark_recent_auth()
+
+        response = self.client.post(
+            reverse("users:admin_update_user_report", args=[report.id]),
+            {
+                f"user-report-{report.id}-status": UserReport.STATUS_RESOLVED,
+                f"user-report-{report.id}-enforcement_action": "restrict_roommate",
+                f"user-report-{report.id}-resolution_notes": "Restricted from roommate features pending appeal.",
+                "next": reverse("users:admin_user_reports"),
+            },
+            follow=False,
+        )
+
+        reported_user.refresh_from_db()
+        report.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(report.status, UserReport.STATUS_RESOLVED)
+        self.assertIsNotNone(reported_user.roommate_access_restricted_at)
+        self.assertFalse(reported_user.can_use_roommate_matching)
+
+        self.client.force_login(reporter)
+        profile_response = self.client.get(reverse("users:public_profile", args=[reported_user.id]))
+        self.assertEqual(profile_response.status_code, 404)
+
+    def test_admin_user_reports_page_can_deactivate_reported_user(self):
+        admin = User.objects.create_user(
+            username="admin-user-deactivate",
+            email="admin-user-deactivate@bc.edu",
+            password="test",
+            role="admin",
+        )
+        reporter = User.objects.create_user(
+            username="user-reporter-four",
+            email="user-reporter-four@bc.edu",
+            password="test",
+        )
+        reported_user = User.objects.create_user(
+            username="reported-user-four",
+            email="reported-user-four@bc.edu",
+            password="test",
+        )
+        reporter.profile_completed_at = timezone.now()
+        reported_user.profile_completed_at = timezone.now()
+        reporter.save(update_fields=["profile_completed_at"])
+        reported_user.save(update_fields=["profile_completed_at"])
+        report = UserReport.objects.create(
+            reported_user=reported_user,
+            reporter=reporter,
+            reason=UserReport.REASON_SAFETY,
+            details="Threatening conduct.",
+        )
+        self.client.force_login(admin)
+        self._mark_recent_auth()
+
+        response = self.client.post(
+            reverse("users:admin_update_user_report", args=[report.id]),
+            {
+                f"user-report-{report.id}-status": UserReport.STATUS_RESOLVED,
+                f"user-report-{report.id}-enforcement_action": "deactivate",
+                f"user-report-{report.id}-resolution_notes": "Account deactivated after safety review.",
+                "next": reverse("users:admin_user_reports"),
+            },
+            follow=False,
+        )
+
+        reported_user.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(reported_user.is_active)
+
+    def test_admin_user_reports_page_can_warn_reported_user_without_restricting_access(self):
+        admin = User.objects.create_user(
+            username="admin-user-warn",
+            email="admin-user-warn@bc.edu",
+            password="test",
+            role="admin",
+        )
+        reporter = User.objects.create_user(
+            username="user-reporter-five",
+            email="user-reporter-five@bc.edu",
+            password="test",
+        )
+        reported_user = User.objects.create_user(
+            username="reported-user-five",
+            email="reported-user-five@bc.edu",
+            password="test",
+        )
+        reporter.profile_completed_at = timezone.now()
+        reported_user.profile_completed_at = timezone.now()
+        reporter.save(update_fields=["profile_completed_at"])
+        reported_user.save(update_fields=["profile_completed_at"])
+        report = UserReport.objects.create(
+            reported_user=reported_user,
+            reporter=reporter,
+            reason=UserReport.REASON_SPAM,
+            details="Spam behavior.",
+        )
+        self.client.force_login(admin)
+        self._mark_recent_auth()
+
+        response = self.client.post(
+            reverse("users:admin_update_user_report", args=[report.id]),
+            {
+                f"user-report-{report.id}-status": UserReport.STATUS_IN_REVIEW,
+                f"user-report-{report.id}-enforcement_action": "warn",
+                f"user-report-{report.id}-resolution_notes": "Formal warning issued.",
+                "next": reverse("users:admin_user_reports"),
+            },
+            follow=False,
+        )
+
+        reported_user.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(reported_user.is_active)
+        self.assertIsNone(reported_user.roommate_access_restricted_at)
+        self.assertEqual(reported_user.active_warning_message, "Formal warning issued.")
+        self.assertIsNotNone(reported_user.active_warning_issued_at)
 
     def test_user_can_delete_their_account(self):
         self.client.force_login(self.user)

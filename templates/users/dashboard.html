@@ -11,6 +11,23 @@
 <section class="app-page account-dashboard">
     <div class="container">
         <div class="account-dashboard-shell">
+            {% if active_warning_message %}
+                <section class="account-dashboard-warning listing-panel">
+                    <div class="account-dashboard-warning-copy">
+                        <p class="account-dashboard-panel-kicker">Account Warning</p>
+                        <h2 class="app-section-heading">Staff warning issued</h2>
+                        <p class="app-panel-copy">{{ active_warning_message }}</p>
+                        {% if active_warning_issued_at %}
+                            <p class="app-panel-copy">Issued {{ active_warning_issued_at|date:"M d, Y · P" }}.</p>
+                        {% endif %}
+                    </div>
+                    <form method="post" action="{% url 'users:acknowledge_warning' %}">
+                        {% csrf_token %}
+                        <button class="btn btn-outline-secondary" type="submit">Acknowledge</button>
+                    </form>
+                </section>
+            {% endif %}
+
             <section class="account-dashboard-hero">
                 <div class="account-dashboard-hero-main">
                     <div class="account-dashboard-identity">

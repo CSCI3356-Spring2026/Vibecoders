@@ -19,6 +19,8 @@ from users.compatibility import (
     compute_group_compatibility,
     group_compatibility_highlights,
 )
+from users.forms import UserReportForm
+from users.models import UserReport
 
 from .forms import RoommateGroupForm, RoommatePostFilterForm, RoommatePostForm
 from .models import RoommateGroupInvite, RoommateGroupMembership, RoommatePost
@@ -248,6 +250,7 @@ def public_profile(request, user_id):
         role="student",
         is_active=True,
         profile_completed_at__isnull=False,
+        roommate_access_restricted_at__isnull=True,
     )
     their_profile = getattr(target, "student_profile", None)
     if their_profile is None:
@@ -296,8 +299,21 @@ def public_profile(request, user_id):
         .first()
     )
     is_favorited = False
+    active_user_report = None
+    user_report_form = None
     if not is_self_profile and request.user.is_student:
         is_favorited = favorited_people_queryset(request.user).filter(favorite_user=target).exists()
+        active_user_report = (
+            UserReport.objects.filter(
+                reported_user=target,
+                reporter=request.user,
+                status__in=[UserReport.STATUS_OPEN, UserReport.STATUS_IN_REVIEW],
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if active_user_report is None:
+            user_report_form = UserReportForm()
 
     return render(
         request,
@@ -318,6 +334,8 @@ def public_profile(request, user_id):
             "is_favorited": is_favorited,
             "is_in_group": target.id in group_member_ids,
             "group_member_count": group_member_count,
+            "active_user_report": active_user_report,
+            "user_report_form": user_report_form,
         },
     )
 

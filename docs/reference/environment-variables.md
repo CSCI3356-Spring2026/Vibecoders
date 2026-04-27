@@ -69,6 +69,8 @@ Render also provides `RENDER_EXTERNAL_HOSTNAME` and `RENDER_EXTERNAL_URL`. Padly
 | `LISTING_ADDRESS_AUTOCOMPLETE_RATE_WINDOW_SECONDS` | `60` | address-lookup window |
 | `LISTING_REPORT_RATE_LIMIT` | `10` | report submissions per user per window |
 | `LISTING_REPORT_RATE_WINDOW_SECONDS` | `3600` | listing-report rate-limit window |
+| `USER_REPORT_RATE_LIMIT` | `10` | user-report submissions per user per window |
+| `USER_REPORT_RATE_WINDOW_SECONDS` | `3600` | user-report rate-limit window |
 | `LISTING_GEOCODING_ENABLED` | `true` outside tests | legacy geocoder toggle |
 | `LISTING_GEOCODER_URL` | `https://photon.komoot.io/api/` | legacy geocoder endpoint |
 | `LISTING_GEOCODER_USER_AGENT` | `<SITE_PRODUCT_NAME>/1.0` | user agent for legacy geocoder |
