@@ -1,17 +1,30 @@
+.admin-dashboard .container {
+    width: min(calc(100% - var(--site-frame-gutter)), 1440px);
+}
+
 .admin-dashboard .app-layout {
-    grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
+    gap: 1rem;
 }
 
 .admin-header {
     display: flex;
-    align-items: flex-end;
+    align-items: flex-start;
     justify-content: space-between;
-    gap: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+    padding: 1.05rem 1.15rem;
+}
+
+.admin-header > div:first-child {
+    min-width: min(28rem, 100%);
 }
 
 .admin-header-meta {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 0.75rem;
 }
 
@@ -35,9 +48,9 @@
 .admin-command-hero {
     position: relative;
     overflow: hidden;
-    padding: 1.35rem;
+    padding: 1.2rem;
     border: 1px solid rgba(var(--gray-700-rgb), 0.12);
-    border-radius: 1.1rem;
+    border-radius: var(--radius-lg);
     background:
         radial-gradient(circle at top right, rgba(var(--secondary-rgb), 0.18), transparent 18rem),
         radial-gradient(circle at bottom left, rgba(var(--accent-rgb), 0.16), transparent 18rem),
@@ -99,7 +112,7 @@
     color: rgba(var(--white-rgb), 0.92);
     font-size: 0.78rem;
     font-weight: 700;
-    letter-spacing: 0.02em;
+    letter-spacing: 0;
 }
 
 .admin-command-actions {
@@ -112,7 +125,7 @@
     gap: 0.22rem;
     padding: 0.95rem 1rem;
     border: 1px solid rgba(var(--white-rgb), 0.12);
-    border-radius: 1rem;
+    border-radius: var(--radius-lg);
     background: rgba(var(--white-rgb), 0.08);
     color: var(--white);
     text-decoration: none;
@@ -133,7 +146,7 @@
 .admin-command-link-label {
     font-size: 0.72rem;
     font-weight: 800;
-    letter-spacing: 0.1em;
+    letter-spacing: 0;
     text-transform: uppercase;
     opacity: 0.8;
 }
@@ -141,7 +154,7 @@
 .admin-command-link-value {
     font-size: 1.6rem;
     font-weight: 800;
-    letter-spacing: -0.05em;
+    letter-spacing: 0;
     line-height: 1;
 }
 
@@ -152,21 +165,22 @@
 }
 
 .admin-kpi-panel {
-    padding: 1.2rem;
+    padding: 1.05rem;
 }
 
 .admin-kpi-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.8rem;
+    grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+    gap: 0.75rem;
 }
 
 .admin-kpi-card {
     display: grid;
     gap: 0.28rem;
-    padding: 1rem 1.05rem;
+    min-width: 0;
+    padding: 0.95rem 1rem;
     border: 1px solid rgba(var(--gray-700-rgb), 0.12);
-    border-radius: 0.95rem;
+    border-radius: var(--radius-lg);
     background: linear-gradient(180deg, rgba(var(--white-rgb), 1), rgba(var(--gray-100-rgb), 0.3));
 }
 
@@ -192,7 +206,7 @@
     color: var(--gray-500);
     font-size: 0.68rem;
     font-weight: 800;
-    letter-spacing: 0.1em;
+    letter-spacing: 0;
     text-transform: uppercase;
 }
 
@@ -200,7 +214,7 @@
     color: var(--gray-900);
     font-size: 1.6rem;
     font-weight: 800;
-    letter-spacing: -0.05em;
+    letter-spacing: 0;
     line-height: 1;
 }
 
@@ -225,7 +239,7 @@
 
 .admin-queue-panel,
 .admin-feed-panel {
-    padding: 1.2rem;
+    padding: 1.05rem;
 }
 
 .admin-queue-state {
@@ -247,7 +261,7 @@
     gap: 0.85rem;
     padding: 0.85rem 0.95rem;
     border: 1px solid rgba(var(--gray-700-rgb), 0.1);
-    border-radius: 0.9rem;
+    border-radius: var(--radius-lg);
     background: rgba(var(--white-rgb), 0.94);
     color: inherit;
     text-decoration: none;
@@ -276,7 +290,7 @@
     color: var(--gray-900);
     font-size: 1.25rem;
     font-weight: 800;
-    letter-spacing: -0.04em;
+    letter-spacing: 0;
 }
 
 .admin-feed-copy {
@@ -332,11 +346,11 @@
 }
 
 .admin-nav-card {
-    padding: 1.25rem;
+    padding: 1rem;
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    border-radius: 1rem;
+    border-radius: var(--radius-lg);
     background:
         linear-gradient(180deg, rgba(var(--white-rgb), 1), rgba(var(--gray-100-rgb), 0.26)),
         rgba(var(--white-rgb), 1);
@@ -395,14 +409,14 @@
 
 .admin-stat-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 1rem;
-    margin-bottom: 1.25rem;
+    grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
 }
 
 .admin-stat-panel {
-    padding: 1.5rem;
-    margin-bottom: 1.25rem;
+    padding: 1.05rem;
+    margin-bottom: 1rem;
 }
 
 .admin-stat-panel .admin-stat-grid {
@@ -410,7 +424,8 @@
 }
 
 .admin-stat-card {
-    padding: 1.25rem 1.35rem;
+    min-width: 0;
+    padding: 0.95rem 1rem;
     border: 1px solid rgba(var(--gray-300-rgb), 0.6);
     border-top-width: 1px;
     border-radius: var(--radius-md);
@@ -423,7 +438,7 @@
     display: block;
     font-size: 0.85rem;
     font-weight: 600;
-    letter-spacing: 0.04em;
+    letter-spacing: 0;
     text-transform: uppercase;
     color: var(--gray-500);
     opacity: 1;
@@ -433,7 +448,7 @@
     display: block;
     font-size: 1.75rem;
     font-weight: 700;
-    letter-spacing: -0.04em;
+    letter-spacing: 0;
     margin-top: 0.35rem;
     color: var(--gray-900);
 }
@@ -471,25 +486,29 @@
 }
 
 .admin-filter {
-    padding: 1.25rem;
-    margin-bottom: 1.25rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
 }
 
 .admin-filter-form {
     display: flex;
-    align-items: center;
-    gap: 1rem;
+    align-items: flex-end;
+    gap: 0.75rem;
 }
 
 .admin-filter-inputs {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 0.85rem;
+    gap: 0.75rem;
     flex: 1;
 }
 
+.admin-filter-form > .btn {
+    min-width: 7rem;
+}
+
 .admin-table {
-    padding: 1.5rem;
+    padding: 1.05rem;
 }
 
 .admin-table-head {
@@ -511,15 +530,22 @@
 }
 
 .admin-table-grid th {
+    padding: 0.75rem 0.8rem;
     color: var(--gray-500);
     font-size: 0.85rem;
     font-weight: 700;
-    letter-spacing: 0.05em;
+    letter-spacing: 0;
     text-transform: uppercase;
 }
 
 .admin-table-grid td {
+    padding: 0.85rem 0.8rem;
     vertical-align: middle;
+}
+
+.admin-table-grid {
+    min-width: 760px;
+    margin-bottom: 0;
 }
 
 .admin-user-name {
@@ -532,16 +558,27 @@
 .admin-user-meta {
     font-size: 0.82rem;
     color: var(--gray-500);
+    overflow-wrap: anywhere;
 }
 
 .admin-user-actions {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 0.45rem;
 }
 
 .admin-user-actions form {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.45rem;
     margin: 0;
+}
+
+.admin-user-actions .form-select {
+    width: auto;
+    min-width: 8.5rem;
 }
 
 .admin-list-grid {
@@ -552,8 +589,9 @@
 
 .admin-list-item {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
+    flex-wrap: wrap;
     gap: 1rem;
     padding: 0.9rem 1.1rem;
     border-radius: var(--radius-md);
@@ -581,8 +619,8 @@
 .admin-review-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.45fr) minmax(20rem, 0.95fr);
-    gap: 1.25rem;
-    padding: 1.5rem;
+    gap: 1rem;
+    padding: 1.05rem;
 }
 
 .admin-review-main,
@@ -592,7 +630,7 @@
 }
 
 .admin-review-section {
-    padding: 1.2rem;
+    padding: 1rem;
     border: 1px solid rgba(var(--gray-300-rgb), 0.6);
     border-radius: var(--radius-md);
     background: var(--surface-gradient);
@@ -614,7 +652,7 @@
     width: 100%;
     aspect-ratio: 1.2 / 1;
     object-fit: cover;
-    border-radius: 0.9rem;
+    border-radius: var(--radius-lg);
 }
 
 .admin-review-facts {
@@ -625,7 +663,7 @@
 
 .admin-review-facts div {
     padding: 0.85rem 0.95rem;
-    border-radius: 0.85rem;
+    border-radius: var(--radius-lg);
     background: rgba(var(--white-rgb), 0.82);
     border: 1px solid rgba(var(--gray-300-rgb), 0.75);
 }
@@ -635,7 +673,7 @@
     color: var(--gray-500);
     font-size: 0.74rem;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0;
     text-transform: uppercase;
 }
 
@@ -653,13 +691,15 @@
 }
 
 .admin-report-card {
-    align-items: stretch;
+    align-items: flex-start;
+    flex-wrap: wrap;
     gap: 1.2rem;
 }
 
 .admin-report-form {
     display: grid;
     gap: 0.65rem;
+    flex: 0 1 min(20rem, 100%);
     min-width: min(18rem, 100%);
 }
 
@@ -697,7 +737,7 @@
     border-radius: 999px;
     font-size: 0.72rem;
     font-weight: 700;
-    letter-spacing: 0.04em;
+    letter-spacing: 0;
     text-transform: uppercase;
 }
 
@@ -739,7 +779,7 @@
 .admin-report-metadata div {
     padding: 0.8rem 0.9rem;
     border: 1px solid rgba(var(--gray-300-rgb), 0.75);
-    border-radius: 0.8rem;
+    border-radius: var(--radius-lg);
     background: rgba(var(--white-rgb), 0.82);
 }
 
@@ -748,7 +788,7 @@
     margin-bottom: 0.2rem;
     font-size: 0.72rem;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0;
     text-transform: uppercase;
     color: var(--gray-500);
 }
@@ -770,7 +810,7 @@
 
 .admin-report-note {
     padding: 0.9rem 1rem;
-    border-radius: 0.8rem;
+    border-radius: var(--radius-lg);
     border: 1px solid rgba(var(--gray-300-rgb), 0.75);
     background: rgba(var(--white-rgb), 0.86);
 }
@@ -780,7 +820,7 @@
     margin-bottom: 0.35rem;
     font-size: 0.72rem;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0;
     text-transform: uppercase;
     color: var(--gray-500);
 }
@@ -802,7 +842,7 @@
 
 .admin-report-update {
     padding: 0.8rem 0.95rem;
-    border-radius: 0.75rem;
+    border-radius: var(--radius-lg);
     border: 1px solid rgba(var(--gray-300-rgb), 0.7);
     background: rgba(var(--white-rgb), 0.82);
 }
@@ -901,25 +941,34 @@
         grid-template-columns: 1fr;
     }
 
-    .admin-kpi-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
     .admin-surface-grid {
         grid-template-columns: 1fr;
     }
 }
 
 @media (max-width: 767px) {
+    .admin-header,
     .admin-command-hero,
     .admin-kpi-panel,
     .admin-queue-panel,
-    .admin-feed-panel {
+    .admin-feed-panel,
+    .admin-table,
+    .admin-filter,
+    .admin-review-grid {
         padding: 1rem;
     }
 
-    .admin-kpi-grid {
-        grid-template-columns: 1fr;
+    .admin-header-meta,
+    .admin-header-meta .btn,
+    .admin-filter-form > .btn,
+    .admin-table-head,
+    .admin-report-form {
+        width: 100%;
+    }
+
+    .admin-table-head {
+        align-items: flex-start;
+        flex-direction: column;
     }
 
     .admin-priority-item,

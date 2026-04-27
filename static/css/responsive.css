@@ -86,6 +86,10 @@
         padding: 1.2rem;
     }
 
+    .auth-panel {
+        padding: 0;
+    }
+
     .app-header-shell {
         padding: 1.3rem 1.2rem;
     }

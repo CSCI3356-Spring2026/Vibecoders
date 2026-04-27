@@ -23,22 +23,22 @@
                 {% endif %}
             </div>
 
-            <div class="listing-panel mb-4">
+            <div class="listing-panel profile-photo-panel">
                 <div class="app-panel-head">
                     <div>
                         <h2 class="app-section-heading">Profile photo</h2>
                         <p class="app-panel-copy">Shown on your roommate profile and in messages.</p>
                     </div>
                 </div>
-                <div class="identity-row" style="gap:1.25rem;align-items:center;">
+                <div class="identity-row profile-avatar-row">
                     {% include "includes/user_avatar.html" with user_obj=request.user avatar_class="user-avatar user-avatar-xl" %}
-                    <form method="post" enctype="multipart/form-data" action="{% url 'users:upload_avatar' %}" style="display:flex;flex-direction:column;gap:.5rem;">
+                    <form method="post" enctype="multipart/form-data" action="{% url 'users:upload_avatar' %}" class="profile-avatar-form">
                         {% csrf_token %}
-                        <label class="btn btn-outline-secondary btn-sm" style="cursor:pointer;margin:0;">
+                        <label class="btn btn-outline-secondary btn-sm profile-avatar-upload">
                             Choose photo
-                            <input type="file" name="avatar" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="this.form.submit()">
+                            <input class="profile-avatar-file-input" type="file" name="avatar" accept="image/jpeg,image/png,image/webp" onchange="this.form.submit()">
                         </label>
-                        <p class="app-panel-copy mb-0" style="font-size:.75rem;">JPG, PNG, or WebP · max 5 MB</p>
+                        <p class="app-panel-copy profile-avatar-note">JPG, PNG, or WebP · max 5 MB</p>
                     </form>
                 </div>
             </div>
