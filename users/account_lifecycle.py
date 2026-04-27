@@ -73,6 +73,8 @@ def anonymize_and_deactivate_user(user, *, actor=None, reason="Account deletion 
 
     with transaction.atomic():
         user.files.all().delete()
+        user.emailaddress_set.all().delete()
+        user.socialaccount_set.all().delete()
         profile_updates = {
             "preferred_name": "",
             "gender": "",

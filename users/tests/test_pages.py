@@ -3,6 +3,7 @@ from datetime import timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+from allauth.account.models import EmailAddress
 from allauth.socialaccount.models import SocialAccount
 from django.conf import settings
 from django.core.cache import cache
@@ -1695,6 +1696,31 @@ assert.equal(root.classList.contains("is-open"), false);
                 target_id=str(self.user.id),
             ).exists()
         )
+
+    def test_delete_account_releases_google_login_identity(self):
+        SocialAccount.objects.create(
+            user=self.user,
+            provider="google",
+            uid="google-eagle",
+            extra_data={"email": self.user.email, "email_verified": True},
+        )
+        EmailAddress.objects.create(user=self.user, email=self.user.email, verified=True, primary=True)
+        self.client.force_login(self.user)
+        self._mark_recent_auth()
+
+        response = self.client.post(reverse("users:delete_account"), follow=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(SocialAccount.objects.filter(provider="google", uid="google-eagle").exists())
+        self.assertFalse(EmailAddress.objects.filter(email="eagle@bc.edu").exists())
+        replacement = User.objects.create_user(username="eagle-return", email="eagle@bc.edu", password="test")
+        SocialAccount.objects.create(
+            user=replacement,
+            provider="google",
+            uid="google-eagle",
+            extra_data={"email": replacement.email, "email_verified": True},
+        )
+        self.assertTrue(SocialAccount.objects.filter(user=replacement, uid="google-eagle").exists())
 
     def test_delete_account_requires_recent_auth(self):
         self.client.force_login(self.user)
