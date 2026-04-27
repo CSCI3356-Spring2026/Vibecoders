@@ -12,7 +12,8 @@ This document lists the environment variables used by Padly's runtime configurat
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | empty or `RENDER_EXTERNAL_URL` on Render | Usually | trusted CSRF origins |
 | `DJANGO_LOG_LEVEL` | `INFO` | No | root logging level |
 | `DJANGO_STATIC_ROOT` | `<BASE_DIR>/staticfiles` | No | collected static asset output path |
-| `DJANGO_MEDIA_ROOT` | `<BASE_DIR>/media` | No | uploaded media root path |
+| `DJANGO_MEDIA_ROOT` | `/tmp/padly-media` in production, `<BASE_DIR>/media` in debug | No | uploaded media root path |
+| `DJANGO_MEDIA_FALLBACK_ROOT` | `/tmp/padly-media` in production, `<BASE_DIR>/media` in debug | No | writable fallback when filesystem media root is configured but unusable |
 
 ## Proxy and Host Handling
 

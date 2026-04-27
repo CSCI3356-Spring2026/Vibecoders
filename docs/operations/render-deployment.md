@@ -12,9 +12,9 @@ Padly is now set up for a conventional Render deployment with:
 - a checked-in `build.sh`
 - a pinned Python version via `.python-version` and `PYTHON_VERSION`
 - a checked-in `render.yaml`
-- a Render persistent disk strategy for uploaded media
+- ephemeral filesystem media storage under `/tmp/padly-media`
 
-The remaining operational caveat is deliberate: the chosen media strategy keeps uploads on a single attached disk, which means no horizontal scale and no zero-downtime deploys while that disk is attached.
+The remaining operational caveat is deliberate: uploaded media is functional for demos and active sessions, but files stored under `/tmp/padly-media` are not durable across service restarts or redeploys.
 
 ## What Was Added to the Repo
 
@@ -42,14 +42,14 @@ Use:
 - `1` Render web service for the Django ASGI app
 - `1` Render PostgreSQL instance
 - `1` Render Key Value instance
-- `1` persistent disk attached to the web service
+- no persistent disk
 
 Padly's checked-in Blueprint uses:
 
 - web service name: `padly-web`
 - database name: `padly-db`
 - key value name: `padly-kv`
-- media disk mount path: `/var/data/padly-media`
+- media root: `/tmp/padly-media`
 
 ## Why the Media Strategy Looks Like This
 
@@ -86,17 +86,17 @@ Padly still does not expose raw `/media/` access for those files.
 
 ## Tradeoffs of the Chosen Render Media Plan
 
-The repo chooses a persistent disk now because it is simple, reproducible, and keeps the current Django filesystem storage contract intact.
+The repo chooses ephemeral filesystem media for the current Render deployment because it works on the free tier and keeps the current Django filesystem storage contract intact.
 
 That comes with real tradeoffs:
 
-- the web service must stay at one instance
-- Render disables zero-downtime deploys for services with attached disks
-- uploads live on one machine-attached volume instead of shared/object storage
+- uploads can be lost on restart, redeploy, or instance replacement
+- demo records may point to missing image files after a redeploy
+- this is not appropriate for long-term production user data
 
-This is acceptable for Padly's current stage, but it is not the end-state architecture for high-scale production.
+This is acceptable for Padly's current stage and course demo. It is not the end-state architecture for real production use.
 
-When you outgrow a single-instance service, move media to object storage and keep the authenticated/private file access rules intact.
+When you outgrow the demo deployment, move media to object storage or another durable media service and keep the authenticated/private file access rules intact.
 
 ## Deploy with the Checked-In Blueprint
 
@@ -110,7 +110,8 @@ That Blueprint configures:
 - `startCommand: ./start.sh`
 - `PYTHON_VERSION=3.12.5`
 - `DJANGO_DEBUG=false`
-- `DJANGO_MEDIA_ROOT=/var/data/padly-media`
+- `DJANGO_MEDIA_ROOT=/tmp/padly-media`
+- `DJANGO_MEDIA_FALLBACK_ROOT=/tmp/padly-media`
 - `DATABASE_URL` from Render Postgres
 - `CHANNEL_REDIS_URL` and `CACHE_REDIS_URL` from Render Key Value
 
@@ -142,11 +143,12 @@ If you prefer to create the service manually instead of using the Blueprint:
 - Create one Render Key Value instance
 - Point both `CHANNEL_REDIS_URL` and `CACHE_REDIS_URL` at its internal connection string
 
-### Disk
+### Media Storage
 
-- Attach a persistent disk to the web service
-- Mount path: `/var/data/padly-media`
-- Set `DJANGO_MEDIA_ROOT=/var/data/padly-media`
+- Do not attach a persistent disk for the current free-tier deployment.
+- Set `DJANGO_MEDIA_ROOT=/tmp/padly-media`.
+- Keep `DJANGO_MEDIA_FALLBACK_ROOT=/tmp/padly-media`.
+- Treat uploaded media as ephemeral until the project moves to durable object storage.
 
 ## Environment Variables
 
@@ -159,7 +161,8 @@ Minimum production environment for Render:
 | `DATABASE_URL` | Render Postgres internal URL |
 | `CHANNEL_REDIS_URL` | Render Key Value internal URL |
 | `CACHE_REDIS_URL` | Render Key Value internal URL |
-| `DJANGO_MEDIA_ROOT` | `/var/data/padly-media` |
+| `DJANGO_MEDIA_ROOT` | `/tmp/padly-media` |
+| `DJANGO_MEDIA_FALLBACK_ROOT` | `/tmp/padly-media` |
 | `DJANGO_USE_X_FORWARDED_HOST` | `true` |
 | `DJANGO_TRUST_X_FORWARDED_PROTO` | `true` |
 | `GOOGLE_CLIENT_ID` | Google OAuth client id |
@@ -207,7 +210,7 @@ After the first deploy, verify:
 2. `/healthz/` returns `{"status": "ok"}`.
 3. Google sign-in redirects through the correct deployed domain.
 4. Listing index and listing detail pages load with their images.
-5. Uploaded avatars still load after a redeploy.
+5. Listing image upload works on create/edit flows.
 6. Private user files remain accessible only through authenticated preview/download routes.
 7. Websocket messaging works in a real browser session.
 8. `python manage.py check --deploy` passes in the deployed environment.
@@ -231,11 +234,7 @@ Check:
 
 ### Uploads disappear after redeploy
 
-Check:
-
-- the web service actually has a persistent disk attached
-- the disk mount path matches `DJANGO_MEDIA_ROOT`
-- the files are being written under that exact path
+This is expected with the current no-disk Render deployment. The app should continue to work, but previously uploaded files may be gone after a restart or redeploy. Move to object storage when uploaded media needs to persist.
 
 ### CSRF or bad-host failures after adding a custom domain
 
