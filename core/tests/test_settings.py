@@ -12,7 +12,7 @@ from django.conf import settings
 from django.test import SimpleTestCase
 
 HAS_DJ_DATABASE_URL = find_spec("dj_database_url") is not None
-PYTHON_SUBPROCESS_PREFIX = ["/usr/bin/arch", f"-{platform.machine()}"]
+PYTHON_SUBPROCESS_PREFIX = ["/usr/bin/arch", f"-{platform.machine()}"] if sys.platform == "darwin" else []
 
 
 class TestSettingsTests(SimpleTestCase):
