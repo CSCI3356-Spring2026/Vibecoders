@@ -120,7 +120,7 @@ Satellite mode can use:
 
 - move to a real database platform
 - serve static files with WhiteNoise from collected `STATIC_ROOT`
-- on Render, mount a persistent disk and point `DJANGO_MEDIA_ROOT` at it
+- on the current no-disk Render deployment, point `DJANGO_MEDIA_ROOT` and `DJANGO_MEDIA_FALLBACK_ROOT` at `/tmp/padly-media`
 - move media to shared or object-backed storage when you need horizontal scale or zero-downtime deploys
 - treat private file delivery separately from public listing imagery
 

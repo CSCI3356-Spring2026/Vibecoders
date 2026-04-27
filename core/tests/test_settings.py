@@ -136,6 +136,56 @@ class TestSettingsTests(SimpleTestCase):
         self.assertEqual(payload["allowed_hosts"], ["padly.onrender.com"])
         self.assertEqual(payload["csrf_origins"], ["https://padly.onrender.com"])
 
+    def test_configured_unwritable_media_root_falls_back_to_writable_directory(self):
+        with TemporaryDirectory() as temp_dir:
+            blocked_media_root = Path(temp_dir) / "blocked-media-root"
+            blocked_media_root.write_text("not a directory", encoding="utf-8")
+            fallback_root = Path(temp_dir) / "fallback-media-root"
+
+            result = self._run_python_subprocess(
+                (
+                    "import json; import vibecoders.settings as settings; "
+                    "print(json.dumps({'media_root': str(settings.MEDIA_ROOT), "
+                    "'fallback_used': settings.MEDIA_ROOT_FALLBACK_USED}))"
+                ),
+                extra_env={
+                    "DJANGO_MEDIA_ROOT": str(blocked_media_root),
+                    "DJANGO_MEDIA_FALLBACK_ROOT": str(fallback_root),
+                },
+            )
+
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["media_root"], str(fallback_root.resolve()))
+            self.assertTrue(payload["fallback_used"])
+            self.assertTrue(fallback_root.is_dir())
+
+    @unittest.skipUnless(HAS_DJ_DATABASE_URL, "dj-database-url is required for production DATABASE_URL settings tests.")
+    def test_production_without_configured_media_root_uses_ephemeral_media_directory(self):
+        result = self._run_python_subprocess(
+            (
+                "import json; import vibecoders.settings as settings; "
+                "print(json.dumps({'media_root': str(settings.MEDIA_ROOT), "
+                "'fallback_used': settings.MEDIA_ROOT_FALLBACK_USED}))"
+            ),
+            extra_env={
+                "DJANGO_DEBUG": "false",
+                "DJANGO_SECRET_KEY": "padly-production-secret-key-2026-04-27-render-no-disk-12345",
+                "DJANGO_ALLOWED_HOSTS": "padly.example.com",
+                "DJANGO_CSRF_TRUSTED_ORIGINS": "https://padly.example.com",
+                "DATABASE_URL": "postgresql://user:pass@localhost:5432/padly",
+                "CHANNEL_REDIS_URL": "redis://localhost:6379/0",
+                "CACHE_REDIS_URL": "redis://localhost:6379/1",
+                "DJANGO_MEDIA_ROOT": None,
+                "DJANGO_MEDIA_FALLBACK_ROOT": None,
+            },
+        )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["media_root"], str(Path("/tmp/padly-media").resolve()))
+        self.assertFalse(payload["fallback_used"])
+
     def test_render_deployment_artifacts_are_checked_in(self):
         repo_root = Path(__file__).resolve().parents[2]
         python_version_path = repo_root / ".python-version"
@@ -166,7 +216,10 @@ class TestSettingsTests(SimpleTestCase):
         self.assertIn("startCommand: ./start.sh", render_yaml)
         self.assertIn("healthCheckPath: /healthz/", render_yaml)
         self.assertIn("DJANGO_MEDIA_ROOT", render_yaml)
-        self.assertIn("mountPath: /var/data/padly-media", render_yaml)
+        self.assertIn("value: /tmp/padly-media", render_yaml)
+        self.assertIn("DJANGO_MEDIA_FALLBACK_ROOT", render_yaml)
+        self.assertNotIn("\n    disk:", render_yaml)
+        self.assertNotIn("mountPath: /var/data/padly-media", render_yaml)
 
     @unittest.skipUnless(HAS_DJ_DATABASE_URL, "dj-database-url is required for production DATABASE_URL settings tests.")
     def test_asgi_application_imports_cleanly_with_production_like_environment(self):

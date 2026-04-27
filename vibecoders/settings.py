@@ -253,11 +253,46 @@ STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = Path(os.getenv("DJANGO_STATIC_ROOT", str(BASE_DIR / "staticfiles"))).resolve()
 MEDIA_URL = "/media/"
-MEDIA_ROOT = Path(os.getenv("DJANGO_MEDIA_ROOT", str(BASE_DIR / "media"))).resolve()
 DEFAULT_FILE_STORAGE_BACKEND = (
     os.getenv("DJANGO_DEFAULT_FILE_STORAGE_BACKEND", "django.core.files.storage.FileSystemStorage").strip()
     or "django.core.files.storage.FileSystemStorage"
 )
+
+
+def filesystem_media_root_is_writable(path):
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+        if not path.is_dir():
+            return False
+        probe_path = path / ".padly-write-check"
+        probe_path.write_text("ok", encoding="utf-8")
+        probe_path.unlink(missing_ok=True)
+    except OSError:
+        return False
+    return True
+
+
+def resolve_media_root():
+    configured_media_root = os.getenv("DJANGO_MEDIA_ROOT", "").strip()
+    default_media_root = "/tmp/padly-media" if (not DEBUG or RENDER_EXTERNAL_HOSTNAME) else str(BASE_DIR / "media")
+    media_root = Path(configured_media_root or default_media_root).resolve()
+    fallback_used = False
+
+    if (
+        configured_media_root
+        and DEFAULT_FILE_STORAGE_BACKEND == "django.core.files.storage.FileSystemStorage"
+        and not filesystem_media_root_is_writable(media_root)
+    ):
+        default_fallback = default_media_root
+        fallback_root = Path(os.getenv("DJANGO_MEDIA_FALLBACK_ROOT", default_fallback)).resolve()
+        if fallback_root != media_root and filesystem_media_root_is_writable(fallback_root):
+            media_root = fallback_root
+            fallback_used = True
+
+    return media_root, fallback_used
+
+
+MEDIA_ROOT, MEDIA_ROOT_FALLBACK_USED = resolve_media_root()
 STORAGES = {
     "default": {
         "BACKEND": DEFAULT_FILE_STORAGE_BACKEND,

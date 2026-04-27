@@ -100,9 +100,10 @@ Only images and PDFs are previewable inline.
 ## Operational Caveats
 
 - Padly uses local media storage by default in development.
-- Production can use a Render persistent disk by pointing `DJANGO_MEDIA_ROOT` at the disk mount path.
+- The current no-disk Render deployment uses `/tmp/padly-media` so uploads work without a persistent disk.
 - Private document-library files remain app-served even when public listing media also lives on disk.
-- Long-term production scale still favors shared or object-backed storage instead of a single-instance disk.
+- Uploaded files in `/tmp/padly-media` are ephemeral and may disappear after restart or redeploy.
+- Long-term production scale still favors shared or object-backed storage instead of ephemeral local media.
 - Cleanup is commit-aware, but blob writes can still orphan files if an outer transaction rolls back after storage writes have already happened. That is an operational limitation to keep in mind when evolving upload workflows.
 
 ## Rules to Preserve

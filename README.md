@@ -121,6 +121,8 @@ Common environment variables:
 - `PRIVILEGED_ACTION_RECENT_AUTH_SECONDS`: recent-auth window for staff changes
 - `SUPPORT_INVESTIGATION_DURATION_HOURS`: default length of sensitive support access
 - `DJANGO_DEFAULT_FILE_STORAGE_BACKEND`: optional object/private storage backend override
+- `DJANGO_MEDIA_ROOT`: uploaded media root path for filesystem storage
+- `DJANGO_MEDIA_FALLBACK_ROOT`: writable fallback used when the configured filesystem media root cannot be created or written
 - `SITE_PRODUCT_NAME` / `SITE_COMPANY_NAME`: branding
 - `LEGAL_DOCUMENT_VERSION`: forces re-acceptance when legal text changes
 - `LISTING_MAPS_ENABLED`: enables the map-first listings UI; if enabled without a working map style URL, the page falls back to the conventional list view with an unavailable notice
@@ -152,7 +154,8 @@ Production-only requirements:
 Recommended production configuration:
 
 - `DJANGO_ALLOWED_HOSTS` and `DJANGO_CSRF_TRUSTED_ORIGINS` when using custom domains
-- `DJANGO_MEDIA_ROOT` when storing uploads outside the default repo-local `media/` path
+- `DJANGO_MEDIA_ROOT=/tmp/padly-media` for the current no-disk Render deployment
+- `DJANGO_MEDIA_FALLBACK_ROOT=/tmp/padly-media` so uploads still work if a configured filesystem media path is unavailable
 
 Optional proxy-aware production settings:
 
@@ -173,7 +176,7 @@ daphne vibecoders.asgi:application
 - The repo also includes `start.sh`, which runs migrations before Daphne starts. This is the free-plan fallback when Render pre-deploy commands are unavailable.
 - Static assets are collected into `STATIC_ROOT` and served in production by WhiteNoise.
 - Render health checks can target `/healthz/` instead of the marketing landing page.
-- Render deployments can keep uploaded media on a persistent disk by pointing `DJANGO_MEDIA_ROOT` at the disk mount path.
+- The current Render deployment does not require a persistent disk. Uploaded media is written to `/tmp/padly-media`, which keeps listing creation functional but does not persist files across restarts or redeploys.
 - The repo defaults to SQLite and local media storage in development; long-term production scale still benefits from managed/object-backed media storage.
 - Private user uploads are intentionally served through authenticated views, not raw `/media/` routes.
 
