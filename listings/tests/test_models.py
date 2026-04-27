@@ -697,7 +697,6 @@ class ListingModelTests(ListingTestCase):
         )
         self._complete_roommate_profile(self.user)
         self._complete_roommate_profile(participant)
-        self.create_roommate_post(author=participant)
 
         conversation, message, created = start_direct_conversation(self.user, participant, "Want to compare options?")
 
@@ -716,7 +715,6 @@ class ListingModelTests(ListingTestCase):
         )
         self._complete_roommate_profile(self.user)
         self._complete_roommate_profile(participant)
-        self.create_roommate_post(author=participant)
         first_conversation, _, _ = start_direct_conversation(self.user, participant, "First note")
 
         second_conversation, _, created = start_direct_conversation(participant, self.user, "Replying back")
@@ -750,7 +748,6 @@ class ListingModelTests(ListingTestCase):
         )
         self._complete_roommate_profile(self.user)
         self._complete_roommate_profile(participant)
-        self.create_roommate_post(author=participant)
         participant.student_profile.major = "Biology"
         participant.student_profile.save(update_fields=["major"])
         conversation, _, _ = start_direct_conversation(self.user, participant, "Want to compare options?")
@@ -775,7 +772,7 @@ class ListingModelTests(ListingTestCase):
 
         self.assertIn("Complete your roommate profile before messaging matches.", exc.exception.message_dict["body"][0])
 
-    def test_start_direct_conversation_requires_active_roommate_post_for_new_outreach(self):
+    def test_start_direct_conversation_allows_completed_profile_without_roommate_post(self):
         participant = self.user.__class__.objects.create_user(
             username="student",
             email="student@bc.edu",
@@ -784,13 +781,11 @@ class ListingModelTests(ListingTestCase):
         self._complete_roommate_profile(self.user)
         self._complete_roommate_profile(participant)
 
-        with self.assertRaises(ValidationError) as exc:
-            start_direct_conversation(self.user, participant, "Want to compare options?")
+        conversation, message, created = start_direct_conversation(self.user, participant, "Want to compare options?")
 
-        self.assertIn(
-            "This user is not currently accepting new roommate messages.",
-            exc.exception.message_dict["body"][0],
-        )
+        self.assertTrue(created)
+        self.assertTrue(conversation.is_direct)
+        self.assertEqual(message.body, "Want to compare options?")
 
     def test_start_direct_conversation_allows_group_lead_with_active_group_post(self):
         participant = self.user.__class__.objects.create_user(

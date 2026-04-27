@@ -6,7 +6,6 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 
 from core.rate_limits import consume_rate_limit
-from listings.selectors import active_roommate_post_for_user
 
 from .models import ListingConversation
 
@@ -44,6 +43,10 @@ def get_or_create_listing_conversation(listing, participant):
         conversation.conversation_type = ListingConversation.CONVERSATION_TYPE_LISTING
         conversation.save(update_fields=["conversation_type"])
     return conversation, created
+
+
+def _conversation_for_update(conversation):
+    return ListingConversation.objects.with_related().select_for_update(of=("self",)).get(pk=conversation.pk)
 
 
 def _sorted_direct_participants(user_a, user_b):
@@ -103,8 +106,6 @@ def _validate_direct_conversation_participants(sender, recipient, *, existing_co
         raise ValidationError({"body": "Complete your roommate profile before messaging matches."})
     if not getattr(recipient, "can_use_roommate_matching", False):
         raise ValidationError({"body": "This user is not currently available for roommate messages."})
-    if existing_conversation is None and active_roommate_post_for_user(recipient) is None:
-        raise ValidationError({"body": "This user is not currently accepting new roommate messages."})
 
 
 def _validate_conversation_send_access(conversation, sender):
@@ -229,7 +230,7 @@ def publish_conversation_read(conversation, user, *, unread_delta=0):
 def mark_conversation_read(conversation, user):
     changed = False
     with transaction.atomic():
-        locked_conversation = ListingConversation.objects.with_related().select_for_update().get(pk=conversation.pk)
+        locked_conversation = _conversation_for_update(conversation)
         changed = locked_conversation.mark_read_for(user)
         if changed:
             transaction.on_commit(lambda: publish_conversation_read(locked_conversation, user, unread_delta=-1))
@@ -299,7 +300,7 @@ def _send_listing_message_locked(conversation, sender, body, *, conversation_cre
 
 def send_conversation_message(conversation, sender, body, *, conversation_created=False, client_message_id=""):
     with transaction.atomic():
-        locked_conversation = ListingConversation.objects.with_related().select_for_update().get(pk=conversation.pk)
+        locked_conversation = _conversation_for_update(conversation)
         _validate_conversation_send_access(locked_conversation, sender)
         message = _send_listing_message_locked(
             locked_conversation,
@@ -324,7 +325,7 @@ def start_listing_conversation(listing, participant, body):
     _validate_listing_conversation_participant(listing, participant)
     with transaction.atomic():
         conversation, created = get_or_create_listing_conversation(listing, participant)
-        locked_conversation = ListingConversation.objects.with_related().select_for_update().get(pk=conversation.pk)
+        locked_conversation = _conversation_for_update(conversation)
         message = _send_listing_message_locked(
             locked_conversation,
             participant,
@@ -339,7 +340,7 @@ def start_direct_conversation(sender, recipient, body):
     _validate_direct_conversation_participants(sender, recipient, existing_conversation=existing_conversation)
     with transaction.atomic():
         conversation, created = get_or_create_direct_conversation(sender, recipient)
-        locked_conversation = ListingConversation.objects.with_related().select_for_update().get(pk=conversation.pk)
+        locked_conversation = _conversation_for_update(conversation)
         message = _send_listing_message_locked(
             locked_conversation,
             sender,
