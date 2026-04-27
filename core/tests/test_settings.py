@@ -1,12 +1,18 @@
 import json
 import os
+import platform
 import subprocess
 import sys
+import unittest
+from importlib.util import find_spec
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from django.conf import settings
 from django.test import SimpleTestCase
+
+HAS_DJ_DATABASE_URL = find_spec("dj_database_url") is not None
+PYTHON_SUBPROCESS_PREFIX = ["/usr/bin/arch", f"-{platform.machine()}"]
 
 
 class TestSettingsTests(SimpleTestCase):
@@ -77,6 +83,7 @@ class TestSettingsTests(SimpleTestCase):
         self.assertNotIn("admin/", json.loads(disabled_result.stdout))
         self.assertIn("admin/", json.loads(enabled_result.stdout))
 
+    @unittest.skipUnless(HAS_DJ_DATABASE_URL, "dj-database-url is required for production DATABASE_URL settings tests.")
     def test_production_settings_enable_whitenoise_manifest_storage(self):
         result = self._run_python_subprocess(
             (
@@ -103,6 +110,7 @@ class TestSettingsTests(SimpleTestCase):
             "whitenoise.storage.CompressedManifestStaticFilesStorage",
         )
 
+    @unittest.skipUnless(HAS_DJ_DATABASE_URL, "dj-database-url is required for production DATABASE_URL settings tests.")
     def test_render_defaults_cover_allowed_hosts_and_csrf_when_explicit_values_are_missing(self):
         result = self._run_python_subprocess(
             (
@@ -160,6 +168,7 @@ class TestSettingsTests(SimpleTestCase):
         self.assertIn("DJANGO_MEDIA_ROOT", render_yaml)
         self.assertIn("mountPath: /var/data/padly-media", render_yaml)
 
+    @unittest.skipUnless(HAS_DJ_DATABASE_URL, "dj-database-url is required for production DATABASE_URL settings tests.")
     def test_asgi_application_imports_cleanly_with_production_like_environment(self):
         result = self._run_python_subprocess(
             "import vibecoders.asgi; print('ok')",
@@ -230,7 +239,7 @@ class TestSettingsTests(SimpleTestCase):
                 env["DATABASE_URL"] = ""
 
             return subprocess.run(
-                [sys.executable, "-c", command],
+                [*PYTHON_SUBPROCESS_PREFIX, sys.executable, "-c", command],
                 capture_output=True,
                 check=False,
                 cwd=repo_root,
@@ -252,7 +261,7 @@ class TestSettingsTests(SimpleTestCase):
                 env[key] = value
 
         return subprocess.run(
-            [sys.executable, "-c", command],
+            [*PYTHON_SUBPROCESS_PREFIX, sys.executable, "-c", command],
             capture_output=True,
             check=False,
             cwd=repo_root,

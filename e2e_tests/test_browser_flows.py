@@ -4,6 +4,7 @@ import re
 import unittest
 from contextlib import contextmanager
 from datetime import date
+from importlib.util import find_spec
 
 from django.conf import settings
 from django.contrib.auth import BACKEND_SESSION_KEY, HASH_SESSION_KEY, SESSION_KEY, get_user_model
@@ -12,14 +13,26 @@ from django.contrib.staticfiles.testing import StaticLiveServerTestCase
 from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
-from playwright.sync_api import expect, sync_playwright
+
+try:
+    playwright_sync_api = find_spec("playwright.sync_api")
+except ModuleNotFoundError:  # pragma: no cover - exercised when Playwright is not installed locally.
+    playwright_sync_api = None
+
+if playwright_sync_api is not None:
+    from playwright.sync_api import expect, sync_playwright
+else:  # pragma: no cover - exercised when Playwright is not installed locally.
+    expect = sync_playwright = None
 
 from communications.models import ListingConversation
 from listings.models import Listing
 from users.models import Role
 
 
-@unittest.skipUnless(os.environ.get("RUN_E2E_TESTS") == "1", "Browser e2e tests run only in the dedicated e2e job.")
+@unittest.skipUnless(
+    os.environ.get("RUN_E2E_TESTS") == "1" and sync_playwright is not None,
+    "Browser e2e tests run only in the dedicated e2e job with Playwright installed.",
+)
 @override_settings(
     LISTING_GEOAPIFY_API_KEY="geoapify-test-key",
     LISTING_GEOAPIFY_MAP_STYLE_URL="https://example.test/styles/mock.json",
