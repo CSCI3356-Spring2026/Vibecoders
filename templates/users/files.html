@@ -16,7 +16,7 @@
                     <div>
                         <p class="app-kicker">Documents</p>
                         <h1 class="app-title">Documents</h1>
-                        <p class="app-subtitle">Private account files.</p>
+                        <p class="app-subtitle">Private files.</p>
                     </div>
                     {% if selected_file %}
                         <div class="app-actions">
@@ -32,34 +32,16 @@
                 </div>
             </div>
 
-            <div class="app-grid">
-                <div class="listing-panel">
+            <div class="app-grid files-workspace{% if selected_file %} has-selected-file{% endif %}">
+                <div class="listing-panel files-library-panel">
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading files-panel-heading">Library</h2>
-                            <p class="app-panel-copy">Upload and manage files.</p>
+                            <p class="app-panel-copy">Search, preview, and upload.</p>
                         </div>
                     </div>
 
                     <div class="app-stack">
-                        <form method="post" enctype="multipart/form-data" class="app-stack">
-                            {% csrf_token %}
-                            {{ form.non_field_errors }}
-                            <div>
-                                <label class="form-label files-form-label" for="id_title">Title</label>
-                                <div class="app-field-note">Optional. Defaults to filename.</div>
-                                {{ form.title }}
-                                {{ form.title.errors }}
-                            </div>
-                            <div>
-                                <label class="form-label files-form-label" for="id_file">File</label>
-                                <div class="app-field-note">PDF, JPG, PNG, or WebP files up to 10 MB.</div>
-                                {{ form.file }}
-                                {{ form.file.errors }}
-                            </div>
-                            <button class="btn btn-brand files-upload-button" type="submit">Upload</button>
-                        </form>
-
                         <form method="get" class="files-search" role="search">
                             <div class="input-group">
                                 <input
@@ -98,10 +80,31 @@
                         </div>
 
                         {% include "includes/pagination.html" with page_obj=files pagination_query=pagination_query %}
+
+                        <form method="post" enctype="multipart/form-data" class="files-upload-dock">
+                            {% csrf_token %}
+                            {{ form.non_field_errors }}
+                            <div class="files-upload-grid">
+                                <div>
+                                    <label class="form-label files-form-label" for="id_title">Title</label>
+                                    {{ form.title }}
+                                    {{ form.title.errors }}
+                                </div>
+                                <div>
+                                    <label class="form-label files-form-label" for="id_file">File</label>
+                                    {{ form.file }}
+                                    {{ form.file.errors }}
+                                </div>
+                            </div>
+                            <div class="files-upload-footer">
+                                <span class="app-field-note">PDF, JPG, PNG, or WebP up to 10 MB.</span>
+                                <button class="btn btn-brand files-upload-button" type="submit">Upload</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
 
-                <div class="listing-panel">
+                <div class="listing-panel files-preview-panel">
                     <div class="app-panel-head">
                         <div>
                             <h2 class="app-section-heading files-panel-heading">Preview</h2>
@@ -118,11 +121,15 @@
                                 </div>
                             </div>
 
-                            <div class="files-preview-frame">
+                            <div class="files-preview-frame{% if selected_is_pdf %} is-pdf{% endif %}">
                                 {% if selected_is_image %}
                                     <img src="{% url 'users:file_preview' selected_file.id %}" alt="{{ selected_file.display_title }}" />
                                 {% elif selected_is_pdf %}
-                                    <iframe src="{% url 'users:file_preview' selected_file.id %}" title="{{ selected_file.display_title }}"></iframe>
+                                    <iframe class="files-preview-pdf-frame" src="{% url 'users:file_preview' selected_file.id %}" title="{{ selected_file.display_title }}"></iframe>
+                                    <div class="files-preview-pdf-mobile">
+                                        <strong>PDF ready</strong>
+                                        <span>Use Download to open the full file.</span>
+                                    </div>
                                 {% else %}
                                     <div class="files-preview-placeholder">
                                         Preview unavailable for this file type.

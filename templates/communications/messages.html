@@ -36,14 +36,13 @@
                     <div class="app-meta">
                         <span class="app-meta-chip" data-total-conversations="header">{{ conversations_total }} conversation{{ conversations_total|pluralize }}</span>
                         <span class="app-meta-chip" data-unread-count>{{ unread_conversations_count }} unread</span>
-                        <span class="app-meta-chip messages-status-chip is-connecting" data-message-connection>Connecting…</span>
                     </div>
                 </div>
             </div>
 
             <div class="app-stack" data-message-errors></div>
 
-            <div class="app-grid messages-layout">
+            <div class="app-grid messages-layout{% if selected_conversation %} has-selected-thread{% endif %}">
                 <div class="listing-panel messages-inbox-panel">
                     <div class="app-panel-head messages-panel-head">
                         <div>

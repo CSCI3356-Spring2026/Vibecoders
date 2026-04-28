@@ -468,3 +468,28 @@
     flex-direction: column;
     gap: 0.35rem;
 }
+
+@media (max-width: 767.98px) {
+    .workspace-item-row {
+        flex-direction: column;
+    }
+
+    .workspace-item-main {
+        width: 100%;
+    }
+
+    .workspace-item-actions {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        width: 100%;
+    }
+
+    .workspace-item-actions .btn,
+    .workspace-item-actions form {
+        width: 100%;
+    }
+
+    .workspace-item-actions .btn {
+        justify-content: center;
+    }
+}

@@ -3528,7 +3528,7 @@ class GroupMatchPageTests(ListingTestCase):
         response = self.client.get(reverse("roommates:hub"), {"tab": "posts"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Find your next roommate.")
+        self.assertContains(response, "Posts, profiles, and group matching.")
         self.assertContains(response, roommate.display_name)
         self.assertContains(response, "100% match")
         self.assertContains(response, reverse("roommates:public_profile", args=[roommate.pk]))
