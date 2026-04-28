@@ -275,7 +275,7 @@ def public_profile(request, user_id):
     if not is_self_profile and request.user.can_use_roommate_matching:
         existing_direct_conversation = direct_conversation_between_users(request.user, target)
     has_active_roommate_post = active_roommate_post_for_user(target) is not None
-    can_message_user = not is_self_profile and request.user.can_use_roommate_matching and has_active_roommate_post
+    can_message_user = not is_self_profile and request.user.can_use_roommate_matching
     if can_message_user:
         direct_message_form = ConversationMessageForm(
             placeholder="Introduce yourself and compare housing plans.",

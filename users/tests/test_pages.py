@@ -583,7 +583,7 @@ class UserPageTests(TestCase):
             fetch_redirect_response=False,
         )
 
-    def test_public_profile_hides_new_message_entry_when_target_has_no_active_roommate_post(self):
+    def test_public_profile_shows_message_entry_even_when_target_has_no_active_roommate_post(self):
         target = User.objects.create_user(username="match", email="match@bc.edu", password="test", first_name="Riley")
         self.user.profile_completed_at = timezone.now()
         self.user.save(update_fields=["profile_completed_at"])
@@ -594,8 +594,8 @@ class UserPageTests(TestCase):
         response = self.client.get(reverse("users:public_profile", args=[target.id]))
 
         self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "Message Riley")
-        self.assertNotContains(response, "Start chat")
+        self.assertContains(response, "Message Riley")
+        self.assertContains(response, "Start chat")
 
     def test_public_profile_requires_completed_roommate_profile(self):
         target = User.objects.create_user(username="match", email="match@bc.edu", password="test", first_name="Riley")
@@ -614,6 +614,7 @@ class UserPageTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "compatible with")
+        self.assertNotContains(response, 'href="#message-user"')
 
     def test_public_profile_lifestyle_rows_include_match_tier_classes(self):
         target = User.objects.create_user(username="match", email="match@bc.edu", password="test", first_name="Riley")

@@ -184,6 +184,9 @@
                 {% endif %}
 
                 <div class="listing-detail-trust-row">
+                    <span class="listing-detail-trust-chip">
+                        Updated {{ listing.updated_at|date:"M j, Y" }}
+                    </span>
                     {% if review_count %}
                         <span class="listing-detail-trust-chip">{{ average_rating|floatformat:1 }} ★ average</span>
                         <span class="listing-detail-trust-chip">{{ review_count }} resident review{{ review_count|pluralize }}</span>
