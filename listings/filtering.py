@@ -1,7 +1,10 @@
 from decimal import Decimal, InvalidOperation
 
-from django.db.models import Q
+from django.db.models import DecimalField, F, Q, Value
+from django.db.models.functions import Coalesce
 from django.utils.dateparse import parse_date
+
+from .models import Listing
 
 PRICE_FILTER_MIN = Decimal("0")
 PRICE_FILTER_MAX = Decimal("25000")
@@ -121,6 +124,24 @@ def apply_listing_filters(queryset, params, *, viewport_required=False, include_
     if lease_type:
         queryset = queryset.filter(lease_type=lease_type)
 
+    property_type = params.get("property_type", "").strip()
+    if property_type in {value for value, _ in Listing.PROPERTY_TYPES}:
+        queryset = queryset.filter(property_type=property_type)
+
+    space_type = params.get("space_type", "").strip()
+    if space_type in {value for value, _ in Listing.SPACE_TYPES}:
+        queryset = queryset.filter(space_type=space_type)
+
+    max_upfront_value, max_upfront = parse_price_filter(params.get("max_upfront", ""))
+    if max_upfront_value is not None:
+        zero = Value(Decimal("0"), output_field=DecimalField(max_digits=10, decimal_places=2))
+        queryset = queryset.annotate(
+            estimated_upfront_filter=F("price")
+            + Coalesce("security_deposit", zero)
+            + Coalesce("application_fee", zero)
+            + Coalesce("broker_fee", zero)
+        ).filter(estimated_upfront_filter__lte=max_upfront_value)
+
     max_distance_value, max_distance = parse_price_filter(params.get("max_distance", ""))
     if max_distance_value is not None and max_distance_value >= DISTANCE_FILTER_MIN:
         queryset = queryset.filter(distance_to_campus__isnull=False, distance_to_campus__lte=max_distance_value)
@@ -152,6 +173,16 @@ def apply_listing_filters(queryset, params, *, viewport_required=False, include_
     if has_yard_enabled:
         queryset = queryset.filter(has_yard=True)
 
+    no_stairs = params.get("no_stairs", "").strip().lower()
+    no_stairs_enabled = no_stairs in {"1", "true", "yes", "on"}
+    if no_stairs_enabled:
+        queryset = queryset.filter(no_stairs=True)
+
+    landlord_approval_required = params.get("landlord_approval_required", "").strip().lower()
+    landlord_approval_enabled = landlord_approval_required in {"1", "true", "yes", "on"}
+    if landlord_approval_enabled:
+        queryset = queryset.filter(landlord_approval_required=True)
+
     saved = params.get("saved", "").strip().lower()
     saved_enabled = saved in {"1", "true", "yes", "on"}
     if saved_enabled:
@@ -176,6 +207,9 @@ def apply_listing_filters(queryset, params, *, viewport_required=False, include_
         "min_bedrooms": min_bedrooms,
         "min_bathrooms": min_bathrooms,
         "lease_type": lease_type,
+        "property_type": property_type if property_type in {value for value, _ in Listing.PROPERTY_TYPES} else "",
+        "space_type": space_type if space_type in {value for value, _ in Listing.SPACE_TYPES} else "",
+        "max_upfront": max_upfront,
         "max_distance": max_distance,
         "availability_start": availability_start,
         "availability_end": availability_end,
@@ -183,5 +217,7 @@ def apply_listing_filters(queryset, params, *, viewport_required=False, include_
         "is_furnished": "1" if is_furnished_enabled else "",
         "allows_pets": "1" if allows_pets_enabled else "",
         "has_yard": "1" if has_yard_enabled else "",
+        "no_stairs": "1" if no_stairs_enabled else "",
+        "landlord_approval_required": "1" if landlord_approval_enabled else "",
         "saved": "1" if saved_enabled else "",
     }

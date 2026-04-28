@@ -132,6 +132,7 @@
     height: 100%;
     border: 0;
     object-fit: contain;
+    min-width: 0;
 }
 
 .files-preview-placeholder,
@@ -142,9 +143,23 @@
     text-align: center;
 }
 
+@media (max-width: 991px) {
+    .files-page .app-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 @media (max-width: 767.98px) {
+    .files-page .listing-panel {
+        min-width: 0;
+    }
+
     .files-preview-frame {
         height: auto;
         min-height: 18rem;
+    }
+
+    .files-preview-frame iframe {
+        height: 22rem;
     }
 }

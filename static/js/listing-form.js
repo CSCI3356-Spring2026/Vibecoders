@@ -47,6 +47,8 @@ export function createListingWizard(form) {
         address: form.querySelector("[data-review-address]"),
         rent: form.querySelector("[data-review-rent]"),
         monthly: form.querySelector("[data-review-monthly]"),
+        upfront: form.querySelector("[data-review-upfront]"),
+        space: form.querySelector("[data-review-space]"),
         layout: form.querySelector("[data-review-layout]"),
         dates: form.querySelector("[data-review-dates]"),
         photos: form.querySelector("[data-review-photos]"),
@@ -382,7 +384,11 @@ export function createListingWizard(form) {
     }
 
     function formatMoney(value) {
-        return `${moneyFormatter.format(value)}/mo`;
+        return moneyFormatter.format(value);
+    }
+
+    function formatMonthlyMoney(value) {
+        return `${formatMoney(value)}/mo`;
     }
 
     function formatDate(value) {
@@ -421,20 +427,27 @@ export function createListingWizard(form) {
         const price = parseAmount(getFieldValue("price"));
         const utilities = parseAmount(getFieldValue("utilities_estimate")) || 0;
         const parking = parseAmount(getFieldValue("parking_fee")) || 0;
+        const deposit = parseAmount(getFieldValue("security_deposit")) || 0;
+        const applicationFee = parseAmount(getFieldValue("application_fee")) || 0;
+        const brokerFee = parseAmount(getFieldValue("broker_fee")) || 0;
         const rooms = getFieldValue("rooms") || "--";
         const bathrooms = getFieldValue("bathrooms") || "--";
         const squareFeet = getFieldValue("sq_ft");
+        const spaceLabel = getChoiceLabel("space_type") || "Whole apartment / house";
         const startDate = formatDate(getFieldValue("start_date")) || "Start";
         const endDate = formatDate(getFieldValue("end_date")) || "End";
         const isHidden = Boolean(getFieldValue("is_hidden"));
         const statusLabel = getChoiceLabel("status") || "Available";
         const monthlyTotal = price === null ? null : price + utilities + parking;
+        const upfrontTotal = price === null ? null : price + deposit + applicationFee + brokerFee;
         const photoCount = getExistingPhotoCount() + getUploadedPhotoCount();
 
         setNodeText(reviewNodes.title, title);
         setNodeText(reviewNodes.address, address);
-        setNodeText(reviewNodes.rent, price === null ? "--" : formatMoney(price));
-        setNodeText(reviewNodes.monthly, monthlyTotal === null ? "--" : formatMoney(monthlyTotal));
+        setNodeText(reviewNodes.rent, price === null ? "--" : formatMonthlyMoney(price));
+        setNodeText(reviewNodes.monthly, monthlyTotal === null ? "--" : formatMonthlyMoney(monthlyTotal));
+        setNodeText(reviewNodes.upfront, upfrontTotal === null ? "--" : formatMoney(upfrontTotal));
+        setNodeText(reviewNodes.space, spaceLabel);
         setNodeText(reviewNodes.layout, `${rooms} bd - ${bathrooms} ba${squareFeet ? ` - ${squareFeet} sqft` : ""}`);
         setNodeText(reviewNodes.dates, `${startDate} to ${endDate}`);
         setNodeText(reviewNodes.photos, `${photoCount} ${photoCount === 1 ? "photo" : "photos"}`);

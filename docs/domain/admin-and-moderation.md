@@ -5,9 +5,9 @@
 Padly has two admin surfaces:
 
 1. A custom product admin workspace under `/users/admin-*`
-2. Raw Django admin under `/admin/`
+2. Raw Django admin under `/admin/`, only when `DJANGO_ADMIN_ENABLED=true`
 
-The custom workspace is the primary operational surface. Raw Django admin is intentionally narrower.
+The custom workspace is the primary operational surface. Raw Django admin is disabled by default and intentionally narrower when enabled.
 
 ## Custom Admin Workspace
 
@@ -43,7 +43,7 @@ Secondary ordering is by most recent submission and creation timestamps.
 | --- | --- |
 | Approve | Sets approved status, reviewer, review timestamps, optional notes |
 | Reject | Sets rejected status, reviewer, review timestamp, clears approval timestamp |
-| Delete | Hard-deletes the listing and cascades related records |
+| Archive | Hides the listing, stores archive metadata, and preserves moderation history |
 
 ### Guardrails
 
@@ -98,15 +98,28 @@ The admin user detail page shows:
 | Restore default role | Cannot target self |
 | Toggle active | Cannot deactivate self |
 
+## User Report Moderation
+
+User reports let students flag active student, owner, or property-company accounts without requiring those accounts to have a roommate profile.
+
+Rules:
+
+- students cannot report themselves
+- staff users cannot be reported through the student-facing flow
+- reports support inappropriate-content, scam, harassment, safety, spam, impersonation, and other reasons
+- admins can warn, restrict roommate access, deactivate the target account, or close with no enforcement
+- closing or applying enforcement requires moderator notes
+
 ## Raw Django Admin
 
-Raw Django admin still exists for operational use, but it is intentionally constrained.
+Raw Django admin exists for operational use only when `DJANGO_ADMIN_ENABLED=true`.
 
 ### Current behavior
 
 - `CustomUserAdmin` shows role but keeps it read-only in raw admin
 - `UserFileAdmin` is view-only
 - listing moderation does not run through raw admin
+- Django's `ModelBackend` is not enabled unless raw admin is explicitly enabled
 
 This keeps product moderation and file lifecycle aligned with the custom workflows instead of ad hoc edits.
 
@@ -115,9 +128,10 @@ This keeps product moderation and file lifecycle aligned with the custom workflo
 The custom admin dashboard aggregates:
 
 - total listings
-- pending, approved, and rejected listing counts
+- available, pending, rented, hidden, archived, full-lease, sublease, and short-term listing counts
+- pending, approved, and rejected approval counts
 - student, realtor, and admin user counts
-- open and in-review report counts
+- open and in-review listing and user report counts
 - total conversations and messages
 
 These metrics provide a lightweight operational overview without requiring separate analytics infrastructure.
@@ -126,4 +140,4 @@ These metrics provide a lightweight operational overview without requiring separ
 
 - Use the custom admin workspace for listing review and report handling.
 - Use `set_user_role` for scripted role management.
-- Treat raw Django admin as a secondary operational/debug surface, not the main product workflow.
+- Keep `DJANGO_ADMIN_ENABLED=false` for normal product demos and operations.

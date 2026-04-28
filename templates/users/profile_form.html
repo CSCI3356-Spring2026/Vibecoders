@@ -94,6 +94,15 @@
                         {% if form.gender_other %}
                             {% include "listings/includes/form_field.html" with field=form.gender_other wrapper_class="profile-form-field-block profile-other-field" %}
                         {% endif %}
+                        {% if form.institution_status %}
+                            {% include "listings/includes/form_field.html" with field=form.institution_status wrapper_class="profile-form-field-block" %}
+                        {% endif %}
+                        {% if form.organization_type %}
+                            {% include "listings/includes/form_field.html" with field=form.organization_type wrapper_class="profile-form-field-block" %}
+                        {% endif %}
+                        {% if form.organization_name %}
+                            {% include "listings/includes/form_field.html" with field=form.organization_name wrapper_class="profile-form-field-block" %}
+                        {% endif %}
                     </div>
 
                     {% if form.bio %}

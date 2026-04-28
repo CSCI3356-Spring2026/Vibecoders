@@ -26,7 +26,7 @@
                 {% include "includes/admin_sidebar.html" with active_section="users" %}
 
                 <div class="app-main">
-                    <div class="listing-panel admin-filter">
+                    <div class="admin-filter">
                         <form method="get" class="admin-filter-form">
                             <div class="admin-filter-inputs">
                                 <input
@@ -73,28 +73,28 @@
                                     <tbody>
                                         {% for user in users %}
                                             <tr>
-                                                <td>
+                                                <td data-label="User">
                                                     <div class="admin-user">
                                                         <div class="admin-user-name">{{ user.get_full_name|default:user.username }}</div>
                                                         <div class="admin-user-email">{{ user.email }}</div>
                                                     </div>
                                                 </td>
-                                                <td>
+                                                <td data-label="Role">
                                                     <span class="admin-status-pill {% if user.role == 'platform_admin' %}is-approved{% elif user.role == 'student' %}is-pending{% else %}is-muted{% endif %}">
                                                         {{ user.display_role }}
                                                     </span>
                                                 </td>
-                                                <td>
+                                                <td data-label="Status">
                                                     <span class="admin-status-pill {% if user.is_active %}is-approved{% else %}is-muted{% endif %}">
                                                         {% if user.is_active %}Active{% else %}Inactive{% endif %}
                                                     </span>
                                                 </td>
-                                                <td>
+                                                <td data-label="Last Login">
                                                     <div class="admin-user-meta">
                                                         {% if user.last_login %}{{ user.last_login|date:"M d, Y" }}{% else %}Never{% endif %}
                                                     </div>
                                                 </td>
-                                                <td>
+                                                <td data-label="Actions">
                                                     <div class="admin-user-actions">
                                                         <a class="btn btn-outline-secondary btn-sm" href="{% url 'users:admin_user_detail' user.id %}">View</a>
                                                         {% if request.user.can_manage_user_roles %}

@@ -21,7 +21,7 @@ from django.urls import reverse
 from PIL import Image
 
 from communications.models import ListingConversation, ListingMessage
-from users.models import FavoriteRoommate, Role
+from users.models import FavoriteRoommate, Role, UserReport
 
 from ..address_signing import sign_address_selection, unsign_address_selection
 from ..models import Listing, ListingFavorite, ListingImage, ListingReport, ListingReview, RoommatePost
@@ -593,9 +593,11 @@ class MockMarker {{
 class MockMap {{
     constructor() {{
         this.handlers = {{}};
+        this.oneTimeHandlers = {{}};
         this.sources = {{}};
         this.layers = {{}};
         this.canvas = {{ style: {{}} }};
+        this.renderedFeatures = [];
         globalThis.__map = this;
     }}
 
@@ -609,8 +611,21 @@ class MockMap {{
         this.handlers[name] = layerOrHandler;
     }}
 
+    once(name, handler) {{
+        this.oneTimeHandlers[name] = [...(this.oneTimeHandlers[name] ?? []), handler];
+    }}
+
+    emitOnce(name) {{
+        const handlers = this.oneTimeHandlers[name] ?? [];
+        delete this.oneTimeHandlers[name];
+        handlers.forEach((handler) => handler());
+    }}
+
     addSource(id, config) {{
         this.sources[id] = new MockSource(config);
+        if (id === "listings-markers") {{
+            this.renderedFeatures = config.data.features;
+        }}
     }}
 
     getSource(id) {{
@@ -642,7 +657,12 @@ class MockMap {{
         if (!options.layers?.includes("listings-points")) {{
             return [];
         }}
-        return this.sources["listings-markers"]?.data?.features ?? [];
+        return this.renderedFeatures;
+    }}
+
+    flushRenderedFeatures() {{
+        this.renderedFeatures = this.sources["listings-markers"]?.data?.features ?? [];
+        this.emitOnce("idle");
     }}
 
     setCenter() {{}}
@@ -722,6 +742,17 @@ assert.equal(typeof globalThis.__map.styleCalls[0], "object");
 assert.equal(globalThis.__map.styleCalls[0].sources.satellite.type, "raster");
 assert.equal(globalThis.__map.styleCalls[0].layers[0].id, "satellite");
 assert.equal(view.getStyleMode(), "satellite");
+
+view.renderMarkers([{{ id: 2, price: "$2100", title: "Filtered apartment", lat: 42.336, lng: -71.167 }}]);
+assert.equal(source.data.features[0].properties.id, "2");
+assert.equal(MockMarker.instances[0].removed, true);
+assert.equal(MockMarker.instances.filter((marker) => !marker.removed).length, 0);
+globalThis.__map.flushRenderedFeatures();
+const activeMarkers = MockMarker.instances.filter((marker) => !marker.removed);
+assert.equal(activeMarkers.length, 1);
+assert.equal(activeMarkers[0].element.dataset.listingId, "2");
+assert.equal(activeMarkers[0].element.textContent, "");
+assert.equal(activeMarkers[0].element.children[0].textContent, "$2100");
 """
         result = subprocess.run(
             ["node", "--input-type=module", "-e", script],
@@ -1454,6 +1485,71 @@ assert.equal(view.getStyleMode(), "satellite");
         self.assertNotContains(response, "No yard")
         self.assertNotContains(response, "Too far")
 
+    def test_listing_list_filters_by_property_space_access_and_upfront_cost(self):
+        matching_listing = self.create_listing(
+            title="Accessible private room",
+            property_type="house",
+            space_type=Listing.SPACE_PRIVATE_ROOM,
+            no_stairs=True,
+            landlord_approval_required=True,
+            price="1400.00",
+            security_deposit="800.00",
+            application_fee="25.00",
+            broker_fee="0.00",
+        )
+        self.create_listing(
+            title="Wrong property",
+            address="201 Main St",
+            property_type="apartment",
+            space_type=Listing.SPACE_PRIVATE_ROOM,
+            no_stairs=True,
+            landlord_approval_required=True,
+            price="1400.00",
+            security_deposit="800.00",
+            application_fee="25.00",
+        )
+        self.create_listing(
+            title="Shared room mismatch",
+            address="202 Main St",
+            property_type="house",
+            space_type=Listing.SPACE_SHARED_ROOM,
+            no_stairs=True,
+            landlord_approval_required=True,
+            price="1400.00",
+            security_deposit="800.00",
+            application_fee="25.00",
+        )
+        self.create_listing(
+            title="Too much upfront",
+            address="203 Main St",
+            property_type="house",
+            space_type=Listing.SPACE_PRIVATE_ROOM,
+            no_stairs=True,
+            landlord_approval_required=True,
+            price="2000.00",
+            security_deposit="2000.00",
+            application_fee="100.00",
+            broker_fee="1000.00",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("listings:listing_list"),
+            {
+                "property_type": "house",
+                "space_type": Listing.SPACE_PRIVATE_ROOM,
+                "no_stairs": "1",
+                "landlord_approval_required": "1",
+                "max_upfront": "2500",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, matching_listing.title)
+        self.assertNotContains(response, "Wrong property")
+        self.assertNotContains(response, "Shared room mismatch")
+        self.assertNotContains(response, "Too much upfront")
+
     def test_listing_page_renders_price_and_availability_dropdown_inputs(self):
         self.create_listing(title="Filter form listing")
         self.client.force_login(self.user)
@@ -1490,6 +1586,11 @@ assert.equal(view.getStyleMode(), "satellite");
                 "is_furnished": "1",
                 "allows_pets": "1",
                 "has_yard": "1",
+                "no_stairs": "1",
+                "landlord_approval_required": "1",
+                "property_type": "house",
+                "space_type": Listing.SPACE_PRIVATE_ROOM,
+                "max_upfront": "2500",
                 "max_distance": "1.5",
             },
         )
@@ -1500,14 +1601,22 @@ assert.equal(view.getStyleMode(), "satellite");
         self.assertContains(response, 'name="is_furnished"')
         self.assertContains(response, 'name="allows_pets"')
         self.assertContains(response, 'name="has_yard"')
+        self.assertContains(response, 'name="no_stairs"')
+        self.assertContains(response, 'name="landlord_approval_required"')
+        self.assertContains(response, 'name="property_type"')
+        self.assertContains(response, 'name="space_type"')
+        self.assertContains(response, 'name="max_upfront"')
         self.assertContains(response, 'name="max_distance"')
         self.assertContains(response, 'value="2"')
         self.assertContains(response, 'value="1.5" selected', html=False)
         self.assertContains(response, 'value="1.5"')
+        self.assertContains(response, 'value="2500" selected', html=False)
         self.assertContains(response, "Parking")
         self.assertContains(response, "Furnished")
         self.assertContains(response, "Pets")
         self.assertContains(response, "Yard")
+        self.assertContains(response, "No stairs")
+        self.assertContains(response, "Landlord approval")
 
     def test_listing_list_is_paginated(self):
         for index in range(13):
@@ -1875,6 +1984,12 @@ globalThis.window = {{
 const {{ createListingWizard }} = await import({module_url!r});
 
 const titleInput = new HTMLInputElement("title", "");
+const priceInput = new HTMLInputElement("price", "1600.00");
+const utilitiesInput = new HTMLInputElement("utilities_estimate", "120.00");
+const parkingInput = new HTMLInputElement("parking_fee", "50.00");
+const securityDepositInput = new HTMLInputElement("security_deposit", "900.00");
+const applicationFeeInput = new HTMLInputElement("application_fee", "35.00");
+const brokerFeeInput = new HTMLInputElement("broker_fee", "400.00");
 const progressCopy = new HTMLElement();
 const progressBar = new HTMLElement();
 const footerTitle = new HTMLElement();
@@ -1882,6 +1997,9 @@ const footerSubtitle = new HTMLElement();
 const previousButton = new HTMLElement();
 const nextButton = new HTMLElement();
 const submitButton = new HTMLElement();
+const reviewRent = new HTMLElement();
+const reviewMonthly = new HTMLElement();
+const reviewUpfront = new HTMLElement();
 const draftCard = new HTMLElement();
 draftCard.hidden = true;
 const draftMessage = new HTMLElement();
@@ -1909,7 +2027,15 @@ function makeNavButton() {{
 const panels = [makePanel(0, "title"), makePanel(1, "")];
 const navButtons = [makeNavButton(), makeNavButton()];
 const form = new HTMLFormElement();
-form.elements = [titleInput];
+form.elements = [
+    titleInput,
+    priceInput,
+    utilitiesInput,
+    parkingInput,
+    securityDepositInput,
+    applicationFeeInput,
+    brokerFeeInput,
+];
 form.selectorListMap.set("[data-step-panel]", panels);
 form.selectorListMap.set('input[name="remove_images"]', []);
 form.selectorMap.set("[data-wizard-progress-copy]", progressCopy);
@@ -1919,6 +2045,9 @@ form.selectorMap.set("[data-wizard-footer-subtitle]", footerSubtitle);
 form.selectorMap.set("[data-step-prev]", previousButton);
 form.selectorMap.set("[data-step-next]", nextButton);
 form.selectorMap.set("[data-step-submit]", submitButton);
+form.selectorMap.set("[data-review-rent]", reviewRent);
+form.selectorMap.set("[data-review-monthly]", reviewMonthly);
+form.selectorMap.set("[data-review-upfront]", reviewUpfront);
 form.selectorMap.set('[data-step-nav="0"]', navButtons[0]);
 form.selectorMap.set('[data-step-nav="1"]', navButtons[1]);
 form.selectorMap.set("[data-listing-draft-card]", draftCard);
@@ -1942,6 +2071,9 @@ createListingWizard(form);
 
 assert.equal(titleInput.value, "Recovered title");
 assert.equal(progressCopy.textContent, "Step 2 of 2");
+assert.equal(reviewRent.textContent, "$1,600/mo");
+assert.equal(reviewMonthly.textContent, "$1,770/mo");
+assert.equal(reviewUpfront.textContent, "$2,935");
 assert.equal(draftCard.hidden, false);
 assert.match(draftMessage.textContent, /Recovered your saved listing draft/);
 assert.match(draftDetail.textContent, /Last saved/);
@@ -2254,6 +2386,78 @@ assert.equal(savedDraft.stepIndex, 1);
         self.assertEqual(ListingReport.objects.filter(listing=listing, reporter=self.user).count(), 1)
         self.assertContains(second_response, "You already have an active report on this listing.")
 
+    def test_marketplace_user_can_report_listing_for_inappropriate_content(self):
+        owner = get_user_model().objects.create_user(
+            username="inappropriate-report-owner",
+            email="inappropriate-report-owner@bc.edu",
+            password="test",
+        )
+        listing = owner.listings.create(
+            title="Inappropriate content report home",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 5, 31),
+            approval_status=Listing.APPROVAL_APPROVED,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("listings:report_listing", args=[listing.pk]),
+            {"reason": ListingReport.REASON_INAPPROPRIATE, "details": "The photos include inappropriate content."},
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            ListingReport.objects.filter(
+                listing=listing,
+                reporter=self.user,
+                reason=ListingReport.REASON_INAPPROPRIATE,
+            ).exists()
+        )
+
+    def test_listing_detail_supports_reporting_the_listing_owner(self):
+        owner = get_user_model().objects.create_user(
+            username="owner-report-realtor",
+            email="owner-report-realtor@example.com",
+            password="test",
+        )
+        listing = owner.listings.create(
+            title="Owner report home",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date=date(2026, 9, 1),
+            end_date=date(2027, 5, 31),
+            approval_status=Listing.APPROVAL_APPROVED,
+        )
+        self.client.force_login(self.user)
+
+        detail_response = self.client.get(reverse("listings:detail", args=[listing.pk]))
+        report_response = self.client.post(
+            reverse("users:report_user", args=[owner.id]),
+            {
+                "reason": UserReport.REASON_INAPPROPRIATE,
+                "details": "The owner sent inappropriate content in the listing flow.",
+                "next": f"{reverse('listings:detail', args=[listing.pk])}#contact",
+            },
+            follow=False,
+        )
+
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertContains(detail_response, "Report owner")
+        self.assertEqual(report_response.status_code, 302)
+        self.assertEqual(report_response["Location"], f"{reverse('listings:detail', args=[listing.pk])}#contact")
+        self.assertTrue(
+            UserReport.objects.filter(
+                reported_user=owner,
+                reporter=self.user,
+                reason=UserReport.REASON_INAPPROPRIATE,
+            ).exists()
+        )
+
     def test_invalid_report_submission_redirects_without_creating_report(self):
         owner = get_user_model().objects.create_user(
             username="invalid-report-owner",
@@ -2479,6 +2683,41 @@ assert.equal(savedDraft.stepIndex, 1);
 
         self.assertContains(response, listing.owner.display_name)
         self.assertContains(response, "https://example.com/listing-owner-detail.png")
+
+    def test_listing_detail_shows_space_requirements_and_full_cost_breakdown(self):
+        listing = self.create_listing(
+            title="Transparent costs",
+            space_type=Listing.SPACE_PRIVATE_ROOM,
+            price="1600.00",
+            utilities_estimate="120.00",
+            parking_fee="50.00",
+            security_deposit="900.00",
+            application_fee="35.00",
+            broker_fee="400.00",
+            utilities_included="Water",
+            original_lease_holder="Alex Leaseholder",
+            landlord_approval_required=True,
+            documentation_type="sublease",
+            renter_requirements="No smoking and shared spaces should stay tidy.",
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("listings:detail", args=[listing.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Private room")
+        self.assertContains(response, "Renter requirements")
+        self.assertContains(response, "No smoking and shared spaces should stay tidy.")
+        self.assertContains(response, "Original lease holder")
+        self.assertContains(response, "Alex Leaseholder")
+        self.assertContains(response, "Landlord approval required")
+        self.assertContains(response, "Yes")
+        self.assertContains(response, "Documentation type")
+        self.assertContains(response, "Sublease Agreement")
+        self.assertContains(response, "Utilities included")
+        self.assertContains(response, "$120/month")
+        self.assertContains(response, "$2935")
+        self.assertContains(response, "$1770")
 
     def test_listing_detail_shows_commute_distance_from_coordinates(self):
         listing = self.create_listing(latitude=42.3477, longitude=-71.1538, distance_to_campus=None)
@@ -3040,6 +3279,17 @@ assert.equal(mapNote.textContent, "");
         message = ListingMessage.objects.get()
         self.assertEqual(message.sender, student)
         self.assertEqual(message.body, "Interested for fall.")
+
+    def test_listing_detail_shows_contact_landlord_cta_for_student(self):
+        student = get_user_model().objects.create_user(username="detail-student", email="detail-student@bc.edu")
+        listing = self.create_listing()
+        self.client.force_login(student)
+
+        response = self.client.get(reverse("listings:detail", args=[listing.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Contact landlord")
+        self.assertContains(response, "Message to landlord or owner")
 
     def test_student_reuses_existing_listing_conversation(self):
         student = get_user_model().objects.create_user(username="student", email="student@bc.edu", password="test")

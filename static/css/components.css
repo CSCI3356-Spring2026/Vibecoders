@@ -258,20 +258,12 @@
 
 .app-compact-item[class*="lifestyle-match-"] {
     border-color: rgba(var(--lifestyle-match-rgb), 0.34);
-    background: linear-gradient(
-        180deg,
-        rgba(var(--lifestyle-match-rgb), 0.14) 0%,
-        rgba(var(--white-rgb), 0.92) 100%
-    );
+    background: rgba(var(--lifestyle-match-rgb), 0.1);
 }
 
 .app-compact-item[class*="lifestyle-match-"].app-compact-item-static:hover {
     border-color: rgba(var(--lifestyle-match-rgb), 0.46);
-    background: linear-gradient(
-        180deg,
-        rgba(var(--lifestyle-match-rgb), 0.18) 0%,
-        rgba(var(--white-rgb), 0.95) 100%
-    );
+    background: rgba(var(--lifestyle-match-rgb), 0.13);
 }
 
 .app-compact-item.lifestyle-match-strong {
@@ -468,7 +460,7 @@
     gap: 1rem;
     margin-bottom: 1rem;
     border-color: rgba(var(--accent-rgb), 0.45);
-    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.12), rgba(var(--white-rgb), 0.9));
+    background: rgba(var(--accent-rgb), 0.1);
 }
 
 .account-dashboard-warning-copy {

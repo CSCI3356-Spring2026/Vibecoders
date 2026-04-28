@@ -99,17 +99,17 @@ def _consume_user_report_rate_limit(user):
     )
 
 
-def _report_user_redirect(user_id):
-    return redirect(f"{reverse('users:public_profile', args=[user_id])}#profile-safety")
+def _report_user_redirect(request, user_id):
+    fallback = f"{reverse('users:public_profile', args=[user_id])}#profile-safety"
+    return redirect(safe_next_url(request, request.POST.get("next"), fallback))
 
 
 def _can_report_user(user, target_user):
     return (
         getattr(user, "is_authenticated", False)
         and getattr(user, "is_student", False)
-        and getattr(target_user, "is_student", False)
+        and getattr(target_user, "role", "") in {Role.STUDENT, Role.REALTOR}
         and getattr(target_user, "is_active", False)
-        and getattr(target_user, "profile_completed_at", None) is not None
         and getattr(user, "id", None) != getattr(target_user, "id", None)
     )
 
@@ -359,7 +359,7 @@ def profile_setup(request):
         return redirect("users:dashboard")
 
     if request.method == "POST":
-        form = form_class(request.POST, instance=profile)
+        form = form_class(request.POST, instance=profile, user=user)
         if form.is_valid():
             form.save()
             if profile_satisfies_completion_requirements(user):
@@ -371,7 +371,7 @@ def profile_setup(request):
                 return redirect("users:dashboard")
             return redirect("users:profile_setup")
     else:
-        form = form_class(instance=profile)
+        form = form_class(instance=profile, user=user)
 
     context = {
         "form": form,
@@ -568,16 +568,14 @@ def report_user(request, user_id):
     target = get_object_or_404(
         user_model,
         id=user_id,
-        role=Role.STUDENT,
+        role__in=[Role.STUDENT, Role.REALTOR],
         is_active=True,
-        profile_completed_at__isnull=False,
-        roommate_access_restricted_at__isnull=True,
     )
     if not _can_report_user(request.user, target):
-        return HttpResponseForbidden("Only student users can report other student roommate profiles.")
+        return HttpResponseForbidden("Only student users can report active student or owner accounts.")
     if not _consume_user_report_rate_limit(request.user):
         messages.error(request, USER_REPORT_RATE_LIMIT_ERROR)
-        return _report_user_redirect(target.id)
+        return _report_user_redirect(request, target.id)
 
     existing_report = UserReport.objects.filter(
         reported_user=target,
@@ -586,7 +584,7 @@ def report_user(request, user_id):
     ).first()
     if existing_report is not None:
         messages.info(request, "You already have an active report for this user.")
-        return _report_user_redirect(target.id)
+        return _report_user_redirect(request, target.id)
 
     form = UserReportForm(request.POST)
     if form.is_valid():
@@ -603,7 +601,7 @@ def report_user(request, user_id):
                 "Add enough detail for the admin team to review this report.",
             ),
         )
-    return _report_user_redirect(target.id)
+    return _report_user_redirect(request, target.id)
 
 
 @login_required

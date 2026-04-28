@@ -79,6 +79,19 @@ class ListingModelTests(ListingTestCase):
                 status="BROKEN",
             )
 
+    def test_database_constraint_rejects_invalid_space_type(self):
+        with self.assertRaises(IntegrityError):
+            Listing.objects.create(
+                owner=self.user,
+                title="Broken listing",
+                address="140 Commonwealth Ave",
+                price="1200.00",
+                lease_type="FULL",
+                start_date=date(2026, 9, 1),
+                end_date=date(2027, 5, 31),
+                space_type="BROKEN",
+            )
+
     def test_public_queryset_only_returns_active_marketplace_listings(self):
         today = date.today()
         active_listing = self.create_listing(title="Active listing")
@@ -374,10 +387,11 @@ class ListingModelTests(ListingTestCase):
             parking_fee="150.00",
             security_deposit="1800.00",
             application_fee="45.00",
+            broker_fee="500.00",
         )
 
         self.assertEqual(listing.estimated_monthly_total, 2075)
-        self.assertEqual(listing.estimated_upfront_total, 3645)
+        self.assertEqual(listing.estimated_upfront_total, 4145)
 
     def test_listing_form_prepopulates_known_and_other_utilities(self):
         listing = self.create_listing(utilities_included="Water, WiFi, Heat")

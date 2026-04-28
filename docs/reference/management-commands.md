@@ -31,7 +31,8 @@ Notes:
 - this command is intentionally limited to `DJANGO_DEBUG=true`
 - the bundle root is local-only and already ignored by the repository because it lives under `var/`
 - the summary files are written to `var/demo_seed/seed_summary.json` and `var/demo_seed/seed_summary.txt`
-- the seeded admin account is for local raw `/admin/` access only when `DJANGO_ADMIN_ENABLED=true`; the product login flow remains Google OAuth
+- the seeded admin account can exercise the custom `/users/admin-*` workspace; its password is only useful for raw `/admin/` when `DJANGO_ADMIN_ENABLED=true`
+- the normal product login flow remains Google OAuth
 
 Implementation:
 

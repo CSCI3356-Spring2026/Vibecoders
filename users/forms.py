@@ -210,7 +210,8 @@ class BaseProfileForm(GenderOtherRequiredMixin, forms.ModelForm):
     }
     field_help_texts = {}
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, user=None, **kwargs):
+        self.user = user
         super().__init__(*args, **kwargs)
         for field_name, label in self.field_labels.items():
             if field_name in self.fields:
@@ -235,6 +236,7 @@ class StudentProfileForm(BaseProfileForm):
         "preferred_name",
         "age",
         "gender",
+        "institution_status",
         "major",
         "bio",
         "messy_level",
@@ -245,6 +247,7 @@ class StudentProfileForm(BaseProfileForm):
         "party",
     )
     field_labels = BaseProfileForm.field_labels | {
+        "institution_status": "BC status",
         "major": "Major or program",
         "messy_level": "Cleanliness preference",
         "guest_level": "Guest frequency",
@@ -259,6 +262,7 @@ class StudentProfileForm(BaseProfileForm):
         "preferred_name": "Shown on your profile, messages, and roommate matches.",
         "age": "Used on your roommate profile.",
         "gender": "Shown on your roommate profile.",
+        "institution_status": "Helps verify whether you are an undergraduate, graduate student, or alumni.",
         "major": "Helpful context for potential roommates.",
         "bio": "A short introduction about how you live and what you are looking for.",
         "messy_level": "Pick the option that feels closest to your shared-space standard.",
@@ -278,6 +282,7 @@ class StudentProfileForm(BaseProfileForm):
             "age",
             "gender",
             "gender_other",
+            "institution_status",
             "major",
             "bio",
             "messy_level",
@@ -302,6 +307,7 @@ class StudentProfileForm(BaseProfileForm):
             "gender_other": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "How you want this shown on your profile"}
             ),
+            "institution_status": forms.Select(attrs={"class": "form-select"}),
             "major": forms.TextInput(
                 attrs={"class": "form-control", "placeholder": "Computer Science, Finance, Nursing..."}
             ),
@@ -326,13 +332,22 @@ class AdminProfileForm(BaseProfileForm):
     completion_fields = ("preferred_name", "bio")
     field_labels = BaseProfileForm.field_labels | {
         "age": "Age (optional)",
+        "organization_type": "Owner type",
+        "organization_name": "Company or organization name",
         "bio": "About this account",
     }
     field_help_texts = {
         "preferred_name": "Shown on your listings, messages, and account surfaces.",
         "gender": "Optional profile detail.",
+        "organization_type": "Used to distinguish individual owners from property companies.",
+        "organization_name": "Required when the owner type is property company.",
         "bio": "A short description of who you are or what you manage.",
     }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, user=user, **kwargs)
+        if getattr(user, "role", None) == Role.REALTOR:
+            self.fields["organization_type"].required = True
 
     class Meta:
         model = AdminProfile
@@ -341,6 +356,8 @@ class AdminProfileForm(BaseProfileForm):
             "age",
             "gender",
             "gender_other",
+            "organization_type",
+            "organization_name",
             "bio",
         ]
         widgets = {
@@ -354,6 +371,10 @@ class AdminProfileForm(BaseProfileForm):
             "age": forms.NumberInput(attrs={"class": "form-control", "min": 16, "max": 99, "placeholder": "Optional"}),
             "gender": forms.Select(attrs={"class": "form-select"}),
             "gender_other": forms.TextInput(attrs={"class": "form-control", "placeholder": "Optional"}),
+            "organization_type": forms.Select(attrs={"class": "form-select"}),
+            "organization_name": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Company name if applicable"}
+            ),
             "bio": forms.Textarea(
                 attrs={
                     "class": "form-control",

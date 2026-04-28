@@ -97,6 +97,7 @@ export function createListingsMapView({
     let markers = Array.isArray(initialMarkers) ? initialMarkers : [];
     let activeListingId = selectedListingId ? String(selectedListingId) : "";
     const htmlMarkers = new Map();
+    let htmlMarkerSyncTimeout = null;
 
     const map = new maplibregl.Map({
         container: canvas,
@@ -120,6 +121,16 @@ export function createListingsMapView({
         }
         markerRecord.marker.remove();
         htmlMarkers.delete(markerId);
+    };
+
+    const markerIdsForCurrentData = () => new Set(markers.map((marker) => String(marker.id)));
+
+    const pruneHtmlMarkersToCurrentData = (currentMarkerIds = markerIdsForCurrentData()) => {
+        Array.from(htmlMarkers.keys()).forEach((markerId) => {
+            if (!currentMarkerIds.has(markerId)) {
+                removeHtmlMarker(markerId);
+            }
+        });
     };
 
     const renderedPointFeatures = () => {
@@ -170,11 +181,18 @@ export function createListingsMapView({
             return;
         }
 
+        const currentMarkerIds = markerIdsForCurrentData();
+        pruneHtmlMarkersToCurrentData(currentMarkerIds);
         const visibleMarkerIds = new Set();
         renderedPointFeatures().forEach((feature) => {
             const markerId = String(feature.properties?.id || "");
             const coordinates = feature.geometry?.coordinates;
-            if (!markerId || !Array.isArray(coordinates) || visibleMarkerIds.has(markerId)) {
+            if (
+                !markerId ||
+                !currentMarkerIds.has(markerId) ||
+                !Array.isArray(coordinates) ||
+                visibleMarkerIds.has(markerId)
+            ) {
                 return;
             }
 
@@ -200,6 +218,33 @@ export function createListingsMapView({
                 removeHtmlMarker(markerId);
             }
         });
+    };
+
+    const scheduleHtmlMarkerSync = () => {
+        if (!canRenderHtmlMarkers || !mapLoaded) {
+            return;
+        }
+
+        let hasSynced = false;
+        const timerHost = typeof window !== "undefined" ? window : globalThis;
+        const syncOnce = () => {
+            if (hasSynced) {
+                return;
+            }
+            hasSynced = true;
+            if (htmlMarkerSyncTimeout !== null && typeof timerHost.clearTimeout === "function") {
+                timerHost.clearTimeout(htmlMarkerSyncTimeout);
+                htmlMarkerSyncTimeout = null;
+            }
+            syncHtmlMarkers();
+        };
+
+        if (typeof map.once === "function") {
+            map.once("idle", syncOnce);
+        }
+        if (typeof timerHost.setTimeout === "function") {
+            htmlMarkerSyncTimeout = timerHost.setTimeout(syncOnce, 160);
+        }
     };
 
     const ensureLayers = () => {
@@ -289,10 +334,13 @@ export function createListingsMapView({
         }
     };
 
-    const updateSource = () => {
+    const updateSource = ({ syncMarkersAfterRender = false } = {}) => {
         const source = map.getSource(MARKER_SOURCE_ID);
         if (source) {
             source.setData(sourceData());
+            if (syncMarkersAfterRender) {
+                scheduleHtmlMarkerSync();
+            }
         }
     };
 
@@ -397,7 +445,8 @@ export function createListingsMapView({
         },
         renderMarkers(nextMarkers) {
             markers = Array.isArray(nextMarkers) ? nextMarkers : [];
-            updateSource();
+            pruneHtmlMarkersToCurrentData();
+            updateSource({ syncMarkersAfterRender: true });
             applyViewportToMarkers();
             syncHtmlMarkers();
         },

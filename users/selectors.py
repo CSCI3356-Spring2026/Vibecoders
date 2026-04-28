@@ -21,6 +21,12 @@ from .compatibility import (
 from .models import Role, UserFile, UserReport, UserReportUpdate
 
 ROOMMATE_DISCOVERY_CANDIDATE_LIMIT = 300
+ADMIN_LISTING_INVENTORY_HIDDEN = "hidden"
+ADMIN_LISTING_INVENTORY_ARCHIVED = "archived"
+ADMIN_LISTING_INVENTORY_CHOICES = [
+    (ADMIN_LISTING_INVENTORY_HIDDEN, "Hidden"),
+    (ADMIN_LISTING_INVENTORY_ARCHIVED, "Archived"),
+]
 
 
 def _percentage(numerator, denominator):
@@ -94,9 +100,17 @@ def roommate_candidate_results(
     return results
 
 
-def admin_listings_queryset(query="", selected_status="", selected_review_status=""):
+def admin_listings_queryset(
+    query="",
+    selected_status="",
+    selected_review_status="",
+    selected_lease_type="",
+    selected_inventory_state="",
+):
     status_values = {status for status, _ in Listing.STATUS_CHOICES}
     review_status_values = {status for status, _ in Listing.APPROVAL_CHOICES}
+    lease_type_values = {lease_type for lease_type, _ in Listing.LEASE_TYPES}
+    inventory_state_values = {state for state, _ in ADMIN_LISTING_INVENTORY_CHOICES}
     review_priority = Case(
         When(approval_status=Listing.APPROVAL_PENDING, then=Value(0)),
         When(approval_status=Listing.APPROVAL_REJECTED, then=Value(1)),
@@ -116,6 +130,13 @@ def admin_listings_queryset(query="", selected_status="", selected_review_status
         queryset = queryset.filter(status=selected_status)
     if selected_review_status in review_status_values:
         queryset = queryset.filter(approval_status=selected_review_status)
+    if selected_lease_type in lease_type_values:
+        queryset = queryset.filter(lease_type=selected_lease_type)
+    if selected_inventory_state in inventory_state_values:
+        if selected_inventory_state == ADMIN_LISTING_INVENTORY_HIDDEN:
+            queryset = queryset.filter(is_hidden=True, archived_at__isnull=True)
+        elif selected_inventory_state == ADMIN_LISTING_INVENTORY_ARCHIVED:
+            queryset = queryset.filter(archived_at__isnull=False)
 
     return queryset.order_by("review_priority", "-submitted_for_approval_at", "-created_at")
 
@@ -246,9 +267,20 @@ def admin_dashboard_metrics():
     }
 
 
-def admin_dashboard_snapshot(*, query="", selected_status="", selected_review_status=""):
+def admin_dashboard_snapshot(
+    *,
+    query="",
+    selected_status="",
+    selected_review_status="",
+    selected_lease_type="",
+    selected_inventory_state="",
+):
     snapshot_minute = timezone.localtime().strftime("%Y%m%d%H%M")
-    cache_key = f"admin-dashboard:{query}:{selected_status}:{selected_review_status}:{snapshot_minute}"
+    cache_key = (
+        "admin-dashboard:"
+        f"{query}:{selected_status}:{selected_review_status}:{selected_lease_type}:{selected_inventory_state}:"
+        f"{snapshot_minute}"
+    )
     cached_snapshot = cache.get(cache_key)
     if cached_snapshot is not None:
         return cached_snapshot
@@ -261,6 +293,8 @@ def admin_dashboard_snapshot(*, query="", selected_status="", selected_review_st
         query=query,
         selected_status=selected_status,
         selected_review_status=selected_review_status,
+        selected_lease_type=selected_lease_type,
+        selected_inventory_state=selected_inventory_state,
     )
     reports_qs = admin_reports_queryset()
     user_reports_qs = admin_user_reports_queryset()
@@ -286,7 +320,14 @@ def admin_dashboard_snapshot(*, query="", selected_status="", selected_review_st
                     end_date__gte=today,
                 ),
             ),
+            available_listings=Count("id", filter=Q(status=Listing.STATUS_AVAILABLE)),
+            pending_status_listings=Count("id", filter=Q(status=Listing.STATUS_PENDING)),
+            rented_status_listings=Count("id", filter=Q(status=Listing.STATUS_TAKEN)),
+            hidden_listings=Count("id", filter=Q(is_hidden=True, archived_at__isnull=True)),
             archived_listings=Count("id", filter=Q(archived_at__isnull=False)),
+            full_lease_listings=Count("id", filter=Q(lease_type="FULL")),
+            sublease_listings=Count("id", filter=Q(lease_type="SUBLEASE")),
+            short_term_listings=Count("id", filter=Q(lease_type="SHORT")),
             listings_last_7_days=Count("id", filter=Q(created_at__gte=weekly_cutoff)),
         )
     )

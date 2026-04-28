@@ -71,6 +71,18 @@ class SeedDemoDataCommandTests(TestCase):
         self.assertEqual(UserFile.objects.count(), 4)
         self.assertGreaterEqual(ListingConversation.objects.count(), 8)
 
+        claire = User._default_manager.get(username="demo_claire_brennan")
+        self.assertEqual(claire.student_profile.institution_status, "undergraduate")
+        jordan = User._default_manager.get(username="demo_jordan_realtor")
+        self.assertEqual(jordan.admin_profile.organization_type, "individual_owner")
+
+        student_sublet = Listing.objects.get(title__icontains="Chestnut Hill 2BR")
+        self.assertEqual(student_sublet.space_type, Listing.SPACE_PRIVATE_ROOM)
+        self.assertTrue(student_sublet.landlord_approval_required)
+        self.assertEqual(student_sublet.documentation_type, "sublease")
+        self.assertEqual(student_sublet.original_lease_holder, "Claire Brennan")
+        self.assertIn("No smoking", student_sublet.renter_requirements)
+
         archived_listing = Listing.objects.get(title__icontains="archived after lease signing")
         self.assertIsNotNone(archived_listing.archived_at)
 

@@ -20,6 +20,7 @@ class RoommateGroupTests(TestCase):
         profile = user.student_profile
         defaults = {
             "preferred_name": user.first_name or user.username,
+            "institution_status": "undergraduate",
             "major": "Computer Science",
             "bio": "Easygoing roommate.",
             "messy_level": 5,

@@ -138,7 +138,7 @@
 
 .profile-scale-option:has(input:checked) {
     border-color: rgba(var(--primary-rgb), 0.54);
-    background: linear-gradient(180deg, rgba(var(--primary-rgb), 0.1), rgba(var(--white-rgb), 0.96));
+    background: rgba(var(--primary-rgb), 0.08);
     box-shadow: 0 0 0 1px rgba(var(--primary-rgb), 0.12), var(--shadow-sm);
 }
 
@@ -215,7 +215,7 @@
 
 .profile-toggle-card:has(input:checked) {
     border-color: rgba(var(--primary-rgb), 0.54);
-    background: linear-gradient(180deg, rgba(var(--primary-rgb), 0.09), rgba(var(--white-rgb), 0.96));
+    background: rgba(var(--primary-rgb), 0.08);
     box-shadow: 0 0 0 1px rgba(var(--primary-rgb), 0.12), var(--shadow-sm);
 }
 

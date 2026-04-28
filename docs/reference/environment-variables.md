@@ -14,6 +14,7 @@ This document lists the environment variables used by Padly's runtime configurat
 | `DJANGO_STATIC_ROOT` | `<BASE_DIR>/staticfiles` | No | collected static asset output path |
 | `DJANGO_MEDIA_ROOT` | `/tmp/padly-media` in production, `<BASE_DIR>/media` in debug | No | uploaded media root path |
 | `DJANGO_MEDIA_FALLBACK_ROOT` | `/tmp/padly-media` in production, `<BASE_DIR>/media` in debug | No | writable fallback when filesystem media root is configured but unusable |
+| `DJANGO_ADMIN_ENABLED` | `false` | No | mounts raw `/admin/` and enables Django's `ModelBackend` when explicitly enabled |
 
 ## Proxy and Host Handling
 
@@ -68,6 +69,7 @@ Render also provides `RENDER_EXTERNAL_HOSTNAME` and `RENDER_EXTERNAL_URL`. Padly
 | `LISTING_GEOAPIFY_AUTOCOMPLETE_URL` | `https://api.geoapify.com/v1/geocode/autocomplete` | Geoapify autocomplete endpoint |
 | `LISTING_ADDRESS_AUTOCOMPLETE_RATE_LIMIT` | `30` | request cap per window |
 | `LISTING_ADDRESS_AUTOCOMPLETE_RATE_WINDOW_SECONDS` | `60` | address-lookup window |
+| `LISTING_ADDRESS_AUTOCOMPLETE_CACHE_SECONDS` | `300` | cache TTL for address autocomplete responses |
 | `LISTING_REPORT_RATE_LIMIT` | `10` | report submissions per user per window |
 | `LISTING_REPORT_RATE_WINDOW_SECONDS` | `3600` | listing-report rate-limit window |
 | `USER_REPORT_RATE_LIMIT` | `10` | user-report submissions per user per window |
@@ -83,6 +85,7 @@ Render also provides `RENDER_EXTERNAL_HOSTNAME` and `RENDER_EXTERNAL_URL`. Padly
 | --- | --- | --- |
 | `MESSAGE_SEND_RATE_LIMIT` | `20` | messages per user per window |
 | `MESSAGE_SEND_RATE_WINDOW_SECONDS` | `60` | message rate-limit window |
+| `GLOBAL_UNREAD_COUNT_CACHE_SECONDS` | `30` | cache TTL for unread-conversation counters |
 | `LOGIN_INIT_RATE_LIMIT` | `10` | login attempts per request identity per window |
 | `LOGIN_INIT_RATE_WINDOW_SECONDS` | `300` | login rate-limit window |
 
@@ -99,11 +102,14 @@ Render also provides `RENDER_EXTERNAL_HOSTNAME` and `RENDER_EXTERNAL_URL`. Padly
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `ACCOUNT_DELETION_RECENT_AUTH_SECONDS` | `1800` | max age for recent-auth deletion gate |
+| `ACCOUNT_DELETION_RECENT_AUTH_SECONDS` | `900` | max age for recent-auth deletion gate |
+| `PRIVILEGED_ACTION_RECENT_AUTH_SECONDS` | `600` | max age for staff role/status recent-auth gate |
+| `SUPPORT_INVESTIGATION_DURATION_HOURS` | `24` | default duration for support investigation access |
 
 ## Configuration Notes
 
 - `.env` is loaded automatically by `python-dotenv`.
 - Production fails closed when required secrets or host/channel settings are missing.
+- Raw Django admin is intentionally opt-in; the product admin workspace remains under `/users/admin-*`.
 - Tests force some settings off or to deterministic values to avoid environment leakage.
 - Test runs also force Django's MD5 password hasher so the full suite stays fast enough to run routinely in local development and CI.

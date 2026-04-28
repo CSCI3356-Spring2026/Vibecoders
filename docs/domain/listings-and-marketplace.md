@@ -10,6 +10,7 @@ The `listings` app owns the marketplace domain:
 - favorites
 - resident reviews
 - listing reports
+- owner/user reports from listing detail
 - roommate posts
 - moderation state and public visibility rules
 
@@ -21,7 +22,7 @@ The `listings` app owns the marketplace domain:
 | Pending review | Newly created or edited listing waiting for admin action | No |
 | Approved | Admin-approved listing | Yes, if also available, not hidden, and not expired |
 | Rejected | Admin rejected listing with review notes | No |
-| Taken or expired | Listing exists but is not actively available | No |
+| Rented or expired | Listing exists but is not actively available | No |
 
 ### Public visibility rule
 
@@ -58,6 +59,17 @@ See [Data Models](../reference/data-models.md) for the full reference summary.
 - Form logic:
   - `ListingForm`
   - `handle_listing_form_submission()`
+
+The guided listing wizard stores non-file draft fields in browser `localStorage` for 72 hours, restores them after a reload, and warns users that photo uploads must be re-selected.
+
+### Listing data captured
+
+Listings capture the Delivery 6 housing details directly on `Listing`:
+
+- address, verified coordinates, price, rooms, bathrooms, square footage, property type, and space type
+- lease type, availability dates, original lease holder, landlord approval required, and documentation type
+- utilities included, estimated utilities, parking fee, security deposit, broker fee, application fee, monthly total, and calculated upfront total
+- parking, furniture, yard, stairs/no-stairs, pets, amenities, security features, photos, and renter requirements
 
 ### Verified address rules
 
@@ -109,7 +121,7 @@ Main route: `/listings/`
 Server-side behavior:
 
 - `marketplace_listings_for_user()` determines which listings a user can browse
-- `apply_listing_filters()` handles text, price, lease, availability, saved-only, and optional map bounds
+- `apply_listing_filters()` handles text, property type, space type, price, upfront cost, lease, availability, accessibility/trust filters, saved-only, and optional map bounds
 - `with_favorite_state()` annotates favorite state for authenticated users
 
 Client-side behavior:
@@ -162,7 +174,7 @@ Reviews are intentionally strict so public trust signals are tied to real renter
 
 ## Reports
 
-Reports let student users flag approved listings for admin review.
+Reports let student users flag approved listings for admin review. Listing detail also exposes a separate owner-report flow for active student and realtor/owner accounts.
 
 ### Report requirements
 
@@ -171,6 +183,7 @@ Reports let student users flag approved listings for admin review.
 - reporter cannot own the listing
 - only one active open or in-review report per `(listing, reporter)`
 - submissions are rate limited
+- reason choices include scams, inaccurate details, safety, spam, unavailable listings, inappropriate content, and other
 
 ### Report states
 

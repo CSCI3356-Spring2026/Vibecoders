@@ -25,13 +25,16 @@
                                     Boston College student
                                 {% endif %}
                             </p>
-                            {% if their_profile.age or their_profile.gender or request.user.id == target.id %}
+                            {% if their_profile.age or their_profile.gender or their_profile.institution_status or request.user.id == target.id %}
                                 <div class="profile-public-facts">
                                     {% if their_profile.age %}
                                         <span class="profile-public-fact">Age {{ their_profile.age }}</span>
                                     {% endif %}
                                     {% if their_profile.gender %}
                                         <span class="profile-public-fact">{{ their_profile.get_gender_display }}</span>
+                                    {% endif %}
+                                    {% if their_profile.institution_status %}
+                                        <span class="profile-public-fact">{{ their_profile.get_institution_status_display }}</span>
                                     {% endif %}
                                     {% if request.user.id == target.id %}
                                         <span class="profile-public-fact">Your public profile</span>

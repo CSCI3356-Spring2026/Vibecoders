@@ -85,7 +85,7 @@ The frontend is primarily server-rendered. JavaScript is used for progressive en
 - Use `transaction.atomic()` around multi-row writes.
 - Use `transaction.on_commit()` for websocket publishing or storage cleanup.
 - Use `safe_next_url()` for any redirect target that accepts `next`.
-- Keep raw Django admin secondary to the custom admin workspace for product operations.
+- Keep raw Django admin disabled by default and secondary to the custom admin workspace for product operations.
 - Prefer updating the nearest existing test module rather than creating ad hoc test locations.
 
 ## Runtime vs. Non-Documentation Sources of Truth

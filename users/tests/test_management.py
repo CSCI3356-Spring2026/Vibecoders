@@ -58,6 +58,7 @@ class RepairProfileCompletionIntegrityCommandTests(TestCase):
             "preferred_name": user.first_name or user.username,
             "age": 20,
             "gender": "male",
+            "institution_status": "undergraduate",
             "major": "Computer Science",
             "bio": "Easygoing roommate.",
             "messy_level": 3,
@@ -136,6 +137,7 @@ class RepairRoommateGroupIntegrityCommandTests(TestCase):
         defaults = {
             "preferred_name": user.first_name or user.username,
             "major": "Computer Science",
+            "institution_status": "undergraduate",
             "bio": "Easygoing roommate.",
             "messy_level": 5,
             "guest_level": 3,

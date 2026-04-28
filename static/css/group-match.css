@@ -514,10 +514,8 @@
     padding: 1rem;
     border: 1px solid rgba(var(--gray-700-rgb), 0.12);
     border-radius: var(--radius-lg);
-    background:
-        radial-gradient(circle at top right, rgba(var(--primary-rgb), 0.08), transparent 12rem),
-        linear-gradient(180deg, rgba(var(--white-rgb), 1), rgba(var(--gray-100-rgb), 0.34));
-    box-shadow: 0 10px 24px rgba(var(--gray-900-rgb), 0.05);
+    background: var(--white);
+    box-shadow: var(--shadow-sm);
     transition:
         transform 140ms ease,
         border-color 140ms ease,
@@ -525,9 +523,9 @@
 }
 
 .rmhub-person-card:hover {
-    transform: translateY(-2px);
+    transform: none;
     border-color: rgba(var(--primary-rgb), 0.18);
-    box-shadow: 0 18px 32px rgba(var(--gray-900-rgb), 0.08);
+    box-shadow: var(--shadow-sm);
 }
 
 .rmhub-person-head {
