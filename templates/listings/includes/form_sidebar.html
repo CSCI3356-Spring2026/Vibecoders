@@ -9,7 +9,7 @@
 
         <div class="listing-form-summary">
             <div class="listing-form-summary-head">
-                <p class="listing-form-summary-kicker">{{ form_summary.property_type }} • {{ form_summary.lease_type }}</p>
+                <p class="listing-form-summary-kicker">{{ form_summary.property_type }} • {{ form_summary.space_type }} • {{ form_summary.lease_type }}</p>
                 <h3 class="listing-form-summary-title">{{ form_summary.title }}</h3>
                 <p class="listing-form-summary-address">{{ form_summary.address }}</p>
             </div>
@@ -46,7 +46,7 @@
                 </div>
                 <div class="app-compact-item app-compact-item-static">
                     <span class="app-compact-title">Layout</span>
-                    <span class="app-compact-meta">{{ form_summary.rooms }} bd • {{ form_summary.bathrooms }} ba{% if form_summary.sq_ft %} • {{ form_summary.sq_ft }} sqft{% endif %}</span>
+                    <span class="app-compact-meta">{{ form_summary.space_type }} • {{ form_summary.rooms }} bd • {{ form_summary.bathrooms }} ba{% if form_summary.sq_ft %} • {{ form_summary.sq_ft }} sqft{% endif %}</span>
                 </div>
                 <div class="app-compact-item app-compact-item-static">
                     <span class="app-compact-title">Dates</span>

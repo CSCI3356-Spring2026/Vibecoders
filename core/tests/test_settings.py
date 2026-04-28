@@ -47,6 +47,21 @@ class TestSettingsTests(SimpleTestCase):
         self.assertNotIn("django.contrib.auth.backends.ModelBackend", backends)
         self.assertIn("allauth.account.auth_backends.AuthenticationBackend", backends)
 
+    def test_raw_admin_is_disabled_by_default(self):
+        result = self._run_python_subprocess(
+            (
+                "import json; import vibecoders.settings as settings; "
+                "print(json.dumps({'enabled': settings.DJANGO_ADMIN_ENABLED, "
+                "'backends': settings.AUTHENTICATION_BACKENDS}))"
+            ),
+            extra_env={"DJANGO_ADMIN_ENABLED": None},
+        )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertFalse(payload["enabled"])
+        self.assertNotIn("django.contrib.auth.backends.ModelBackend", payload["backends"])
+
     def test_seed_demo_data_is_treated_as_local_debug_command(self):
         result = self._run_python_subprocess(
             "import sys; sys.argv = ['manage.py', 'seed_demo_data']; "

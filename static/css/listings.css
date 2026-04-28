@@ -600,6 +600,13 @@
     overflow: hidden;
 }
 
+.listing-results-pane [data-listings-results-content] {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+}
+
 .listing-map-pane {
     position: relative;
     z-index: 1;

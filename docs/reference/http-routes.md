@@ -13,7 +13,7 @@
 | `/accounts/google/login/` | custom `users.views.google_login_gate` |
 | `/accounts/` | Allauth routes |
 | `/listings/` | `listings.urls` |
-| `/admin/` | Django admin |
+| `/admin/` | Django admin, only when `DJANGO_ADMIN_ENABLED=true` |
 
 Padly also exposes these narrow media routes in every environment:
 
@@ -43,7 +43,7 @@ Padly also exposes these narrow media routes in every environment:
 | `/users/dashboard/` | `users.views.dashboard` | required | account workspace |
 | `/users/browse/` | `users.views.browse_roommates` | student users | legacy redirect into `/listings/group-match/` |
 | `/users/profile/<user_id>/` | `users.views.public_profile` | student users | public roommate profile |
-| `/users/profile/<user_id>/report/` | `users.views.report_user` | student users + POST | submit a report about a roommate profile |
+| `/users/profile/<user_id>/report/` | `users.views.report_user` | student users + POST | submit a report about an active student or realtor/owner account |
 | `/users/posts/` | `users.views.posts` | required | current user's listings |
 | `/users/files/` | `users.views.files` | required | private document library |
 | `/users/files/<file_id>/preview/` | `users.views.file_preview` | required | authenticated inline preview |
@@ -59,7 +59,7 @@ Padly also exposes these narrow media routes in every environment:
 | `/users/admin-listings/` | `users.admin_views.admin_listings` | moderator or platform admin | listing review queue |
 | `/users/admin-listings/<listing_id>/` | `users.admin_views.admin_listing_detail` | moderator or platform admin | listing moderation detail |
 | `/users/admin-listings/<listing_id>/review/` | `users.admin_views.admin_review_listing` | moderator or platform admin + POST | approve or reject listing |
-| `/users/admin-listings/<listing_id>/delete/` | `users.admin_views.admin_delete_listing` | moderator or platform admin + POST | archive listing |
+| `/users/admin-listings/<listing_id>/delete/` | `users.admin_views.admin_delete_listing` | moderator or platform admin + POST | legacy route that archives listing |
 | `/users/admin-reports/` | `users.admin_views.admin_reports` | moderator or platform admin | listing reports queue |
 | `/users/admin-reports/<report_id>/status/` | `users.admin_views.admin_update_report` | moderator or platform admin + POST | update report status and append moderation history |
 | `/users/admin-user-reports/` | `users.admin_views.admin_user_reports` | moderator or platform admin | user reports queue |

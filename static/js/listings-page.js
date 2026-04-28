@@ -97,7 +97,10 @@ function createListingsFilterToolbar(root, form) {
     const minBedroomsControl = getFormControl(form, "min_bedrooms");
     const minBathroomsControl = getFormControl(form, "min_bathrooms");
     const leaseControl = getFormControl(form, "lease_type");
+    const propertyTypeControl = getFormControl(form, "property_type");
+    const spaceTypeControl = getFormControl(form, "space_type");
     const queryControl = getFormControl(form, "q");
+    const maxUpfrontControl = getFormControl(form, "max_upfront");
     const maxDistanceControl = getFormControl(form, "max_distance");
     const availabilityStartControl = getFormControl(form, "availability_start");
     const availabilityEndControl = getFormControl(form, "availability_end");
@@ -107,6 +110,8 @@ function createListingsFilterToolbar(root, form) {
         getFormControl(form, "is_furnished"),
         getFormControl(form, "allows_pets"),
         getFormControl(form, "has_yard"),
+        getFormControl(form, "no_stairs"),
+        getFormControl(form, "landlord_approval_required"),
     ].filter(Boolean);
 
     const closeMenus = (exceptMenu = null) => {
@@ -184,6 +189,15 @@ function createListingsFilterToolbar(root, form) {
             extraFilterCount += 1;
         }
         if (maxDistanceControl?.value) {
+            extraFilterCount += 1;
+        }
+        if (maxUpfrontControl?.value) {
+            extraFilterCount += 1;
+        }
+        if (propertyTypeControl?.value) {
+            extraFilterCount += 1;
+        }
+        if (spaceTypeControl?.value) {
             extraFilterCount += 1;
         }
         if (startDate || endDate) {

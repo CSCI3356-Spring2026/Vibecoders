@@ -11,7 +11,9 @@ def _completion_value_present(value):
 def completion_fields_for_role(role):
     if role == Role.STUDENT:
         return StudentProfileForm.completion_fields
-    if role in STAFF_ROLE_VALUES | {Role.REALTOR}:
+    if role == Role.REALTOR:
+        return (*AdminProfileForm.completion_fields, "organization_type")
+    if role in STAFF_ROLE_VALUES:
         return AdminProfileForm.completion_fields
     return ()
 

@@ -21,6 +21,7 @@ class CustomUserModelTests(TestCase):
             "preferred_name": user.first_name or user.username,
             "age": 20,
             "gender": "male",
+            "institution_status": "undergraduate",
             "major": "Computer Science",
             "bio": "Easygoing roommate.",
             "messy_level": 3,
@@ -257,6 +258,24 @@ class CustomUserModelTests(TestCase):
 
         self.assertEqual(report.status, UserReport.STATUS_OPEN)
 
+    def test_student_can_create_user_report_for_realtor_owner(self):
+        reporter = User.objects.create_user(username="owner-reporter", email="owner-reporter@bc.edu", password="test")
+        reported_user = User.objects.create_user(
+            username="owner-target",
+            email="owner-target@example.com",
+            password="test",
+        )
+
+        report = UserReport.objects.create(
+            reported_user=reported_user,
+            reporter=reporter,
+            reason=UserReport.REASON_INAPPROPRIATE,
+            details="Posted inappropriate listing content.",
+        )
+
+        self.assertEqual(reported_user.role, Role.REALTOR)
+        self.assertEqual(report.status, UserReport.STATUS_OPEN)
+
     def test_user_report_rejects_self_reporting(self):
         reporter = User.objects.create_user(username="self-report", email="self-report@bc.edu", password="test")
         reporter.profile_completed_at = timezone.now()
@@ -294,6 +313,17 @@ class CustomUserModelTests(TestCase):
 
         self.assertTrue(StudentProfile.objects.filter(user=student).exists())
         self.assertTrue(AdminProfile.objects.filter(user=admin).exists())
+
+    def test_realtor_company_profile_requires_organization_name(self):
+        realtor = User.objects.create_user(username="company-agent", email="company-agent@example.com", password="test")
+        profile = realtor.admin_profile
+        profile.preferred_name = "Company Agent"
+        profile.bio = "Manages housing listings."
+        profile.organization_type = "property_company"
+        profile.organization_name = ""
+
+        with self.assertRaisesMessage(ValidationError, "Enter the company or organization name."):
+            profile.save()
 
     def test_new_student_profile_allows_blank_frequency_fields(self):
         user = User.objects.create_user(username="blank-profile", email="blank-profile@bc.edu", password="test")

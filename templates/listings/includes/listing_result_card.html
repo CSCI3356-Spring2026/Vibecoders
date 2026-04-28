@@ -24,6 +24,7 @@
                         <span class="listing-card-meta-chip is-verified">Verified</span>
                     {% endif %}
                     <span class="listing-card-meta-chip">{{ listing.get_lease_type_display }}</span>
+                    <span class="listing-card-meta-chip">{{ listing.get_space_type_display }}</span>
                     <span class="listing-card-meta-chip {% if listing.status == 'AVAILABLE' %}is-available{% elif listing.status == 'PENDING' %}is-pending{% else %}is-taken{% endif %}">
                         {{ listing.get_status_display }}
                     </span>
@@ -46,6 +47,9 @@
             </div>
             {% if listing.description %}
                 <p class="listing-card-summary">{{ listing.description|truncatewords:14 }}</p>
+            {% endif %}
+            {% if listing.renter_requirements %}
+                <p class="listing-card-summary">Requirements: {{ listing.renter_requirements|truncatewords:10 }}</p>
             {% endif %}
             <div class="listing-card-owner">
                 {% include "listings/includes/owner_meta.html" with listing=listing size_class="user-avatar-sm" %}

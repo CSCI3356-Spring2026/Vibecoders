@@ -88,11 +88,32 @@
                                     <div><span>Availability</span><strong>{{ listing.get_status_display }}</strong></div>
                                     <div><span>Lease</span><strong>{{ listing.get_lease_type_display }}</strong></div>
                                     <div><span>Type</span><strong>{{ listing.get_property_type_display }}</strong></div>
+                                    <div><span>Space</span><strong>{{ listing.get_space_type_display }}</strong></div>
                                     <div><span>Layout</span><strong>{{ listing.rooms }} bd · {{ listing.bathrooms }} ba{% if listing.sq_ft %} · {{ listing.sq_ft }} sqft{% endif %}</strong></div>
                                     <div><span>Move-in</span><strong>{{ listing.start_date }}</strong></div>
                                     <div><span>Move-out</span><strong>{{ listing.end_date }}</strong></div>
+                                    <div><span>Original lease holder</span><strong>{{ listing.original_lease_holder|default:"Not listed" }}</strong></div>
+                                    <div><span>Landlord approval</span><strong>{% if listing.landlord_approval_required %}Yes{% else %}No{% endif %}</strong></div>
+                                    <div><span>Documentation</span><strong>{{ listing.get_documentation_type_display|default:"Not listed" }}</strong></div>
                                 </div>
                                 <p class="admin-review-body">{{ listing.description|default:"No description provided." }}</p>
+                            </div>
+
+                            <div class="admin-review-section">
+                                <div class="admin-table-head">
+                                    <h2 class="app-section-heading">Financial transparency</h2>
+                                </div>
+                                <div class="admin-review-facts">
+                                    <div><span>Monthly rent</span><strong>${{ listing.price|floatformat:0 }}</strong></div>
+                                    <div><span>Utilities included</span><strong>{% if listing.utilities_included %}Yes{% else %}No{% endif %}</strong></div>
+                                    <div><span>Estimated utilities</span><strong>${{ listing.utilities_estimate|default:0|floatformat:0 }}/mo</strong></div>
+                                    <div><span>Security deposit</span><strong>${{ listing.security_deposit|default:0|floatformat:0 }}</strong></div>
+                                    <div><span>Application fee</span><strong>${{ listing.application_fee|default:0|floatformat:0 }}</strong></div>
+                                    <div><span>Broker fee</span><strong>${{ listing.broker_fee|default:0|floatformat:0 }}</strong></div>
+                                    <div><span>Monthly total</span><strong>${{ listing.estimated_monthly_total|floatformat:0 }}</strong></div>
+                                    <div><span>Upfront total</span><strong>${{ listing.estimated_upfront_total|floatformat:0 }}</strong></div>
+                                </div>
+                                <p class="admin-review-body">{{ listing.renter_requirements|default:"No renter requirements listed." }}</p>
                             </div>
 
                             <div class="admin-review-section">
@@ -126,6 +147,12 @@
                                     <div><span>Name</span><strong>{{ listing.owner.display_name }}</strong></div>
                                     <div><span>Email</span><strong>{{ listing.owner.email }}</strong></div>
                                     <div><span>Role</span><strong>{{ listing.owner.display_role }}</strong></div>
+                                    {% if listing.owner.admin_profile.organization_type %}
+                                        <div><span>Owner type</span><strong>{{ listing.owner.admin_profile.get_organization_type_display }}</strong></div>
+                                    {% endif %}
+                                    {% if listing.owner.admin_profile.organization_name %}
+                                        <div><span>Organization</span><strong>{{ listing.owner.admin_profile.organization_name }}</strong></div>
+                                    {% endif %}
                                     <div><span>Created</span><strong>{{ listing.created_at|date:"M d, Y" }}</strong></div>
                                 </div>
                             </div>

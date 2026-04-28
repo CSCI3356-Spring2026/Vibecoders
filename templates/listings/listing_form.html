@@ -191,11 +191,12 @@
                         </div>
                         <div class="listing-wizard-grid listing-wizard-grid-4">
                             {% include "listings/includes/form_field.html" with field=form.property_type %}
+                            {% include "listings/includes/form_field.html" with field=form.space_type %}
                             {% include "listings/includes/form_field.html" with field=form.rooms %}
                             {% include "listings/includes/form_field.html" with field=form.bathrooms %}
-                            {% include "listings/includes/form_field.html" with field=form.sq_ft %}
                         </div>
-                        <div class="listing-wizard-grid listing-wizard-grid-1">
+                        <div class="listing-wizard-grid listing-wizard-grid-2">
+                            {% include "listings/includes/form_field.html" with field=form.sq_ft %}
                             {% include "listings/includes/form_field.html" with field=form.distance_to_campus %}
                         </div>
                         <div class="listing-wizard-choice-grid">
@@ -260,6 +261,9 @@
                         </div>
                         <div class="listing-wizard-grid listing-wizard-grid-1">
                             {% include "listings/includes/form_field.html" with field=form.amenities %}
+                        </div>
+                        <div class="listing-wizard-grid listing-wizard-grid-1">
+                            {% include "listings/includes/form_field.html" with field=form.renter_requirements %}
                         </div>
                         <div class="listing-wizard-grid listing-wizard-grid-2">
                             {% include "listings/includes/form_field.html" with field=form.documentation_type %}
@@ -328,6 +332,14 @@
                                     <div class="listing-wizard-review-item">
                                         <span class="listing-wizard-review-label">Estimated monthly total</span>
                                         <span class="listing-wizard-review-value" data-review-monthly>{% if form_summary.monthly_total %}${{ form_summary.monthly_total|floatformat:0 }}/mo{% else %}--{% endif %}</span>
+                                    </div>
+                                    <div class="listing-wizard-review-item">
+                                        <span class="listing-wizard-review-label">Estimated upfront total</span>
+                                        <span class="listing-wizard-review-value" data-review-upfront>{% if form_summary.upfront_total %}${{ form_summary.upfront_total|floatformat:0 }}{% else %}--{% endif %}</span>
+                                    </div>
+                                    <div class="listing-wizard-review-item">
+                                        <span class="listing-wizard-review-label">Space</span>
+                                        <span class="listing-wizard-review-value" data-review-space>{{ form_summary.space_type }}</span>
                                     </div>
                                     <div class="listing-wizard-review-item">
                                         <span class="listing-wizard-review-label">Layout</span>

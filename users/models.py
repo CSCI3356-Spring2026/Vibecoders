@@ -47,6 +47,14 @@ STAFF_ROLE_VALUES = {
     Role.ADMIN,
 }
 ADMIN_PROFILE_COPY_FIELDS = ("preferred_name", "age", "gender", "gender_other", "bio")
+ADMIN_PROFILE_ORGANIZATION_INDIVIDUAL_OWNER = "individual_owner"
+ADMIN_PROFILE_ORGANIZATION_PROPERTY_COMPANY = "property_company"
+ADMIN_PROFILE_ORGANIZATION_OTHER = "other"
+ADMIN_PROFILE_ORGANIZATION_CHOICES = [
+    (ADMIN_PROFILE_ORGANIZATION_INDIVIDUAL_OWNER, "Individual owner"),
+    (ADMIN_PROFILE_ORGANIZATION_PROPERTY_COMPANY, "Property company"),
+    (ADMIN_PROFILE_ORGANIZATION_OTHER, "Other"),
+]
 USER_REPORT_STATUS_OPEN = "open"
 USER_REPORT_STATUS_IN_REVIEW = "in_review"
 USER_REPORT_STATUS_RESOLVED = "resolved"
@@ -62,6 +70,7 @@ USER_REPORT_REASON_HARASSMENT = "harassment"
 USER_REPORT_REASON_SPAM = "spam"
 USER_REPORT_REASON_IMPERSONATION = "impersonation"
 USER_REPORT_REASON_SCAM = "scam"
+USER_REPORT_REASON_INAPPROPRIATE = "inappropriate"
 USER_REPORT_REASON_OTHER = "other"
 USER_REPORT_REASON_CHOICES = [
     (USER_REPORT_REASON_SAFETY, "Safety concern"),
@@ -69,6 +78,7 @@ USER_REPORT_REASON_CHOICES = [
     (USER_REPORT_REASON_SPAM, "Spam"),
     (USER_REPORT_REASON_IMPERSONATION, "Impersonation"),
     (USER_REPORT_REASON_SCAM, "Scam or suspicious behavior"),
+    (USER_REPORT_REASON_INAPPROPRIATE, "Inappropriate content"),
     (USER_REPORT_REASON_OTHER, "Other"),
 ]
 USER_REPORT_STATUS_VALUES = tuple(value for value, _ in USER_REPORT_STATUS_CHOICES)
@@ -120,6 +130,14 @@ STUDENT_PROFILE_GENDER_CHOICES = [
     ("female", "Female"),
     ("other", "Other"),
     ("prefer_not", "Prefer not to say"),
+]
+STUDENT_PROFILE_INSTITUTION_UNDERGRADUATE = "undergraduate"
+STUDENT_PROFILE_INSTITUTION_GRADUATE = "graduate"
+STUDENT_PROFILE_INSTITUTION_ALUMNI = "alumni"
+STUDENT_PROFILE_INSTITUTION_STATUS_CHOICES = [
+    (STUDENT_PROFILE_INSTITUTION_UNDERGRADUATE, "Undergraduate"),
+    (STUDENT_PROFILE_INSTITUTION_GRADUATE, "Graduate"),
+    (STUDENT_PROFILE_INSTITUTION_ALUMNI, "Alumni"),
 ]
 STUDENT_PROFILE_MESSY_LEVEL_CHOICES = [
     (1, "Extremely messy"),
@@ -468,6 +486,7 @@ class CustomUser(AbstractUser):
 
 class StudentProfile(models.Model):
     GENDER_CHOICES = STUDENT_PROFILE_GENDER_CHOICES
+    INSTITUTION_STATUS_CHOICES = STUDENT_PROFILE_INSTITUTION_STATUS_CHOICES
     MESSY_LEVEL_CHOICES = STUDENT_PROFILE_MESSY_LEVEL_CHOICES
     GUEST_LEVEL_CHOICES = STUDENT_PROFILE_GUEST_LEVEL_CHOICES
     NOISE_LEVEL_CHOICES = STUDENT_PROFILE_NOISE_LEVEL_CHOICES
@@ -478,6 +497,7 @@ class StudentProfile(models.Model):
     age = models.PositiveIntegerField(null=True, blank=True)
     gender = models.CharField(max_length=24, blank=True, choices=GENDER_CHOICES)
     gender_other = models.CharField(max_length=120, blank=True)
+    institution_status = models.CharField(max_length=24, blank=True, choices=INSTITUTION_STATUS_CHOICES)
     major = models.CharField(max_length=120, blank=True)
     bio = models.CharField(max_length=300, blank=True)
     messy_level = models.PositiveSmallIntegerField(null=True, blank=True, choices=MESSY_LEVEL_CHOICES)
@@ -498,6 +518,10 @@ class StudentProfile(models.Model):
             models.CheckConstraint(
                 condition=_optional_choice_constraint("gender", STUDENT_PROFILE_GENDER_CHOICES),
                 name="student_profile_gender_valid",
+            ),
+            models.CheckConstraint(
+                condition=_optional_choice_constraint("institution_status", STUDENT_PROFILE_INSTITUTION_STATUS_CHOICES),
+                name="student_profile_institution_status_valid",
             ),
             models.CheckConstraint(
                 condition=_optional_positive_choice_constraint("messy_level", STUDENT_PROFILE_MESSY_LEVEL_CHOICES),
@@ -542,12 +566,15 @@ class StudentProfile(models.Model):
 
 class AdminProfile(models.Model):
     GENDER_CHOICES = STUDENT_PROFILE_GENDER_CHOICES
+    ORGANIZATION_CHOICES = ADMIN_PROFILE_ORGANIZATION_CHOICES
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="admin_profile")
     preferred_name = models.CharField(max_length=120, blank=True)
     age = models.PositiveIntegerField(null=True, blank=True)
     gender = models.CharField(max_length=24, blank=True, choices=GENDER_CHOICES)
     gender_other = models.CharField(max_length=120, blank=True)
+    organization_type = models.CharField(max_length=32, blank=True, choices=ORGANIZATION_CHOICES)
+    organization_name = models.CharField(max_length=160, blank=True)
     bio = models.CharField(max_length=300, blank=True)
 
     class Meta:
@@ -560,6 +587,10 @@ class AdminProfile(models.Model):
                 condition=_optional_choice_constraint("gender", STUDENT_PROFILE_GENDER_CHOICES),
                 name="admin_profile_gender_valid",
             ),
+            models.CheckConstraint(
+                condition=_optional_choice_constraint("organization_type", ADMIN_PROFILE_ORGANIZATION_CHOICES),
+                name="admin_profile_organization_type_valid",
+            ),
         ]
 
     def clean(self):
@@ -568,6 +599,12 @@ class AdminProfile(models.Model):
             raise ValidationError({"gender_other": "Please share your gender or choose another option."})
         if self.gender != "other":
             self.gender_other = ""
+        if self.organization_type != ADMIN_PROFILE_ORGANIZATION_PROPERTY_COMPANY:
+            self.organization_name = self.organization_name.strip()
+            return
+        if not self.organization_name.strip():
+            raise ValidationError({"organization_name": "Enter the company or organization name."})
+        self.organization_name = self.organization_name.strip()
 
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -592,6 +629,7 @@ class UserReport(models.Model):
     REASON_SPAM = USER_REPORT_REASON_SPAM
     REASON_IMPERSONATION = USER_REPORT_REASON_IMPERSONATION
     REASON_SCAM = USER_REPORT_REASON_SCAM
+    REASON_INAPPROPRIATE = USER_REPORT_REASON_INAPPROPRIATE
     REASON_OTHER = USER_REPORT_REASON_OTHER
 
     STATUS_CHOICES = USER_REPORT_STATUS_CHOICES
@@ -658,14 +696,13 @@ class UserReport(models.Model):
                 raise ValidationError({"details": "Only student accounts can report users."})
             if self.reported_user_id and self.reported_user_id == self.reporter_id:
                 raise ValidationError({"details": "You cannot report your own account."})
-            reported_user_is_student = user_model._default_manager.filter(
+            reported_user_is_reportable = user_model._default_manager.filter(
                 pk=self.reported_user_id,
-                role=Role.STUDENT,
+                role__in=[Role.STUDENT, Role.REALTOR],
                 is_active=True,
-                profile_completed_at__isnull=False,
             ).exists()
-            if self.reported_user_id and not reported_user_is_student:
-                raise ValidationError({"details": "Only active student roommate profiles can be reported."})
+            if self.reported_user_id and not reported_user_is_reportable:
+                raise ValidationError({"details": "Only active student or owner accounts can be reported."})
         if self.status in {self.STATUS_RESOLVED, self.STATUS_DISMISSED} and not (self.resolution_notes or "").strip():
             raise ValidationError({"resolution_notes": "Add resolution notes before closing a report."})
 

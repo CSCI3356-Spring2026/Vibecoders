@@ -661,6 +661,7 @@ def _make_profile(user, p):
             "preferred_name": p["preferred_name"],
             "age": p["age"],
             "gender": p["gender"],
+            "institution_status": "undergraduate",
             "major": p["major"],
             "bio": p["bio"],
             "messy_level": p["messy_level"],

@@ -14,11 +14,11 @@
 .profile-public-hero {
     position: relative;
     overflow: hidden;
-    padding: 1.15rem;
+    padding: 1rem;
     border: 1px solid rgba(var(--gray-700-rgb), 0.12);
     border-radius: var(--radius-lg);
     background: rgba(var(--white-rgb), 0.98);
-    box-shadow: 0 18px 34px rgba(var(--gray-900-rgb), 0.05);
+    box-shadow: var(--shadow-sm);
 }
 
 .profile-public-hero::before,
@@ -66,11 +66,9 @@
 }
 
 .profile-public-avatar {
-    --avatar-size: 5.5rem;
-    border-color: rgba(var(--white-rgb), 0.92);
-    box-shadow:
-        0 16px 28px rgba(var(--gray-900-rgb), 0.12),
-        0 0 0 4px rgba(var(--white-rgb), 0.5);
+    --avatar-size: 4.6rem;
+    border-color: rgba(var(--primary-rgb), 0.12);
+    box-shadow: none;
 }
 
 .profile-public-copy {
@@ -201,11 +199,11 @@
 }
 
 .profile-public-panel {
-    padding: 1.05rem;
+    padding: 0.95rem;
     border: 1px solid rgba(var(--gray-700-rgb), 0.1);
     border-radius: var(--radius-lg);
     background: rgba(var(--white-rgb), 0.98);
-    box-shadow: 0 12px 26px rgba(var(--gray-900-rgb), 0.04);
+    box-shadow: var(--shadow-sm);
 }
 
 .profile-public-panel-head {
@@ -253,8 +251,8 @@
     --lifestyle-match-rgb: var(--gray-700-rgb);
     display: grid;
     gap: 0.28rem;
-    min-height: 6.25rem;
-    padding: 0.95rem;
+    min-height: 5.35rem;
+    padding: 0.82rem;
     border: 1px solid rgba(var(--gray-700-rgb), 0.1);
     border-radius: var(--radius-lg);
     background: rgba(var(--white-rgb), 0.88);
@@ -266,9 +264,9 @@
 }
 
 .profile-public-lifestyle-card:hover {
-    transform: translateY(-2px);
+    transform: none;
     border-color: rgba(var(--gray-700-rgb), 0.16);
-    box-shadow: 0 12px 24px rgba(var(--gray-900-rgb), 0.06);
+    box-shadow: none;
 }
 
 .profile-public-lifestyle-card[class*="lifestyle-match-"] {
@@ -345,7 +343,7 @@
     }
 
     .profile-public-avatar {
-        --avatar-size: 4.9rem;
+        --avatar-size: 4.25rem;
     }
 
     .profile-public-panel {

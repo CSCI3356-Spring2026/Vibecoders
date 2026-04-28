@@ -6,11 +6,13 @@ Padly is a student housing and subletting marketplace built by Vibecoders for th
 
 - Google OAuth sign-in with verified-email-based role assignment
 - Login-gated marketplace flows for creating, managing, browsing, and messaging about listings
+- BC student profile verification plus owner/company profile capture for listing-only accounts
 - Anonymous visitors only see public listing teasers on the landing page
+- Financially transparent listings with monthly totals, upfront-cost totals, sublease fields, and local draft recovery
 - Roommate discovery with post-based group search, compatibility profiles, and direct student-to-student chat
 - Role model for `Student`, `Realtor`, `Moderator`, `Support`, and `Platform Admin` users
 - Real-time conversations between listing owners and interested renters
-- Staff tooling for listing approval, report moderation, support investigations, and operations
+- Staff tooling for listing approval, listing/user report moderation, support investigations, and operations
 - Private user-file handling through authenticated views with audit logging
 - Embedded legal-review flow for versioned Terms and Privacy acceptance
 
@@ -80,6 +82,7 @@ SITE_PRODUCT_NAME=Padly
 SITE_COMPANY_NAME=Vibecoders
 STUDENT_EMAIL_DOMAINS=bc.edu
 LISTING_GEOAPIFY_API_KEY=your-geoapify-api-key
+DJANGO_ADMIN_ENABLED=false
 ```
 
 ### 4. Apply migrations
@@ -104,11 +107,13 @@ ruff check .
 ruff format --check .
 python manage.py set_user_role user@bc.edu admin
 python manage.py repair_profile_completion_integrity
+python manage.py repair_roommate_group_integrity --apply
 python manage.py seed_demo_data
 ```
 
 `set_user_role` is useful after a real user has signed in once and needs elevated access.
 `repair_profile_completion_integrity` recalculates `profile_completed_at` against the current role's required profile data after operational fixes or role-policy changes.
+`repair_roommate_group_integrity --apply` repairs missing lead memberships and stale group-post counts after roommate-group data fixes.
 `seed_demo_data` builds a realistic local demo environment and caches remote listing photos under gitignored `var/demo_seed/`.
 
 ## Configuration
@@ -116,10 +121,13 @@ python manage.py seed_demo_data
 Common environment variables:
 
 - `DJANGO_DEBUG`: enables local debug mode
+- `DJANGO_ADMIN_ENABLED`: mounts raw `/admin/` and enables the Django model backend only when explicitly set to true
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`: required for Google sign-in
 - `STUDENT_EMAIL_DOMAINS`: comma-separated student domains, defaults to `bc.edu`
+- `ACCOUNT_DELETION_RECENT_AUTH_SECONDS`: recent-auth window for account deletion
 - `PRIVILEGED_ACTION_RECENT_AUTH_SECONDS`: recent-auth window for staff changes
 - `SUPPORT_INVESTIGATION_DURATION_HOURS`: default length of sensitive support access
+- `GLOBAL_UNREAD_COUNT_CACHE_SECONDS`: cache TTL for global unread-message counters
 - `DJANGO_DEFAULT_FILE_STORAGE_BACKEND`: optional object/private storage backend override
 - `DJANGO_MEDIA_ROOT`: uploaded media root path for filesystem storage
 - `DJANGO_MEDIA_FALLBACK_ROOT`: writable fallback used when the configured filesystem media root cannot be created or written
@@ -142,6 +150,8 @@ Users with stale legal acceptance are routed through the embedded review flow on
 Authenticated users whose accounts are later deactivated are logged out on their next HTTP request. Listings owned by inactive accounts are hidden from landing teasers, marketplace results, live search, and normal listing detail. Existing conversations with inactive counterparties remain visible but become read-only.
 
 Promoting a student to admin preserves the existing `StudentProfile` so a later return to the student role can reuse prior roommate-profile data. Promoting to realtor still removes the student profile and clears completion until the role's required profile is filled again.
+
+The normal administrator workspace is `/users/admin-dashboard/` and related `/users/admin-*` routes. Raw Django `/admin/` is disabled by default and should be enabled only for narrow operational work.
 
 Production-only requirements:
 
@@ -173,7 +183,7 @@ daphne vibecoders.asgi:application
 
 - Redis is required for production channels.
 - The repo now includes a Render-ready `build.sh`, `.python-version`, and `render.yaml`.
-- The repo also includes `start.sh`, which runs migrations before Daphne starts. This is the free-plan fallback when Render pre-deploy commands are unavailable.
+- The repo also includes `start.sh`, which starts Daphne. Database migrations are run by Render's `preDeployCommand` in the checked-in Blueprint or manually with `python manage.py migrate`.
 - Static assets are collected into `STATIC_ROOT` and served in production by WhiteNoise.
 - Render health checks can target `/healthz/` instead of the marketing landing page.
 - The current Render deployment does not require a persistent disk. Uploaded media is written to `/tmp/padly-media`, which keeps listing creation functional but does not persist files across restarts or redeploys.

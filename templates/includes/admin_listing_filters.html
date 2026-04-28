@@ -1,4 +1,4 @@
-<div class="listing-panel admin-filter">
+<div class="admin-filter">
     <form method="get" class="admin-filter-form">
         <div class="admin-filter-inputs">
             <input
@@ -18,6 +18,18 @@
                 <option value="">All Review States</option>
                 {% for value, label in review_status_options %}
                     <option value="{{ value }}" {% if selected_review_status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <select class="form-select" name="lease_type">
+                <option value="">All Lease Types</option>
+                {% for value, label in lease_type_options %}
+                    <option value="{{ value }}" {% if selected_lease_type == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <select class="form-select" name="inventory">
+                <option value="">All Inventory</option>
+                {% for value, label in inventory_state_options %}
+                    <option value="{{ value }}" {% if selected_inventory_state == value %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
         </div>

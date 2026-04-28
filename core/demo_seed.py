@@ -44,7 +44,13 @@ from roommates.services import (
     respond_to_invite_approval,
     save_roommate_group_details,
 )
-from users.models import Role, UserFile
+from users.models import (
+    ADMIN_PROFILE_ORGANIZATION_INDIVIDUAL_OWNER,
+    ADMIN_PROFILE_ORGANIZATION_PROPERTY_COMPANY,
+    STUDENT_PROFILE_INSTITUTION_UNDERGRADUATE,
+    Role,
+    UserFile,
+)
 from users.profile_integrity import (
     mark_profile_completed_now,
     profile_satisfies_completion_requirements,
@@ -424,6 +430,10 @@ class DemoSeedRunner:
         if expected_role == Role.STUDENT:
             if profile_data:
                 profile = user.student_profile
+                profile.institution_status = profile_data.get(
+                    "institution_status",
+                    STUDENT_PROFILE_INSTITUTION_UNDERGRADUATE,
+                )
                 for field_name, value in profile_data.items():
                     setattr(profile, field_name, value)
                 profile.save()
@@ -431,6 +441,17 @@ class DemoSeedRunner:
                     mark_profile_completed_now(user)
         elif expected_role in {Role.ADMIN, Role.MODERATOR, Role.SUPPORT, Role.REALTOR} and profile_data:
             profile = user.admin_profile
+            if expected_role == Role.REALTOR:
+                profile.organization_type = profile_data.get(
+                    "organization_type",
+                    ADMIN_PROFILE_ORGANIZATION_PROPERTY_COMPANY,
+                )
+                profile.organization_name = profile_data.get("organization_name") or f"{user.display_name} Housing"
+            elif expected_role in {Role.ADMIN, Role.MODERATOR, Role.SUPPORT}:
+                profile.organization_type = profile_data.get(
+                    "organization_type",
+                    ADMIN_PROFILE_ORGANIZATION_INDIVIDUAL_OWNER,
+                )
             for field_name, value in profile_data.items():
                 setattr(profile, field_name, value)
             profile.save()
@@ -457,6 +478,7 @@ class DemoSeedRunner:
                 bathrooms=spec["bathrooms"],
                 sq_ft=spec["sq_ft"],
                 property_type=spec["property_type"],
+                space_type=spec.get("space_type", Listing.SPACE_ENTIRE_UNIT),
                 has_yard=spec["has_yard"],
                 has_parking=spec["has_parking"],
                 is_furnished=spec["is_furnished"],
@@ -465,10 +487,16 @@ class DemoSeedRunner:
                 parking_fee=spec["parking_fee"],
                 security_deposit=spec["security_deposit"],
                 application_fee=spec["application_fee"],
+                broker_fee=spec.get("broker_fee", "0.00"),
+                landlord_approval_required=spec.get("landlord_approval_required", False),
+                original_lease_holder=spec.get("original_lease_holder", ""),
+                documentation_type=spec.get("documentation_type", ""),
+                no_stairs=spec.get("no_stairs", False),
                 utilities_included=spec["utilities_included"],
                 pet_policy=spec["pet_policy"],
                 amenities=spec["amenities"],
                 security_features=spec["security_features"],
+                renter_requirements=spec.get("renter_requirements", ""),
             )
             listing.save()
 

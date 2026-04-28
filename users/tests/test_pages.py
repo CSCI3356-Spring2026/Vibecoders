@@ -39,6 +39,7 @@ class UserPageTests(TestCase):
 
         profile = user.student_profile
         profile.preferred_name = first_name or user.username
+        profile.institution_status = "undergraduate"
         profile.major = "Computer Science"
         profile.bio = "Easygoing roommate."
         profile.messy_level = 3
@@ -83,6 +84,7 @@ class UserPageTests(TestCase):
                 "age": "",
                 "gender": "",
                 "gender_other": "",
+                "institution_status": "",
                 "major": "",
                 "bio": "",
                 "messy_level": "",
@@ -112,6 +114,7 @@ class UserPageTests(TestCase):
                 "age": "20",
                 "gender": "male",
                 "gender_other": "",
+                "institution_status": "undergraduate",
                 "major": "CS",
                 "bio": "Looking for a clean and social apartment.",
                 "messy_level": "4",
@@ -137,6 +140,7 @@ class UserPageTests(TestCase):
         response = self.client.get(reverse("users:profile_setup"))
 
         self.assertContains(response, "Student profile")
+        self.assertContains(response, "BC status")
         self.assertContains(response, "Living preferences")
         self.assertContains(response, "Habits")
         self.assertContains(response, "Typical bedtime")
@@ -176,6 +180,8 @@ class UserPageTests(TestCase):
                 "age": "",
                 "gender": "",
                 "gender_other": "",
+                "organization_type": "individual_owner",
+                "organization_name": "",
                 "bio": "Managing listings near campus.",
             },
             follow=False,
@@ -193,6 +199,7 @@ class UserPageTests(TestCase):
         response = self.client.get(reverse("users:profile_setup"))
 
         self.assertContains(response, "Listing profile")
+        self.assertContains(response, "Owner type")
         self.assertContains(response, "About this account")
         self.assertNotContains(response, "Living preferences")
         self.assertNotContains(response, 'name="messy_level"')
@@ -675,6 +682,7 @@ class UserPageTests(TestCase):
         response = self.client.get(reverse("users:public_profile", args=[target.id]))
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Undergraduate")
         self.assertContains(response, "Report this user")
         self.assertContains(response, reverse("users:report_user", args=[target.id]))
 
@@ -699,6 +707,36 @@ class UserPageTests(TestCase):
                 reported_user=target,
                 reporter=self.user,
                 reason=UserReport.REASON_HARASSMENT,
+            ).exists()
+        )
+
+    def test_student_can_report_realtor_account_for_inappropriate_content(self):
+        target = User.objects.create_user(
+            username="report-realtor",
+            email="report-realtor@example.com",
+            password="test",
+        )
+        self._complete_roommate_profile(self.user, first_name="Viewer")
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("users:report_user", args=[target.id]),
+            {
+                "reason": UserReport.REASON_INAPPROPRIATE,
+                "details": "The owner account posted inappropriate listing content.",
+                "next": reverse("users:dashboard"),
+            },
+            follow=False,
+        )
+
+        self.assertEqual(target.role, Role.REALTOR)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response["Location"], reverse("users:dashboard"))
+        self.assertTrue(
+            UserReport.objects.filter(
+                reported_user=target,
+                reporter=self.user,
+                reason=UserReport.REASON_INAPPROPRIATE,
             ).exists()
         )
 
@@ -1443,12 +1481,15 @@ assert.equal(root.classList.contains("is-open"), false);
             reason=UserReport.REASON_HARASSMENT,
             details="Abusive messages.",
         )
+        cache.clear()
         self.client.force_login(admin)
 
         response = self.client.get(reverse("users:admin_dashboard"))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Operations console")
+        self.assertContains(response, "Inventory Summary")
+        self.assertContains(response, "Lease types")
         self.assertContains(response, "Priority queues")
         self.assertContains(response, "Recent reports")
         self.assertContains(response, "Recent user reports")
@@ -1458,6 +1499,64 @@ assert.equal(root.classList.contains("is-open"), false);
         self.assertContains(response, "owner@bc.edu")
         self.assertContains(response, "reporter@bc.edu")
         self.assertContains(response, "target@bc.edu")
+
+    def test_admin_dashboard_exposes_listing_status_and_lease_summary_counts(self):
+        admin = User.objects.create_user(
+            username="summary-admin",
+            email="summary-admin@bc.edu",
+            password="test",
+            role="admin",
+        )
+        owner = User.objects.create_user(username="summary-owner", email="summary-owner@bc.edu", password="test")
+        owner.listings.create(
+            title="Available full lease",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            status=Listing.STATUS_AVAILABLE,
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status=Listing.APPROVAL_APPROVED,
+        )
+        owner.listings.create(
+            title="Pending sublease",
+            address="141 Commonwealth Ave",
+            price="1300.00",
+            lease_type="SUBLEASE",
+            status=Listing.STATUS_PENDING,
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status=Listing.APPROVAL_APPROVED,
+            is_hidden=True,
+        )
+        owner.listings.create(
+            title="Rented short-term",
+            address="142 Commonwealth Ave",
+            price="1400.00",
+            lease_type="SHORT",
+            status=Listing.STATUS_TAKEN,
+            start_date="2026-06-01",
+            end_date="2026-08-31",
+            approval_status=Listing.APPROVAL_APPROVED,
+            archived_at=timezone.now(),
+        )
+        cache.clear()
+        self.client.force_login(admin)
+
+        response = self.client.get(reverse("users:admin_dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["available_listings"], 1)
+        self.assertEqual(response.context["pending_status_listings"], 1)
+        self.assertEqual(response.context["rented_status_listings"], 1)
+        self.assertEqual(response.context["hidden_listings"], 1)
+        self.assertEqual(response.context["archived_listings"], 1)
+        self.assertEqual(response.context["full_lease_listings"], 1)
+        self.assertEqual(response.context["sublease_listings"], 1)
+        self.assertEqual(response.context["short_term_listings"], 1)
+        self.assertContains(response, "?status=TAKEN")
+        self.assertContains(response, "?inventory=archived")
+        self.assertContains(response, "?lease_type=SHORT")
 
     def test_admin_listings_page_is_paginated(self):
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")
@@ -1510,6 +1609,45 @@ assert.equal(root.classList.contains("is-open"), false);
 
         listings = list(response.context["listings"].object_list[:2])
         self.assertEqual([listing.id for listing in listings], [pending.id, approved.id])
+
+    def test_admin_listings_filters_by_lease_type_and_inventory_state(self):
+        admin = User.objects.create_user(
+            username="filter-admin",
+            email="filter-admin@bc.edu",
+            password="test",
+            role="admin",
+        )
+        owner = User.objects.create_user(username="filter-owner", email="filter-owner@bc.edu", password="test")
+        owner.listings.create(
+            title="Full lease visible",
+            address="140 Commonwealth Ave",
+            price="1200.00",
+            lease_type="FULL",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status=Listing.APPROVAL_APPROVED,
+        )
+        sublease = owner.listings.create(
+            title="Hidden sublease",
+            address="141 Commonwealth Ave",
+            price="1300.00",
+            lease_type="SUBLEASE",
+            start_date="2026-09-01",
+            end_date="2027-05-31",
+            approval_status=Listing.APPROVAL_APPROVED,
+            is_hidden=True,
+        )
+        self.client.force_login(admin)
+
+        lease_response = self.client.get(reverse("users:admin_listings"), {"lease_type": "SUBLEASE"})
+        hidden_response = self.client.get(reverse("users:admin_listings"), {"inventory": "hidden"})
+
+        self.assertEqual(lease_response.status_code, 200)
+        self.assertContains(lease_response, sublease.title)
+        self.assertNotContains(lease_response, "Full lease visible")
+        self.assertEqual(hidden_response.status_code, 200)
+        self.assertContains(hidden_response, sublease.title)
+        self.assertNotContains(hidden_response, "Full lease visible")
 
     def test_admin_can_approve_listing_from_review_page(self):
         admin = User.objects.create_user(username="admin", email="admin@bc.edu", password="test", role="admin")

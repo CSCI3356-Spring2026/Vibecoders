@@ -22,7 +22,7 @@ ADDRESS_SELECTION_MAX_AGE_SECONDS = 300
 
 
 class ListingForm(forms.ModelForm):
-    DEFAULTED_FIELDS = ("rooms", "bathrooms", "property_type", "lease_type", "status")
+    DEFAULTED_FIELDS = ("rooms", "bathrooms", "property_type", "space_type", "lease_type", "status")
     UTILITY_CHOICES = [
         ("Water", "Water"),
         ("Gas", "Gas"),
@@ -66,6 +66,7 @@ class ListingForm(forms.ModelForm):
             "title",
             "address",
             "property_type",
+            "space_type",
             "lease_type",
             "status",
             "is_hidden",
@@ -84,6 +85,7 @@ class ListingForm(forms.ModelForm):
             "pet_policy",
             "amenities",
             "security_features",
+            "renter_requirements",
             "has_yard",
             "has_parking",
             "is_furnished",
@@ -130,6 +132,12 @@ class ListingForm(forms.ModelForm):
                     "placeholder": "Secure entry, intercom, exterior lighting.",
                 }
             ),
+            "renter_requirements": forms.Textarea(
+                attrs={
+                    "rows": 3,
+                    "placeholder": "Cleanliness expectations, smoking rules, guests, required paperwork.",
+                }
+            ),
             "has_yard": forms.CheckboxInput(),
             "has_parking": forms.CheckboxInput(),
             "is_furnished": forms.CheckboxInput(),
@@ -142,6 +150,7 @@ class ListingForm(forms.ModelForm):
         }
         labels = {
             "property_type": "Home type",
+            "space_type": "Space offered",
             "lease_type": "Lease",
             "status": "Status",
             "is_hidden": "Hide from search",
@@ -155,6 +164,7 @@ class ListingForm(forms.ModelForm):
             "pet_policy": "Pet policy",
             "amenities": "Amenities",
             "security_features": "Security features",
+            "renter_requirements": "Renter requirements",
             "rooms": "Bedrooms",
             "bathrooms": "Bathrooms",
             "broker_fee": "Broker fee",
@@ -366,8 +376,14 @@ class ListingForm(forms.ModelForm):
         parking = as_decimal(self.preview_value("parking_fee"))
         deposit = as_decimal(self.preview_value("security_deposit"))
         application_fee = as_decimal(self.preview_value("application_fee"))
+        broker_fee = as_decimal(self.preview_value("broker_fee"))
         monthly_total = (price or Decimal("0")) + (utilities or Decimal("0")) + (parking or Decimal("0"))
-        upfront_total = (price or Decimal("0")) + (deposit or Decimal("0")) + (application_fee or Decimal("0"))
+        upfront_total = (
+            (price or Decimal("0"))
+            + (deposit or Decimal("0"))
+            + (application_fee or Decimal("0"))
+            + (broker_fee or Decimal("0"))
+        )
         bound_cleaned_data = self.cleaned_data if self.is_bound and hasattr(self, "cleaned_data") else None
         photo_count = self._resulting_photo_count(cleaned_data=bound_cleaned_data)
 
@@ -379,6 +395,7 @@ class ListingForm(forms.ModelForm):
                 "Details",
                 bool(
                     self.preview_value("property_type")
+                    and self.preview_value("space_type")
                     and self.preview_value("rooms")
                     and self.preview_value("bathrooms")
                 ),
@@ -391,6 +408,7 @@ class ListingForm(forms.ModelForm):
             "title": self.preview_value("title") or "New listing",
             "address": self.preview_value("address") or "Add address",
             "property_type": self.preview_choice_label("property_type") or "Home",
+            "space_type": self.preview_choice_label("space_type") or "Whole apartment / house",
             "lease_type": self.preview_choice_label("lease_type") or "Lease",
             "status": self.preview_choice_label("status") or "Available",
             "is_hidden": bool(self.preview_value("is_hidden")),
@@ -399,6 +417,7 @@ class ListingForm(forms.ModelForm):
             "parking_fee": parking,
             "security_deposit": deposit,
             "application_fee": application_fee,
+            "broker_fee": broker_fee,
             "monthly_total": monthly_total if price is not None else None,
             "upfront_total": upfront_total if price is not None else None,
             "start_date": self.preview_value("start_date"),

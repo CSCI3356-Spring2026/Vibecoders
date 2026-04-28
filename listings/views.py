@@ -26,6 +26,8 @@ from core.media import normalize_public_media_subpath, public_file_response
 from core.rate_limits import consume_rate_limit, request_rate_limit_identifier
 from core.utils import get_page, preserved_query_suffix, safe_next_url
 from roommates import views as roommate_views
+from users.forms import UserReportForm
+from users.models import Role, UserReport
 from users.selectors import (
     active_roommate_group_for_user,
     discover_roommate_people,
@@ -317,6 +319,8 @@ def listing_list(request):
         "price_filter_min": PRICE_FILTER_MIN,
         "price_filter_max": PRICE_FILTER_MAX,
         "lease_type_filters": Listing.LEASE_TYPES,
+        "property_type_filters": Listing.PROPERTY_TYPES,
+        "space_type_filters": Listing.SPACE_TYPES,
         "has_listing_only_access": request.user.has_listing_only_access,
         "listing_maps_enabled": map_enabled,
         "listing_maps_unavailable": map_requested and not map_enabled,
@@ -380,6 +384,17 @@ def _can_report_listing(user, listing):
         _can_leave_listing_feedback(user)
         and listing.owner_id != getattr(user, "id", None)
         and listing.is_publicly_active
+    )
+
+
+def _can_report_listing_owner(user, listing):
+    owner = getattr(listing, "owner", None)
+    return (
+        _can_leave_listing_feedback(user)
+        and owner is not None
+        and getattr(owner, "id", None) != getattr(user, "id", None)
+        and getattr(owner, "is_active", False)
+        and getattr(owner, "role", "") in {Role.STUDENT, Role.REALTOR}
     )
 
 
@@ -751,6 +766,7 @@ def listing_detail(request, pk):
     show_owner_conversations = listing.owner_id == request.user.id
     can_review_listing = _can_review_listing(request.user, listing)
     can_report_listing = _can_report_listing(request.user, listing)
+    can_report_owner = _can_report_listing_owner(request.user, listing)
     can_message_listing = (
         request.user.can_start_listing_conversations
         and listing.owner_id != request.user.id
@@ -772,6 +788,8 @@ def listing_detail(request, pk):
     review_form = ListingReviewForm(instance=existing_review) if can_review_listing else None
     active_listing_report = None
     report_form = None
+    active_owner_report = None
+    owner_report_form = None
 
     if can_report_listing:
         active_listing_report = (
@@ -785,6 +803,19 @@ def listing_detail(request, pk):
         )
         if active_listing_report is None:
             report_form = ListingReportForm()
+
+    if can_report_owner:
+        active_owner_report = (
+            UserReport.objects.filter(
+                reported_user=listing.owner,
+                reporter=request.user,
+                status__in=[UserReport.STATUS_OPEN, UserReport.STATUS_IN_REVIEW],
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if active_owner_report is None:
+            owner_report_form = UserReportForm()
 
     if request.user.can_start_listing_conversations and listing.owner_id != request.user.id:
         existing_conversation = (
@@ -817,6 +848,8 @@ def listing_detail(request, pk):
         "review_form": review_form,
         "report_form": report_form,
         "active_listing_report": active_listing_report,
+        "owner_report_form": owner_report_form,
+        "active_owner_report": active_owner_report,
         "message_form": message_form,
         "existing_conversation": existing_conversation,
         "can_message_listing": can_message_listing,
@@ -827,6 +860,7 @@ def listing_detail(request, pk):
         "can_favorite_listing": listing.can_favorite,
         "can_review_listing": can_review_listing,
         "can_report_listing": can_report_listing,
+        "can_report_owner": can_report_owner,
         "review_requires_contact": review_requires_contact,
         "commute_available": commute_available,
         "commute_endpoint_url": commute_endpoint_url,

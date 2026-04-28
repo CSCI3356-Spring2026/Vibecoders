@@ -122,7 +122,7 @@
                                             <tbody>
                                                 {% for listing in priority_listings %}
                                                     <tr>
-                                                        <td>
+                                                        <td data-label="Property">
                                                             <div class="admin-property">
                                                                 <div class="admin-property-title">${{ listing.price|floatformat:0 }}/mo</div>
                                                                 <div class="admin-property-meta">
@@ -131,13 +131,13 @@
                                                                 <div class="admin-property-sub">{{ listing.title }} · {{ listing.address }}</div>
                                                             </div>
                                                         </td>
-                                                        <td>
+                                                        <td data-label="Owner">
                                                             <div class="admin-poster">
                                                                 <div class="admin-poster-name">{{ listing.owner.get_full_name|default:listing.owner.username }}</div>
                                                                 <div class="admin-poster-email">{{ listing.owner.email }}</div>
                                                             </div>
                                                         </td>
-                                                        <td>
+                                                        <td data-label="Queue State">
                                                             <div class="admin-queue-state">
                                                                 <span class="admin-status-pill {% if listing.approval_status == 'pending' %}is-pending{% elif listing.approval_status == 'approved' %}is-approved{% else %}is-muted{% endif %}">
                                                                     {{ listing.get_approval_status_display }}
@@ -151,13 +151,13 @@
                                                                 </div>
                                                             </div>
                                                         </td>
-                                                        <td>
+                                                        <td data-label="Signals">
                                                             <div class="admin-poster">
                                                                 <div class="admin-poster-name">{{ listing.review_count }} review{{ listing.review_count|pluralize }}</div>
                                                                 <div class="admin-poster-email">{{ listing.open_report_count }} open report{{ listing.open_report_count|pluralize }}</div>
                                                             </div>
                                                         </td>
-                                                        <td>
+                                                        <td data-label="Actions">
                                                             <div class="admin-user-actions">
                                                                 <a class="btn btn-brand btn-sm" href="{% url 'users:admin_listing_detail' listing.id %}">
                                                                     {% if listing.approval_status == 'pending' %}Review now{% else %}Open{% endif %}
@@ -177,6 +177,84 @@
                         </div>
 
                         <aside class="admin-side-stack">
+                            <section class="listing-panel admin-feed-panel">
+                                <div class="admin-table-head">
+                                    <div>
+                                        <p class="admin-panel-kicker">Inventory Summary</p>
+                                        <h2 class="app-section-heading">Listing status</h2>
+                                    </div>
+                                </div>
+                                <div class="admin-priority-list">
+                                    <a class="admin-priority-item" href="{% url 'users:admin_listings' %}?status=AVAILABLE">
+                                        <div>
+                                            <div class="admin-priority-title">Available listings</div>
+                                            <div class="admin-list-meta">Open inventory by listing status</div>
+                                        </div>
+                                        <strong class="admin-priority-count">{{ available_listings }}</strong>
+                                    </a>
+                                    <a class="admin-priority-item" href="{% url 'users:admin_listings' %}?status=PENDING">
+                                        <div>
+                                            <div class="admin-priority-title">Pending listings</div>
+                                            <div class="admin-list-meta">Listings marked pending by owners</div>
+                                        </div>
+                                        <strong class="admin-priority-count">{{ pending_status_listings }}</strong>
+                                    </a>
+                                    <a class="admin-priority-item" href="{% url 'users:admin_listings' %}?status=TAKEN">
+                                        <div>
+                                            <div class="admin-priority-title">Rented listings</div>
+                                            <div class="admin-list-meta">Listings no longer available</div>
+                                        </div>
+                                        <strong class="admin-priority-count">{{ rented_status_listings }}</strong>
+                                    </a>
+                                    <a class="admin-priority-item" href="{% url 'users:admin_listings' %}?inventory=hidden">
+                                        <div>
+                                            <div class="admin-priority-title">Hidden listings</div>
+                                            <div class="admin-list-meta">Temporarily hidden from the marketplace</div>
+                                        </div>
+                                        <strong class="admin-priority-count">{{ hidden_listings }}</strong>
+                                    </a>
+                                    <a class="admin-priority-item" href="{% url 'users:admin_listings' %}?inventory=archived">
+                                        <div>
+                                            <div class="admin-priority-title">Archived listings</div>
+                                            <div class="admin-list-meta">Removed from normal marketplace flow</div>
+                                        </div>
+                                        <strong class="admin-priority-count">{{ archived_listings }}</strong>
+                                    </a>
+                                </div>
+                            </section>
+
+                            <section class="listing-panel admin-feed-panel">
+                                <div class="admin-table-head">
+                                    <div>
+                                        <p class="admin-panel-kicker">Lease Mix</p>
+                                        <h2 class="app-section-heading">Lease types</h2>
+                                    </div>
+                                </div>
+                                <div class="admin-priority-list">
+                                    <a class="admin-priority-item" href="{% url 'users:admin_listings' %}?lease_type=FULL">
+                                        <div>
+                                            <div class="admin-priority-title">Full lease</div>
+                                            <div class="admin-list-meta">Traditional full-term leases</div>
+                                        </div>
+                                        <strong class="admin-priority-count">{{ full_lease_listings }}</strong>
+                                    </a>
+                                    <a class="admin-priority-item" href="{% url 'users:admin_listings' %}?lease_type=SUBLEASE">
+                                        <div>
+                                            <div class="admin-priority-title">Sublease</div>
+                                            <div class="admin-list-meta">Student or owner sublets</div>
+                                        </div>
+                                        <strong class="admin-priority-count">{{ sublease_listings }}</strong>
+                                    </a>
+                                    <a class="admin-priority-item" href="{% url 'users:admin_listings' %}?lease_type=SHORT">
+                                        <div>
+                                            <div class="admin-priority-title">Short-term</div>
+                                            <div class="admin-list-meta">Summer or temporary housing</div>
+                                        </div>
+                                        <strong class="admin-priority-count">{{ short_term_listings }}</strong>
+                                    </a>
+                                </div>
+                            </section>
+
                             <section class="listing-panel admin-feed-panel">
                                 <div class="admin-table-head">
                                     <div>

@@ -12,38 +12,55 @@
         <div class="app-shell profile-setup-shell">
             <div class="app-header app-header-shell profile-setup-header">
                 <div class="app-header-main">
-                    <p class="app-kicker">Profile</p>
-                    <h1 class="app-title">{{ profile_title }}</h1>
-                    <p class="app-subtitle">{{ profile_subtitle }}</p>
-                </div>
-                {% if not profile_needs_completion %}
-                    <div class="app-actions">
-                        <a class="btn btn-outline-secondary" href="{% url 'users:dashboard' %}">Back to dashboard</a>
-                    </div>
-                {% endif %}
-            </div>
-
-            <div class="listing-panel profile-photo-panel">
-                <div class="app-panel-head">
                     <div>
-                        <h2 class="app-section-heading">Profile photo</h2>
-                        <p class="app-panel-copy">Shown on your roommate profile and in messages.</p>
+                        <p class="app-kicker">Profile</p>
+                        <h1 class="app-title">{{ profile_title }}</h1>
+                        <p class="app-subtitle">{{ profile_subtitle }}</p>
                     </div>
-                </div>
-                <div class="identity-row profile-avatar-row">
-                    {% include "includes/user_avatar.html" with user_obj=request.user avatar_class="user-avatar user-avatar-xl" %}
-                    <form method="post" enctype="multipart/form-data" action="{% url 'users:upload_avatar' %}" class="profile-avatar-form">
-                        {% csrf_token %}
-                        <label class="btn btn-outline-secondary btn-sm profile-avatar-upload">
-                            Choose photo
-                            <input class="profile-avatar-file-input" type="file" name="avatar" accept="image/jpeg,image/png,image/webp" onchange="this.form.submit()">
-                        </label>
-                        <p class="app-panel-copy profile-avatar-note">JPG, PNG, or WebP · max 5 MB</p>
-                    </form>
+                    {% if not profile_needs_completion %}
+                        <div class="app-actions">
+                            <a class="btn btn-outline-secondary" href="{% url 'users:dashboard' %}">Back to dashboard</a>
+                        </div>
+                    {% endif %}
                 </div>
             </div>
 
-            <form method="post" class="listing-panel profile-form-shell">
+            <div class="profile-setup-grid">
+                <aside class="profile-setup-rail">
+                    <div class="listing-panel profile-photo-panel">
+                        <div class="app-panel-head">
+                            <div>
+                                <h2 class="app-section-heading">Profile photo</h2>
+                                <p class="app-panel-copy">Shown in matching and messages.</p>
+                            </div>
+                        </div>
+                        <div class="identity-row profile-avatar-row">
+                            {% include "includes/user_avatar.html" with user_obj=request.user avatar_class="user-avatar user-avatar-xl" %}
+                            <form method="post" enctype="multipart/form-data" action="{% url 'users:upload_avatar' %}" class="profile-avatar-form">
+                                {% csrf_token %}
+                                <label class="btn btn-outline-secondary btn-sm profile-avatar-upload">
+                                    Choose photo
+                                    <input class="profile-avatar-file-input" type="file" name="avatar" accept="image/jpeg,image/png,image/webp" onchange="this.form.submit()">
+                                </label>
+                                <p class="app-panel-copy profile-avatar-note">JPG, PNG, or WebP · max 5 MB</p>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="listing-panel profile-save-panel">
+                        <p class="profile-rail-label">Status</p>
+                        <strong>{% if profile_needs_completion %}Needs completion{% else %}Ready{% endif %}</strong>
+                        <span>
+                            {% if is_student_profile %}
+                                Student matching profile
+                            {% else %}
+                                Listing owner profile
+                            {% endif %}
+                        </span>
+                    </div>
+                </aside>
+
+                <form method="post" class="listing-panel profile-form-shell">
                 {% csrf_token %}
                 {% if next_url %}
                     <input type="hidden" name="next" value="{{ next_url }}">
@@ -93,6 +110,15 @@
                         {% endif %}
                         {% if form.gender_other %}
                             {% include "listings/includes/form_field.html" with field=form.gender_other wrapper_class="profile-form-field-block profile-other-field" %}
+                        {% endif %}
+                        {% if form.institution_status %}
+                            {% include "listings/includes/form_field.html" with field=form.institution_status wrapper_class="profile-form-field-block" %}
+                        {% endif %}
+                        {% if form.organization_type %}
+                            {% include "listings/includes/form_field.html" with field=form.organization_type wrapper_class="profile-form-field-block" %}
+                        {% endif %}
+                        {% if form.organization_name %}
+                            {% include "listings/includes/form_field.html" with field=form.organization_name wrapper_class="profile-form-field-block" %}
                         {% endif %}
                     </div>
 
@@ -180,7 +206,8 @@
                 <div class="app-actions profile-form-actions">
                     <button type="submit" class="btn btn-brand">Save profile</button>
                 </div>
-            </form>
+                </form>
+            </div>
         </div>
     </div>
 </section>

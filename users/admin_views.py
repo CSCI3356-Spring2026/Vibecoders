@@ -36,6 +36,7 @@ from .permissions import (
 )
 from .report_services import update_user_report
 from .selectors import (
+    ADMIN_LISTING_INVENTORY_CHOICES,
     admin_dashboard_snapshot,
     admin_listings_queryset,
     admin_reports_queryset,
@@ -351,18 +352,26 @@ def admin_dashboard(request):
     query = request.GET.get("q", "").strip()
     selected_status = request.GET.get("status", "").strip()
     selected_review_status = request.GET.get("review_status", "").strip()
+    selected_lease_type = request.GET.get("lease_type", "").strip()
+    selected_inventory_state = request.GET.get("inventory", "").strip()
     metrics = admin_dashboard_snapshot(
         query=query,
         selected_status=selected_status,
         selected_review_status=selected_review_status,
+        selected_lease_type=selected_lease_type,
+        selected_inventory_state=selected_inventory_state,
     )
     context = {
         **metrics,
         "query": query,
         "selected_status": selected_status,
         "selected_review_status": selected_review_status,
+        "selected_lease_type": selected_lease_type,
+        "selected_inventory_state": selected_inventory_state,
         "status_options": Listing.STATUS_CHOICES,
         "review_status_options": Listing.APPROVAL_CHOICES,
+        "lease_type_options": Listing.LEASE_TYPES,
+        "inventory_state_options": ADMIN_LISTING_INVENTORY_CHOICES,
     }
     return render(request, "users/admin_dashboard.html", context)
 
@@ -372,10 +381,14 @@ def admin_listings(request):
     query = request.GET.get("q", "").strip()
     selected_status = request.GET.get("status", "").strip()
     selected_review_status = request.GET.get("review_status", "").strip()
+    selected_lease_type = request.GET.get("lease_type", "").strip()
+    selected_inventory_state = request.GET.get("inventory", "").strip()
     listings_qs = admin_listings_queryset(
         query=query,
         selected_status=selected_status,
         selected_review_status=selected_review_status,
+        selected_lease_type=selected_lease_type,
+        selected_inventory_state=selected_inventory_state,
     )
     listings_page = get_page(listings_qs, request.GET.get("page"), ADMIN_LISTINGS_PER_PAGE)
 
@@ -386,8 +399,12 @@ def admin_listings(request):
         "query": query,
         "selected_status": selected_status,
         "selected_review_status": selected_review_status,
+        "selected_lease_type": selected_lease_type,
+        "selected_inventory_state": selected_inventory_state,
         "status_options": Listing.STATUS_CHOICES,
         "review_status_options": Listing.APPROVAL_CHOICES,
+        "lease_type_options": Listing.LEASE_TYPES,
+        "inventory_state_options": ADMIN_LISTING_INVENTORY_CHOICES,
     }
     return render(request, "users/admin_listings.html", context)
 

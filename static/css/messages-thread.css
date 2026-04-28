@@ -1,6 +1,6 @@
 .messages-thread-context {
     padding: 0.7rem 1rem 0;
-    background: var(--surface-gradient);
+    background: rgba(var(--white-rgb), 0.98);
 }
 
 .messages-thread-context-card {
@@ -11,7 +11,7 @@
     padding: 0.72rem 0.85rem;
     border: 1px solid rgba(var(--gray-700-rgb), 0.14);
     border-radius: var(--radius-md);
-    background: var(--surface-gradient-strong);
+    background: rgba(var(--gray-100-rgb), 0.42);
     color: inherit;
     text-decoration: none;
     box-shadow: none;
@@ -99,7 +99,7 @@
     grid-template-rows: minmax(0, 1fr) auto;
     min-height: 0;
     padding: 0.7rem 1rem 0.65rem;
-    background: var(--surface-gradient-soft);
+    background: #f7f8fa;
     overflow: hidden;
 }
 
@@ -170,20 +170,20 @@
     min-width: min(14rem, 100%);
     padding: 0.82rem 0.92rem 0.88rem;
     border: 1px solid rgba(var(--gray-700-rgb), 0.14);
-    border-radius: 0.75rem;
-    background: var(--surface-gradient-strong);
+    border-radius: var(--radius-md);
+    background: var(--white);
     box-shadow: none;
 }
 
 .message-bubble.is-outbound {
     border-color: rgba(var(--primary-rgb), 0.32);
     background: var(--primary-600);
-    border-bottom-right-radius: 0.45rem;
+    border-bottom-right-radius: var(--radius-sm);
     box-shadow: none;
 }
 
 .message-bubble.is-inbound {
-    border-bottom-left-radius: 0.45rem;
+    border-bottom-left-radius: var(--radius-sm);
 }
 
 .message-bubble-meta {
@@ -231,7 +231,7 @@
     gap: 0.8rem;
     padding: 0.75rem 1rem 0.85rem;
     border-top: 1px solid rgba(var(--gray-700-rgb), 0.14);
-    background: var(--surface-gradient);
+    background: rgba(var(--white-rgb), 0.98);
 }
 
 .messages-compose-head,
@@ -347,7 +347,8 @@
     }
 
     .messages-thread-context-card {
-        grid-template-columns: 1fr;
+        grid-template-columns: 4.8rem 1fr;
+        align-items: start;
     }
 
     .messages-list-media {
@@ -356,6 +357,7 @@
     }
 
     .messages-thread-context-meta {
+        grid-column: 1 / -1;
         align-items: flex-start;
         text-align: left;
     }

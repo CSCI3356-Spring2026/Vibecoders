@@ -37,6 +37,7 @@ class ListingTestCase(TestCase):
         profile = user.student_profile
         defaults = {
             "preferred_name": user.first_name or user.username,
+            "institution_status": "undergraduate",
             "major": "Computer Science",
             "bio": "Quiet during the week and easy to live with.",
             "messy_level": 4,

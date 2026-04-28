@@ -49,32 +49,32 @@
                                     <tbody>
                                         {% for listing in listings %}
                                             <tr>
-                                                <td>
+                                                <td data-label="Property">
                                                     <div class="admin-property">
                                                         <div class="admin-property-title">
                                                             ${{ listing.price|floatformat:0 }}/mo
                                                         </div>
                                                         <div class="admin-property-meta">
-                                                            {{ listing.rooms }} Bed, {{ listing.bathrooms|floatformat:1 }} Bath
+                                                            {{ listing.rooms }} Bed, {{ listing.bathrooms|floatformat:1 }} Bath · {{ listing.get_space_type_display }}
                                                         </div>
                                                         <div class="admin-property-sub">
-                                                            {{ listing.title }} · {{ listing.address }}
+                                                            {{ listing.get_lease_type_display }} · {{ listing.title }} · {{ listing.address }}
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td>
+                                                <td data-label="Posted By">
                                                     <div class="admin-poster">
                                                         <div class="admin-poster-name">{{ listing.owner.get_full_name|default:listing.owner.username }}</div>
                                                         <div class="admin-poster-email">{{ listing.owner.email }}</div>
                                                     </div>
                                                 </td>
-                                                <td>
+                                                <td data-label="Review">
                                                     <span class="admin-status-pill {% if listing.approval_status == 'pending' %}is-pending{% elif listing.approval_status == 'approved' %}is-approved{% else %}is-muted{% endif %}">
                                                         {{ listing.get_approval_status_display }}
                                                     </span>
                                                     <div class="admin-user-meta mt-1">Availability: {{ listing.get_status_display }}</div>
                                                 </td>
-                                                <td>
+                                                <td data-label="Signals">
                                                     <div class="admin-poster">
                                                         <div class="admin-poster-name">
                                                             {% if listing.review_count %}
@@ -86,7 +86,7 @@
                                                         <div class="admin-poster-email">{{ listing.open_report_count }} open report{{ listing.open_report_count|pluralize }}</div>
                                                     </div>
                                                 </td>
-                                                <td>
+                                                <td data-label="Actions">
                                                     <div class="admin-user-actions">
                                                         <a class="btn btn-brand btn-sm" href="{% url 'users:admin_listing_detail' listing.id %}">Review</a>
                                                         <a class="btn btn-outline-secondary btn-sm" href="{% url 'listings:detail' listing.pk %}">Public view</a>

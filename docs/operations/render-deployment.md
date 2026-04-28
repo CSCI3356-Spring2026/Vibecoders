@@ -178,14 +178,17 @@ Optional but recommended when using custom domains:
 
 If those two Django variables are blank, Padly falls back to Render's default `onrender.com` host and origin for first deploys.
 
-## Free Plan Fallback
+## No Pre-Deploy Fallback
 
-Render's pre-deploy command is a paid-plan feature. On the free plan, use [`/start.sh`](../../start.sh) as the service start command so Padly runs:
+The checked-in [`/start.sh`](../../start.sh) starts Daphne only. It deliberately does not run migrations during every boot.
 
-- `python manage.py migrate --noinput`
-- then Daphne
+If your Render plan or deployment path cannot use `preDeployCommand`, run migrations manually before routing traffic to the new service:
 
-This is less clean than a real pre-deploy phase, but it is the correct workaround when the service cannot use Render's paid deployment step.
+```bash
+python manage.py migrate --noinput
+```
+
+Then start the service with `./start.sh`.
 
 ## Google OAuth Checklist
 

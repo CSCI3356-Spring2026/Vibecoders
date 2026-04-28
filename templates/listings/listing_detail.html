@@ -160,6 +160,10 @@
                         <span>lease</span>
                     </div>
                     <div class="listing-detail-fact-pill">
+                        <strong>{{ listing.get_space_type_display }}</strong>
+                        <span>space</span>
+                    </div>
+                    <div class="listing-detail-fact-pill">
                         <strong>{{ listing.start_date|date:"M j" }}</strong>
                         <span>available</span>
                     </div>
@@ -285,21 +289,25 @@
                                 <strong>{{ listing.get_property_type_display }}</strong>
                             </div>
                             <div class="listing-detail-data-row">
+                                <span>Space offered</span>
+                                <strong>{{ listing.get_space_type_display }}</strong>
+                            </div>
+                            <div class="listing-detail-data-row">
                                 <span>Lease type</span>
                                 <strong>{{ listing.get_lease_type_display }}</strong>
                             </div>
-                            {% if listing.original_lease_holder %}
-                                <div class="listing-detail-data-row">
-                                    <span>Original lease holder</span>
-                                    <strong>{{ listing.original_lease_holder }}</strong>
-                                </div>
-                            {% endif %}
-                            {% if listing.documentation_type %}
-                                <div class="listing-detail-data-row">
-                                    <span>Documentation type</span>
-                                    <strong>{{ listing.get_documentation_type_display }}</strong>
-                                </div>
-                            {% endif %}
+                            <div class="listing-detail-data-row">
+                                <span>Original lease holder</span>
+                                <strong>{{ listing.original_lease_holder|default:"Not listed" }}</strong>
+                            </div>
+                            <div class="listing-detail-data-row">
+                                <span>Landlord approval required</span>
+                                <strong>{% if listing.landlord_approval_required %}Yes{% else %}No{% endif %}</strong>
+                            </div>
+                            <div class="listing-detail-data-row">
+                                <span>Documentation type</span>
+                                <strong>{% if listing.documentation_type %}{{ listing.get_documentation_type_display }}{% else %}Not listed{% endif %}</strong>
+                            </div>
                             {% if commute_distance_miles %}
                                 <div class="listing-detail-data-row">
                                     <span>Distance to campus</span>
@@ -370,42 +378,38 @@
                                 <span>Base rent</span>
                                 <strong>${{ listing.price|floatformat:0 }}/month</strong>
                             </div>
-                            {% if listing.utilities_estimate %}
-                                <div class="listing-detail-data-row">
-                                    <span>Utilities estimate</span>
-                                    <strong>${{ listing.utilities_estimate|floatformat:0 }}/month</strong>
-                                </div>
-                            {% endif %}
-                            {% if listing.parking_fee %}
-                                <div class="listing-detail-data-row">
-                                    <span>Parking fee</span>
-                                    <strong>${{ listing.parking_fee|floatformat:0 }}/month</strong>
-                                </div>
-                            {% endif %}
-                            {% if listing.security_deposit %}
-                                <div class="listing-detail-data-row">
-                                    <span>Security deposit</span>
-                                    <strong>${{ listing.security_deposit|floatformat:0 }}</strong>
-                                </div>
-                            {% endif %}
-                            {% if listing.application_fee %}
-                                <div class="listing-detail-data-row">
-                                    <span>Application fee</span>
-                                    <strong>${{ listing.application_fee|floatformat:0 }}</strong>
-                                </div>
-                            {% endif %}
-                            {% if listing.broker_fee %}
-                                <div class="listing-detail-data-row">
-                                    <span>Broker fee</span>
-                                    <strong>${{ listing.broker_fee|floatformat:0 }}</strong>
-                                </div>
-                            {% endif %}
-                            {% if listing.utilities_estimate or listing.parking_fee %}
-                                <div class="listing-detail-data-row is-emphasis">
-                                    <span>Estimated monthly total</span>
-                                    <strong>${{ listing.estimated_monthly_total|floatformat:0 }}/month</strong>
-                                </div>
-                            {% endif %}
+                            <div class="listing-detail-data-row">
+                                <span>Utilities included</span>
+                                <strong>{% if utility_items %}Yes{% else %}No{% endif %}</strong>
+                            </div>
+                            <div class="listing-detail-data-row">
+                                <span>Utilities estimate</span>
+                                <strong>${{ listing.utilities_estimate|default:0|floatformat:0 }}/month</strong>
+                            </div>
+                            <div class="listing-detail-data-row">
+                                <span>Parking fee</span>
+                                <strong>${{ listing.parking_fee|default:0|floatformat:0 }}/month</strong>
+                            </div>
+                            <div class="listing-detail-data-row">
+                                <span>Security deposit</span>
+                                <strong>${{ listing.security_deposit|default:0|floatformat:0 }}</strong>
+                            </div>
+                            <div class="listing-detail-data-row">
+                                <span>Application fee</span>
+                                <strong>${{ listing.application_fee|default:0|floatformat:0 }}</strong>
+                            </div>
+                            <div class="listing-detail-data-row">
+                                <span>Broker fee</span>
+                                <strong>${{ listing.broker_fee|default:0|floatformat:0 }}</strong>
+                            </div>
+                            <div class="listing-detail-data-row is-emphasis">
+                                <span>Estimated monthly total</span>
+                                <strong>${{ listing.estimated_monthly_total|floatformat:0 }}/month</strong>
+                            </div>
+                            <div class="listing-detail-data-row is-emphasis">
+                                <span>Estimated upfront total</span>
+                                <strong>${{ listing.estimated_upfront_total|floatformat:0 }}</strong>
+                            </div>
                         </div>
 
                         <div class="listing-detail-policy-cards">
@@ -469,6 +473,10 @@
                             {% else %}
                                 <p class="listing-detail-panel-copy">No security features listed.</p>
                             {% endif %}
+                        </div>
+                        <div class="listing-detail-amenities-column">
+                            <h3 class="listing-detail-subheading">Renter requirements</h3>
+                            <p class="listing-detail-panel-copy">{{ listing.renter_requirements|default:"No renter requirements listed." }}</p>
                         </div>
                     </div>
                 </section>
@@ -611,7 +619,7 @@
                                 {% if listing.owner_id == request.user.id %}
                                     Manage this listing
                                 {% else %}
-                                    Contact
+                                    Contact landlord
                                 {% endif %}
                             </h2>
                         </div>
@@ -649,10 +657,10 @@
                         {% if can_message_listing %}
                             <form method="post" action="{% url 'listings:message_listing' listing.pk %}" class="listing-detail-message-form">
                                 {% csrf_token %}
-                                <label class="form-label fw-semibold" for="{{ message_form.body.id_for_label }}">Message</label>
+                                <label class="form-label fw-semibold" for="{{ message_form.body.id_for_label }}">Message to landlord or owner</label>
                                 {{ message_form.body }}
                                 <button class="btn btn-brand w-100" type="submit">
-                                    {% if existing_conversation %}Send message{% else %}Start conversation{% endif %}
+                                    {% if existing_conversation %}Send message{% else %}Contact landlord{% endif %}
                                 </button>
                             </form>
                         {% else %}
@@ -693,6 +701,42 @@
                                         <div class="app-field-error">{{ error }}</div>
                                     {% endfor %}
                                     <button class="btn btn-outline-secondary w-100 mt-3" type="submit">Submit report</button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                    {% if can_report_owner %}
+                        <div class="listing-detail-sidebar-divider"></div>
+                        <div class="listing-detail-sidebar-report">
+                            <h3 class="listing-detail-subheading">Report owner</h3>
+                            <p class="listing-detail-panel-copy">Scams, harassment, impersonation, or inappropriate conduct.</p>
+                            {% if active_owner_report %}
+                                <p class="listing-detail-panel-copy">
+                                    You already submitted a report on this owner.
+                                </p>
+                                <div class="listing-detail-data-row">
+                                    <span>Status</span>
+                                    <strong>{{ active_owner_report.get_status_display }}</strong>
+                                </div>
+                                <div class="listing-detail-data-row">
+                                    <span>Reason</span>
+                                    <strong>{{ active_owner_report.get_reason_display }}</strong>
+                                </div>
+                            {% elif owner_report_form %}
+                                <form method="post" action="{% url 'users:report_user' listing.owner_id %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}#contact">
+                                    <label class="form-label fw-semibold" for="{{ owner_report_form.reason.id_for_label }}">{{ owner_report_form.reason.label }}</label>
+                                    {{ owner_report_form.reason }}
+                                    {% for error in owner_report_form.reason.errors %}
+                                        <div class="app-field-error">{{ error }}</div>
+                                    {% endfor %}
+                                    <label class="form-label fw-semibold mt-3" for="{{ owner_report_form.details.id_for_label }}">{{ owner_report_form.details.label }}</label>
+                                    {{ owner_report_form.details }}
+                                    {% for error in owner_report_form.details.errors %}
+                                        <div class="app-field-error">{{ error }}</div>
+                                    {% endfor %}
+                                    <button class="btn btn-outline-secondary w-100 mt-3" type="submit">Submit owner report</button>
                                 </form>
                             {% endif %}
                         </div>

@@ -7,10 +7,12 @@ This reference summarizes the main persisted models and the rules that matter mo
 | Model | Purpose | Key relations | Important rules |
 | --- | --- | --- | --- |
 | `CustomUser` | primary account model | one-to-one profiles, related listings, files, messages | email unique and normalized; role constrained to `student`, `realtor`, `moderator`, `support`, `platform_admin`; non-staff role follows email policy; deactivation and deletion lifecycle fields tracked |
-| `StudentProfile` | student roommate/profile questionnaire | one-to-one to `CustomUser` | completion-oriented fields for roommate posts, compatibility, and profile setup; preserved across admin promotion for later reuse |
-| `AdminProfile` | staff/realtor profile record | one-to-one to `CustomUser` | lighter profile schema than student profile; required for staff and realtor completion state |
+| `StudentProfile` | student roommate/profile questionnaire | one-to-one to `CustomUser` | completion-oriented fields for roommate posts, compatibility, profile setup, and BC status verification; preserved across admin promotion for later reuse |
+| `AdminProfile` | staff/realtor profile record | one-to-one to `CustomUser` | lighter profile schema than student profile; required for staff and realtor completion state; realtor profiles capture owner/company type and company name when applicable |
 | `SupportInvestigation` | time-boxed sensitive-access grant | belongs to subject and opening staff user | required before support/platform-admin staff can inspect private files or message previews |
 | `AuditEvent` | append-only audit trail record | optional actor plus generic target reference | captures role changes, deactivations, sensitive data access, moderation actions, and account closure events |
+| `UserReport` | student report about another account | reporter to reported user | student-only reporter; target must be an active student or realtor/owner; staff and self-reports blocked; active-report uniqueness while open or in review |
+| `UserReportUpdate` | moderator activity log entry for a user report | belongs to `UserReport`, optional actor | preserves moderation comments and enforcement decisions over time |
 | `UserFile` | private document library file | belongs to `CustomUser` | per-user capacity enforced; validators inspect file contents; limited to PDFs and images; storage delete happens after commit |
 
 ## Listings App
@@ -40,8 +42,9 @@ Important fields:
 
 - ownership: `owner`
 - location: `address`, `latitude`, `longitude`
-- pricing: `price`, `utilities_estimate`, `parking_fee`, `security_deposit`, `application_fee`
-- availability: `start_date`, `end_date`, `status`
+- pricing: `price`, `utilities_estimate`, `parking_fee`, `security_deposit`, `application_fee`, `broker_fee`
+- availability and lease details: `start_date`, `end_date`, `status`, `lease_type`, `original_lease_holder`, `landlord_approval_required`, `documentation_type`
+- unit details: `property_type`, `space_type`, `rooms`, `bathrooms`, `sq_ft`, `no_stairs`, `renter_requirements`
 - moderation: `approval_status`, `submitted_for_approval_at`, `reviewed_at`, `approved_at`, `reviewed_by`, `approval_notes`
 - visibility: `is_hidden`
 
@@ -67,8 +70,18 @@ High-value fields used beyond simple display:
 - `noise_level`
 - `drink`
 - `party`
+- `institution_status`
 
 These inform profile completion, compatibility scoring, and roommate-post matching.
+
+### `AdminProfile`
+
+High-value fields used beyond simple display:
+
+- `organization_type`
+- `organization_name`
+
+These distinguish individual owners, property companies, and other listing-only accounts.
 
 ## Conversation State Fields
 

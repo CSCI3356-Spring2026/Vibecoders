@@ -25,13 +25,21 @@ LISTING_LEASE_TYPES = [
 LISTING_STATUS_CHOICES = [
     (LISTING_STATUS_AVAILABLE, "Available"),
     (LISTING_STATUS_PENDING, "Pending"),
-    (LISTING_STATUS_TAKEN, "Taken"),
+    (LISTING_STATUS_TAKEN, "Rented"),
 ]
 LISTING_PROPERTY_TYPES = [
     ("apartment", "Apartment"),
     ("house", "House"),
     ("studio", "Studio"),
     ("dorm", "Dormitory"),
+]
+LISTING_SPACE_ENTIRE_UNIT = "ENTIRE_UNIT"
+LISTING_SPACE_PRIVATE_ROOM = "PRIVATE_ROOM"
+LISTING_SPACE_SHARED_ROOM = "SHARED_ROOM"
+LISTING_SPACE_TYPES = [
+    (LISTING_SPACE_ENTIRE_UNIT, "Whole apartment / house"),
+    (LISTING_SPACE_PRIVATE_ROOM, "Private room"),
+    (LISTING_SPACE_SHARED_ROOM, "Shared room"),
 ]
 LISTING_APPROVAL_PENDING = "pending"
 LISTING_APPROVAL_APPROVED = "approved"
@@ -64,6 +72,7 @@ LISTING_REPORT_REASON_INACCURATE = "inaccurate"
 LISTING_REPORT_REASON_SAFETY = "safety"
 LISTING_REPORT_REASON_SPAM = "spam"
 LISTING_REPORT_REASON_UNAVAILABLE = "unavailable"
+LISTING_REPORT_REASON_INAPPROPRIATE = "inappropriate"
 LISTING_REPORT_REASON_OTHER = "other"
 LISTING_REPORT_REASON_CHOICES = [
     (LISTING_REPORT_REASON_SCAM, "Scam or suspicious"),
@@ -71,12 +80,14 @@ LISTING_REPORT_REASON_CHOICES = [
     (LISTING_REPORT_REASON_SAFETY, "Safety concern"),
     (LISTING_REPORT_REASON_SPAM, "Spam or duplicate"),
     (LISTING_REPORT_REASON_UNAVAILABLE, "No longer available"),
+    (LISTING_REPORT_REASON_INAPPROPRIATE, "Inappropriate content"),
     (LISTING_REPORT_REASON_OTHER, "Other"),
 ]
 LISTING_APPROVAL_VALUES = tuple(value for value, _ in LISTING_APPROVAL_CHOICES)
 LISTING_LEASE_TYPE_VALUES = tuple(value for value, _ in LISTING_LEASE_TYPES)
 LISTING_STATUS_VALUES = tuple(value for value, _ in LISTING_STATUS_CHOICES)
 LISTING_PROPERTY_TYPE_VALUES = tuple(value for value, _ in LISTING_PROPERTY_TYPES)
+LISTING_SPACE_TYPE_VALUES = tuple(value for value, _ in LISTING_SPACE_TYPES)
 LISTING_REPORT_STATUS_VALUES = tuple(value for value, _ in LISTING_REPORT_STATUS_CHOICES)
 LISTING_REPORT_REASON_VALUES = tuple(value for value, _ in LISTING_REPORT_REASON_CHOICES)
 LISTING_REPORT_UPDATE_ACTION_NOTE = "note"
@@ -175,6 +186,9 @@ class Listing(models.Model):
     STATUS_AVAILABLE = LISTING_STATUS_AVAILABLE
     STATUS_PENDING = LISTING_STATUS_PENDING
     STATUS_TAKEN = LISTING_STATUS_TAKEN
+    SPACE_ENTIRE_UNIT = LISTING_SPACE_ENTIRE_UNIT
+    SPACE_PRIVATE_ROOM = LISTING_SPACE_PRIVATE_ROOM
+    SPACE_SHARED_ROOM = LISTING_SPACE_SHARED_ROOM
     APPROVAL_PENDING = LISTING_APPROVAL_PENDING
     APPROVAL_APPROVED = LISTING_APPROVAL_APPROVED
     APPROVAL_REJECTED = LISTING_APPROVAL_REJECTED
@@ -185,6 +199,7 @@ class Listing(models.Model):
     LEASE_TYPES = LISTING_LEASE_TYPES
     STATUS_CHOICES = LISTING_STATUS_CHOICES
     PROPERTY_TYPES = LISTING_PROPERTY_TYPES
+    SPACE_TYPES = LISTING_SPACE_TYPES
     APPROVAL_CHOICES = LISTING_APPROVAL_CHOICES
     ARCHIVE_REASON_CHOICES = LISTING_ARCHIVE_REASON_CHOICES
     DOCUMENTATION_TYPE_CHOICES = LISTING_DOCUMENTATION_TYPE_CHOICES
@@ -206,6 +221,7 @@ class Listing(models.Model):
     bathrooms = models.DecimalField(max_digits=3, decimal_places=1, default=1.0)
     sq_ft = models.PositiveIntegerField(null=True, blank=True)
     property_type = models.CharField(max_length=20, choices=PROPERTY_TYPES, default="apartment")
+    space_type = models.CharField(max_length=20, choices=SPACE_TYPES, default=LISTING_SPACE_ENTIRE_UNIT)
 
     has_yard = models.BooleanField(default=False)
     has_parking = models.BooleanField(default=False)
@@ -229,6 +245,10 @@ class Listing(models.Model):
     pet_policy = models.TextField(blank=True)
     amenities = models.TextField(blank=True, help_text="Comma separated list")
     security_features = models.TextField(blank=True)
+    renter_requirements = models.TextField(
+        blank=True,
+        help_text="Roommate or renter expectations such as smoking, cleanliness, guests, or paperwork.",
+    )
 
     approval_status = models.CharField(max_length=16, choices=APPROVAL_CHOICES, default=APPROVAL_PENDING, db_index=True)
     submitted_for_approval_at = models.DateTimeField(null=True, blank=True)
@@ -323,6 +343,10 @@ class Listing(models.Model):
                 name="listing_property_type_valid",
             ),
             models.CheckConstraint(
+                condition=Q(space_type__in=LISTING_SPACE_TYPE_VALUES),
+                name="listing_space_type_valid",
+            ),
+            models.CheckConstraint(
                 condition=Q(approval_status__in=LISTING_APPROVAL_VALUES),
                 name="listing_approval_status_valid",
             ),
@@ -394,6 +418,7 @@ class Listing(models.Model):
             self._decimal_value("price")
             + self._decimal_value("security_deposit")
             + self._decimal_value("application_fee")
+            + self._decimal_value("broker_fee")
         )
 
     @property
@@ -654,6 +679,7 @@ class ListingReport(models.Model):
     REASON_SAFETY = LISTING_REPORT_REASON_SAFETY
     REASON_SPAM = LISTING_REPORT_REASON_SPAM
     REASON_UNAVAILABLE = LISTING_REPORT_REASON_UNAVAILABLE
+    REASON_INAPPROPRIATE = LISTING_REPORT_REASON_INAPPROPRIATE
     REASON_OTHER = LISTING_REPORT_REASON_OTHER
 
     REASON_CHOICES = LISTING_REPORT_REASON_CHOICES

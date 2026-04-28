@@ -178,10 +178,47 @@
                                     <div class="listing-filter-popover">
                                         <div class="listing-filter-menu-head">
                                             <h3 class="listing-filter-menu-title">More filters</h3>
-                                            <p class="listing-filter-menu-copy">Search, distance, dates, saved, and features</p>
+                                            <p class="listing-filter-menu-copy">Search, upfront cost, distance, dates, saved, and features</p>
                                         </div>
 
                                         <div class="listing-filter-stack">
+                                            <div class="listing-filter-select-grid">
+                                                <div>
+                                                    <label class="form-label" for="filter-property-type">Property type</label>
+                                                    <select class="form-select" id="filter-property-type" name="property_type">
+                                                        <option value="">Any property</option>
+                                                        {% for value, label in property_type_filters %}
+                                                            <option value="{{ value }}"{% if active_filters.property_type == value %} selected{% endif %}>
+                                                                {{ label }}
+                                                            </option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label class="form-label" for="filter-space-type">Space offered</label>
+                                                    <select class="form-select" id="filter-space-type" name="space_type">
+                                                        <option value="">Any space</option>
+                                                        {% for value, label in space_type_filters %}
+                                                            <option value="{{ value }}"{% if active_filters.space_type == value %} selected{% endif %}>
+                                                                {{ label }}
+                                                            </option>
+                                                        {% endfor %}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label class="form-label" for="filter-max-upfront">Maximum upfront cost</label>
+                                                <select class="form-select" id="filter-max-upfront" name="max_upfront">
+                                                    <option value="">Any upfront total</option>
+                                                    <option value="1500"{% if active_filters.max_upfront == "1500" %} selected{% endif %}>Up to $1,500</option>
+                                                    <option value="2000"{% if active_filters.max_upfront == "2000" %} selected{% endif %}>Up to $2,000</option>
+                                                    <option value="2500"{% if active_filters.max_upfront == "2500" %} selected{% endif %}>Up to $2,500</option>
+                                                    <option value="3000"{% if active_filters.max_upfront == "3000" %} selected{% endif %}>Up to $3,000</option>
+                                                    <option value="4000"{% if active_filters.max_upfront == "4000" %} selected{% endif %}>Up to $4,000</option>
+                                                    <option value="5000"{% if active_filters.max_upfront == "5000" %} selected{% endif %}>Up to $5,000</option>
+                                                    <option value="7500"{% if active_filters.max_upfront == "7500" %} selected{% endif %}>Up to $7,500</option>
+                                                </select>
+                                            </div>
                                             <div>
                                                 <label class="form-label" for="filter-max-distance">Distance from campus</label>
                                                 <select class="form-select" id="filter-max-distance" name="max_distance">
@@ -259,6 +296,24 @@
                                                         {% if active_filters.has_yard %}checked{% endif %}
                                                     >
                                                     <span>Yard</span>
+                                                </label>
+                                                <label class="listing-filter-checkbox-card">
+                                                    <input
+                                                        type="checkbox"
+                                                        name="no_stairs"
+                                                        value="1"
+                                                        {% if active_filters.no_stairs %}checked{% endif %}
+                                                    >
+                                                    <span>No stairs</span>
+                                                </label>
+                                                <label class="listing-filter-checkbox-card">
+                                                    <input
+                                                        type="checkbox"
+                                                        name="landlord_approval_required"
+                                                        value="1"
+                                                        {% if active_filters.landlord_approval_required %}checked{% endif %}
+                                                    >
+                                                    <span>Landlord approval</span>
                                                 </label>
                                             </div>
                                         </div>
@@ -378,7 +433,7 @@
                         <div class="app-meta">
                             <span class="app-meta-chip app-meta-chip-primary">{{ listings_total }} {% if has_listing_only_access %}owned{% else %}active{% endif %}</span>
                             <span class="app-meta-chip app-meta-chip-secondary">
-                                {% if active_filters.q or active_filters.min_bedrooms or active_filters.min_bathrooms or active_filters.min_price or active_filters.max_price or active_filters.lease_type or active_filters.max_distance or active_filters.availability_start or active_filters.availability_end or active_filters.has_parking or active_filters.is_furnished or active_filters.allows_pets or active_filters.has_yard or active_filters.saved %}
+                                {% if active_filters.q or active_filters.min_bedrooms or active_filters.min_bathrooms or active_filters.min_price or active_filters.max_price or active_filters.lease_type or active_filters.property_type or active_filters.space_type or active_filters.max_upfront or active_filters.max_distance or active_filters.availability_start or active_filters.availability_end or active_filters.has_parking or active_filters.is_furnished or active_filters.allows_pets or active_filters.has_yard or active_filters.no_stairs or active_filters.landlord_approval_required or active_filters.saved %}
                                     Filtered
                                 {% else %}
                                     {% if has_listing_only_access %}Your inventory{% else %}All listings{% endif %}
@@ -478,6 +533,42 @@
                                 </select>
                                 </div>
                                 <div>
+                                    <label class="form-label" for="filter-property-type">Property type</label>
+                                    <select class="form-select" id="filter-property-type" name="property_type">
+                                        <option value="">Any property</option>
+                                        {% for value, label in property_type_filters %}
+                                            <option value="{{ value }}"{% if active_filters.property_type == value %} selected{% endif %}>
+                                                {{ label }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="form-label" for="filter-space-type">Space offered</label>
+                                    <select class="form-select" id="filter-space-type" name="space_type">
+                                        <option value="">Any space</option>
+                                        {% for value, label in space_type_filters %}
+                                            <option value="{{ value }}"{% if active_filters.space_type == value %} selected{% endif %}>
+                                                {{ label }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="form-label" for="filter-max-upfront">Max upfront cost</label>
+                                    <input
+                                        class="form-control"
+                                        id="filter-max-upfront"
+                                        type="number"
+                                        name="max_upfront"
+                                        min="{{ price_filter_min }}"
+                                        max="{{ price_filter_max }}"
+                                        step="1"
+                                        value="{{ active_filters.max_upfront }}"
+                                        placeholder="4000"
+                                    >
+                                </div>
+                                <div>
                                     <label class="form-label" for="filter-max-distance">Max distance from campus</label>
                                     <input
                                         class="form-control"
@@ -548,6 +639,24 @@
                                                 {% if active_filters.has_yard %}checked{% endif %}
                                             >
                                             <span>Has a yard</span>
+                                        </label>
+                                        <label class="listing-filter-checkbox">
+                                            <input
+                                                type="checkbox"
+                                                name="no_stairs"
+                                                value="1"
+                                                {% if active_filters.no_stairs %}checked{% endif %}
+                                            >
+                                            <span>No stairs</span>
+                                        </label>
+                                        <label class="listing-filter-checkbox">
+                                            <input
+                                                type="checkbox"
+                                                name="landlord_approval_required"
+                                                value="1"
+                                                {% if active_filters.landlord_approval_required %}checked{% endif %}
+                                            >
+                                            <span>Landlord approval required</span>
                                         </label>
                                     </div>
                                 </div>

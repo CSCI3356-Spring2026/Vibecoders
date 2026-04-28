@@ -17,8 +17,8 @@
                 <div class="app-header-main">
                     <div>
                         <p class="app-kicker">Roommates</p>
-                        <h1 class="app-title">Find your next roommate.</h1>
-                        <p class="app-subtitle">Browse group posts and student profiles, compare fit, and reach out directly.</p>
+                        <h1 class="app-title">Roommates</h1>
+                        <p class="app-subtitle">Posts, profiles, and group matching.</p>
                     </div>
                     <div class="app-actions">
                         <a class="btn btn-outline-secondary" href="{% url 'listings:listing_list' %}">Browse listings</a>
@@ -87,9 +87,9 @@
                         >Filters</button>
                         {% if can_manage_roommate_post %}
                             {% if has_any_roommate_post %}
-                                <a class="btn btn-brand btn-sm" href="?tab=groups">Manage Group</a>
+                                <a class="btn btn-brand btn-sm" href="?tab=groups">Manage group</a>
                             {% else %}
-                                <button class="btn btn-brand btn-sm" type="button" onclick="document.getElementById('rmhub-create-dialog').showModal()">+ Create Post</button>
+                                <button class="btn btn-brand btn-sm" type="button" onclick="document.getElementById('rmhub-create-dialog').showModal()">Create post</button>
                             {% endif %}
                         {% endif %}
                     </div>
@@ -99,7 +99,7 @@
                             {% if has_any_roommate_post %}
                                 {# Already on mypost tab — no button needed #}
                             {% else %}
-                                <button class="btn btn-brand btn-sm" type="button" onclick="document.getElementById('rmhub-create-dialog').showModal()">+ Create Post</button>
+                                <button class="btn btn-brand btn-sm" type="button" onclick="document.getElementById('rmhub-create-dialog').showModal()">Create post</button>
                             {% endif %}
                         {% endif %}
                     </div>
@@ -249,7 +249,7 @@
                                             type="button"
                                             onclick="rmhubExpandPost(this)"
                                             aria-expanded="false"
-                                        >Details ▾</button>
+                                        >Details</button>
                                         {% if post.ui_can_message %}
                                             <a class="btn btn-brand btn-sm" href="{{ post.ui_message_url }}">{{ post.ui_message_label }}</a>
                                         {% elif can_manage_roommate_post %}
@@ -467,7 +467,7 @@
                                                     type="button"
                                                     onclick="rmhubExpandPost(this)"
                                                     aria-expanded="false"
-                                                >Details ▾</button>
+                                                >Details</button>
                                             </div>
 
                                             <div class="group-post-expanded" hidden>

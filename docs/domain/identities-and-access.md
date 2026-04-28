@@ -8,6 +8,7 @@ Padly uses Google OAuth exclusively. Traditional email/password signup and passw
 
 - Identity is anchored to a verified Google email.
 - Role defaults are derived from email domain.
+- `@bc.edu` and other configured student domains become student accounts; external Google accounts become listing-only realtor/owner accounts unless promoted.
 - Legal acceptance is enforced before login completion.
 - Recent authentication is tracked for sensitive account actions.
 
@@ -28,7 +29,7 @@ Padly uses Google OAuth exclusively. Traditional email/password signup and passw
 - `set_staff_role()` is the supported way to assign `moderator`, `support`, or `platform_admin`.
 - Removing staff access returns the user to the email-derived default role.
 - `set_user_role` is the supported operational command for role changes outside the UI.
-- The Padly staff roles control the custom staff workspace. Raw Django `/admin/` access is still governed separately by Django staff permissions and is not auto-synced.
+- The Padly staff roles control the custom staff workspace. Raw Django `/admin/` access is opt-in through `DJANGO_ADMIN_ENABLED=true` and remains separate from product role policy.
 
 ## User Model
 
@@ -117,7 +118,9 @@ Legal acceptance is versioned by `LEGAL_DOCUMENT_VERSION`.
 | Model | Applies To | Purpose |
 | --- | --- | --- |
 | `StudentProfile` | student users | roommate and lifestyle questionnaire plus profile basics |
-| `AdminProfile` | realtor and staff users | lightweight profile record used for completion and display |
+| `AdminProfile` | realtor and staff users | lightweight profile record used for completion, display, and owner/company verification |
+
+Student profile completion requires a BC status of undergraduate, graduate, or alumni. Realtor completion requires an organization type of individual owner, property company, or other; property-company profiles also require an organization name.
 
 ### Profile lifecycle rules
 
@@ -140,6 +143,7 @@ Legal acceptance is versioned by `LEGAL_DOCUMENT_VERSION`.
 
 - Realtors do not browse the normal marketplace
 - Their primary workspace is `/users/posts/`
+- They can create and manage listings for the owner/realtor demo but cannot initiate renter conversations
 
 ### Staff users
 
