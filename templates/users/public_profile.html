@@ -54,11 +54,6 @@
                                     </button>
                                 </form>
                             {% endif %}
-                            {% if existing_direct_conversation %}
-                                <a class="btn btn-brand" href="{% url 'communications:detail' existing_direct_conversation.id %}">Open chat</a>
-                            {% elif can_message_user %}
-                                <a class="btn btn-brand" href="#message-user">Message</a>
-                            {% endif %}
                             {% if request.user.can_use_roommate_matching %}
                                 {% if is_in_group %}
                                     <span class="btn btn-outline-secondary">In your group</span>
@@ -71,6 +66,11 @@
                                         <button class="btn btn-outline-secondary" type="submit">Invite to group</button>
                                     </form>
                                 {% endif %}
+                            {% endif %}
+                            {% if existing_direct_conversation %}
+                                <a class="btn btn-brand" href="{% url 'communications:detail' existing_direct_conversation.id %}">Open chat</a>
+                            {% elif can_message_user %}
+                                <a class="btn btn-brand" href="#message-user">Message</a>
                             {% endif %}
                         {% endif %}
                         <a class="btn btn-outline-secondary" href="{% url 'roommates:hub' %}">Back to Roommates</a>
@@ -118,34 +118,6 @@
                         {% endif %}
                     </section>
 
-                    {% if can_message_user %}
-                        <section class="profile-public-panel" id="message-user">
-                            <div class="profile-public-panel-head">
-                                <div>
-                                    <p class="profile-public-panel-kicker">Direct Message</p>
-                                    <h2 class="app-section-heading">Message {{ target.display_name }}</h2>
-                                    <p class="app-panel-copy">Start a direct housing conversation without leaving the roommate flow.</p>
-                                </div>
-                                {% if existing_direct_conversation %}
-                                    <a class="btn btn-outline-secondary" href="{% url 'communications:detail' existing_direct_conversation.id %}">Open chat</a>
-                                {% endif %}
-                            </div>
-                            {% if existing_direct_conversation %}
-                                <p class="profile-public-empty-copy">You already have a conversation open. Jump back into the thread to continue.</p>
-                            {% else %}
-                                <form class="profile-public-message-form" method="post" action="{% url 'communications:start_direct_conversation' target.id %}">
-                                    {% csrf_token %}
-                                    {{ direct_message_form.body }}
-                                    <div class="app-actions mt-3">
-                                        <button class="btn btn-brand" type="submit">Start chat</button>
-                                    </div>
-                                </form>
-                            {% endif %}
-                        </section>
-                    {% endif %}
-                </main>
-
-                <aside class="profile-public-side">
                     {% if request.user.id != target.id %}
                         <section class="profile-public-panel" id="profile-safety">
                             <div class="profile-public-panel-head">
@@ -176,6 +148,34 @@
                         </section>
                     {% endif %}
 
+                    {% if can_message_user %}
+                        <section class="profile-public-panel" id="message-user">
+                            <div class="profile-public-panel-head">
+                                <div>
+                                    <p class="profile-public-panel-kicker">Direct Message</p>
+                                    <h2 class="app-section-heading">Message {{ target.display_name }}</h2>
+                                    <p class="app-panel-copy">Start a direct housing conversation without leaving the roommate flow.</p>
+                                </div>
+                                {% if existing_direct_conversation %}
+                                    <a class="btn btn-outline-secondary" href="{% url 'communications:detail' existing_direct_conversation.id %}">Open chat</a>
+                                {% endif %}
+                            </div>
+                            {% if existing_direct_conversation %}
+                                <p class="profile-public-empty-copy">You already have a conversation open. Jump back into the thread to continue.</p>
+                            {% else %}
+                                <form class="profile-public-message-form" method="post" action="{% url 'communications:start_direct_conversation' target.id %}">
+                                    {% csrf_token %}
+                                    {{ direct_message_form.body }}
+                                    <div class="app-actions mt-3">
+                                        <button class="btn btn-brand" type="submit">Start chat</button>
+                                    </div>
+                                </form>
+                            {% endif %}
+                        </section>
+                    {% endif %}
+                </main>
+
+                <aside class="profile-public-side">
                     <section class="profile-public-panel">
                         <div class="profile-public-panel-head">
                             <div>
